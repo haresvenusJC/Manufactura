@@ -24,7 +24,17 @@
                 </div>
                 <hr class="border-slate-800">
                 <ul class="space-y-1" style="list-style: none; padding: 0;">
-                    <li><button onclick="window.loadView('catalogo')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Catálogo</button></li>
+                    <!-- Menú Catálogos con Submenú Desplegable -->
+                    <li>
+                        <button onclick="window.toggleSubmenu('submenu-catalogos')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
+                            <span>Catálogos</span>
+                            <span id="flecha-catalogos" class="text-xs">▼</span>
+                        </button>
+                        <ul id="submenu-catalogos" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
+                            <li><button onclick="window.loadView('catalogo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Productos</button></li>
+                            <li><button onclick="window.loadView('proveedores')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Proveedores</button></li>
+                        </ul>
+                    </li>
                     <li><button onclick="window.loadView('inventario')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Inventario</button></li>
                     <li><button onclick="window.loadView('compras')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Compras</button></li>
                     <li><button onclick="window.loadView('produccion')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Producción</button></li>
@@ -42,6 +52,14 @@
                 <h2 class="text-xl font-bold text-sky-400">Catálogo de Productos y BOM</h2>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorCatalogo">Cargando catálogo...</div>
+                </div>
+            </section>
+
+            <!-- Vista: Proveedores -->
+            <section id="view-proveedores" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-sky-400">Gestión de Proveedores y Compras</h2>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div id="contenedorProveedores">Cargando módulo de proveedores...</div>
                 </div>
             </section>
 
@@ -125,7 +143,6 @@
             <section id="view-produccion" class="vista-seccion hidden space-y-4">
                 <h2 class="text-xl font-bold text-sky-400">Órdenes de Producción</h2>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-6">
-                    <!-- Formulario o tabla de producción -->
                     <div id="contenedorProduccion">Cargando módulo de producción...</div>
                     <hr class="border-slate-800">
                     <div>

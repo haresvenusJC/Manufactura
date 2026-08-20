@@ -24,6 +24,13 @@ export function configurarFormularioCompras() {
     const formCompras = document.getElementById('formCompras');
     if (!formCompras) return;
 
+    const selectMoneda = document.getElementById('compraMoneda');
+    if (selectMoneda) {
+        selectMoneda.addEventListener('change', () => {
+            toggleTipoCambio('compraMoneda', 'contenedorTipoCambio', 'compraTipoCambio');
+        });
+    }
+
     formCompras.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -54,7 +61,14 @@ export function configurarFormularioCompras() {
                 
                 const { error: errUpdate } = await supabaseClient
                     .from('materias_primas')
-                    .update({ stock_actual: nuevoStock, costo_unitario: costoUnitario, proveedor: proveedor, moneda: moneda, tipo_cambio: tipoCambio })
+                    .update({ 
+                        stock_actual: nuevoStock, 
+                        costo_unitario: costoUnitario, 
+                        proveedor: proveedor, 
+                        unidad_medida: unidad,
+                        moneda: moneda, 
+                        tipo_cambio: tipoCambio 
+                    })
                     .eq('id', materiaPrimaId);
 
                 if (errUpdate) throw errUpdate;
@@ -93,6 +107,7 @@ export function configurarFormularioCompras() {
 
             alert("¡Compra y lote registrados exitosamente, mi lord!");
             formCompras.reset();
+            toggleTipoCambio('compraMoneda', 'contenedorTipoCambio', 'compraTipoCambio');
             cargarInventarioCompleto();
 
         } catch (error) {
