@@ -43,7 +43,9 @@ export async function configurarFormularioCompras() {
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-300 mb-1">Proveedor</label>
-                        <input type="text" id="compraProveedor" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white" placeholder="Proveedor" required>
+                        <select id="compraProveedorId" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-white" required>
+                            <option value="">Seleccione un proveedor...</option>
+                        </select>
                     </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
@@ -72,7 +74,7 @@ export async function configurarFormularioCompras() {
                         <label class="block text-xs font-medium text-gray-300 mb-1">Unidad de Medida</label>
                         <select id="inputItemUnidad" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white">
                             <option value="Kilogramos (kg)">Kilogramos (kg)</option>
-                            gramos (g)">Gramos (g)</option>
+                            <option value="Gramos (g)">Gramos (g)</option>
                             <option value="Litros (L)">Litros (L)</option>
                             <option value="Mililitros (ml)">Mililitros (ml)</option>
                             <option value="Piezas (pza)">Piezas (pza)</option>
@@ -139,7 +141,7 @@ export async function configurarFormularioCompras() {
         inputFecha.value = new Date().toISOString().split('T')[0];
     }
 
-    await configurarDatalistProveedores();
+    await cargarSelectProveedores();
     await configurarDatalistInsumosUnificados();
 
     const selectMoneda = document.getElementById('compraMoneda');
@@ -197,9 +199,16 @@ export async function configurarFormularioCompras() {
 
         const fechaCompra = document.getElementById('compraFecha').value;
         const factura = document.getElementById('compraFactura').value.trim();
-        const proveedor = document.getElementById('compraProveedor').value.trim();
+        const proveedorIdVal = document.getElementById('compraProveedorId').value;
         const moneda = document.getElementById('compraMoneda').value;
         const tipoCambio = moneda === 'USD' ? parseFloat(document.getElementById('compraTipoCambio').value) || 1 : 1;
+
+        if (!proveedorIdVal) {
+            alert("Por favor seleccione un proveedor válido, mi lord.");
+            return;
+        }
+
+        const proveedorId = parseInt(proveedorIdVal);
 
         if (!confirm(`¿Desea cerrar y registrar esta compra con ${partidasCompra.length} partida(s) bajo la factura ${factura}, mi lord?`)) {
             return;
@@ -227,7 +236,7 @@ export async function configurarFormularioCompras() {
                         .update({
                             stock_actual: nuevoStock,
                             costo_unitario: item.costo,
-                            proveedor: proveedor,
+                            proveedor_id: proveedorId,
                             unidad_medida: item.unidad,
                             moneda: moneda,
                             tipo_cambio: tipoCambio
@@ -243,7 +252,7 @@ export async function configurarFormularioCompras() {
                             unidad_medida: item.unidad,
                             stock_actual: item.cantidad,
                             costo_unitario: item.costo,
-                            proveedor: proveedor,
+                            proveedor_id: proveedorId,
                             moneda: moneda,
                             tipo_cambio: tipoCambio
                         }])
@@ -284,7 +293,7 @@ export async function configurarFormularioCompras() {
             
             renderizarTablaPartidas();
             toggleTipoCambio('compraMoneda', 'contenedorTipoCambio', 'compraTipoCambio');
-            await configurarDatalistProveedores();
+            await cargarSelectProveedores();
             await configurarDatalistInsumosUnificados();
             cargarInventarioCompleto();
 
@@ -319,42 +328,33 @@ function renderizarTablaPartidas() {
     `).join('');
 }
 
-// Exponer la función de eliminar al ámbito global para el botón de la tabla generada
 window.eliminarPartidaCompra = function(index) {
     partidasCompra.splice(index, 1);
     renderizarTablaPartidas();
 };
 
-async function configurarDatalistProveedores() {
-    let inputProveedor = document.getElementById('compraProveedor');
-    if (!inputProveedor) return;
-
-    let listaProveedores = ['Hares', 'Robertet', 'Escowill', 'Proveedor General'];
+async function cargarSelectProveedores() {
+    const selectProveedor = document.getElementById('compraProveedorId');
+    if (!selectProveedor) return;
 
     try {
         const { data, error } = await supabaseClient
-            .from('materias_primas')
-            .select('proveedor');
+            .from('proveedores')
+            .select('id, nombre')
+            .order('nombre', { ascending: true });
 
-        if (!error && data) {
-            const extraidos = data.map(item => item.proveedor).filter(p => p && p.trim() !== '');
-            listaProveedores = [...new Set([...listaProveedores, ...extraidos])];
+        if (error) throw error;
+
+        let html = '<option value="">Seleccione un proveedor...</option>';
+        if (data && data.length > 0) {
+            data.forEach(p => {
+                html += `<option value="${p.id}">${p.nombre}</option>`;
+            });
         }
+        selectProveedor.innerHTML = html;
     } catch (err) {
         console.warn("Aviso al cargar proveedores:", err);
     }
-
-    listaProveedores.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
-
-    let datalist = document.getElementById('listaProveedoresDatalist');
-    if (!datalist) {
-        datalist = document.createElement('datalist');
-        datalist.id = 'listaProveedoresDatalist';
-        document.body.appendChild(datalist);
-    }
-
-    datalist.innerHTML = listaProveedores.map(prov => `<option value="${prov}">`).join('');
-    inputProveedor.setAttribute('list', 'listaProveedoresDatalist');
 }
 
 async function configurarDatalistInsumosUnificados() {
@@ -366,7 +366,7 @@ async function configurarDatalistInsumosUnificados() {
     try {
         const resMP = await supabaseClient
             .from('materias_primas')
-            .select('nombre, unidad_medida, costo_unitario, proveedor');
+            .select('nombre, unidad_medida, costo_unitario');
 
         if (!resMP.error && resMP.data) {
             catalogoUnificado.push(...resMP.data);
@@ -374,7 +374,7 @@ async function configurarDatalistInsumosUnificados() {
 
         const resProd = await supabaseClient
             .from('productos')
-            .select('nombre, unidad_medida, costo_unitario, proveedor');
+            .select('nombre, unidad_medida, costo_unitario');
 
         if (!resProd.error && resProd.data) {
             catalogoUnificado.push(...resProd.data);

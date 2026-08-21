@@ -3,11 +3,11 @@ import { cargarInventarioCompleto } from './inventario.js';
 
 export async function cargarModuloProduccion() {
     const contenedorProd = document.getElementById('contenedorProduccion');
-    const contenedorHistorial = document.getElementById('contenedorHistorialProduccion');
     
     try {
         if (!supabaseClient) return;
 
+        // 1. Renderizar el formulario de ejecución de órdenes incluyendo Costos Indirectos[cite: 6]
         if (contenedorProd) {
             contenedorProd.innerHTML = `
                 <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-xl max-w-2xl mx-auto">
@@ -16,372 +16,315 @@ export async function cargarModuloProduccion() {
                         <div>
                             <label class="block text-xs font-medium text-slate-400 mb-1">PRODUCTO A PRODUCIR</label>
                             <select id="productoProducirId" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
-                                <option value="">Cargando productos...</option>
+                                <option value="">Seleccione un producto...</option>
                             </select>
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-medium text-slate-400 mb-1">CANTIDAD A PRODUCIR</label>
-                                <input type="number" step="1" id="cantidadProducir" placeholder="0" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
+                                <input type="number" id="cantidadProducida" min="1" step="any" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-slate-400 mb-1">EMPLEADOS INVOLUCRADOS</label>
-                                <input type="number" step="1" id="empleadosProduccion" placeholder="1" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                                <label class="block text-xs font-medium text-slate-400 mb-1">NÚMERO DE LOTE RESULTANTE</label>
+                                <input type="text" id="numeroLoteResultante" placeholder="Ej: LOTE-PT-2026-001" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
                             </div>
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-3 gap-3">
                             <div>
-                                <label class="block text-xs font-medium text-slate-400 mb-1">COSTO TOTAL MANO DE OBRA (MXN)</label>
-                                <input type="number" step="0.01" id="costoManoObra" placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
+                                <label class="block text-xs font-medium text-slate-400 mb-1">EMPLEADOS</label>
+                                <input type="number" id="empleadosInvolucrados" min="1" value="1" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-slate-400 mb-1">COSTOS INDIRECTOS / OTROS (MXN)</label>
-                                <input type="number" step="0.01" id="costosIndirectos" placeholder="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" value="0">
+                                <label class="block text-xs font-medium text-slate-400 mb-1">MANO DE OBRA ($)</label>
+                                <input type="number" id="costoManoObra" min="0" step="0.01" value="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-400 mb-1">COSTOS INDIRECTOS ($)</label>
+                                <input type="number" id="costosIndirectos" min="0" step="0.01" value="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
                             </div>
                         </div>
-                        <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">NÚMERO DE LOTE DE PRODUCTO TERMINADO</label>
-                            <input type="text" id="loteTerminado" placeholder="Ej. 444" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
-                        </div>
-                        <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-medium py-2 rounded-lg transition text-sm shadow-md" style="cursor: pointer;">Calcular y Ejecutar Orden</button>
+                        <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2 px-4 rounded-lg transition-all text-sm shadow-lg">
+                            🚀 Registrar Producción y Descontar Insumos (FIFO)
+                        </button>
                     </form>
                 </div>
-
-                <!-- Modal de Desglose Analítico Profesional -->
-                <div id="modalDesgloseOrden" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
-                    <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl max-w-lg w-full p-6 text-slate-100">
-                        <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-4">
-                            <h4 class="text-amber-400 font-bold text-base flex items-center gap-2">📊 Desglose Analítico de Orden de Producción</h4>
-                            <button id="cerrarModalDesglose" class="text-slate-400 hover:text-white text-lg font-bold px-2" style="cursor: pointer;">&times;</button>
-                        </div>
-                        <div id="contenidoDesgloseModal" class="space-y-3 text-sm">
-                            <!-- Inyección dinámica de datos analíticos -->
-                        </div>
-                        <div class="mt-6 pt-3 border-t border-slate-800 text-right">
-                            <button id="btnCerrarModal" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-lg text-xs font-medium transition" style="cursor: pointer;">Cerrar Desglose</button>
-                        </div>
-                    </div>
-                </div>
             `;
-            
-            // Configurar eventos de cierre del modal
-            const modal = document.getElementById('modalDesgloseOrden');
-            const cerrarModal = () => modal.classList.add('hidden');
-            document.getElementById('cerrarModalDesglose').onclick = cerrarModal;
-            document.getElementById('btnCerrarModal').onclick = cerrarModal;
-            modal.onclick = (e) => { if (e.target === modal) cerrarModal(); };
 
+            // Poblar el selector de productos terminados[cite: 6]
+            const { data: productos, error: errProd } = await supabaseClient
+                .from('productos')
+                .select('id, nombre, sku')
+                .eq('tipo', 'producto');
+
+            const selectProd = document.getElementById('productoProducirId');
+            if (!errProd && productos) {
+                selectProd.innerHTML = '<option value="">Seleccione un producto...</option>';
+                productos.forEach(p => {
+                    selectProd.innerHTML += `<option value="${p.id}">${p.nombre} (${p.sku || 'Sin SKU'})</option>`;
+                });
+            }
+
+            // Escuchar el evento submit del formulario[cite: 6]
             const formOrden = document.getElementById('formOrdenProduccion');
-            formOrden.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const productoId = parseInt(document.getElementById('productoProducirId').value);
-                const cantidad = parseFloat(document.getElementById('cantidadProducir').value) || 0;
-                const empleados = parseInt(document.getElementById('empleadosProduccion').value) || 1;
-                const costoManoObra = parseFloat(document.getElementById('costoManoObra').value) || 0;
-                const costosIndirectos = parseFloat(document.getElementById('costosIndirectos').value) || 0;
-                const loteTerminado = document.getElementById('loteTerminado').value.trim();
+            if (formOrden) {
+                formOrden.onsubmit = async (e) => {
+                    e.preventDefault();
+                    
+                    const datosOrden = {
+                        productoId: document.getElementById('productoProducirId').value,
+                        cantidadProducida: parseFloat(document.getElementById('cantidadProducida').value),
+                        numeroLote: document.getElementById('numeroLoteResultante').value.trim(),
+                        empleadosInvolucrados: parseInt(document.getElementById('empleadosInvolucrados').value) || 1,
+                        costoTotalManoObra: parseFloat(document.getElementById('costoManoObra').value) || 0,
+                        costoTotalIndirectos: parseFloat(document.getElementById('costosIndirectos').value) || 0,
+                        moneda: 'MXN'
+                    };
 
-                try {
-                    let costoTotalMateriales = 0;
+                    const btnSubmit = formOrden.querySelector('button[type="submit"]');
+                    btnSubmit.disabled = true;
+                    btnSubmit.textContent = "Procesando inventario (FIFO)...";
 
-                    async function calcularCostoLista(tabla) {
-                        const { data: items, error } = await supabaseClient
-                            .from(tabla)
-                            .select('materia_prima_id, hijo_producto_id, cantidad_requerida, factor_merma')
-                            .eq('producto_id', productoId);
-
-                        if (!error && items && items.length > 0) {
-                            for (const item of items) {
-                                const cantReq = Number(item.cantidad_requerida || 0);
-                                const merma = Number(item.factor_merma || 1) || 1;
-                                let costoUnitario = 0;
-
-                                if (item.materia_prima_id) {
-                                    const { data: matData } = await supabaseClient
-                                        .from('materias_primas')
-                                        .select('costo_unitario')
-                                        .eq('id', item.materia_prima_id)
-                                        .single();
-                                    costoUnitario = matData ? Number(matData.costo_unitario || 0) : 0;
-                                } else if (item.hijo_producto_id) {
-                                    const { data: prodData } = await supabaseClient
-                                        .from('productos')
-                                        .select('costo_unitario')
-                                        .eq('id', item.hijo_producto_id)
-                                        .single();
-                                    costoUnitario = prodData ? Number(prodData.costo_unitario || 0) : 0;
-                                }
-
-                                costoTotalMateriales += (cantReq * merma * costoUnitario * cantidad);
+                    try {
+                        const resultado = await registrarOrdenDeProduccionCompleta(datosOrden);
+                        if (resultado.success) {
+                            alert("✅ " + resultado.mensaje);
+                            formOrden.reset();
+                            cargarHistorialProduccion();
+                            if (typeof cargarInventarioCompleto === 'function') {
+                                cargarInventarioCompleto();
                             }
+                        } else {
+                            alert("❌ Error: " + resultado.error);
                         }
+                    } catch (ex) {
+                        alert("❌ Error crítico: " + ex.message);
+                    } finally {
+                        btnSubmit.disabled = false;
+                        btnSubmit.textContent = "🚀 Registrar Producción y Descontar Insumos (FIFO)";
                     }
+                };
+            }
+        }
 
-                    await calcularCostoLista('bom');
-                    await calcularCostoLista('componentes');
+        cargarHistorialProduccion();
 
-                    const costoTotalGlobal = costoTotalMateriales + costoManoObra + costosIndirectos;
-                    const costoUnitarioFinal = cantidad > 0 ? costoTotalGlobal / cantidad : 0;
+    } catch (err) {
+        console.error("Error al inicializar el módulo de producción:", err);
+    }
+}
 
-                    const confirmacion = confirm(
-                        `--- RESUMEN DE PRODUCCIÓN ---\n` +
-                        `• Costo Total de Materiales: $${costoTotalMateriales.toFixed(2)}\n` +
-                        `• Costo de Mano de Obra: $${costoManoObra.toFixed(2)}\n` +
-                        `• Costos Indirectos / Otros: $${costosIndirectos.toFixed(2)}\n` +
-                        `-----------------------------------------\n` +
-                        `• Costo Total de la Orden: $${costoTotalGlobal.toFixed(2)}\n` +
-                        `• Costo Unitario Final: $${costoUnitarioFinal.toFixed(2)}\n\n` +
-                        `¿Desea proceder a registrar la orden y el lote, mi lord?`
-                    );
+// Función principal transaccional adaptada al esquema exacto de Supabase
+export async function registrarOrdenDeProduccionCompleta(datosOrden) {
+    try {
+        if (!supabaseClient) throw new Error("Cliente de Supabase no inicializado.");
 
-                    if (!confirmacion) return;
+        const productoId = Number(datosOrden.productoId);
+        const cantidadProducida = Number(datosOrden.cantidadProducida) || 0;
+        const numeroLote = String(datosOrden.numeroLote || '').trim();
+        const moneda = String(datosOrden.moneda || 'MXN');
+        const empleadosInvolucrados = Number(datosOrden.empleadosInvolucrados) || 1;
+        const costoTotalManoObra = Number(datosOrden.costoTotalManoObra) || 0;
+        const costoTotalIndirectos = Number(datosOrden.costoTotalIndirectos) || 0;
 
-                    const { error: errLote } = await supabaseClient
-                        .from('lotes_producto_terminado')
-                        .insert([{
-                            producto_id: productoId,
-                            numero_lote: loteTerminado,
-                            stock_actual: cantidad,
-                            costo_unitario: costoUnitarioFinal,
-                            moneda: 'MXN',
-                            fecha_produccion: new Date().toISOString().split('T')[0]
-                        }]);
+        if (!productoId || cantidadProducida <= 0 || !numeroLote) {
+            throw new Error("Faltan datos obligatorios o la cantidad a producir es inválida.");
+        }
 
-                    if (errLote) throw errLote;
+        let costoTotalMateriales = 0;
 
-                    const { error: errInsert } = await supabaseClient
-                        .from('ordenes_produccion')
-                        .insert([{
-                            producto_id: productoId,
-                            cantidad_producida: cantidad,
-                            empleados_involucrados: empleados,
-                            costo_total_materiales: costoTotalMateriales,
-                            costo_total_mano_obra: (costoManoObra + costosIndirectos),
-                            costo_unitario_final: costoUnitarioFinal,
-                            numero_lote: loteTerminado
-                        }]);
+        // 1. Obtener la lista de materiales (BOM) del producto usando las relaciones oficiales[cite: 6]
+        const { data: componentes, error: errComp } = await supabaseClient
+            .from('bom')
+            .select(`
+                materia_prima_id, 
+                hijo_producto_id, 
+                cantidad_requerida, 
+                factor_merma,
+                materias_primas ( id, nombre ),
+                productos:hijo_producto_id ( id, nombre )
+            `)
+            .eq('producto_id', productoId);
 
-                    if (errInsert) throw errInsert;
+        if (errComp) throw errComp;
 
-                    alert("¡Orden de producción, costos y lote registrados exitosamente, mi lord!");
-                    formOrden.reset();
-                    await cargarModuloProduccion();
-                    await cargarInventarioCompleto();
-                } catch (err) {
-                    console.error("Error al ejecutar orden de producción:", err);
-                    alert("Error al registrar la orden de producción. Verifique los datos en consola.");
+        if (!componentes || componentes.length === 0) {
+            throw new Error("El producto seleccionado no tiene una receta o BOM registrada.");
+        }
+
+        for (const comp of componentes) {
+            const esMateriaPrima = Boolean(comp.materia_prima_id);
+            const componenteTargetId = Number(comp.materia_prima_id || comp.hijo_producto_id);
+            const nombreComponente = comp.materias_primas?.nombre || comp.productos?.nombre || `ID: ${componenteTargetId}`;
+
+            if (!componenteTargetId) {
+                throw new Error("Error en la receta (BOM): Se encontró un componente sin un identificador válido.");
+            }
+
+            const merma = Number(comp.factor_merma || 1);
+            const cantidadTotalRequerida = Number(comp.cantidad_requerida) * cantidadProducida * merma;
+            let cantidadPendienteDescontar = cantidadTotalRequerida;
+
+            let lotesEncontrados = [];
+            let tablaDestino = '';
+
+            // 2. Consultar lotes selectivamente según la tabla de origen correspondiente
+            if (esMateriaPrima) {
+                tablaDestino = 'lotes_materias_primas';
+                const { data: lotesMP, error: errMP } = await supabaseClient
+                    .from(tablaDestino)
+                    .select('id, materia_prima_id, stock_actual, costo_unitario, fecha_ingreso')
+                    .eq('materia_prima_id', componenteTargetId)
+                    .gt('stock_actual', 0)
+                    .order('fecha_ingreso', { ascending: true });
+
+                if (!errMP && lotesMP) {
+                    lotesEncontrados = lotesMP;
                 }
-            });
+            } else {
+                tablaDestino = 'lotes_producto_terminado';
+                const { data: lotesPT, error: errPT } = await supabaseClient
+                    .from(tablaDestino)
+                    .select('id, producto_id, stock_actual, costo_unitario, created_at')
+                    .eq('producto_id', componenteTargetId)
+                    .gt('stock_actual', 0)
+                    .order('created_at', { ascending: true });
+
+                if (!errPT && lotesPT) {
+                    lotesEncontrados = lotesPT;
+                }
+            }
+
+            if (!lotesEncontrados || lotesEncontrados.length === 0) {
+                throw new Error(`Stock insuficiente: El componente "${nombreComponente}" no cuenta con lotes activos en inventario.`);
+            }
+
+            // 3. Aplicar descuento estricto por FIFO sobre los lotes encontrados
+            for (const lote of lotesEncontrados) {
+                if (cantidadPendienteDescontar <= 0) break;
+
+                const stockLote = Number(lote.stock_actual);
+                let aDescontar = stockLote >= cantidadPendienteDescontar ? cantidadPendienteDescontar : stockLote;
+
+                cantidadPendienteDescontar -= aDescontar;
+                const nuevoStockLote = stockLote - aDescontar;
+
+                costoTotalMateriales += (aDescontar * Number(lote.costo_unitario || 0));
+
+                const { error: errUpLote } = await supabaseClient
+                    .from(tablaDestino)
+                    .update({ stock_actual: nuevoStockLote })
+                    .eq('id', lote.id);
+
+                if (errUpLote) throw errUpLote;
+            }
+
+            if (cantidadPendienteDescontar > 0) {
+                throw new Error(`Stock insuficiente: No hay suficientes existencias de "${nombreComponente}" para completar la cantidad requerida.`);
+            }
         }
 
-        const selectProducto = document.getElementById('productoProducirId');
-        const { data: prods, error: errProds } = await supabaseClient
-            .from('productos')
-            .select('id, nombre, sku');
-        
-        if (!errProds && prods && selectProducto) {
-            let optionsHtml = '<option value="">Seleccione un producto...</option>';
-            prods.forEach(p => {
-                optionsHtml += `<option value="${p.id}">${p.nombre} ${p.sku ? '(' + p.sku + ')' : ''}</option>`;
-            });
-            selectProducto.innerHTML = optionsHtml;
-        }
+        // 4. Calcular costo unitario final integrando Materiales + Mano de Obra + Costos Indirectos[cite: 6]
+        const costoUnitarioFinal = cantidadProducida > 0 
+            ? ((costoTotalMateriales + costoTotalManoObra + costoTotalIndirectos) / cantidadProducida) 
+            : 0;
 
-        // Consultar órdenes incluyendo la relación con productos para mostrar el nombre
+        // 5. Registrar la Orden de Producción oficial[cite: 6]
+        const { error: errOrden } = await supabaseClient
+            .from('ordenes_produccion')
+            .insert([{
+                producto_id: productoId,
+                cantidad_producida: cantidadProducida,
+                empleados_involucrados: empleadosInvolucrados,
+                costo_total_mano_obra: costoTotalManoObra,
+                costo_total_materiales: costoTotalMateriales,
+                costo_unitario_final: costoUnitarioFinal,
+                numero_lote: numeroLote
+            }]);
+
+        if (errOrden) throw errOrden;
+
+        // 6. Registrar el nuevo lote de producto terminado resultante[cite: 6]
+        const { error: errLoteProd } = await supabaseClient
+            .from('lotes_producto_terminado')
+            .insert([{
+                producto_id: productoId,
+                numero_lote: numeroLote,
+                stock_actual: cantidadProducida,
+                costo_unitario: costoUnitarioFinal,
+                moneda: moneda,
+                fecha_produccion: new Date().toISOString().split('T')[0]
+            }]);
+
+        if (errLoteProd) throw errLoteProd;
+
+        return { 
+            success: true, 
+            mensaje: "Orden ejecutada con éxito, componentes descontados por FIFO, costos agregados y nuevo lote registrado." 
+        };
+
+    } catch (error) {
+        console.error("Error en orden de producción:", error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+// Cargar Historial de Órdenes[cite: 6]
+async function cargarHistorialProduccion() {
+    const contenedorHistorial = document.getElementById('contenedorHistorialProduccion');
+    try {
+        if (!contenedorHistorial) return;
+
         const { data: ordenes, error } = await supabaseClient
             .from('ordenes_produccion')
-            .select('*, productos(nombre, sku)')
+            .select(`
+                id,
+                numero_lote,
+                cantidad_producida,
+                costo_unitario_final,
+                created_at,
+                productos ( nombre, sku )
+            `)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        if (contenedorHistorial) {
-            if (!ordenes || ordenes.length === 0) {
-                contenedorHistorial.innerHTML = `
-                    <div class="p-4 bg-slate-950/50 rounded-lg border border-slate-800">
-                        <p class="text-slate-400 text-sm">No hay órdenes de producción registradas en la base de datos.</p>
-                    </div>
-                `;
-                return;
-            }
+        if (!ordenes || ordenes.length === 0) {
+            contenedorHistorial.innerHTML = `<p class="text-slate-400 text-sm">No hay órdenes de producción registradas.</p>`;
+            return;
+        }
 
-            let html = `
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm text-slate-300">
-                        <thead>
-                            <tr class="border-b border-slate-800 text-sky-400">
-                                <th class="p-3">ID Orden</th>
-                                <th class="p-3">Producto</th>
-                                <th class="p-3">Lote</th>
-                                <th class="p-3">Cantidad</th>
-                                <th class="p-3">Costo Materiales</th>
-                                <th class="p-3">Mano de Obra</th>
-                                <th class="p-3">Unitario Final</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+        let html = `
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-slate-300">
+                    <thead>
+                        <tr class="border-b border-slate-800 text-amber-400">
+                            <th class="p-2">Fecha</th>
+                            <th class="p-2">Lote PT</th>
+                            <th class="p-2">Producto</th>
+                            <th class="p-2">Cantidad</th>
+                            <th class="p-2">Costo Unit. Final</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        ordenes.forEach(o => {
+            html += `
+                <tr class="border-b border-slate-900">
+                    <td class="p-2 text-xs text-slate-400">${new Date(o.created_at).toLocaleDateString()}</td>
+                    <td class="p-2 font-mono text-xs text-amber-300">${o.numero_lote || 'N/D'}</td>
+                    <td class="p-2 font-medium text-slate-100">${o.productos?.nombre || 'Desconocido'}</td>
+                    <td class="p-2 font-mono">${o.cantidad_producida}</td>
+                    <td class="p-2 font-mono text-emerald-400">$${Number(o.costo_unitario_final || 0).toFixed(2)}</td>
+                </tr>
             `;
+        });
 
-            ordenes.forEach(o => {
-                const nombreProd = o.productos?.nombre || 'Producto Desconocido';
-                html += `
-                    <tr class="border-b border-slate-900 hover:bg-slate-800/60 transition cursor-pointer fila-orden" data-orden-id="${o.id}">
-                        <td class="p-3 font-mono text-xs text-sky-300">#${o.id}</td>
-                        <td class="p-3 font-medium text-slate-100">${nombreProd}</td>
-                        <td class="p-3 font-mono text-amber-300 font-semibold">${o.numero_lote || 'N/D'}</td>
-                        <td class="p-3 font-mono text-slate-100">${o.cantidad_producida}</td>
-                        <td class="p-3 font-mono">$${Number(o.costo_total_materiales || 0).toFixed(2)}</td>
-                        <td class="p-3 font-mono">$${Number(o.costo_total_mano_obra || 0).toFixed(2)}</td>
-                        <td class="p-3 font-mono font-bold text-emerald-400">$${Number(o.costo_unitario_final || 0).toFixed(2)}</td>
-                    </tr>
-                `;
-            });
+        html += `</tbody></table></div>`;
+        contenedorHistorial.innerHTML = html;
 
-            html += `</tbody></table></div>`;
-            contenedorHistorial.innerHTML = html;
-
-            // Vincular el evento de clic para consultar y abrir el modal analítico con desglose de materiales
-            document.querySelectorAll('.fila-orden').forEach(fila => {
-                fila.addEventListener('click', async () => {
-                    const ordenId = parseInt(fila.getAttribute('data-orden-id'));
-                    const data = ordenes.find(item => item.id === ordenId);
-                    if (!data) return;
-
-                    const prodNombre = data.productos?.nombre || 'N/D';
-                    const productoId = data.producto_id;
-                    const cantidadProducida = Number(data.cantidad_producida || 1);
-                    const costoMat = Number(data.costo_total_materiales || 0);
-                    const costoMO = Number(data.costo_total_mano_obra || 0);
-                    const costoTotal = costoMat + costoMO;
-                    const costoUnit = Number(data.costo_unitario_final || 0);
-                    const fecha = new Date(data.created_at).toLocaleString();
-
-                    let componentesDetalleHtml = '';
-                    try {
-                        const { data: bomItems } = await supabaseClient
-                            .from('bom')
-                            .select(`
-                                cantidad_requerida,
-                                factor_merma,
-                                materias_primas (nombre, costo_unitario),
-                                productos:hijo_producto_id (nombre, costo_unitario)
-                            `)
-                            .eq('producto_id', productoId);
-
-                        const { data: compItems } = await supabaseClient
-                            .from('componentes')
-                            .select(`
-                                cantidad_requerida,
-                                factor_merma,
-                                materias_primas (nombre, costo_unitario),
-                                productos:hijo_producto_id (nombre, costo_unitario)
-                            `)
-                            .eq('producto_id', productoId);
-
-                        const todosLosInsumos = [...(bomItems || []), ...(compItems || [])];
-
-                        if (todosLosInsumos.length > 0) {
-                            todosLosInsumos.forEach(item => {
-                                const cantReqUnit = Number(item.cantidad_requerida || 0);
-                                const merma = Number(item.factor_merma || 1) || 1;
-                                const cantTotalConsumida = cantReqUnit * merma * cantidadProducida;
-                                
-                                let nombreComponente = 'Insumo / Componente';
-                                let costoUnitario = 0;
-
-                                if (item.materias_primas) {
-                                    nombreComponente = item.materias_primas.nombre + ' (Materia Prima)';
-                                    costoUnitario = Number(item.materias_primas.costo_unitario || 0);
-                                } else if (item.productos) {
-                                    nombreComponente = item.productos.nombre + ' (Subensamble)';
-                                    costoUnitario = Number(item.productos.costo_unitario || 0);
-                                }
-
-                                const subtotalComponente = cantTotalConsumida * costoUnitario;
-
-                                componentesDetalleHtml += `
-                                    <tr class="border-b border-slate-900 text-xs">
-                                        <td class="p-2 text-slate-200">${nombreComponente}</td>
-                                        <td class="p-2 font-mono text-center text-slate-300">${cantTotalConsumida.toFixed(2)}</td>
-                                        <td class="p-2 font-mono text-right text-slate-300">$${costoUnitario.toFixed(2)}</td>
-                                        <td class="p-2 font-mono text-right text-amber-400 font-semibold">$${subtotalComponente.toFixed(2)}</td>
-                                    </tr>
-                                `;
-                            });
-                        }
-                    } catch (errDetalle) {
-                        console.error("Error al obtener detalle de componentes:", errDetalle);
-                    }
-
-                    const modalContenido = document.getElementById('contenidoDesgloseModal');
-                    if (!modalContenido) return;
-
-                    modalContenido.innerHTML = `
-                        <div class="bg-slate-950 p-4 rounded-lg border border-slate-800 space-y-2">
-                            <div class="grid grid-cols-2 gap-2 text-xs">
-                                <div><span class="text-slate-400">ID Orden:</span> <span class="font-mono text-sky-300">#${data.id}</span></div>
-                                <div><span class="text-slate-400">Lote:</span> <span class="font-mono text-amber-300">${data.numero_lote || 'N/D'}</span></div>
-                                <div class="col-span-2"><span class="text-slate-400">Producto:</span> <span class="font-semibold text-slate-100">${prodNombre}</span></div>
-                                <div><span class="text-slate-400">Cantidad Producida:</span> <span class="font-mono text-slate-100">${cantidadProducida} u.</span></div>
-                                <div><span class="text-slate-400">Operadores:</span> <span class="text-slate-100">${data.empleados_involucrados || '1'}</span></div>
-                                <div class="col-span-2"><span class="text-slate-400">Fecha:</span> <span class="text-slate-300">${fecha}</span></div>
-                            </div>
-                        </div>
-
-                        <div class="bg-slate-950 p-4 rounded-lg border border-slate-800">
-                            <h5 class="text-xs font-bold text-sky-400 uppercase tracking-wider mb-2">Desglose de Materiales e Insumos Consumidos</h5>
-                            ${componentesDetalleHtml ? `
-                                <div class="overflow-x-auto max-h-48 overflow-y-auto">
-                                    <table class="w-full text-left">
-                                        <thead>
-                                            <tr class="border-b border-slate-800 text-[11px] text-slate-400">
-                                                <th class="p-2">Componente / Insumo</th>
-                                                <th class="p-2 text-center">Cant. Gastada</th>
-                                                <th class="p-2 text-right">Costo Unit.</th>
-                                                <th class="p-2 text-right">Subtotal</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${componentesDetalleHtml}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ` : `
-                                <p class="text-xs text-slate-500 italic">No se encontraron componentes asociados en la lista de materiales (BOM) para este producto.</p>
-                            `}
-                        </div>
-
-                        <div class="bg-slate-950 p-4 rounded-lg border border-slate-800 space-y-2">
-                            <h5 class="text-xs font-bold text-sky-400 uppercase tracking-wider mb-1">Resumen Financiero Global</h5>
-                            <div class="flex justify-between text-xs">
-                                <span class="text-slate-400">Costo Total Materiales:</span>
-                                <span class="font-mono text-slate-200">$${costoMat.toFixed(2)}</span>
-                            </div>
-                            <div class="flex justify-between text-xs">
-                                <span class="text-slate-400">Costo Mano de Obra e Indirectos:</span>
-                                <span class="font-mono text-slate-200">$${costoMO.toFixed(2)}</span>
-                            </div>
-                            <div class="flex justify-between text-xs border-t border-slate-800 pt-2 font-semibold">
-                                <span class="text-slate-300">Costo Global de la Orden:</span>
-                                <span class="font-mono text-amber-400">$${costoTotal.toFixed(2)}</span>
-                            </div>
-                            <div class="flex justify-between text-xs border-t border-slate-800 pt-2 font-bold">
-                                <span class="text-slate-200">Costo Unitario Final:</span>
-                                <span class="font-mono text-emerald-400 text-sm">$${costoUnit.toFixed(2)} / u</span>
-                            </div>
-                        </div>
-                    `;
-
-                    const modal = document.getElementById('modalDesgloseOrden');
-                    modal.classList.remove('hidden');
-                    modal.classList.add('flex');
-                });
-            });
-        }
     } catch (err) {
-        console.error("Error al cargar órdenes de producción:", err);
-        if (contenedorHistorial) {
-            contenedorHistorial.innerHTML = `<p class="text-red-400 text-sm">Error al cargar el historial de producción.</p>`;
-        }
+        console.error("Error al cargar historial de producción:", err);
+        contenedorHistorial.innerHTML = `<p class="text-red-400 text-sm">Error al cargar historial.</p>`;
     }
 }

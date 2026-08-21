@@ -75,7 +75,7 @@ async function renderizarTablaProveedores() {
         let optionsHtml = '<option value="">Seleccione proveedor para ver compras...</option>';
         if (data && data.length > 0) {
             data.forEach(p => {
-                optionsHtml += `<option value="${p.nombre}">${p.nombre}</option>`;
+                optionsHtml += `<option value="${p.id}">${p.nombre}</option>`;
             });
         }
         selectFiltro.innerHTML = optionsHtml;
@@ -108,7 +108,7 @@ async function renderizarTablaProveedores() {
                     <td class="p-2.5 text-right">
                         <button onclick="window.verProveedor(${p.id}, '${p.nombre}', '${p.contacto || ''}', '${p.telefono || ''}')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded mr-1" style="cursor: pointer;">Ver</button>
                         <button onclick="window.editarProveedor(${p.id}, '${p.nombre}', '${p.contacto || ''}', '${p.telefono || ''}')" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-2 py-1 rounded mr-1" style="cursor: pointer;">Editar</button>
-                        <button onclick="window.filtrarComprasProveedor('${p.nombre}')" class="text-xs bg-sky-950 hover:bg-sky-900 text-sky-400 px-2 py-1 rounded border border-sky-800" style="cursor: pointer;">Ver Compras</button>
+                        <button onclick="window.filtrarComprasProveedor(${p.id}, '${p.nombre}')" class="text-xs bg-sky-950 hover:bg-sky-900 text-sky-400 px-2 py-1 rounded border border-sky-800" style="cursor: pointer;">Ver Compras</button>
                     </td>
                 </tr>
             `;
@@ -144,7 +144,6 @@ function configurarLogicaProveedores() {
         }
     }
 
-    // Búsqueda AJAX con botones de acción directa ("Ver" y "Editar")
     inputNombre.addEventListener('input', async (e) => {
         const query = e.target.value.trim();
         if (query.length < 2) {
@@ -185,7 +184,6 @@ function configurarLogicaProveedores() {
         }
     });
 
-    // Acción de solo ver (bloqueado para edición)
     window.verProveedor = function(id, nombre, contacto, telefono) {
         document.getElementById('proveedorIdEdit').value = id;
         inputNombre.value = nombre;
@@ -198,7 +196,6 @@ function configurarLogicaProveedores() {
         dropdownSugerencias.classList.add('hidden');
     };
 
-    // Acción de editar (habilitado para cambios)
     window.editarProveedor = function(id, nombre, contacto, telefono) {
         document.getElementById('proveedorIdEdit').value = id;
         inputNombre.value = nombre;
@@ -212,7 +209,6 @@ function configurarLogicaProveedores() {
         dropdownSugerencias.classList.add('hidden');
     };
 
-    // Ocultar sugerencias al hacer clic fuera
     document.addEventListener('click', (e) => {
         if (!inputNombre.contains(e.target) && !dropdownSugerencias.contains(e.target)) {
             dropdownSugerencias.classList.add('hidden');
@@ -262,15 +258,16 @@ function configurarLogicaProveedores() {
     });
 
     selectFiltro.addEventListener('change', (e) => {
-        const proveedorNombre = e.target.value;
-        if (proveedorNombre) {
-            window.filtrarComprasProveedor(proveedorNombre);
+        const proveedorId = e.target.value;
+        const proveedorNombre = e.target.options[e.target.selectedIndex].text;
+        if (proveedorId) {
+            window.filtrarComprasProveedor(parseInt(proveedorId), proveedorNombre);
         } else {
             document.getElementById('historialComprasProveedorContainer').innerHTML = `Seleccione un proveedor en el menú superior o en la tabla para consultar su historial de compras.`;
         }
     });
 
-    window.filtrarComprasProveedor = async function(nombreProveedor) {
+    window.filtrarComprasProveedor = async function(proveedorId, nombreProveedor) {
         const contenedorHistorial = document.getElementById('historialComprasProveedorContainer');
         if (!contenedorHistorial) return;
 
@@ -290,7 +287,7 @@ function configurarLogicaProveedores() {
                         fecha_ingreso
                     )
                 `)
-                .eq('proveedor', nombreProveedor);
+                .eq('proveedor_id', proveedorId);
 
             if (error) throw error;
 
