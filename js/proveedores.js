@@ -274,12 +274,13 @@ function configurarLogicaProveedores() {
         contenedorHistorial.innerHTML = `<p class="text-slate-400 text-xs">Cargando compras para ${nombreProveedor}...</p>`;
 
         try {
+            // Consulta directa sobre la tabla 'productos' filtrada por 'proveedor_id', trayendo sus lotes asociados
             const { data, error } = await supabaseClient
-                .from('materias_primas')
+                .from('productos')
                 .select(`
                     nombre,
                     unidad_medida,
-                    lotes_materias_primas (
+                    lotes_inventario (
                         numero_lote,
                         stock_actual,
                         costo_unitario,
@@ -292,7 +293,7 @@ function configurarLogicaProveedores() {
             if (error) throw error;
 
             if (!data || data.length === 0) {
-                contenedorHistorial.innerHTML = `<p class="text-slate-400 text-xs">No se encontraron registros de compras asociadas a este proveedor.</p>`;
+                contenedorHistorial.innerHTML = `<p class="text-slate-400 text-xs">No se encontraron productos o compras asociadas a este proveedor.</p>`;
                 return;
             }
 
@@ -301,9 +302,9 @@ function configurarLogicaProveedores() {
                     <table class="w-full text-left text-slate-300">
                         <thead>
                             <tr class="border-b border-slate-800 text-sky-400 text-[11px]">
-                                <th class="p-2">Insumo / Materia Prima</th>
-                                <th class="p-2">Factura / Lote</th>
-                                <th class="p-2">Cantidad</th>
+                                <th class="p-2">Insumo / Producto</th>
+                                <th class="p-2">Número de Lote</th>
+                                <th class="p-2">Stock en Lote</th>
                                 <th class="p-2">Costo Unitario</th>
                                 <th class="p-2">Fecha Ingreso</th>
                             </tr>
@@ -312,15 +313,15 @@ function configurarLogicaProveedores() {
             `;
 
             let totalCompras = 0;
-            data.forEach(mp => {
-                if (mp.lotes_materias_primas && mp.lotes_materias_primas.length > 0) {
-                    mp.lotes_materias_primas.forEach(lote => {
+            data.forEach(prod => {
+                if (prod.lotes_inventario && prod.lotes_inventario.length > 0) {
+                    prod.lotes_inventario.forEach(lote => {
                         totalCompras++;
                         html += `
                             <tr class="border-b border-slate-900 text-xs">
-                                <td class="p-2 font-medium text-slate-100">${mp.nombre}</td>
+                                <td class="p-2 font-medium text-slate-100">${prod.nombre}</td>
                                 <td class="p-2 font-mono text-sky-300">${lote.numero_lote}</td>
-                                <td class="p-2 font-mono">${lote.stock_actual} ${mp.unidad_medida || ''}</td>
+                                <td class="p-2 font-mono">${lote.stock_actual} ${prod.unidad_medida || ''}</td>
                                 <td class="p-2 font-mono">$${Number(lote.costo_unitario || 0).toFixed(2)} ${lote.moneda || 'MXN'}</td>
                                 <td class="p-2 text-slate-400">${lote.fecha_ingreso ? new Date(lote.fecha_ingreso).toLocaleDateString() : 'N/D'}</td>
                             </tr>
@@ -330,7 +331,7 @@ function configurarLogicaProveedores() {
             });
 
             if (totalCompras === 0) {
-                contenedorHistorial.innerHTML = `<p class="text-slate-400 text-xs">El proveedor existe pero no tiene lotes o compras registradas en el inventario actual.</p>`;
+                contenedorHistorial.innerHTML = `<p class="text-slate-400 text-xs">El proveedor existe pero no tiene lotes registrados en el inventario actual.</p>`;
                 return;
             }
 

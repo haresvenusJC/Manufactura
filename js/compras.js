@@ -1,7 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { cargarInventarioCompleto } from './inventario.js';
 
-// Arreglo temporal para almacenar las partidas de la compra actual
 let partidasCompra = [];
 
 export function toggleTipoCambio(selectId, contenedorId, inputId) {
@@ -27,7 +26,6 @@ export async function configurarFormularioCompras() {
     const formCompras = document.getElementById('formCompras');
     if (!formCompras) return;
 
-    // Estructuramos la interfaz de compras múltiples de forma dinámica si no está creada
     if (!document.getElementById('contenedorPartidasCompra')) {
         formCompras.innerHTML = `
             <div class="bg-gray-800 p-4 rounded-lg mb-4 border border-gray-700">
@@ -68,17 +66,12 @@ export async function configurarFormularioCompras() {
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                     <div>
                         <label class="block text-xs font-medium text-gray-300 mb-1">Nombre del Insumo</label>
-                        <input type="text" id="inputItemNombre" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white" placeholder="Materia prima">
+                        <input type="text" id="inputItemNombre" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white" placeholder="Artículo o producto">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-300 mb-1">Unidad de Medida</label>
                         <select id="inputItemUnidad" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white">
-                            <option value="Kilogramos (kg)">Kilogramos (kg)</option>
-                            <option value="Gramos (g)">Gramos (g)</option>
-                            <option value="Litros (L)">Litros (L)</option>
-                            <option value="Mililitros (ml)">Mililitros (ml)</option>
-                            <option value="Piezas (pza)">Piezas (pza)</option>
-                            <option value="Metros (m)">Metros (m)</option>
+                            <option value="">Seleccione unidad...</option>
                         </select>
                     </div>
                     <div>
@@ -130,18 +123,18 @@ export async function configurarFormularioCompras() {
             </div>
 
             <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold p-3 rounded transition">
-                Cerrar y Registrar Compra Completa
+                Cerrar y Registrar Compra Completa, mi lord
             </button>
         `;
     }
 
-    // Fecha de hoy por defecto
     const inputFecha = document.getElementById('compraFecha');
     if (inputFecha) {
         inputFecha.value = new Date().toISOString().split('T')[0];
     }
 
     await cargarSelectProveedores();
+    await cargarUnidadesMedidaSelect();
     await configurarDatalistInsumosUnificados();
 
     const selectMoneda = document.getElementById('compraMoneda');
@@ -151,7 +144,6 @@ export async function configurarFormularioCompras() {
         });
     }
 
-    // Botón para agregar partida a la lista temporal
     const btnAgregar = document.getElementById('btnAgregarPartida');
     if (btnAgregar) {
         btnAgregar.onclick = () => {
@@ -162,8 +154,8 @@ export async function configurarFormularioCompras() {
             const lote = document.getElementById('inputItemLote').value.trim();
             const caducidad = document.getElementById('inputItemCaducidad').value;
 
-            if (!nombre || cantidad <= 0) {
-                alert("Por favor ingrese al menos el nombre del insumo y una cantidad válida, mi lord.");
+            if (!nombre || !unidad || cantidad <= 0) {
+                alert("Por favor ingrese el nombre, seleccione una unidad de medida y una cantidad válida, mi lord.");
                 return;
             }
 
@@ -178,8 +170,8 @@ export async function configurarFormularioCompras() {
 
             renderizarTablaPartidas();
 
-            // Limpiar inputs de la partida para ingresar la siguiente
             document.getElementById('inputItemNombre').value = '';
+            document.getElementById('inputItemUnidad').value = '';
             document.getElementById('inputItemCantidad').value = '';
             document.getElementById('inputItemCosto').value = '';
             document.getElementById('inputItemLote').value = '';
@@ -188,7 +180,6 @@ export async function configurarFormularioCompras() {
         };
     }
 
-    // Envío del formulario completo
     formCompras.onsubmit = async (e) => {
         e.preventDefault();
 
@@ -200,15 +191,14 @@ export async function configurarFormularioCompras() {
         const fechaCompra = document.getElementById('compraFecha').value;
         const factura = document.getElementById('compraFactura').value.trim();
         const proveedorIdVal = document.getElementById('compraProveedorId').value;
+        const proveedor_id = proveedorIdVal ? parseInt(proveedorIdVal) : null;
         const moneda = document.getElementById('compraMoneda').value;
         const tipoCambio = moneda === 'USD' ? parseFloat(document.getElementById('compraTipoCambio').value) || 1 : 1;
 
-        if (!proveedorIdVal) {
+        if (!proveedor_id) {
             alert("Por favor seleccione un proveedor válido, mi lord.");
             return;
         }
-
-        const proveedorId = parseInt(proveedorIdVal);
 
         if (!confirm(`¿Desea cerrar y registrar esta compra con ${partidasCompra.length} partida(s) bajo la factura ${factura}, mi lord?`)) {
             return;
@@ -216,68 +206,63 @@ export async function configurarFormularioCompras() {
 
         try {
             for (let item of partidasCompra) {
-                // 1. Buscar si la materia prima ya existe
                 let { data: existente, error: errBusq } = await supabaseClient
-                    .from('materias_primas')
+                    .from('productos')
                     .select('id, stock_actual')
                     .ilike('nombre', item.nombre)
                     .maybeSingle();
 
                 if (errBusq) throw errBusq;
 
-                let materiaPrimaId;
+                let productoId;
 
                 if (existente) {
-                    materiaPrimaId = existente.id;
-                    const nuevoStock = Number(existente.stock_actual || 0) + item.cantidad;
+                    productoId = existente.id;
+                    const stockActualTotal = Number(existente.stock_actual || 0) + item.cantidad;
 
                     const { error: errUpd } = await supabaseClient
-                        .from('materias_primas')
+                        .from('productos')
                         .update({
-                            stock_actual: nuevoStock,
+                            stock_actual: stockActualTotal,
                             costo_unitario: item.costo,
-                            proveedor_id: proveedorId,
                             unidad_medida: item.unidad,
                             moneda: moneda,
-                            tipo_cambio: tipoCambio
+                            proveedor_id: proveedor_id
                         })
-                        .eq('id', materiaPrimaId);
+                        .eq('id', productoId);
 
                     if (errUpd) throw errUpd;
                 } else {
-                    const { data: nuevaMat, error: errIns } = await supabaseClient
-                        .from('materias_primas')
+                    const { data: nuevoProd, error: errIns } = await supabaseClient
+                        .from('productos')
                         .insert([{
                             nombre: item.nombre,
+                            tipo: 'materia_prima',
                             unidad_medida: item.unidad,
                             stock_actual: item.cantidad,
                             costo_unitario: item.costo,
-                            proveedor_id: proveedorId,
                             moneda: moneda,
-                            tipo_cambio: tipoCambio
+                            proveedor_id: proveedor_id
                         }])
                         .select('id')
                         .single();
 
                     if (errIns) throw errIns;
-                    materiaPrimaId = nuevaMat.id;
+                    productoId = nuevoProd.id;
                 }
 
-                // 2. Insertar en lotes con su factura, lote y caducidad individual
                 const datosLote = {
-                    materia_prima_id: materiaPrimaId,
-                    numero_lote: item.lote,
+                    producto_id: productoId,
+                    numero_lote: item.lote || 'SIN-LOTE',
                     stock_actual: item.cantidad,
                     costo_unitario: item.costo,
                     moneda: moneda,
                     tipo_cambio: tipoCambio,
-                    fecha_ingreso: fechaCompra,
-                    factura: factura || null,
-                    fecha_caducidad: item.caducidad
+                    fecha_ingreso: fechaCompra
                 };
 
                 const { error: errLote } = await supabaseClient
-                    .from('lotes_materias_primas')
+                    .from('lotes_inventario')
                     .insert([datosLote]);
 
                 if (errLote) throw errLote;
@@ -294,12 +279,13 @@ export async function configurarFormularioCompras() {
             renderizarTablaPartidas();
             toggleTipoCambio('compraMoneda', 'contenedorTipoCambio', 'compraTipoCambio');
             await cargarSelectProveedores();
+            await cargarUnidadesMedidaSelect();
             await configurarDatalistInsumosUnificados();
             cargarInventarioCompleto();
 
         } catch (error) {
             console.error("Error al procesar la compra múltiple:", error);
-            alert("Ocurrió un error al registrar la compra en la base de datos.");
+            alert("Ocurrió un error al registrar la compra en la base de datos, mi lord.");
         }
     };
 }
@@ -357,33 +343,47 @@ async function cargarSelectProveedores() {
     }
 }
 
+async function cargarUnidadesMedidaSelect() {
+    const selectUnidad = document.getElementById('inputItemUnidad');
+    if (!selectUnidad) return;
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('unidades_medida')
+            .select('id, nombre')
+            .order('id', { ascending: true });
+
+        if (error) throw error;
+
+        let html = '<option value="">Seleccione unidad...</option>';
+        if (data && data.length > 0) {
+            data.forEach(u => {
+                const nombreUnidad = u.nombre || '';
+                html += `<option value="${nombreUnidad}">${nombreUnidad}</option>`;
+            });
+        }
+        selectUnidad.innerHTML = html;
+    } catch (err) {
+        console.warn("Aviso al cargar unidades de medida:", err);
+    }
+}
+
 async function configurarDatalistInsumosUnificados() {
     const inputInsumo = document.getElementById('inputItemNombre');
     if (!inputInsumo) return;
 
-    let catalogoUnificado = [];
-
     try {
-        const resMP = await supabaseClient
-            .from('materias_primas')
-            .select('nombre, unidad_medida, costo_unitario');
-
-        if (!resMP.error && resMP.data) {
-            catalogoUnificado.push(...resMP.data);
-        }
-
-        const resProd = await supabaseClient
+        const { data: resProd, error } = await supabaseClient
             .from('productos')
             .select('nombre, unidad_medida, costo_unitario');
 
-        if (!resProd.error && resProd.data) {
-            catalogoUnificado.push(...resProd.data);
-        }
+        if (error) throw error;
 
+        let catalogoUnificado = resProd || [];
         let nombresUnicos = [...new Set(catalogoUnificado.map(i => i.nombre).filter(n => n && n.trim() !== ''))];
         nombresUnicos.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
 
-        inputInsumo.addEventListener('input', () => {
+        const actualizarDatosInsumo = () => {
             const valorSeleccionado = inputInsumo.value.trim();
             const encontrado = catalogoUnificado.find(i => i.nombre && i.nombre.toLowerCase() === valorSeleccionado.toLowerCase());
             
@@ -394,11 +394,14 @@ async function configurarDatalistInsumosUnificados() {
                 }
 
                 const costoInput = document.getElementById('inputItemCosto');
-                if (costoInput && encontrado.costo_unitario) {
+                if (costoInput && encontrado.costo_unitario !== undefined && encontrado.costo_unitario !== null) {
                     costoInput.value = encontrado.costo_unitario;
                 }
             }
-        });
+        };
+
+        inputInsumo.addEventListener('input', actualizarDatosInsumo);
+        inputInsumo.addEventListener('change', actualizarDatosInsumo);
 
         let datalist = document.getElementById('listaInsumosDatalist');
         if (!datalist) {

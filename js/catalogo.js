@@ -31,67 +31,74 @@ export async function cargarCatalogoInicial() {
     try {
         if (!supabaseClient) throw new Error("Cliente Supabase no disponible.");
         
-        contenedor.innerHTML = `<p class="text-slate-400 text-sm p-4">Cargando módulos y conectando con Supabase...</p>`;
+        contenedor.innerHTML = `<p class="text-slate-400 text-sm p-4">Cargando catálogo con arquitectura unificada...</p>`;
 
-        // 1. Obtener materias primas
-        const { data: materiasPrimas, error: errMp } = await supabaseClient
-            .from('materias_primas')
-            .select('id, nombre, unidad_medida');
-
-        if (errMp) console.warn("Aviso al cargar materias primas:", errMp.message);
-
-        // 2. Obtener productos para permitir BOM mixto
-        const { data: productosDisponibles, error: errProdList } = await supabaseClient
+        // 1. Obtener todos los artículos de la tabla unificada 'productos'
+        const { data: todosArticulos, error: errArtList } = await supabaseClient
             .from('productos')
-            .select('id, nombre, sku, tipo');
+            .select('id, nombre, sku, tipo, unidad_medida, proveedor_id, proveedores(id, nombre)');
 
-        if (errProdList) console.warn("Aviso al cargar productos para BOM:", errProdList.message);
+        if (errArtList) throw errArtList;
 
-        const unidadesDisponibles = [
-            { nombre: 'g', descripcion: 'Gramos' },
-            { nombre: 'kg', descripcion: 'Kilogramos' },
-            { nombre: 'ml', descripcion: 'Mililitros' },
-            { nombre: 'l', descripcion: 'Litros' },
-            { nombre: 'pza', descripcion: 'Piezas' },
-            { nombre: 'm', descripcion: 'Metros' },
-            { nombre: 'cm', descripcion: 'Centímetros' }
-        ];
-
-        let { data: unidadesMedida, error: errUm } = await supabaseClient
-            .from('unidades_medida')
+        // 2. Cargar catálogo de proveedores
+        const { data: listaProveedores, error: errProv } = await supabaseClient
+            .from('proveedores')
             .select('id, nombre');
 
-        if (errUm || !unidadesMedida || unidadesMedida.length === 0) {
-            unidadesMedida = unidadesDisponibles;
+        if (errProv) throw errProv;
+
+        let opcionesProveedoresHtml = '<option value="">Seleccione proveedor...</option>';
+        if (listaProveedores && listaProveedores.length > 0) {
+            listaProveedores.forEach(prov => {
+                opcionesProveedoresHtml += `<option value="${prov.id}">${prov.nombre}</option>`;
+            });
         }
 
-        const mapaMateriasPrimas = {};
+        // 3. Carga estricta desde la tabla unidades_medida (sin arreglos estáticos de respaldo)
+        let unidadesMedida = [];
+        const { data: resUm, error: errUm } = await supabaseClient
+            .from('unidades_medida')
+            .select('id, nombre')
+            .order('id', { ascending: true });
+
+        if (errUm) {
+            console.error("Error al consultar unidades_medida:", errUm.message);
+            throw errUm;
+        } else if (resUm) {
+            unidadesMedida = resUm;
+        }
+
+        const mapaArticulos = {};
         
         let opcionesBomHtml = '<option value="">Seleccione insumo o componente...</option>';
-        if (materiasPrimas && materiasPrimas.length > 0) {
-            opcionesBomHtml += '<optgroup label="Materias Primas">';
-            materiasPrimas.forEach(m => {
-                mapaMateriasPrimas[`mp_${m.id}`] = m;
-                opcionesBomHtml += `<option value="mp_${m.id}">${m.nombre} (${m.unidad_medida || 'ud'})</option>`;
-            });
-            opcionesBomHtml += '</optgroup>';
-        }
+        if (todosArticulos && todosArticulos.length > 0) {
+            const materiasPrimas = todosArticulos.filter(a => a.tipo === 'materia_prima');
+            const productosTerminados = todosArticulos.filter(a => a.tipo !== 'materia_prima');
 
-        if (productosDisponibles && productosDisponibles.length > 0) {
-            opcionesBomHtml += '<optgroup label="Productos / Subensambles">';
-            productosDisponibles.forEach(p => {
-                mapaMateriasPrimas[`prod_${p.id}`] = p;
-                opcionesBomHtml += `<option value="prod_${p.id}">${p.nombre} [SKU: ${p.sku || 'N/D'}]</option>`;
-            });
-            opcionesBomHtml += '</optgroup>';
+            if (materiasPrimas.length > 0) {
+                opcionesBomHtml += '<optgroup label="Materias Primas">';
+                materiasPrimas.forEach(m => {
+                    mapaArticulos[m.id] = m;
+                    opcionesBomHtml += `<option value="${m.id}">${m.nombre} (${m.unidad_medida || 'ud'})</option>`;
+                });
+                opcionesBomHtml += '</optgroup>';
+            }
+
+            if (productosTerminados.length > 0) {
+                opcionesBomHtml += '<optgroup label="Productos / Subensambles">';
+                productosTerminados.forEach(p => {
+                    mapaArticulos[p.id] = p;
+                    opcionesBomHtml += `<option value="${p.id}">${p.nombre} [SKU: ${p.sku || 'N/D'}]</option>`;
+                });
+                opcionesBomHtml += '</optgroup>';
+            }
         }
 
         let opcionesUnidades = '<option value="">Seleccione unidad...</option>';
-        if (unidadesMedida) {
-            unidadesMedida.forEach(u => {
-                opcionesUnidades += `<option value="${u.nombre}">${u.nombre} (${u.descripcion || u.nombre})</option>`;
-            });
-        }
+        unidadesMedida.forEach(u => {
+            const nombreUnidad = u.nombre || '';
+            opcionesUnidades += `<option value="${nombreUnidad}">${nombreUnidad}</option>`;
+        });
 
         contenedor.innerHTML = `
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -147,7 +154,9 @@ export async function cargarCatalogoInicial() {
 
                         <div>
                             <label class="block text-xs font-medium text-slate-400 mb-1">Proveedor</label>
-                            <input type="text" id="prodProveedor" placeholder="Ej. Hares, Robertet..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                            <select id="prodProveedorId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                                ${opcionesProveedoresHtml}
+                            </select>
                         </div>
 
                         <div>
@@ -159,11 +168,7 @@ export async function cargarCatalogoInicial() {
                         
                         <div id="seccionBomContainer" class="space-y-2">
                             <div class="flex justify-between items-center">
-                                <label class="block text-xs font-semibold text-sky-400">Estructura de Componentes / BOM</label>
-                                <select id="destinoTabla" class="bg-slate-900 border border-slate-700 text-slate-200 text-[11px] rounded px-2 py-0.5 font-mono">
-                                    <option value="bom">Destino: BOM (bom)</option>
-                                    <option value="componentes">Destino: Componentes (componentes)</option>
-                                </select>
+                                <label class="block text-xs font-semibold text-sky-400">Estructura de Componentes / BOM Unificado</label>
                             </div>
 
                             <div class="grid grid-cols-1 gap-2 bg-slate-900/50 p-2.5 rounded-lg border border-slate-800">
@@ -191,7 +196,7 @@ export async function cargarCatalogoInicial() {
                                     <input type="number" step="0.01" id="bomMerma" placeholder="Ej. 0.05" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                                 </div>
 
-                                <button type="button" id="btnAgregarItemBom" class="w-full bg-slate-800 hover:bg-slate-700 text-sky-300 font-medium py-1.5 rounded-lg text-xs transition">＋ Agregar Componente a la Lista</button>
+                                <button type="button" id="btnAgregarItemBom" class="w-full bg-slate-800 hover:bg-slate-700 text-sky-300 font-medium py-1.5 rounded-lg text-xs transition">＋ Agregar Componente al BOM</button>
                             </div>
 
                             <div id="listaBomTemporal" class="text-xs text-slate-400 bg-slate-900 p-2 rounded-lg border border-slate-800 min-h-[40px]">
@@ -309,7 +314,7 @@ export async function cargarCatalogoInicial() {
                 document.getElementById('prodUnidadMedida').value = art.unidad_medida || '';
                 document.getElementById('prodCosto').value = art.costo_unitario || 0;
                 document.getElementById('prodMoneda').value = art.moneda || 'MXN';
-                document.getElementById('prodProveedor').value = art.proveedor || '';
+                document.getElementById('prodProveedorId').value = art.proveedor_id || '';
                 document.getElementById('prodDesc').value = art.descripcion || '';
 
                 tituloForm.textContent = "Modificar Artículo Existente";
@@ -318,45 +323,26 @@ export async function cargarCatalogoInicial() {
 
                 if (art.tipo === 'producto') {
                     seccionBomContainer.classList.remove('hidden');
-                    const { data: bomItems } = await supabaseClient.from('bom').select('*').eq('producto_id', id);
-                    const { data: compItems } = await supabaseClient.from('componentes').select('*').eq('producto_id', id);
+                    
+                    const { data: bomItems, error: errBom } = await supabaseClient
+                        .from('bom')
+                        .select('*, componente:productos!bom_componente_id_fkey(id, nombre, sku, unidad_medida)')
+                        .eq('producto_id', id);
+
+                    if (errBom) {
+                        console.warn("Intentando consulta alternativa de BOM:", errBom.message);
+                    }
 
                     itemsBomTemp = [];
-                    if (bomItems) {
+                    if (bomItems && bomItems.length > 0) {
                         bomItems.forEach(b => {
-                            const esMp = b.materia_prima_id !== null;
-                            const idReal = esMp ? b.materia_prima_id : b.hijo_producto_id;
-                            const claveMapa = esMp ? `mp_${idReal}` : `prod_${idReal}`;
-                            const info = mapaMateriasPrimas[claveMapa];
-
+                            const infoComp = b.componente || mapaArticulos[b.componente_id] || { nombre: `Elemento ID: ${b.componente_id}` };
                             itemsBomTemp.push({
-                                tablaDestino: 'bom',
-                                insumoKey: claveMapa,
-                                insumoId: idReal,
-                                tipoElemento: esMp ? 'materia_prima' : 'producto',
-                                insumoNombre: info ? info.nombre : `Elemento ID: ${idReal}`,
+                                componenteId: b.componente_id,
+                                componenteNombre: infoComp.nombre,
                                 cantidad: b.cantidad_requerida,
                                 unidad: b.unidad_medida || 'g',
                                 merma: b.factor_merma || 0
-                            });
-                        });
-                    }
-                    if (compItems) {
-                        compItems.forEach(c => {
-                            const esMp = c.materia_prima_id !== null;
-                            const idReal = esMp ? c.materia_prima_id : c.hijo_producto_id;
-                            const claveMapa = esMp ? `mp_${idReal}` : `prod_${idReal}`;
-                            const info = mapaMateriasPrimas[claveMapa];
-
-                            itemsBomTemp.push({
-                                tablaDestino: 'componentes',
-                                insumoKey: claveMapa,
-                                insumoId: idReal,
-                                tipoElemento: esMp ? 'materia_prima' : 'producto',
-                                insumoNombre: info ? info.nombre : `Elemento ID: ${idReal}`,
-                                cantidad: c.cantidad_requerida,
-                                unidad: c.unidad_medida || 'g',
-                                merma: c.factor_merma || 0
                             });
                         });
                     }
@@ -389,7 +375,7 @@ export async function cargarCatalogoInicial() {
             }
             listaTempEl.innerHTML = itemsBomTemp.map((item, idx) => `
                 <div class="flex justify-between items-center py-1 border-b border-slate-800 last:border-0">
-                    <span>[<span class="text-sky-400 font-mono">${item.tablaDestino}</span>] ${item.insumoNombre} - <strong>${item.cantidad} ${item.unidad}</strong> (Merma: ${item.merma})</span>
+                    <span>${item.componenteNombre} - <strong>${item.cantidad} ${item.unidad}</strong> (Merma: ${item.merma})</span>
                     <button type="button" onclick="window.removerItemBom(${idx})" class="text-red-400 hover:text-red-300 text-xs">Eliminar</button>
                 </div>
             `).join('');
@@ -397,19 +383,15 @@ export async function cargarCatalogoInicial() {
 
         btnAddBom.addEventListener('click', () => {
             const insumoSelect = document.getElementById('bomInsumo');
-            const insumoKey = insumoSelect.value;
-            const tablaDestino = document.getElementById('destinoTabla').value;
+            const componenteId = parseInt(insumoSelect.value);
             
-            if (!insumoKey) {
-                alert("Seleccione un componente o materia prima válida.");
+            if (!componenteId || isNaN(componenteId)) {
+                alert("Seleccione un componente válido de la lista.");
                 return;
             }
 
             const selectedOption = insumoSelect.options[insumoSelect.selectedIndex];
             const nombreInsumo = selectedOption.text.split(' [')[0];
-            
-            const esMateriaPrima = insumoKey.startsWith('mp_');
-            const insumoId = parseInt(insumoKey.replace(/^(mp_|prod_)/, ''));
             
             const cantidad = parseFloat(document.getElementById('bomCantidad').value) || 0;
             const unidadSelect = document.getElementById('bomUnidadMedida');
@@ -427,12 +409,9 @@ export async function cargarCatalogoInicial() {
                 return;
             }
 
-            itemsBomTemp.push({ 
-                tablaDestino,
-                insumoKey,
-                insumoId, 
-                tipoElemento: esMateriaPrima ? 'materia_prima' : 'producto',
-                insumoNombre: nombreInsumo, 
+            itemsBomTemp.push({
+                componenteId,
+                componenteNombre: nombreInsumo, 
                 cantidad, 
                 unidad: unidadConsumo,
                 merma 
@@ -460,7 +439,8 @@ export async function cargarCatalogoInicial() {
             const unidadMedida = document.getElementById('prodUnidadMedida').value;
             const costoUnitario = parseFloat(document.getElementById('prodCosto').value) || 0;
             const moneda = document.getElementById('prodMoneda').value;
-            const proveedor = document.getElementById('prodProveedor').value.trim();
+            const proveedorIdVal = document.getElementById('prodProveedorId').value;
+            const proveedor_id = proveedorIdVal ? parseInt(proveedorIdVal) : null;
             const descripcion = document.getElementById('prodDesc').value.trim();
 
             if (!nombre || !sku || !unidadMedida) {
@@ -470,14 +450,14 @@ export async function cargarCatalogoInicial() {
 
             try {
                 let articuloId = productoSeleccionadoId;
-                const payload = { 
+                const payload = {
                     tipo, 
                     nombre, 
                     sku, 
                     unidad_medida: unidadMedida, 
                     costo_unitario: costoUnitario,
                     moneda,
-                    proveedor: proveedor || null,
+                    proveedor_id,
                     descripcion 
                 };
 
@@ -490,7 +470,6 @@ export async function cargarCatalogoInicial() {
                     if (errUpd) throw errUpd;
 
                     await supabaseClient.from('bom').delete().eq('producto_id', articuloId);
-                    await supabaseClient.from('componentes').delete().eq('producto_id', articuloId);
 
                 } else {
                     const { data: artIns, error: errArt } = await supabaseClient
@@ -504,33 +483,16 @@ export async function cargarCatalogoInicial() {
                 }
 
                 if (tipo === 'producto' && itemsBomTemp.length > 0) {
-                    const itemsBom = itemsBomTemp.filter(i => i.tablaDestino === 'bom').map(i => ({
+                    const itemsBom = itemsBomTemp.map(i => ({
                         producto_id: articuloId,
-                        materia_prima_id: i.tipoElemento === 'materia_prima' ? i.insumoId : null,
-                        hijo_producto_id: i.tipoElemento === 'producto' ? i.insumoId : null,
+                        componente_id: i.componenteId,
                         cantidad_requerida: i.cantidad,
                         unidad_medida: i.unidad,
                         factor_merma: i.merma
                     }));
 
-                    const itemsComp = itemsBomTemp.filter(i => i.tablaDestino === 'componentes').map(i => ({
-                        producto_id: articuloId,
-                        materia_prima_id: i.tipoElemento === 'materia_prima' ? i.insumoId : null,
-                        hijo_producto_id: i.tipoElemento === 'producto' ? i.insumoId : null,
-                        cantidad_requerida: i.cantidad,
-                        unidad_medida: i.unidad,
-                        factor_merma: i.merma
-                    }));
-
-                    if (itemsBom.length > 0) {
-                        const { error: errB } = await supabaseClient.from('bom').insert(itemsBom);
-                        if (errB) throw errB;
-                    }
-
-                    if (itemsComp.length > 0) {
-                        const { error: errC } = await supabaseClient.from('componentes').insert(itemsComp);
-                        if (errC) throw errC;
-                    }
+                    const { error: errB } = await supabaseClient.from('bom').insert(itemsBom);
+                    if (errB) throw errB;
                 }
 
                 alert(productoSeleccionadoId ? "¡Artículo actualizado con éxito, mi lord!" : "¡Artículo registrado con éxito, mi lord!");
@@ -541,9 +503,9 @@ export async function cargarCatalogoInicial() {
             } catch (err) {
                 console.error("Error al guardar el artículo:", err);
                 if (err.code === '23505') {
-                    alert('Error al guardar el artículo: El producto ya existe (el SKU o clave ya está registrado) y no se puede guardar.');
+                    alert('Error al guardar el artículo: El SKU o clave ya está registrado.');
                 } else {
-                    alert("Error al procesar la operación en la base de datos. Verifique los campos de la tabla.");
+                    alert("Error al procesar la operación en la base de datos.");
                 }
             }
         });
@@ -567,7 +529,7 @@ async function renderizarTablaProductos() {
     try {
         const { data: productosData, error: errProd } = await supabaseClient
             .from('productos')
-            .select('id, nombre, sku, tipo, unidad_medida, proveedor');
+            .select('id, nombre, sku, tipo, unidad_medida, proveedor_id, proveedores(nombre)');
 
         if (errProd) throw errProd;
 
@@ -596,13 +558,15 @@ async function renderizarTablaProductos() {
             if (item.tipo === 'materia_prima') badgeColor = "bg-amber-950 text-amber-400 border-amber-800";
             if (item.tipo === 'insumo') badgeColor = "bg-emerald-950 text-emerald-400 border-emerald-800";
 
+            const nombreProveedor = item.proveedores?.nombre || 'N/D';
+
             html += `
                 <tr class="border-b border-slate-900 hover:bg-slate-800/50 transition">
                     <td class="p-3 font-mono text-xs text-sky-300">${item.sku || 'N/D'}</td>
                     <td class="p-3"><span class="text-[10px] px-2 py-0.5 rounded border ${badgeColor} uppercase">${item.tipo || 'producto'}</span></td>
                     <td class="p-3 font-medium text-slate-100">${item.nombre || 'Sin nombre'}</td>
                     <td class="p-3 text-slate-400 text-xs">${item.unidad_medida || 'N/D'}</td>
-                    <td class="p-3 text-slate-300 text-xs">${item.proveedor || 'N/D'}</td>
+                    <td class="p-3 text-slate-300 text-xs">${nombreProveedor}</td>
                 </tr>
             `;
         });
