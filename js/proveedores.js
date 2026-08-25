@@ -7,10 +7,10 @@ export async function cargarModuloProveedores() {
     contenedor.innerHTML = `
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Formulario de Altas y Modificaciones de Proveedores -->
-            <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-4">
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-4 shadow-xl">
                 <div class="flex justify-between items-center">
                     <h3 id="tituloFormProveedor" class="text-md font-semibold text-sky-400">Nuevo Proveedor</h3>
-                    <button type="button" id="btnLimpiarProveedor" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded hidden" style="cursor: pointer;">Nuevo</button>
+                    <button type="button" id="btnLimpiarProveedor" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700 hidden transition cursor-pointer">Nuevo</button>
                 </div>
                 <form id="formProveedor" class="space-y-3 relative">
                     <input type="hidden" id="proveedorIdEdit">
@@ -18,37 +18,37 @@ export async function cargarModuloProveedores() {
                         <label class="block text-xs font-medium text-slate-400 mb-1">Nombre / Razón Social</label>
                         <input type="text" id="provNombre" placeholder="Ej. Tuberías de México" autocomplete="off" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 focus:outline-none focus:border-sky-500" required>
                         <!-- Contenedor flotante para sugerencias AJAX -->
-                        <div id="sugerenciasProveedores" class="absolute z-50 left-0 right-0 bg-slate-900 border border-slate-700 rounded-lg shadow-xl mt-1 hidden max-h-52 overflow-y-auto text-sm"></div>
+                        <div id="sugerenciasProveedores" class="absolute z-50 left-0 right-0 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl mt-1 hidden max-h-52 overflow-y-auto text-sm"></div>
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-slate-400 mb-1">Contacto / Responsable</label>
-                        <input type="text" id="provContacto" placeholder="Ej. Ing. Martínez" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                        <input type="text" id="provContacto" placeholder="Ej. Ing. Martínez" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 focus:outline-none focus:border-sky-500">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-slate-400 mb-1">Teléfono</label>
-                        <input type="text" id="provTelefono" placeholder="Ej. 81 2345 6789" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                        <input type="text" id="provTelefono" placeholder="Ej. 81 2345 6789" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 focus:outline-none focus:border-sky-500">
                     </div>
-                    <button type="submit" id="btnGuardarProveedor" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2 rounded-lg transition text-sm shadow-md" style="cursor: pointer;">Guardar Proveedor</button>
+                    <button type="submit" id="btnGuardarProveedor" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg transition text-sm shadow-md cursor-pointer">Guardar Proveedor</button>
                 </form>
             </div>
 
             <!-- Listado de Proveedores y Selector de Compras -->
             <div class="lg:col-span-2 space-y-4">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                    <h3 class="text-md font-semibold text-slate-300">Catálogo de Proveedores</h3>
+                    <h3 class="text-md font-semibold text-slate-200">Catálogo de Proveedores</h3>
                     <div class="w-full sm:w-auto">
-                        <select id="selectFiltroProveedor" class="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg p-2 w-full sm:w-64">
+                        <select id="selectFiltroProveedor" class="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg p-2 w-full sm:w-64 focus:outline-none focus:border-sky-500">
                             <option value="">Seleccione proveedor para ver compras...</option>
                         </select>
                     </div>
                 </div>
 
-                <div id="tablaProveedoresContainer">Cargando proveedores...</div>
+                <div id="tablaProveedoresContainer" class="bg-slate-950 border border-slate-800 rounded-xl p-4 text-center text-slate-500 text-sm">Cargando proveedores...</div>
 
-                <div class="mt-6 space-y-2">
-                    <h4 class="text-sm font-semibold text-sky-400">Historial de Compras al Proveedor Seleccionado</h4>
-                    <div id="historialComprasProveedorContainer" class="bg-slate-950 border border-slate-800 p-3 rounded-xl min-h-[100px] text-xs text-slate-400">
-                        Seleccione un proveedor en el menú superior o en la tabla para consultar su historial de compras.
+                <div class="mt-6 space-y-2 bg-slate-950 border border-slate-800 p-4 rounded-xl">
+                    <h4 class="text-sm font-semibold text-sky-400 mb-2">Historial de Compras e Insumos al Proveedor Seleccionado</h4>
+                    <div id="historialComprasProveedorContainer" class="min-h-[100px] text-xs text-slate-400 flex items-center justify-center">
+                        Seleccione un proveedor en el menú superior o en la tabla para consultar su historial de compras, mi lord.
                     </div>
                 </div>
             </div>
@@ -81,19 +81,19 @@ async function renderizarTablaProveedores() {
         selectFiltro.innerHTML = optionsHtml;
 
         if (!data || data.length === 0) {
-            contenedorTabla.innerHTML = `<p class="text-slate-400 text-sm">No hay proveedores registrados.</p>`;
+            contenedorTabla.innerHTML = `<p class="text-slate-400 text-sm">No hay proveedores registrados todavía.</p>`;
             return;
         }
 
         let html = `
-            <div class="overflow-x-auto border border-slate-800 rounded-xl max-h-64 overflow-y-auto">
+            <div class="overflow-x-auto border border-slate-800 rounded-xl max-h-64 overflow-y-auto bg-slate-950">
                 <table class="w-full text-left text-sm text-slate-300">
-                    <thead>
-                        <tr class="border-b border-slate-800 text-sky-400 bg-slate-950 sticky top-0">
-                            <th class="p-2.5">Proveedor</th>
-                            <th class="p-2.5">Contacto</th>
-                            <th class="p-2.5">Teléfono</th>
-                            <th class="p-2.5 text-right">Acciones</th>
+                    <thead class="bg-slate-900 text-sky-400 border-b border-slate-800 text-xs uppercase sticky top-0">
+                        <tr>
+                            <th class="p-3">Proveedor</th>
+                            <th class="p-3">Contacto</th>
+                            <th class="p-3">Teléfono</th>
+                            <th class="p-3 text-right">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -101,14 +101,14 @@ async function renderizarTablaProveedores() {
 
         data.forEach(p => {
             html += `
-                <tr class="border-b border-slate-900 hover:bg-slate-800/50 transition">
-                    <td class="p-2.5 font-medium text-slate-100">${p.nombre}</td>
-                    <td class="p-2.5 text-slate-400 text-xs">${p.contacto || 'N/D'}</td>
-                    <td class="p-2.5 text-slate-400 text-xs">${p.telefono || 'N/D'}</td>
-                    <td class="p-2.5 text-right">
-                        <button onclick="window.verProveedor(${p.id}, '${p.nombre}', '${p.contacto || ''}', '${p.telefono || ''}')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded mr-1" style="cursor: pointer;">Ver</button>
-                        <button onclick="window.editarProveedor(${p.id}, '${p.nombre}', '${p.contacto || ''}', '${p.telefono || ''}')" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-2 py-1 rounded mr-1" style="cursor: pointer;">Editar</button>
-                        <button onclick="window.filtrarComprasProveedor(${p.id}, '${p.nombre}')" class="text-xs bg-sky-950 hover:bg-sky-900 text-sky-400 px-2 py-1 rounded border border-sky-800" style="cursor: pointer;">Ver Compras</button>
+                <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition">
+                    <td class="p-3 font-medium text-slate-100">${p.nombre}</td>
+                    <td class="p-3 text-slate-400 text-xs">${p.contacto || 'N/D'}</td>
+                    <td class="p-3 text-slate-400 text-xs font-mono">${p.telefono || 'N/D'}</td>
+                    <td class="p-3 text-right space-x-1">
+                        <button onclick="window.verProveedor(${p.id}, '${p.nombre}', '${p.contacto || ''}', '${p.telefono || ''}')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700 transition cursor-pointer">Ver</button>
+                        <button onclick="window.editarProveedor(${p.id}, '${p.nombre}', '${p.contacto || ''}', '${p.telefono || ''}')" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-2.5 py-1 rounded-lg border border-slate-700 transition cursor-pointer">Editar</button>
+                        <button onclick="window.filtrarComprasProveedor(${p.id}, '${p.nombre}')" class="text-xs bg-sky-950 hover:bg-sky-900 text-sky-400 px-2.5 py-1 rounded-lg border border-sky-800 transition cursor-pointer">Compras</button>
                     </td>
                 </tr>
             `;
@@ -168,8 +168,8 @@ function configurarLogicaProveedores() {
                             <div class="text-xs text-slate-400">Contacto: ${prov.contacto || 'N/A'} | Tel: ${prov.telefono || 'N/A'}</div>
                         </div>
                         <div class="flex gap-1 shrink-0">
-                            <button type="button" onclick="window.verProveedor(${prov.id}, '${prov.nombre}', '${prov.contacto || ''}', '${prov.telefono || ''}')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded" style="cursor: pointer;">Ver</button>
-                            <button type="button" onclick="window.editarProveedor(${prov.id}, '${prov.nombre}', '${prov.contacto || ''}', '${prov.telefono || ''}')" class="text-[11px] bg-sky-950 hover:bg-sky-900 text-sky-300 px-2 py-1 rounded border border-sky-800" style="cursor: pointer;">Editar</button>
+                            <button type="button" onclick="window.verProveedor(${prov.id}, '${prov.nombre}', '${prov.contacto || ''}', '${prov.telefono || ''}')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded cursor-pointer">Ver</button>
+                            <button type="button" onclick="window.editarProveedor(${prov.id}, '${prov.nombre}', '${prov.contacto || ''}', '${prov.telefono || ''}')" class="text-[11px] bg-sky-950 hover:bg-sky-900 text-sky-300 px-2 py-1 rounded border border-sky-800 cursor-pointer">Editar</button>
                         </div>
                     </div>
                 `).join('');
@@ -263,7 +263,7 @@ function configurarLogicaProveedores() {
         if (proveedorId) {
             window.filtrarComprasProveedor(parseInt(proveedorId), proveedorNombre);
         } else {
-            document.getElementById('historialComprasProveedorContainer').innerHTML = `Seleccione un proveedor en el menú superior o en la tabla para consultar su historial de compras.`;
+            document.getElementById('historialComprasProveedorContainer').innerHTML = `Seleccione un proveedor en el menú superior o en la tabla para consultar su historial de compras, mi lord.`;
         }
     });
 
@@ -271,10 +271,9 @@ function configurarLogicaProveedores() {
         const contenedorHistorial = document.getElementById('historialComprasProveedorContainer');
         if (!contenedorHistorial) return;
 
-        contenedorHistorial.innerHTML = `<p class="text-slate-400 text-xs">Cargando compras para ${nombreProveedor}...</p>`;
+        contenedorHistorial.innerHTML = `<p class="text-slate-400 text-xs">Cargando compras e insumos para ${nombreProveedor}...</p>`;
 
         try {
-            // Consulta directa sobre la tabla 'productos' filtrada por 'proveedor_id', trayendo sus lotes asociados
             const { data, error } = await supabaseClient
                 .from('productos')
                 .select(`
@@ -293,20 +292,20 @@ function configurarLogicaProveedores() {
             if (error) throw error;
 
             if (!data || data.length === 0) {
-                contenedorHistorial.innerHTML = `<p class="text-slate-400 text-xs">No se encontraron productos o compras asociadas a este proveedor.</p>`;
+                contenedorHistorial.innerHTML = `<p class="text-slate-400 text-xs">No se encontraron productos o compras asociadas a este proveedor, mi lord.</p>`;
                 return;
             }
 
             let html = `
-                <div class="overflow-x-auto max-h-48 overflow-y-auto">
+                <div class="overflow-x-auto max-h-48 overflow-y-auto border border-slate-800 rounded-xl bg-slate-950">
                     <table class="w-full text-left text-slate-300">
-                        <thead>
-                            <tr class="border-b border-slate-800 text-sky-400 text-[11px]">
-                                <th class="p-2">Insumo / Producto</th>
-                                <th class="p-2">Número de Lote</th>
-                                <th class="p-2">Stock en Lote</th>
-                                <th class="p-2">Costo Unitario</th>
-                                <th class="p-2">Fecha Ingreso</th>
+                        <thead class="bg-slate-900 text-sky-400 text-[11px] uppercase border-b border-slate-800 sticky top-0">
+                            <tr>
+                                <th class="p-2.5">Insumo / Producto</th>
+                                <th class="p-2.5">Número de Lote</th>
+                                <th class="p-2.5">Stock en Lote</th>
+                                <th class="p-2.5">Costo Unitario</th>
+                                <th class="p-2.5">Fecha Ingreso</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -318,12 +317,12 @@ function configurarLogicaProveedores() {
                     prod.lotes_inventario.forEach(lote => {
                         totalCompras++;
                         html += `
-                            <tr class="border-b border-slate-900 text-xs">
-                                <td class="p-2 font-medium text-slate-100">${prod.nombre}</td>
-                                <td class="p-2 font-mono text-sky-300">${lote.numero_lote}</td>
-                                <td class="p-2 font-mono">${lote.stock_actual} ${prod.unidad_medida || ''}</td>
-                                <td class="p-2 font-mono">$${Number(lote.costo_unitario || 0).toFixed(2)} ${lote.moneda || 'MXN'}</td>
-                                <td class="p-2 text-slate-400">${lote.fecha_ingreso ? new Date(lote.fecha_ingreso).toLocaleDateString() : 'N/D'}</td>
+                            <tr class="border-b border-slate-900 hover:bg-slate-900/40 text-xs">
+                                <td class="p-2.5 font-medium text-slate-100">${prod.nombre}</td>
+                                <td class="p-2.5 font-mono text-sky-300">${lote.numero_lote || 'S/N'}</td>
+                                <td class="p-2.5 font-mono">${lote.stock_actual} ${prod.unidad_medida || ''}</td>
+                                <td class="p-2.5 font-mono text-slate-300">$${Number(lote.costo_unitario || 0).toFixed(2)} <span class="text-[10px] text-slate-500">${lote.moneda || 'MXN'}</span></td>
+                                <td class="p-2.5 text-slate-400">${lote.fecha_ingreso ? new Date(lote.fecha_ingreso).toLocaleDateString() : 'N/D'}</td>
                             </tr>
                         `;
                     });
@@ -331,7 +330,7 @@ function configurarLogicaProveedores() {
             });
 
             if (totalCompras === 0) {
-                contenedorHistorial.innerHTML = `<p class="text-slate-400 text-xs">El proveedor existe pero no tiene lotes registrados en el inventario actual.</p>`;
+                contenedorHistorial.innerHTML = `<p class="text-slate-400 text-xs">El proveedor existe pero no tiene lotes de inventario registrados actualmente, mi lord.</p>`;
                 return;
             }
 
@@ -340,7 +339,7 @@ function configurarLogicaProveedores() {
 
         } catch (err) {
             console.error("Error al filtrar compras del proveedor:", err);
-            contenedorHistorial.innerHTML = `<p class="text-red-400 text-xs">Error al consultar el historial de compras.</p>`;
+            contenedorHistorial.innerHTML = `<p class="text-red-400 text-xs">Error al consultar el historial de compras en la base de datos.</p>`;
         }
     };
 }

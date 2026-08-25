@@ -21,6 +21,31 @@ export async function verificarConexionReal() {
     }
 }
 
+async function actualizarSelectProveedores() {
+    const selectProveedor = document.getElementById('prodProveedorId');
+    if (!selectProveedor) return;
+
+    try {
+        const { data: listaProveedores, error: errProv } = await supabaseClient
+            .from('proveedores')
+            .select('id, nombre')
+            .order('nombre', { ascending: true });
+
+        if (errProv) throw errProv;
+
+        let opcionesProveedoresHtml = '<option value="">Seleccione proveedor...</option>';
+        if (listaProveedores && listaProveedores.length > 0) {
+            listaProveedores.forEach(prov => {
+                opcionesProveedoresHtml += `<option value="${prov.id}">${prov.nombre}</option>`;
+            });
+        }
+        
+        selectProveedor.innerHTML = opcionesProveedoresHtml;
+    } catch (err) {
+        console.error("Error al actualizar la lista de proveedores:", err);
+    }
+}
+
 export async function cargarCatalogoInicial() {
     const contenedor = document.getElementById('contenedorCatalogo');
     if (!contenedor) {
@@ -31,45 +56,77 @@ export async function cargarCatalogoInicial() {
     try {
         if (!supabaseClient) throw new Error("Cliente Supabase no disponible.");
         
-        contenedor.innerHTML = `<p class="text-slate-400 text-sm p-4">Cargando catálogo con arquitectura unificada...</p>`;
+        contenedor.innerHTML = `<p class="text-slate-400 text-sm p-4">Cargando catálogo con arquitectura normalizada...</p>`;
 
-        // 1. Obtener todos los artículos de la tabla unificada 'productos'
-        const { data: todosArticulos, error: errArtList } = await supabaseClient
-            .from('productos')
-            .select('id, nombre, sku, tipo, unidad_medida, proveedor_id, proveedores(id, nombre)');
-
-        if (errArtList) throw errArtList;
-
-        // 2. Cargar catálogo de proveedores
-        const { data: listaProveedores, error: errProv } = await supabaseClient
-            .from('proveedores')
-            .select('id, nombre');
-
-        if (errProv) throw errProv;
-
-        let opcionesProveedoresHtml = '<option value="">Seleccione proveedor...</option>';
-        if (listaProveedores && listaProveedores.length > 0) {
-            listaProveedores.forEach(prov => {
-                opcionesProveedoresHtml += `<option value="${prov.id}">${prov.nombre}</option>`;
-            });
-        }
-
-        // 3. Carga estricta desde la tabla unidades_medida (sin arreglos estáticos de respaldo)
+        // 1. Cargar unidades de medida
         let unidadesMedida = [];
+        const mapaUnidades = {};
         const { data: resUm, error: errUm } = await supabaseClient
             .from('unidades_medida')
             .select('id, nombre')
             .order('id', { ascending: true });
 
         if (errUm) {
-            console.error("Error al consultar unidades_medida:", errUm.message);
             throw errUm;
         } else if (resUm) {
             unidadesMedida = resUm;
+            unidadesMedida.forEach(u => {
+                mapaUnidades[u.id] = u.nombre;
+            });
+        }
+
+        let opcionesUnidades = '<option value="">Seleccione unidad...</option>';
+        unidadesMedida.forEach(u => {
+            opcionesUnidades += `<option value="${u.id}">${u.nombre}</option>`;
+        });
+
+        // 2. Cargar monedas dinámicamente desde la tabla monedas (id, codigo)
+        let monedasList = [];
+        const mapaMonedas = {};
+        const { data: resMon, error: errMon } = await supabaseClient
+            .from('monedas')
+            .select('id, codigo')
+            .order('id', { ascending: true });
+
+        if (errMon) {
+            throw errMon;
+        } else if (resMon) {
+            monedasList = resMon;
+            monedasList.forEach(m => {
+                mapaMonedas[m.id] = m.codigo;
+            });
+        }
+
+        let opcionesMonedas = '<option value="">Seleccione moneda...</option>';
+        monedasList.forEach(m => {
+            opcionesMonedas += `<option value="${m.id}">${m.codigo}</option>`;
+        });
+
+        // 3. Obtener artículos (usando '*' para garantizar que traiga 'moneda_id' y todos los campos nuevos del esquema)
+        const { data: todosArticulos, error: errArtList } = await supabaseClient
+            .from('productos')
+            .select('*');
+
+        if (errArtList) throw errArtList;
+
+        // 4. Cargar proveedores
+        const { data: listaProveedores, error: errProv } = await supabaseClient
+            .from('proveedores')
+            .select('id, nombre')
+            .order('nombre', { ascending: true });
+
+        if (errProv) throw errProv;
+
+        const mapaProveedores = {};
+        let opcionesProveedoresHtml = '<option value="">Seleccione proveedor...</option>';
+        if (listaProveedores && listaProveedores.length > 0) {
+            listaProveedores.forEach(prov => {
+                mapaProveedores[prov.id] = prov.nombre;
+                opcionesProveedoresHtml += `<option value="${prov.id}">${prov.nombre}</option>`;
+            });
         }
 
         const mapaArticulos = {};
-        
         let opcionesBomHtml = '<option value="">Seleccione insumo o componente...</option>';
         if (todosArticulos && todosArticulos.length > 0) {
             const materiasPrimas = todosArticulos.filter(a => a.tipo === 'materia_prima');
@@ -79,7 +136,8 @@ export async function cargarCatalogoInicial() {
                 opcionesBomHtml += '<optgroup label="Materias Primas">';
                 materiasPrimas.forEach(m => {
                     mapaArticulos[m.id] = m;
-                    opcionesBomHtml += `<option value="${m.id}">${m.nombre} (${m.unidad_medida || 'ud'})</option>`;
+                    const nombreUni = mapaUnidades[m.unidad_medida_id] || 'ud';
+                    opcionesBomHtml += `<option value="${m.id}">${m.nombre} (${nombreUni})</option>`;
                 });
                 opcionesBomHtml += '</optgroup>';
             }
@@ -94,15 +152,8 @@ export async function cargarCatalogoInicial() {
             }
         }
 
-        let opcionesUnidades = '<option value="">Seleccione unidad...</option>';
-        unidadesMedida.forEach(u => {
-            const nombreUnidad = u.nombre || '';
-            opcionesUnidades += `<option value="${nombreUnidad}">${nombreUnidad}</option>`;
-        });
-
         contenedor.innerHTML = `
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <!-- Formulario Maestro de Artículos, Productos e Insumos -->
                 <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-4 relative">
                     <div class="flex justify-between items-center">
                         <h3 id="tituloFormProducto" class="text-md font-semibold text-sky-400">Registro General de Artículos</h3>
@@ -121,18 +172,18 @@ export async function cargarCatalogoInicial() {
 
                         <div class="relative">
                             <label class="block text-xs font-medium text-slate-400 mb-1">Nombre del Artículo</label>
-                            <input type="text" id="prodNombre" placeholder="Ej. Agua purificada Nivel 1" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 autocomplete-input" autocomplete="off" required>
+                            <input type="text" id="prodNombre" placeholder="Ej. Artículo o Material" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 autocomplete-input" autocomplete="off" required>
                             <div id="sugerenciasProductos" class="absolute z-50 left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl hidden max-h-48 overflow-y-auto"></div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-2">
                             <div>
                                 <label class="block text-xs font-medium text-slate-400 mb-1">SKU / Código</label>
-                                <input type="text" id="prodSku" placeholder="Ej. H2O" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono" required>
+                                <input type="text" id="prodSku" placeholder="Ej. SKU-001" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono">
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-slate-400 mb-1">Unidad de Medida</label>
-                                <select id="prodUnidadMedida" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
+                                <select id="prodUnidadMedidaId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
                                     ${opcionesUnidades}
                                 </select>
                             </div>
@@ -145,15 +196,17 @@ export async function cargarCatalogoInicial() {
                             </div>
                             <div>
                                 <label class="block text-[11px] text-slate-400 mb-1">Moneda</label>
-                                <select id="prodMoneda" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-medium">
-                                    <option value="MXN">MXN</option>
-                                    <option value="USD">USD</option>
+                                <select id="prodMonedaId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-medium" required>
+                                    ${opcionesMonedas}
                                 </select>
                             </div>
                         </div>
 
                         <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">Proveedor</label>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="block text-xs font-medium text-slate-400">Proveedor</label>
+                                <button type="button" id="btnRefrescarProveedores" class="text-[10px] text-sky-400 hover:underline">🔄 Actualizar lista</button>
+                            </div>
                             <select id="prodProveedorId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                                 ${opcionesProveedoresHtml}
                             </select>
@@ -181,11 +234,11 @@ export async function cargarCatalogoInicial() {
                                 <div class="grid grid-cols-2 gap-2">
                                     <div>
                                         <label class="block text-[10px] text-slate-400 mb-0.5">Cantidad</label>
-                                        <input type="number" step="0.0001" id="bomCantidad" placeholder="Ej. 500" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                                        <input type="number" step="0.0001" id="bomCantidad" placeholder="Ej. 1" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                                     </div>
                                     <div>
                                         <label class="block text-[10px] text-slate-400 mb-0.5">Unidad Consumo</label>
-                                        <select id="bomUnidadMedida" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                                        <select id="bomUnidadMedidaId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                                             ${opcionesUnidades}
                                         </select>
                                     </div>
@@ -193,7 +246,7 @@ export async function cargarCatalogoInicial() {
 
                                 <div>
                                     <label class="block text-[10px] text-slate-400 mb-0.5">Merma (%)</label>
-                                    <input type="number" step="0.01" id="bomMerma" placeholder="Ej. 0.05" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                                    <input type="number" step="0.01" id="bomMerma" placeholder="Ej. 0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                                 </div>
 
                                 <button type="button" id="btnAgregarItemBom" class="w-full bg-slate-800 hover:bg-slate-700 text-sky-300 font-medium py-1.5 rounded-lg text-xs transition">＋ Agregar Componente al BOM</button>
@@ -208,7 +261,6 @@ export async function cargarCatalogoInicial() {
                     </form>
                 </div>
 
-                <!-- Tabla de Artículos General -->
                 <div class="lg:col-span-2 space-y-3">
                     <div class="flex justify-between items-center">
                         <h3 class="text-md font-semibold text-slate-300">Catálogo General de Artículos</h3>
@@ -227,12 +279,19 @@ export async function cargarCatalogoInicial() {
         const inputNombre = document.getElementById('prodNombre');
         const sugerenciasDiv = document.getElementById('sugerenciasProductos');
         const btnNuevoModo = document.getElementById('btnNuevoModo');
+        const btnRefrescarProveedores = document.getElementById('btnRefrescarProveedores');
         const tituloForm = document.getElementById('tituloFormProducto');
         const btnGuardar = document.getElementById('btnGuardarProd');
         const btnAddBom = document.getElementById('btnAgregarItemBom');
         const listaTempEl = document.getElementById('listaBomTemporal');
         const selectTipoElemento = document.getElementById('tipoElemento');
         const seccionBomContainer = document.getElementById('seccionBomContainer');
+
+        if (btnRefrescarProveedores) {
+            btnRefrescarProveedores.addEventListener('click', async () => {
+                await actualizarSelectProveedores();
+            });
+        }
 
         selectTipoElemento.addEventListener('change', (e) => {
             if (e.target.value === 'producto') {
@@ -299,6 +358,8 @@ export async function cargarCatalogoInicial() {
 
         async function cargarDetalleArticuloExistente(id) {
             try {
+                await actualizarSelectProveedores();
+
                 const { data: art, error: errA } = await supabaseClient
                     .from('productos')
                     .select('*')
@@ -311,9 +372,13 @@ export async function cargarCatalogoInicial() {
                 selectTipoElemento.value = art.tipo || 'producto';
                 inputNombre.value = art.nombre;
                 document.getElementById('prodSku').value = art.sku || '';
-                document.getElementById('prodUnidadMedida').value = art.unidad_medida || '';
+                document.getElementById('prodUnidadMedidaId').value = art.unidad_medida_id || '';
                 document.getElementById('prodCosto').value = art.costo_unitario || 0;
-                document.getElementById('prodMoneda').value = art.moneda || 'MXN';
+                
+                // Asignación directa y robusta del ID de la moneda mapeada en la BD
+                const selectMoneda = document.getElementById('prodMonedaId');
+                selectMoneda.value = art.moneda_id ? art.moneda_id : "";
+
                 document.getElementById('prodProveedorId').value = art.proveedor_id || '';
                 document.getElementById('prodDesc').value = art.descripcion || '';
 
@@ -326,22 +391,23 @@ export async function cargarCatalogoInicial() {
                     
                     const { data: bomItems, error: errBom } = await supabaseClient
                         .from('bom')
-                        .select('*, componente:productos!bom_componente_id_fkey(id, nombre, sku, unidad_medida)')
+                        .select('*')
                         .eq('producto_id', id);
 
                     if (errBom) {
-                        console.warn("Intentando consulta alternativa de BOM:", errBom.message);
+                        console.warn("Error al consultar BOM:", errBom.message);
                     }
 
                     itemsBomTemp = [];
                     if (bomItems && bomItems.length > 0) {
                         bomItems.forEach(b => {
-                            const infoComp = b.componente || mapaArticulos[b.componente_id] || { nombre: `Elemento ID: ${b.componente_id}` };
+                            const infoComp = mapaArticulos[b.componente_id] || { nombre: `Elemento ID: ${b.componente_id}` };
                             itemsBomTemp.push({
                                 componenteId: b.componente_id,
                                 componenteNombre: infoComp.nombre,
                                 cantidad: b.cantidad_requerida,
-                                unidad: b.unidad_medida || 'g',
+                                unidadId: b.unidad_medida, 
+                                unidadNombre: mapaUnidades[b.unidad_medida] || '',
                                 merma: b.factor_merma || 0
                             });
                         });
@@ -357,7 +423,7 @@ export async function cargarCatalogoInicial() {
             }
         }
 
-        btnNuevoModo.addEventListener('click', () => {
+        btnNuevoModo.addEventListener('click', async () => {
             productoSeleccionadoId = null;
             document.getElementById('formCrearProducto').reset();
             itemsBomTemp = [];
@@ -366,6 +432,8 @@ export async function cargarCatalogoInicial() {
             tituloForm.textContent = "Registro General de Artículos";
             btnGuardar.textContent = "Guardar Artículo";
             btnNuevoModo.classList.add('hidden');
+            
+            await actualizarSelectProveedores();
         });
 
         function actualizarListaBomVisual() {
@@ -375,7 +443,7 @@ export async function cargarCatalogoInicial() {
             }
             listaTempEl.innerHTML = itemsBomTemp.map((item, idx) => `
                 <div class="flex justify-between items-center py-1 border-b border-slate-800 last:border-0">
-                    <span>${item.componenteNombre} - <strong>${item.cantidad} ${item.unidad}</strong> (Merma: ${item.merma})</span>
+                    <span>${item.componenteNombre} - <strong>${item.cantidad} ${item.unidadNombre || ''}</strong> (Merma: ${item.merma})</span>
                     <button type="button" onclick="window.removerItemBom(${idx})" class="text-red-400 hover:text-red-300 text-xs">Eliminar</button>
                 </div>
             `).join('');
@@ -394,13 +462,9 @@ export async function cargarCatalogoInicial() {
             const nombreInsumo = selectedOption.text.split(' [')[0];
             
             const cantidad = parseFloat(document.getElementById('bomCantidad').value) || 0;
-            const unidadSelect = document.getElementById('bomUnidadMedida');
-            const unidadConsumo = unidadSelect.value;
-
-            if (!unidadConsumo) {
-                alert("Seleccione la unidad de medida de consumo.");
-                return;
-            }
+            const unidadSelect = document.getElementById('bomUnidadMedidaId');
+            const unidadId = unidadSelect.value ? parseInt(unidadSelect.value) : null;
+            const unidadNombre = unidadSelect.options[unidadSelect.selectedIndex]?.text || '';
 
             const merma = parseFloat(document.getElementById('bomMerma').value) || 0;
 
@@ -413,7 +477,8 @@ export async function cargarCatalogoInicial() {
                 componenteId,
                 componenteNombre: nombreInsumo, 
                 cantidad, 
-                unidad: unidadConsumo,
+                unidadId,
+                unidadNombre,
                 merma 
             });
             
@@ -436,29 +501,32 @@ export async function cargarCatalogoInicial() {
             const tipo = selectTipoElemento.value;
             const nombre = inputNombre.value.trim();
             const sku = document.getElementById('prodSku').value.trim();
-            const unidadMedida = document.getElementById('prodUnidadMedida').value;
+            const unidadMedidaIdVal = document.getElementById('prodUnidadMedidaId').value;
+            const unidad_medida_id = unidadMedidaIdVal ? parseInt(unidadMedidaIdVal) : null;
             const costoUnitario = parseFloat(document.getElementById('prodCosto').value) || 0;
-            const moneda = document.getElementById('prodMoneda').value;
+            const monedaIdVal = document.getElementById('prodMonedaId').value;
+            const moneda_id = monedaIdVal ? parseInt(monedaIdVal) : null;
             const proveedorIdVal = document.getElementById('prodProveedorId').value;
             const proveedor_id = proveedorIdVal ? parseInt(proveedorIdVal) : null;
             const descripcion = document.getElementById('prodDesc').value.trim();
 
-            if (!nombre || !sku || !unidadMedida) {
-                alert("El nombre, el SKU y la unidad de medida son obligatorios.");
+            if (!nombre) {
+                alert("El nombre del artículo es obligatorio.");
                 return;
             }
 
             try {
                 let articuloId = productoSeleccionadoId;
+                
                 const payload = {
                     tipo, 
                     nombre, 
-                    sku, 
-                    unidad_medida: unidadMedida, 
+                    sku: sku || null, 
+                    unidad_medida_id, 
                     costo_unitario: costoUnitario,
-                    moneda,
+                    moneda_id,
                     proveedor_id,
-                    descripcion 
+                    descripcion: descripcion || null
                 };
 
                 if (articuloId) {
@@ -487,7 +555,7 @@ export async function cargarCatalogoInicial() {
                         producto_id: articuloId,
                         componente_id: i.componenteId,
                         cantidad_requerida: i.cantidad,
-                        unidad_medida: i.unidad,
+                        unidad_medida: i.unidadId ? i.unidadId.toString() : null,
                         factor_merma: i.merma
                     }));
 
@@ -495,22 +563,22 @@ export async function cargarCatalogoInicial() {
                     if (errB) throw errB;
                 }
 
-                alert(productoSeleccionadoId ? "¡Artículo actualizado con éxito, mi lord!" : "¡Artículo registrado con éxito, mi lord!");
+                alert(productoSeleccionadoId ? "¡Artículo actualizado con éxito!" : "¡Artículo registrado con éxito!");
                 
                 btnNuevoModo.click();
-                await renderizarTablaProductos();
+                await renderizarTablaProductos(mapaUnidades);
 
             } catch (err) {
                 console.error("Error al guardar el artículo:", err);
                 if (err.code === '23505') {
                     alert('Error al guardar el artículo: El SKU o clave ya está registrado.');
                 } else {
-                    alert("Error al procesar la operación en la base de datos.");
+                    alert("Error al procesar la operación en la base de datos: " + (err.message || err));
                 }
             }
         });
 
-        await renderizarTablaProductos();
+        await renderizarTablaProductos(mapaUnidades);
 
     } catch (err) {
         console.error("Error crítico al inicializar el catálogo:", err);
@@ -522,16 +590,23 @@ export async function cargarCatalogoInicial() {
     }
 }
 
-async function renderizarTablaProductos() {
+async function renderizarTablaProductos(mapaUnidades = {}) {
     const contenedorTabla = document.getElementById('tablaProductosContainer');
     if (!contenedorTabla) return;
 
     try {
-        const { data: productosData, error: errProd } = await supabaseClient
-            .from('productos')
-            .select('id, nombre, sku, tipo, unidad_medida, proveedor_id, proveedores(nombre)');
+        const [resProd, resProv] = await Promise.all([
+            supabaseClient.from('productos').select('id, nombre, sku, tipo, unidad_medida_id, proveedor_id').order('id', { ascending: true }),
+            supabaseClient.from('proveedores').select('id, nombre')
+        ]);
 
-        if (errProd) throw errProd;
+        if (resProd.error) throw resProd.error;
+        const productosData = resProd.data;
+
+        const mapaProvNombres = {};
+        if (resProv.data) {
+            resProv.data.forEach(p => { mapaProvNombres[p.id] = p.nombre; });
+        }
 
         if (!productosData || productosData.length === 0) {
             contenedorTabla.innerHTML = `<p class="text-slate-400 text-sm">No hay artículos registrados.</p>`;
@@ -558,14 +633,15 @@ async function renderizarTablaProductos() {
             if (item.tipo === 'materia_prima') badgeColor = "bg-amber-950 text-amber-400 border-amber-800";
             if (item.tipo === 'insumo') badgeColor = "bg-emerald-950 text-emerald-400 border-emerald-800";
 
-            const nombreProveedor = item.proveedores?.nombre || 'N/D';
+            const nombreProveedor = mapaProvNombres[item.proveedor_id] || 'N/D';
+            const nombreUnidad = mapaUnidades[item.unidad_medida_id] || 'N/D';
 
             html += `
                 <tr class="border-b border-slate-900 hover:bg-slate-800/50 transition">
                     <td class="p-3 font-mono text-xs text-sky-300">${item.sku || 'N/D'}</td>
                     <td class="p-3"><span class="text-[10px] px-2 py-0.5 rounded border ${badgeColor} uppercase">${item.tipo || 'producto'}</span></td>
                     <td class="p-3 font-medium text-slate-100">${item.nombre || 'Sin nombre'}</td>
-                    <td class="p-3 text-slate-400 text-xs">${item.unidad_medida || 'N/D'}</td>
+                    <td class="p-3 text-slate-400 text-xs">${nombreUnidad}</td>
                     <td class="p-3 text-slate-300 text-xs">${nombreProveedor}</td>
                 </tr>
             `;
