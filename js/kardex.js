@@ -1,4 +1,4 @@
-import { supabaseClient } from './supabase.js';
+[cite: 3]import { supabaseClient } from './supabase.js';
 
 let productosCache = [];
 
@@ -123,7 +123,18 @@ window.consultarKardexProducto = async function() {
 
         const { data: movimientos, error } = await supabaseClient
             .from('movimientos_inventario')
-            .select('id, tipo_movimiento, cantidad, stock_anterior, stock_resultante, costo_unitario, created_at, documento_id')
+            .select(`
+                id, 
+                tipo_movimiento, 
+                cantidad, 
+                stock_anterior, 
+                stock_resultante, 
+                costo_unitario, 
+                created_at, 
+                documento_id,
+                lote_id,
+                lotes_inventario ( numero_lote )
+            `)
             .eq('producto_id', productoId)
             .order('created_at', { ascending: false });
 
@@ -154,13 +165,14 @@ window.consultarKardexProducto = async function() {
                 <table class="w-full text-left text-sm text-slate-300">
                     <thead class="bg-slate-950 text-indigo-400 border-b border-slate-800 text-xs uppercase">
                         <tr>
+                            <th class="p-3">Doc ID</th>
                             <th class="p-3">Fecha y Hora</th>
                             <th class="p-3">Operación</th>
-                            <th class="p-3">Doc ID</th>
+                            <th class="p-3">Lote</th>
+                            <th class="p-3">Costo Unit.</th>
                             <th class="p-3 text-center">Stock Ant.</th>
                             <th class="p-3 text-center">Cantidad</th>
                             <th class="p-3 text-center">Stock Nuevo</th>
-                            <th class="p-3">Costo Unit.</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -173,6 +185,7 @@ window.consultarKardexProducto = async function() {
             const esEntrada = cantNum >= 0;
             const claseCantidad = esEntrada ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold';
             const signo = esEntrada ? '+' : '';
+            const numeroLote = m.lotes_inventario?.numero_lote || 'N/D';
 
             const colDocId = docId ? `
                 <button onclick="window.abrirDetalleDocumento('${docId}')" class="font-mono text-xs text-indigo-400 hover:text-indigo-300 hover:underline bg-indigo-950/50 hover:bg-indigo-900/50 px-2 py-1 rounded border border-indigo-800/50 transition flex items-center gap-1 w-fit cursor-pointer">
@@ -183,13 +196,14 @@ window.consultarKardexProducto = async function() {
 
             html += `
                 <tr class="border-b border-slate-800/60 hover:bg-slate-800/40 transition">
+                    <td class="p-3">${colDocId}</td>
                     <td class="p-3 text-xs text-slate-400 font-mono">${fechaHora}</td>
                     <td class="p-3 text-xs uppercase font-semibold text-indigo-300">${m.tipo_movimiento || 'N/D'}</td>
-                    <td class="p-3">${colDocId}</td>
+                    <td class="p-3 text-xs font-mono text-amber-300">${numeroLote}</td>
+                    <td class="p-3 font-mono text-slate-300">$${Number(m.costo_unitario || 0).toFixed(2)}</td>
                     <td class="p-3 text-center font-mono text-slate-400">${m.stock_anterior ?? 0}</td>
                     <td class="p-3 text-center font-mono ${claseCantidad}">${signo}${cantNum}</td>
                     <td class="p-3 text-center font-mono text-amber-300 font-semibold">${m.stock_resultante ?? 0}</td>
-                    <td class="p-3 font-mono text-slate-300">$${Number(m.costo_unitario || 0).toFixed(2)}</td>
                 </tr>
             `;
         });
@@ -332,3 +346,4 @@ window.cerrarDetalleDocumento = function() {
         modalContainer.classList.add('hidden');
     }
 };
+[cite: 3]
