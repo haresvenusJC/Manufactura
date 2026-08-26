@@ -185,7 +185,7 @@ export async function configurarFormularioCompras() {
         const folio = document.getElementById('compraFactura')?.value.trim() || '';
         const proveedorId = document.getElementById('compraProveedorId')?.value ? parseInt(document.getElementById('compraProveedorId').value) : null;
         const monedaCodigo = document.getElementById('compraMoneda')?.value || 'MXN';
-        const tipoCambio = parseFloat(document.getElementById('compraTipoCambio')?.value) || 1.0;
+        const tipoCambio = (monedaCodigo === 'USD') ? (parseFloat(document.getElementById('compraTipoCambio')?.value) || 1.0) : 1.0;
         const notas = document.getElementById('compraNotas')?.value.trim() || '';
 
         let partidasAProcesar = [...listaPartidasCompra];
@@ -193,7 +193,7 @@ export async function configurarFormularioCompras() {
         if (partidasAProcesar.length === 0) {
             const nombreInsumo = document.getElementById('compraInsumoNombre')?.value.trim() || '';
             const cantidad = parseFloat(document.getElementById('compraCantidad')?.value) || 0;
-            const costoUnitario = parseFloat(document.getElementById('compraCostUnitario')?.value) || 0;
+            let costoUnitario = parseFloat(document.getElementById('compraCostUnitario')?.value) || 0;
             const unidadMedidaId = document.getElementById('compraUnidadMedida')?.value ? parseInt(document.getElementById('compraUnidadMedida').value) : null;
             const numeroLote = document.getElementById('compraLote')?.value.trim() || folio || 'LOTE-COMPRA';
 
@@ -201,6 +201,9 @@ export async function configurarFormularioCompras() {
                 alert("Debe ingresar el nombre del insumo, seleccionar la unidad de medida y una cantidad válida (mayor a 0), o bien usar el botón 'Agregar Partida' para acumular varias.");
                 return;
             }
+
+            // Aplicar el tipo de cambio manual si es USD al costo unitario base
+            costoUnitario = costoUnitario * tipoCambio;
 
             const uMatch = catalogoUnidadesCache.find(u => u.id === unidadMedidaId);
             partidasAProcesar.push({
@@ -211,6 +214,14 @@ export async function configurarFormularioCompras() {
                 unidadNombre: uMatch ? uMatch.nombre : 'N/A',
                 numeroLote
             });
+        } else {
+            // Si hay partidas acumuladas, aplicar el factor de tipo de cambio manual si se seleccionó USD
+            if (monedaCodigo === 'USD' && tipoCambio > 1.0) {
+                partidasAProcesar = partidasAProcesar.map(p => ({
+                    ...p,
+                    costoUnitario: p.costoUnitario * tipoCambio
+                }));
+            }
         }
 
         if (!confirm(`¿Confirma el registro de la compra (${folio || 'Sin Factura'}) con ${partidasAProcesar.length} partida(s)?`)) {
@@ -218,7 +229,6 @@ export async function configurarFormularioCompras() {
         }
 
         try {
-            // Nota: El RPC gestiona los lotes internamente, pero puedes conservar la consulta de moneda si se requiere validar o pasar el ID a metadatos si tu esquema lo usa.
             const { data: monedaData, error: errMoneda } = await supabaseClient
                 .from('monedas')
                 .select('id')
@@ -294,7 +304,6 @@ export async function configurarFormularioCompras() {
 
                 if (errDetalle) throw errDetalle;
 
-                // LLAMADA AL RPC NATIVO DE SUPABASE (Sustituye la inserción manual en lotes_inventario)
                 const { error: errRpc } = await supabaseClient.rpc('registrar_movimiento_inventario_fifo', {
                     p_producto_id: productoId,
                     p_cantidad: partida.cantidad,
