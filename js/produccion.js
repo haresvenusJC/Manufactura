@@ -181,14 +181,15 @@ export async function registrarOrdenDeProduccionCompleta(datosOrden) {
                 cantidadTotalRequerida /= 1000;
             }
 
-            const costoUnitarioComp = Number(datosIns.costo_unitario || 0);
+            const costoUnitarioCatalogo = Number(datosIns.costo_unitario || 0);
 
+            // Se envía null en p_costo_unitario_fijo para que el RPC use el costo real y específico de cada lote
             const { data: lotesConsumidos, error: errRpcSalida } = await supabaseClient.rpc('registrar_salida_fifo', {
                 p_producto_id: componenteId,
                 p_cantidad_salida: Number(cantidadTotalRequerida),
                 p_tipo_movimiento: 'salida_produccion',
                 p_documento_id: documentoIdCreado,
-                p_costo_unitario_fijo: costoUnitarioComp > 0 ? costoUnitarioComp : null
+                p_costo_unitario_fijo: null 
             });
 
             if (errRpcSalida) throw new Error(`Error al descontar insumo ID ${componenteId} (FIFO): ${errRpcSalida.message}`);
@@ -196,11 +197,11 @@ export async function registrarOrdenDeProduccionCompleta(datosOrden) {
             if (Array.isArray(lotesConsumidos) && lotesConsumidos.length > 0) {
                 lotesConsumidos.forEach(lote => {
                     const cantLote = Number(lote.cantidad || 0);
-                    const costoLote = Number(lote.costo_unitario || costoUnitarioComp);
+                    const costoLote = Number(lote.costo_unitario ?? costoUnitarioCatalogo);
                     costoTotalMateriales += (cantLote * costoLote);
                 });
             } else {
-                costoTotalMateriales += (cantidadTotalRequerida * costoUnitarioComp);
+                costoTotalMateriales += (cantidadTotalRequerida * costoUnitarioCatalogo);
             }
         }
 
@@ -323,9 +324,6 @@ async function renderizarDetalleOrden(idSeleccionado, ordenes, contenedorDetalle
     contenedorDetalle.innerHTML = `<p class="text-slate-400 text-sm text-center py-2">Cargando desglose de componentes por lote...</p>`;
     
     try {
-        // ordenes_produccion no guarda documento_id directamente (no existe esa columna).
-        // Lo obtenemos a través del lote de producto terminado que generó la orden,
-        // que sí queda enlazado a su documento en lotes_inventario.documento_id.
         let docIdAUsar = null;
         const { data: loteOrden, error: errLote } = await supabaseClient
             .from('lotes_inventario')
