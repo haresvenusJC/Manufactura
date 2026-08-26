@@ -1,4 +1,4 @@
-[cite: 3]import { supabaseClient } from './supabase.js';
+import { supabaseClient } from './supabase.js';
 
 let productosCache = [];
 
@@ -346,4 +346,3 @@ window.cerrarDetalleDocumento = function() {
         modalContainer.classList.add('hidden');
     }
 };
-[cite: 3]
