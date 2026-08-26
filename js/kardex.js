@@ -26,24 +26,42 @@ function inicializarBuscadorAjax() {
     
     if (!contenedorFiltro || document.getElementById('inputBuscadorKardex')) return;
 
+    // Se dibuja tanto el buscador de productos como el selector de lotes de lado a lado
     contenedorFiltro.innerHTML = `
-        <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1 font-semibold">Buscar Producto o Insumo:</label>
-        <div class="relative">
-            <input 
-                type="text" 
-                id="inputBuscadorKardex" 
-                placeholder="Escribe el nombre o SKU del producto..." 
-                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-indigo-500 transition shadow-inner"
-                autocomplete="off"
-            >
-            <input type="hidden" id="selectProductoKardex" value="">
-            <div id="listaResultadosAjax" class="absolute z-50 left-0 right-0 mt-1 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl max-h-60 overflow-y-auto hidden divide-y divide-slate-800/60"></div>
+        <div class="flex flex-col md:flex-row gap-4 items-end w-full">
+            <div class="w-full md:flex-1 relative">
+                <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1 font-semibold">Buscar Producto o Insumo:</label>
+                <input 
+                    type="text" 
+                    id="inputBuscadorKardex" 
+                    placeholder="Escribe el nombre o SKU del producto..." 
+                    class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-indigo-500 transition shadow-inner"
+                    autocomplete="off"
+                >
+                <input type="hidden" id="selectProductoKardex" value="">
+                <div id="listaResultadosAjax" class="absolute z-50 left-0 right-0 mt-1 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl max-h-60 overflow-y-auto hidden divide-y divide-slate-800/60"></div>
+            </div>
+            
+            <div class="w-full md:w-72">
+                <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1 font-semibold">Filtrar por Lote:</label>
+                <select id="selectFiltroLoteKardex" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-slate-300 text-sm focus:outline-none focus:border-indigo-500 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    <option value="">-- Todos los Lotes --</option>
+                </select>
+            </div>
         </div>
     `;
 
     const inputBuscador = document.getElementById('inputBuscadorKardex');
     const listaResultados = document.getElementById('listaResultadosAjax');
     const inputHiddenId = document.getElementById('selectProductoKardex');
+    const selectFiltroLote = document.getElementById('selectFiltroLoteKardex');
+
+    // Al cambiar de lote en el select, se actualiza la tabla de movimientos automáticamente
+    selectFiltroLote.addEventListener('change', () => {
+        if (inputHiddenId.value) {
+            window.consultarKardexProducto();
+        }
+    });
 
     listaResultados.addEventListener('click', (e) => {
         const item = e.target.closest('.item-sugerencia-kardex');
@@ -52,12 +70,19 @@ function inicializarBuscadorAjax() {
         inputBuscador.value = item.getAttribute('data-nombre');
         inputHiddenId.value = item.getAttribute('data-id');
         listaResultados.classList.add('hidden');
+        
+        // Reiniciar select de lotes al cambiar de producto
+        selectFiltroLote.innerHTML = `<option value="">-- Todos los Lotes --</option>`;
+        selectFiltroLote.disabled = true;
+
         window.consultarKardexProducto();
     });
 
     inputBuscador.addEventListener('input', (e) => {
         const busqueda = e.target.value.toLowerCase().trim();
         inputHiddenId.value = ""; 
+        selectFiltroLote.innerHTML = `<option value="">-- Todos los Lotes --</option>`;
+        selectFiltroLote.disabled = true;
 
         if (!busqueda) {
             listaResultados.classList.add('hidden');
@@ -101,6 +126,7 @@ function inicializarBuscadorAjax() {
 window.consultarKardexProducto = async function() {
     let productoId = document.getElementById('selectProductoKardex')?.value;
     const contenedorResultado = document.getElementById('resultadoKardex');
+    const selectFiltroLote = document.getElementById('selectFiltroLoteKardex');
 
     if (!productoId || !contenedorResultado) {
         alert("Por favor selecciona un producto válido de la lista del buscador.");
@@ -131,12 +157,33 @@ window.consultarKardexProducto = async function() {
                 created_at, 
                 documento_id,
                 lote_id,
-                lotes_inventario ( numero_lote )
+                lotes_inventario ( id, numero_lote )
             `)
             .eq('producto_id', productoId)
-            .order('created_at', { ascending: true }); // Se consulta en orden cronológico ascendente para calcular saldos por lote correctamente
+            .order('created_at', { ascending: true });
 
         if (error) throw error;
+
+        // Poblar dinámicamente el selector de lotes con los lotes que pertenecen a este producto
+        if (selectFiltroLote) {
+            const loteSeleccionadoActual = selectFiltroLote.value;
+            const lotesMap = new Map();
+            
+            movimientos.forEach(m => {
+                if (m.lotes_inventario && m.lotes_inventario.id) {
+                    lotesMap.set(m.lotes_inventario.id, m.lotes_inventario.numero_lote);
+                }
+            });
+
+            let optionsHtml = `<option value="">-- Todos los Lotes --</option>`;
+            lotesMap.forEach((numeroLote, idLote) => {
+                const selected = String(idLote) === String(loteSeleccionadoActual) ? 'selected' : '';
+                optionsHtml += `<option value="${idLote}" ${selected}>Lote: ${numeroLote}</option>`;
+            });
+
+            selectFiltroLote.innerHTML = optionsHtml;
+            selectFiltroLote.disabled = lotesMap.size === 0;
+        }
 
         let html = `
             <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 shadow-lg">
@@ -158,7 +205,7 @@ window.consultarKardexProducto = async function() {
             return;
         }
 
-        // Estructura de acumulados por lote independiente para evitar desfases o ceros
+        // Cálculo acumulado de stock por lote independiente
         const stockAcumuladoLotes = {};
         const movimientosProcesados = movimientos.map(m => {
             const loteKey = m.lote_id || 'SIN_LOTE';
@@ -178,8 +225,17 @@ window.consultarKardexProducto = async function() {
             };
         });
 
-        // Invertimos de nuevo para mostrar el más reciente arriba en la interfaz visual
-        movimientosProcesados.reverse();
+        // Filtrado por el lote seleccionado en el desplegable (si hay uno elegido)
+        const filtroLoteId = selectFiltroLote ? selectFiltroLote.value : '';
+        const movimientosFiltrados = filtroLoteId 
+            ? movimientosProcesados.reverse().filter(m => String(m.lote_id) === String(filtroLoteId))
+            : movimientosProcesados.reverse();
+
+        if (movimientosFiltrados.length === 0) {
+            html += `<div class="bg-slate-900 border border-slate-800 p-6 rounded-xl text-center text-slate-500 text-sm">No hay movimientos registrados para el lote seleccionado.</div>`;
+            contenedorResultado.innerHTML = html;
+            return;
+        }
 
         html += `
             <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-900 shadow-xl">
@@ -199,7 +255,7 @@ window.consultarKardexProducto = async function() {
                     <tbody>
         `;
 
-        movimientosProcesados.forEach(m => {
+        movimientosFiltrados.forEach(m => {
             const fechaHora = m.created_at ? new Date(m.created_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : 'N/D';
             const docId = m.documento_id;
             const cantNum = Number(m.cantidad || 0);
