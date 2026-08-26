@@ -45,7 +45,6 @@ function inicializarBuscadorAjax() {
     const listaResultados = document.getElementById('listaResultadosAjax');
     const inputHiddenId = document.getElementById('selectProductoKardex');
 
-    // Delegación de eventos única para las sugerencias
     listaResultados.addEventListener('click', (e) => {
         const item = e.target.closest('.item-sugerencia-kardex');
         if (!item) return;
@@ -65,7 +64,6 @@ function inicializarBuscadorAjax() {
             return;
         }
 
-        // Búsqueda segura evitando errores si un producto tiene campos nulos
         const filtrados = productosCache.filter(p => {
             const nombre = (p.nombre || '').toLowerCase();
             const sku = (p.sku || '').toLowerCase();
@@ -136,7 +134,7 @@ window.consultarKardexProducto = async function() {
                 lotes_inventario ( numero_lote )
             `)
             .eq('producto_id', productoId)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: true }); // Se consulta en orden cronológico ascendente para calcular saldos por lote correctamente
 
         if (error) throw error;
 
@@ -160,6 +158,29 @@ window.consultarKardexProducto = async function() {
             return;
         }
 
+        // Estructura de acumulados por lote independiente para evitar desfases o ceros
+        const stockAcumuladoLotes = {};
+        const movimientosProcesados = movimientos.map(m => {
+            const loteKey = m.lote_id || 'SIN_LOTE';
+            if (stockAcumuladoLotes[loteKey] === undefined) {
+                stockAcumuladoLotes[loteKey] = 0;
+            }
+
+            const stockAnt = stockAcumuladoLotes[loteKey];
+            const cantNum = Number(m.cantidad || 0);
+            const stockNuevo = stockAnt + cantNum;
+            stockAcumuladoLotes[loteKey] = stockNuevo;
+
+            return {
+                ...m,
+                stock_anterior_calc: stockAnt,
+                stock_resultante_calc: stockNuevo
+            };
+        });
+
+        // Invertimos de nuevo para mostrar el más reciente arriba en la interfaz visual
+        movimientosProcesados.reverse();
+
         html += `
             <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-900 shadow-xl">
                 <table class="w-full text-left text-sm text-slate-300">
@@ -178,7 +199,7 @@ window.consultarKardexProducto = async function() {
                     <tbody>
         `;
 
-        movimientos.forEach(m => {
+        movimientosProcesados.forEach(m => {
             const fechaHora = m.created_at ? new Date(m.created_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : 'N/D';
             const docId = m.documento_id;
             const cantNum = Number(m.cantidad || 0);
@@ -201,9 +222,9 @@ window.consultarKardexProducto = async function() {
                     <td class="p-3 text-xs uppercase font-semibold text-indigo-300">${m.tipo_movimiento || 'N/D'}</td>
                     <td class="p-3 text-xs font-mono text-amber-300">${numeroLote}</td>
                     <td class="p-3 font-mono text-slate-300">$${Number(m.costo_unitario || 0).toFixed(2)}</td>
-                    <td class="p-3 text-center font-mono text-slate-400">${m.stock_anterior ?? 0}</td>
+                    <td class="p-3 text-center font-mono text-slate-400">${m.stock_anterior_calc ?? 0}</td>
                     <td class="p-3 text-center font-mono ${claseCantidad}">${signo}${cantNum}</td>
-                    <td class="p-3 text-center font-mono text-amber-300 font-semibold">${m.stock_resultante ?? 0}</td>
+                    <td class="p-3 text-center font-mono text-amber-300 font-semibold">${m.stock_resultante_calc ?? 0}</td>
                 </tr>
             `;
         });
