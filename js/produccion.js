@@ -2,16 +2,139 @@ import { supabaseClient } from './supabase.js';
 import { cargarInventarioCompleto } from './inventario.js';
 import { imprimirConPlantilla } from './impresion.js';
 
+// Formatea cantidades evitando colas de decimales largas (10.0000001 -> "10").
+function formatoCantidad(n) {
+    return Number(Number(n || 0).toFixed(3)).toString();
+}
+
+/**
+ * Para un producto y una cantidad a producir, calcula cuánto se requiere de
+ * cada insumo del BOM (con conversión ml/g -> unidad base) y cuánto hay
+ * disponible realmente (suma de stock por lote, que es lo que evalúa el RPC FIFO).
+ * Lo usan tanto el panel de existencias del formulario como la validación final.
+ *
+ * @returns {Promise<{ error: string|null, filas: Array<{
+ *   componenteId:number, nombre:string, unidad:string,
+ *   costoUnitarioCatalogo:number, requerido:number, disponible:number, suficiente:boolean
+ * }> }>}
+ */
+export async function calcularRequerimientosProduccion(productoId, cantidadProducida) {
+    const pid = Number(productoId);
+    const cantidad = Number(cantidadProducida) || 0;
+
+    if (!pid || cantidad <= 0) {
+        return { error: 'Selecciona un producto y una cantidad válida.', filas: [] };
+    }
+
+    const { data: componentes, error: errComp } = await supabaseClient
+        .from('bom')
+        .select('componente_id, cantidad_requerida, unidad_medida')
+        .eq('producto_id', pid);
+
+    if (errComp) return { error: errComp.message, filas: [] };
+    if (!componentes || componentes.length === 0) {
+        return { error: 'El producto seleccionado no tiene una receta o BOM registrada.', filas: [] };
+    }
+
+    const idsComponentes = componentes.map(c => c.componente_id);
+
+    const { data: infoInsumos, error: errInsumos } = await supabaseClient
+        .from('productos')
+        .select('id, nombre, costo_unitario, unidades_medida ( nombre )')
+        .in('id', idsComponentes);
+
+    if (errInsumos) return { error: errInsumos.message, filas: [] };
+    const mapaInsumos = new Map((infoInsumos || []).map(i => [i.id, i]));
+
+    const { data: lotes, error: errLotes } = await supabaseClient
+        .from('lotes_inventario')
+        .select('producto_id, stock_actual')
+        .in('producto_id', idsComponentes);
+
+    if (errLotes) return { error: errLotes.message, filas: [] };
+
+    const stockPorComponente = new Map();
+    (lotes || []).forEach(l => {
+        const k = Number(l.producto_id);
+        stockPorComponente.set(k, (stockPorComponente.get(k) || 0) + Number(l.stock_actual || 0));
+    });
+
+    // Se agregan los requerimientos por componente (un insumo puede repetirse en el BOM).
+    const acumulado = new Map();
+    componentes.forEach(comp => {
+        const componenteId = Number(comp.componente_id);
+        const datosIns = mapaInsumos.get(componenteId) || {};
+
+        const cantidadReqUnit = Number(comp.cantidad_requerida || 0);
+        let requerido = cantidadReqUnit * cantidad;
+
+        const unidadBom = String(comp.unidad_medida || '').toLowerCase().trim();
+        const unidadCat = String(datosIns.unidades_medida?.nombre || '').toLowerCase().trim();
+        if (unidadBom.includes('ml') || unidadBom.includes('g') || unidadCat.includes('ml') || unidadCat.includes('g') || cantidadReqUnit > 10) {
+            requerido /= 1000;
+        }
+
+        const prev = acumulado.get(componenteId);
+        if (prev) {
+            prev.requerido += requerido;
+        } else {
+            acumulado.set(componenteId, {
+                componenteId,
+                nombre: datosIns.nombre || `Insumo ID ${componenteId}`,
+                unidad: datosIns.unidades_medida?.nombre || '',
+                costoUnitarioCatalogo: Number(datosIns.costo_unitario || 0),
+                requerido
+            });
+        }
+    });
+
+    const filas = Array.from(acumulado.values()).map(f => {
+        const disponible = stockPorComponente.get(f.componenteId) || 0;
+        return { ...f, disponible, suficiente: disponible + 1e-6 >= f.requerido };
+    });
+
+    return { error: null, filas };
+}
+
+// Cronómetros del panel "Órdenes en Proceso" (viven mientras la vista está montada).
+let tickerEnProceso = null;
+let refetchEnProceso = null;
+
+function formatoHHMMSS(totalSegundos) {
+    const s = Math.max(0, Math.floor(totalSegundos));
+    const hh = String(Math.floor(s / 3600)).padStart(2, '0');
+    const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+    const ss = String(s % 60).padStart(2, '0');
+    return `${hh}:${mm}:${ss}`;
+}
+
+// Línea de detalle para un insumo que no alcanza (reusada al generar y al cerrar).
+function fmtFaltante(f) {
+    const u = f.unidad ? ` ${f.unidad}` : '';
+    return `• ${f.nombre}: requerido ${formatoCantidad(f.requerido)}${u}, disponible ${formatoCantidad(f.disponible)}${u} (faltan ${formatoCantidad(f.requerido - f.disponible)}${u})`;
+}
+
+function segundosDeIntervalo(inicioISO, finISO) {
+    const ini = new Date(inicioISO).getTime();
+    const fin = finISO ? new Date(finISO).getTime() : Date.now();
+    return Math.max(0, (fin - ini) / 1000);
+}
+
 export async function cargarModuloProduccion() {
     const contenedorProd = document.getElementById('contenedorProduccion');
-    
+
+    // Al re-montar la vista, cortar los timers anteriores.
+    clearInterval(tickerEnProceso); tickerEnProceso = null;
+    clearInterval(refetchEnProceso); refetchEnProceso = null;
+
     try {
         if (!supabaseClient || !contenedorProd) return;
 
         contenedorProd.innerHTML = `
             <div class="space-y-6 max-w-4xl mx-auto">
                 <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-xl">
-                    <h3 class="text-lg font-semibold mb-4 text-amber-400 flex items-center gap-2">⚙️ Ejecutar Orden y Costos de Producción</h3>
+                    <h3 class="text-lg font-semibold mb-1 text-amber-400 flex items-center gap-2">🧾 Generar Orden de Producción</h3>
+                    <p class="text-xs text-slate-400 mb-4">Valida existencias y abre la orden en estado <b>"en proceso"</b>. Los tiempos de trabajo se registran desde la <b>Orden de Trabajo</b> en el celular; el inventario se descuenta (FIFO) al <b>cerrar</b> la orden.</p>
                     <form id="formOrdenProduccion" class="space-y-4">
                         <div>
                             <label class="block text-xs font-medium text-slate-400 mb-1">PRODUCTO A PRODUCIR</label>
@@ -29,29 +152,38 @@ export async function cargarModuloProduccion() {
                                 <input type="text" id="numeroLoteResultante" placeholder="Ej: LOTE-PT-2026-001" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
                             </div>
                         </div>
+                        <div id="panelExistenciasBOM" class="hidden bg-slate-950 border border-slate-800 rounded-lg p-3">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-xs font-medium text-slate-400">EXISTENCIAS PARA ESTA PRODUCCIÓN (según receta / BOM)</span>
+                                <span id="resumenExistenciasBOM" class="text-[11px] font-mono"></span>
+                            </div>
+                            <div id="tablaExistenciasBOM" class="space-y-1"></div>
+                        </div>
                         <div>
                             <div class="flex justify-between items-center mb-2">
-                                <label class="block text-xs font-medium text-slate-400">EQUIPOS DE TRABAJO / CRONÓMETROS POR PROCESO</label>
+                                <label class="block text-xs font-medium text-slate-400">PROCESOS Y EQUIPO DE TRABAJO ASIGNADO</label>
                                 <button type="button" id="btnAgregarProceso" class="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 px-2 py-1 rounded-lg border border-slate-700">+ Agregar Proceso</button>
                             </div>
                             <div id="listaProcesosOrden" class="space-y-3"></div>
-                            <p id="avisoSinProcesos" class="text-slate-500 text-xs italic mt-1">Sin procesos agregados — la mano de obra se registrará en $0.00. Agrega al menos uno (ej. Pesaje, Mezclado, Envasado), elige el equipo y corre el cronómetro.</p>
+                            <p id="avisoSinProcesos" class="text-slate-500 text-xs italic mt-1">Agrega al menos un proceso (ej. Pesaje, Mezclado, Envasado) y asígnale su equipo. Solo el equipo asignado podrá registrar tiempo en el celular.</p>
                         </div>
-                        <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 flex justify-between items-center">
-                            <span class="text-xs text-slate-400">Mano de obra total (suma de todos los procesos)</span>
-                            <span id="totalManoObraPreview" class="font-mono text-lg font-bold text-emerald-400">$0.00</span>
-                        </div>
-                        <input type="hidden" id="empleadosInvolucrados" value="0">
-                        <input type="hidden" id="costoManoObra" value="0.00">
                         <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2 px-4 rounded-lg transition-all text-sm shadow-lg">
-                            🚀 Registrar Producción y Descontar Insumos (FIFO)
+                            ✅ Generar Orden (en proceso)
                         </button>
                     </form>
                 </div>
 
                 <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-xl">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold text-amber-400 flex items-center gap-2">⏱️ Órdenes en Proceso</h3>
+                        <button type="button" id="btnRefrescarEnProceso" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg border border-slate-700" title="Refrescar">↻</button>
+                    </div>
+                    <div id="contenedorOrdenesEnProceso"><p class="text-slate-500 text-xs italic">Cargando...</p></div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-xl">
                     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-                        <h3 class="text-lg font-semibold text-amber-400 flex items-center gap-2">📊 Resumen Ejecutivo y Costos por Orden</h3>
+                        <h3 class="text-lg font-semibold text-amber-400 flex items-center gap-2">📊 Historial de Órdenes Cerradas</h3>
                         <div class="flex items-center gap-2 w-full md:w-auto">
                             <select id="selectOrdenId" class="w-full md:w-72 bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-amber-300 font-mono">
                                 <option value="">Seleccione orden por ID...</option>
@@ -60,7 +192,7 @@ export async function cargarModuloProduccion() {
                         </div>
                     </div>
                     <div id="detalleResumenOrden" class="bg-slate-950 border border-slate-800/60 p-4 rounded-lg text-sm text-slate-300 mb-6">
-                        <p class="text-slate-500 italic text-center">Seleccione una orden de producción o ejecute una nueva para ver su desglose ejecutivo.</p>
+                        <p class="text-slate-500 italic text-center">Seleccione una orden cerrada para ver su desglose ejecutivo.</p>
                     </div>
                     <div id="contenedorHistorialProduccion"></div>
                 </div>
@@ -80,7 +212,57 @@ export async function cargarModuloProduccion() {
             });
         }
 
-        // --- Catálogos y estado de los cronómetros por proceso ---
+        // --- Panel de existencias según BOM: se recalcula al cambiar producto o cantidad ---
+        const inputCantidadProd = document.getElementById('cantidadProducida');
+        const panelExistencias = document.getElementById('panelExistenciasBOM');
+        const tablaExistencias = document.getElementById('tablaExistenciasBOM');
+        const resumenExistencias = document.getElementById('resumenExistenciasBOM');
+        let tokenPanelExistencias = 0;
+
+        async function actualizarPanelExistencias() {
+            const idProd = selectProd.value;
+            const cant = parseFloat(inputCantidadProd.value);
+            const miToken = ++tokenPanelExistencias;
+
+            if (!idProd || !cant || cant <= 0) {
+                panelExistencias.classList.add('hidden');
+                return;
+            }
+
+            panelExistencias.classList.remove('hidden');
+            tablaExistencias.innerHTML = '<p class="text-slate-500 text-xs italic">Calculando requerimientos...</p>';
+            resumenExistencias.textContent = '';
+
+            const { error, filas } = await calcularRequerimientosProduccion(idProd, cant);
+            if (miToken !== tokenPanelExistencias) return; // llegó una respuesta obsoleta
+
+            if (error) {
+                tablaExistencias.innerHTML = `<p class="text-amber-400 text-xs">${error}</p>`;
+                resumenExistencias.textContent = '';
+                return;
+            }
+
+            const faltan = filas.filter(f => !f.suficiente);
+            resumenExistencias.textContent = faltan.length ? `⛔ Faltan ${faltan.length} insumo(s)` : '✅ Existencias suficientes';
+            resumenExistencias.className = `text-[11px] font-mono ${faltan.length ? 'text-rose-400' : 'text-emerald-400'}`;
+
+            tablaExistencias.innerHTML = filas.map(f => {
+                const u = f.unidad ? ` ${f.unidad}` : '';
+                const color = f.suficiente ? 'text-emerald-400' : 'text-rose-400';
+                const icono = f.suficiente ? '✅' : '⛔';
+                const falta = f.suficiente ? '' : ` · faltan ${formatoCantidad(f.requerido - f.disponible)}${u}`;
+                return `
+                    <div class="flex justify-between items-center gap-2 text-xs border-b border-slate-900 last:border-0 py-1">
+                        <span class="text-slate-200">${icono} ${f.nombre}</span>
+                        <span class="font-mono ${color}">req ${formatoCantidad(f.requerido)}${u} · disp ${formatoCantidad(f.disponible)}${u}${falta}</span>
+                    </div>`;
+            }).join('');
+        }
+
+        selectProd.addEventListener('change', actualizarPanelExistencias);
+        inputCantidadProd.addEventListener('input', actualizarPanelExistencias);
+
+        // --- Catálogos para las tarjetas de proceso ---
         const { data: empleadosCatalogo } = await supabaseClient
             .from('empleados')
             .select('id, nombre, costo_hora')
@@ -94,53 +276,7 @@ export async function cargarModuloProduccion() {
 
         const listaEmpleados = empleadosCatalogo || [];
         const listaProcesos = procesosCatalogo || [];
-        const procesosState = new Map();
         let procesoContador = 0;
-
-        function formatoHHMMSS(totalSegundos) {
-            const s = Math.max(0, Math.floor(totalSegundos));
-            const hh = String(Math.floor(s / 3600)).padStart(2, '0');
-            const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
-            const ss = String(s % 60).padStart(2, '0');
-            return `${hh}:${mm}:${ss}`;
-        }
-
-        function obtenerSegundosActuales(uid) {
-            const st = procesosState.get(uid);
-            if (!st) return 0;
-            return st.accumSeconds + (st.running ? (Date.now() - st.startTs) / 1000 : 0);
-        }
-
-        function actualizarTotalManoObra() {
-            let total = 0;
-            document.querySelectorAll('.proceso-item').forEach(div => {
-                const uid = div.dataset.uid;
-                const segundos = obtenerSegundosActuales(uid);
-                const seleccionados = Array.from(div.querySelector('.selectEmpleadosProceso').selectedOptions);
-                const sumaCostoHora = seleccionados.reduce((acc, opt) => acc + Number(opt.dataset.costoHora || 0), 0);
-                total += (segundos / 3600) * sumaCostoHora;
-            });
-            document.getElementById('totalManoObraPreview').textContent = `$${total.toFixed(2)}`;
-            document.getElementById('costoManoObra').value = total.toFixed(2);
-        }
-
-        function actualizarCostoProceso(uid) {
-            const div = document.querySelector(`.proceso-item[data-uid="${uid}"]`);
-            if (!div) return;
-            const segundos = obtenerSegundosActuales(uid);
-            const seleccionados = Array.from(div.querySelector('.selectEmpleadosProceso').selectedOptions);
-            const sumaCostoHora = seleccionados.reduce((acc, opt) => acc + Number(opt.dataset.costoHora || 0), 0);
-            const costo = (segundos / 3600) * sumaCostoHora;
-            div.querySelector('.costoProcesoDisplay').textContent = `Costo: $${costo.toFixed(2)}`;
-            actualizarTotalManoObra();
-        }
-
-        function actualizarCronometro(uid) {
-            const div = document.querySelector(`.proceso-item[data-uid="${uid}"]`);
-            if (!div) return;
-            div.querySelector('.cronometroDisplay').textContent = formatoHHMMSS(obtenerSegundosActuales(uid));
-            actualizarCostoProceso(uid);
-        }
 
         function crearTarjetaProceso() {
             if (!listaEmpleados.length) {
@@ -149,7 +285,6 @@ export async function cargarModuloProduccion() {
             }
             procesoContador++;
             const uid = `proc-${procesoContador}`;
-            procesosState.set(uid, { running: false, accumSeconds: 0, startTs: null, intervalId: null });
 
             const opcionesProcesos = listaProcesos.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('');
             const opcionesEmpleados = listaEmpleados.map(e => `<option value="${e.id}" data-costo-hora="${e.costo_hora}">${e.nombre} ($${Number(e.costo_hora).toFixed(2)}/hr)</option>`).join('');
@@ -172,14 +307,6 @@ export async function cargarModuloProduccion() {
                         ${opcionesEmpleados}
                     </select>
                 </div>
-                <div class="flex items-center justify-between flex-wrap gap-2">
-                    <div class="flex items-center gap-2">
-                        <span class="cronometroDisplay font-mono text-base text-amber-300">00:00:00</span>
-                        <button type="button" class="btnIniciarPausar bg-emerald-700 hover:bg-emerald-600 text-white text-xs px-2 py-1 rounded-lg">▶ Iniciar</button>
-                        <button type="button" class="btnReiniciar bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-2 py-1 rounded-lg">↺</button>
-                    </div>
-                    <span class="costoProcesoDisplay font-mono text-xs text-emerald-400">Costo: $0.00</span>
-                </div>
             `;
 
             const selectProcesoNombre = div.querySelector('.selectProcesoNombre');
@@ -188,132 +315,59 @@ export async function cargarModuloProduccion() {
                 inputNuevoNombre.classList.toggle('hidden', selectProcesoNombre.value !== '__otro__');
             };
 
-            div.querySelector('.selectEmpleadosProceso').onchange = () => actualizarCostoProceso(uid);
-
             div.querySelector('.btnQuitarProceso').onclick = () => {
-                const st = procesosState.get(uid);
-                if (st?.intervalId) clearInterval(st.intervalId);
-                procesosState.delete(uid);
                 div.remove();
-                actualizarTotalManoObra();
                 if (!document.querySelectorAll('.proceso-item').length) {
                     document.getElementById('avisoSinProcesos').classList.remove('hidden');
                 }
             };
 
-            const btnIniciarPausar = div.querySelector('.btnIniciarPausar');
-            btnIniciarPausar.onclick = () => {
-                const st = procesosState.get(uid);
-                if (!st) return;
-                if (st.running) {
-                    st.accumSeconds += (Date.now() - st.startTs) / 1000;
-                    st.running = false;
-                    st.startTs = null;
-                    clearInterval(st.intervalId);
-                    st.intervalId = null;
-                    btnIniciarPausar.textContent = '▶ Reanudar';
-                    btnIniciarPausar.classList.remove('bg-rose-700', 'hover:bg-rose-600');
-                    btnIniciarPausar.classList.add('bg-emerald-700', 'hover:bg-emerald-600');
-                } else {
-                    st.running = true;
-                    st.startTs = Date.now();
-                    st.intervalId = setInterval(() => actualizarCronometro(uid), 1000);
-                    btnIniciarPausar.textContent = '⏸ Pausar';
-                    btnIniciarPausar.classList.remove('bg-emerald-700', 'hover:bg-emerald-600');
-                    btnIniciarPausar.classList.add('bg-rose-700', 'hover:bg-rose-600');
-                }
-            };
-
-            div.querySelector('.btnReiniciar').onclick = () => {
-                const st = procesosState.get(uid);
-                if (!st) return;
-                if (st.intervalId) clearInterval(st.intervalId);
-                Object.assign(st, { running: false, accumSeconds: 0, startTs: null, intervalId: null });
-                btnIniciarPausar.textContent = '▶ Iniciar';
-                btnIniciarPausar.classList.remove('bg-rose-700', 'hover:bg-rose-600');
-                btnIniciarPausar.classList.add('bg-emerald-700', 'hover:bg-emerald-600');
-                actualizarCronometro(uid);
-            };
-
             document.getElementById('listaProcesosOrden').appendChild(div);
             document.getElementById('avisoSinProcesos').classList.add('hidden');
-            actualizarCostoProceso(uid);
         }
 
         document.getElementById('btnAgregarProceso').onclick = crearTarjetaProceso;
 
-        function detenerTodosLosTimers() {
-            procesosState.forEach(st => {
-                if (st.running) {
-                    st.accumSeconds += (Date.now() - st.startTs) / 1000;
-                    st.running = false;
-                    if (st.intervalId) clearInterval(st.intervalId);
-                    st.intervalId = null;
-                    st.startTs = null;
-                }
-            });
-        }
-
-        function recolectarProcesos() {
-            detenerTodosLosTimers();
+        function recolectarProcesosDefinidos() {
             const procesos = [];
-            document.querySelectorAll('.proceso-item').forEach(div => {
-                const uid = div.dataset.uid;
-                const segundos = obtenerSegundosActuales(uid);
+            document.querySelectorAll('#listaProcesosOrden .proceso-item').forEach(div => {
                 let nombre = div.querySelector('.selectProcesoNombre').value;
                 if (nombre === '__otro__') {
                     nombre = div.querySelector('.inputProcesoNuevoNombre').value.trim() || 'Proceso sin nombre';
                 }
-                const empleadosSeleccionados = Array.from(div.querySelector('.selectEmpleadosProceso').selectedOptions).map(opt => ({
+                const empleados = Array.from(div.querySelector('.selectEmpleadosProceso').selectedOptions).map(opt => ({
                     id: Number(opt.value),
                     costoHora: Number(opt.dataset.costoHora || 0)
                 }));
-                const sumaCostoHora = empleadosSeleccionados.reduce((acc, e) => acc + e.costoHora, 0);
-                const costo = (segundos / 3600) * sumaCostoHora;
-                procesos.push({ nombre, segundos, costo, empleados: empleadosSeleccionados });
+                procesos.push({ nombre, empleados });
             });
             return procesos;
-        }
-
-        function limpiarProcesosUI() {
-            procesosState.forEach(st => { if (st.intervalId) clearInterval(st.intervalId); });
-            procesosState.clear();
-            document.getElementById('listaProcesosOrden').innerHTML = '';
-            document.getElementById('avisoSinProcesos').classList.remove('hidden');
-            document.getElementById('totalManoObraPreview').textContent = '$0.00';
-            document.getElementById('costoManoObra').value = '0.00';
         }
 
         const formOrden = document.getElementById('formOrdenProduccion');
         if (formOrden) {
             formOrden.onsubmit = async (e) => {
                 e.preventDefault();
-                const procesos = recolectarProcesos();
-                const costoTotalManoObra = procesos.reduce((acc, p) => acc + p.costo, 0);
-                const empleadosUnicos = new Set();
-                procesos.forEach(p => p.empleados.forEach(emp => empleadosUnicos.add(emp.id)));
-
-                const datosOrden = {
+                const datos = {
                     productoId: document.getElementById('productoProducirId').value,
                     cantidadProducida: parseFloat(document.getElementById('cantidadProducida').value),
                     numeroLote: document.getElementById('numeroLoteResultante').value.trim(),
-                    empleadosInvolucrados: empleadosUnicos.size,
-                    costoTotalManoObra: costoTotalManoObra,
-                    procesos: procesos
+                    procesos: recolectarProcesosDefinidos()
                 };
 
                 const btnSubmit = formOrden.querySelector('button[type="submit"]');
                 btnSubmit.disabled = true;
-                btnSubmit.textContent = "Procesando inventario (FIFO)...";
+                btnSubmit.textContent = "Generando...";
 
                 try {
-                    const resultado = await registrarOrdenDeProduccionCompleta(datosOrden);
+                    const resultado = await generarOrdenDeProduccion(datos);
                     if (resultado.success) {
-                        alert("✅ " + resultado.mensaje);
+                        alert(`✅ Orden ${resultado.folio} generada y en proceso.\nLos operarios ya pueden registrar tiempos desde la Orden de Trabajo en el celular.`);
                         formOrden.reset();
-                        limpiarProcesosUI();
-                        await cargarHistorialProduccion(resultado.ordenIdCreada);
-                        if (typeof cargarInventarioCompleto === 'function') await cargarInventarioCompleto();
+                        document.getElementById('listaProcesosOrden').innerHTML = '';
+                        document.getElementById('avisoSinProcesos').classList.remove('hidden');
+                        panelExistencias.classList.add('hidden');
+                        await cargarOrdenesEnProceso();
                     } else {
                         alert("❌ Error: " + resultado.error);
                     }
@@ -321,49 +375,173 @@ export async function cargarModuloProduccion() {
                     alert("❌ Error crítico: " + ex.message);
                 } finally {
                     btnSubmit.disabled = false;
-                    btnSubmit.textContent = "🚀 Registrar Producción y Descontar Insumos (FIFO)";
+                    btnSubmit.textContent = "✅ Generar Orden (en proceso)";
                 }
             };
         }
 
+        document.getElementById('btnRefrescarEnProceso').onclick = cargarOrdenesEnProceso;
+
+        await cargarOrdenesEnProceso();
         await cargarHistorialProduccion();
+
+        tickerEnProceso = setInterval(tickEnProceso, 1000);
+        refetchEnProceso = setInterval(cargarOrdenesEnProceso, 20000);
     } catch (err) {
         console.error("Error al inicializar el módulo de producción:", err);
     }
 }
 
-export async function registrarOrdenDeProduccionCompleta(datosOrden) {
+/**
+ * Etapa 1: crea la orden en estado 'en_proceso' con sus procesos y equipos
+ * asignados. NO mueve inventario ni calcula costos: eso ocurre al cerrarla.
+ */
+export async function generarOrdenDeProduccion(datos) {
     try {
         if (!supabaseClient) throw new Error("Cliente de Supabase no inicializado.");
 
-        const productoId = Number(datosOrden.productoId);
-        const cantidadProducida = Number(datosOrden.cantidadProducida) || 0;
-        const numeroLote = String(datosOrden.numeroLote || '').trim();
-        const empleadosInvolucrados = Number(datosOrden.empleadosInvolucrados) || 1;
-        const costoTotalManoObra = Number(datosOrden.costoTotalManoObra) || 0;
+        const productoId = Number(datos.productoId);
+        const cantidadProducida = Number(datos.cantidadProducida) || 0;
+        const numeroLote = String(datos.numeroLote || '').trim();
+        const procesos = Array.isArray(datos.procesos) ? datos.procesos : [];
 
         if (!productoId || cantidadProducida <= 0 || !numeroLote) {
             throw new Error("Faltan datos obligatorios o la cantidad a producir es inválida.");
         }
-
-        const { data: componentes, error: errComp } = await supabaseClient
-            .from('bom')
-            .select('componente_id, cantidad_requerida, unidad_medida')
-            .eq('producto_id', productoId);
-
-        if (errComp) throw errComp;
-        if (!componentes || componentes.length === 0) {
-            throw new Error("El producto seleccionado no tiene una receta o BOM registrada.");
+        if (!procesos.length) {
+            throw new Error("Agrega al menos un proceso con su equipo de trabajo.");
+        }
+        if (procesos.some(p => !p.empleados || !p.empleados.length)) {
+            throw new Error("Cada proceso debe tener al menos un empleado asignado (si no, nadie podrá registrar tiempo en el celular).");
         }
 
-        const idsComponentes = componentes.map(c => c.componente_id);
-        const { data: infoInsumos, error: errInsumos } = await supabaseClient
-            .from('productos')
-            .select('id, nombre, costo_unitario, unidad_medida_id, unidades_medida ( id, nombre )')
-            .in('id', idsComponentes);
+        // Validación de existencias (mismo cálculo que el panel del formulario).
+        const { error: errReq, filas } = await calcularRequerimientosProduccion(productoId, cantidadProducida);
+        if (errReq) throw new Error(errReq);
+        const faltantes = filas.filter(f => !f.suficiente);
+        if (faltantes.length > 0) {
+            throw new Error(`Existencias insuficientes. No se generó la orden:\n${faltantes.map(fmtFaltante).join('\n')}`);
+        }
 
-        if (errInsumos) throw errInsumos;
-        const mapaCostos = new Map(infoInsumos.map(i => [i.id, i]));
+        const { data: ordenNueva, error: errOrden } = await supabaseClient
+            .from('ordenes_produccion')
+            .insert([{
+                producto_id: productoId,
+                cantidad_producida: cantidadProducida,
+                numero_lote: numeroLote,
+                estado: 'en_proceso',
+                abierta_at: new Date().toISOString()
+            }])
+            .select('id')
+            .single();
+
+        if (errOrden) throw errOrden;
+        const ordenId = ordenNueva.id;
+        const folio = 'OP-' + String(ordenId).padStart(6, '0');
+        await supabaseClient.from('ordenes_produccion').update({ folio }).eq('id', ordenId);
+
+        for (const proc of procesos) {
+            const { data: procIns, error: errProc } = await supabaseClient
+                .from('orden_produccion_procesos')
+                .insert([{ orden_produccion_id: ordenId, proceso_nombre: proc.nombre }])
+                .select('id')
+                .single();
+
+            if (errProc) throw new Error(`No se pudo crear el proceso "${proc.nombre}": ${errProc.message}`);
+
+            const filasEmp = proc.empleados.map(emp => ({
+                orden_produccion_proceso_id: procIns.id,
+                empleado_id: emp.id,
+                costo_hora_snapshot: emp.costoHora
+            }));
+            const { error: errEmp } = await supabaseClient.from('orden_produccion_proceso_empleados').insert(filasEmp);
+            if (errEmp) throw new Error(`No se pudo asignar el equipo del proceso "${proc.nombre}": ${errEmp.message}`);
+
+            await supabaseClient.from('procesos_produccion').upsert([{ nombre: proc.nombre }], { onConflict: 'nombre', ignoreDuplicates: true });
+        }
+
+        return { success: true, ordenId, folio };
+    } catch (error) {
+        console.error("Error al generar la orden:", error.message);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Etapa 3: cierra una orden 'en_proceso'. Cierra cronómetros abiertos, calcula
+ * la mano de obra a partir de registros_tiempo, re-valida existencias, descuenta
+ * insumos (FIFO), da entrada al producto terminado y marca la orden como cerrada.
+ */
+export async function cerrarOrdenDeProduccion(ordenId) {
+    try {
+        if (!supabaseClient) throw new Error("Cliente de Supabase no inicializado.");
+        ordenId = Number(ordenId);
+
+        const { data: orden, error: errO } = await supabaseClient
+            .from('ordenes_produccion')
+            .select('id, producto_id, cantidad_producida, numero_lote, estado')
+            .eq('id', ordenId)
+            .single();
+
+        if (errO) throw errO;
+        if (!orden) throw new Error("Orden no encontrada.");
+        if (orden.estado !== 'en_proceso') throw new Error(`La orden ya está "${orden.estado}".`);
+
+        const productoId = Number(orden.producto_id);
+        const cantidadProducida = Number(orden.cantidad_producida) || 0;
+        const numeroLote = String(orden.numero_lote || '').trim();
+        if (cantidadProducida <= 0 || !numeroLote) throw new Error("La orden no tiene cantidad o lote válidos.");
+
+        const { data: procesos, error: errP } = await supabaseClient
+            .from('orden_produccion_procesos')
+            .select('id, proceso_nombre, orden_produccion_proceso_empleados ( empleado_id, costo_hora_snapshot )')
+            .eq('orden_produccion_id', ordenId);
+
+        if (errP) throw errP;
+        const procIds = (procesos || []).map(p => p.id);
+
+        // Cierra cualquier cronómetro que quedó abierto.
+        if (procIds.length) {
+            await supabaseClient.from('registros_tiempo')
+                .update({ fin: new Date().toISOString() })
+                .is('fin', null)
+                .in('orden_produccion_proceso_id', procIds);
+        }
+
+        let registros = [];
+        if (procIds.length) {
+            const { data: regs, error: errR } = await supabaseClient.from('registros_tiempo')
+                .select('orden_produccion_proceso_id, empleado_id, inicio, fin')
+                .in('orden_produccion_proceso_id', procIds);
+            if (errR) throw errR;
+            registros = regs || [];
+        }
+
+        // Mano de obra por proceso = suma de (segundos del empleado / 3600) * costo_hora_snapshot.
+        let costoTotalManoObra = 0;
+        const empleadosSet = new Set();
+        const actualizacionesProceso = [];
+        for (const p of procesos) {
+            const snap = new Map((p.orden_produccion_proceso_empleados || []).map(e => [Number(e.empleado_id), Number(e.costo_hora_snapshot || 0)]));
+            let segProc = 0;
+            let costoProc = 0;
+            registros.filter(r => r.orden_produccion_proceso_id === p.id).forEach(r => {
+                const seg = segundosDeIntervalo(r.inicio, r.fin);
+                segProc += seg;
+                empleadosSet.add(Number(r.empleado_id));
+                costoProc += (seg / 3600) * (snap.get(Number(r.empleado_id)) || 0);
+            });
+            costoTotalManoObra += costoProc;
+            actualizacionesProceso.push({ id: p.id, segundos: Math.round(segProc), costo: costoProc });
+        }
+
+        // Re-validación de existencias: si falta algo, no se escribe nada más.
+        const { error: errReq, filas } = await calcularRequerimientosProduccion(productoId, cantidadProducida);
+        if (errReq) throw new Error(errReq);
+        const faltantes = filas.filter(f => !f.suficiente);
+        if (faltantes.length > 0) {
+            throw new Error(`Existencias insuficientes. La orden sigue en proceso:\n${faltantes.map(fmtFaltante).join('\n')}`);
+        }
 
         const folioDocumento = `PROD-${Date.now().toString().slice(-6)}`;
         const { data: docInsertado, error: errDoc } = await supabaseClient
@@ -372,133 +550,59 @@ export async function registrarOrdenDeProduccionCompleta(datosOrden) {
                 tipo_movimiento: 'entrada_produccion',
                 folio: folioDocumento,
                 fecha_emision: new Date().toISOString(),
-                descripcion: `Orden de producción para lote ${numeroLote}`,
+                descripcion: `Cierre de orden de producción — lote ${numeroLote}`,
                 estado: 'completado'
             }])
             .select('id')
             .single();
 
         if (errDoc) throw errDoc;
-        const documentoIdCreado = docInsertado.id;
+        const documentoId = docInsertado.id;
 
         let costoTotalMateriales = 0;
-
-        for (const comp of componentes) {
-            const componenteId = Number(comp.componente_id);
-            const datosIns = mapaCostos.get(componenteId) || {};
-            
-            let cantidadReqUnit = Number(comp.cantidad_requerida || 0);
-            let cantidadTotalRequerida = cantidadReqUnit * cantidadProducida;
-
-            const unidadBom = String(comp.unidad_medida || '').toLowerCase().trim();
-            const unidadCat = String(datosIns.unidades_medida?.nombre || '').toLowerCase().trim();
-
-            if (unidadBom.includes('ml') || unidadBom.includes('g') || unidadCat.includes('ml') || unidadCat.includes('g') || cantidadReqUnit > 10) {
-                cantidadTotalRequerida /= 1000;
-            }
-
-            const costoUnitarioCatalogo = Number(datosIns.costo_unitario || 0);
-
-            // Se envía null en p_costo_unitario_fijo para que el RPC use el costo real y específico de cada lote
-            const { data: lotesConsumidos, error: errRpcSalida } = await supabaseClient.rpc('registrar_salida_fifo', {
-                p_producto_id: componenteId,
-                p_cantidad_salida: Number(cantidadTotalRequerida),
+        for (const f of filas) {
+            const { data: lotesConsumidos, error: errFifo } = await supabaseClient.rpc('registrar_salida_fifo', {
+                p_producto_id: f.componenteId,
+                p_cantidad_salida: Number(f.requerido),
                 p_tipo_movimiento: 'salida_produccion',
-                p_documento_id: documentoIdCreado,
-                p_costo_unitario_fijo: null 
+                p_documento_id: documentoId,
+                p_costo_unitario_fijo: null
             });
 
-            if (errRpcSalida) throw new Error(`Error al descontar insumo ID ${componenteId} (FIFO): ${errRpcSalida.message}`);
+            if (errFifo) throw new Error(`Error al descontar ${f.nombre} (FIFO): ${errFifo.message}`);
 
             if (Array.isArray(lotesConsumidos) && lotesConsumidos.length > 0) {
-                lotesConsumidos.forEach(lote => {
-                    const cantLote = Number(lote.cantidad || 0);
-                    const costoLote = Number(lote.costo_unitario ?? costoUnitarioCatalogo);
-                    costoTotalMateriales += (cantLote * costoLote);
+                lotesConsumidos.forEach(l => {
+                    costoTotalMateriales += Number(l.cantidad || 0) * Number(l.costo_unitario ?? f.costoUnitarioCatalogo);
                 });
             } else {
-                costoTotalMateriales += (cantidadTotalRequerida * costoUnitarioCatalogo);
+                costoTotalMateriales += (f.requerido * f.costoUnitarioCatalogo);
             }
         }
 
-        const costoTotalGeneral = costoTotalMateriales + costoTotalManoObra;
-        const costoUnitarioFinal = cantidadProducida > 0 ? (costoTotalGeneral / cantidadProducida) : 0;
+        const costoUnitarioFinal = cantidadProducida > 0 ? (costoTotalMateriales + costoTotalManoObra) / cantidadProducida : 0;
 
-        const { data: ordenInsertada, error: errOrden } = await supabaseClient
-            .from('ordenes_produccion')
-            .insert([{
-                producto_id: productoId,
-                cantidad_producida: cantidadProducida,
-                costo_unitario_final: costoUnitarioFinal,
-                numero_lote: numeroLote,
-                empleados_involucrados: empleadosInvolucrados,
-                costo_total_mano_obra: costoTotalManoObra,
-                costo_total_materiales: costoTotalMateriales
-            }])
-            .select('id')
-            .single();
-
-        if (errOrden) throw errOrden;
-        const ordenProduccionIdCreada = ordenInsertada.id;
-
-        // Se guardan los procesos/cronómetros (Pesaje, Mezclado, Envasado, etc.)
-        // con su equipo de trabajo, para el desglose de mano de obra por etapa.
-        const procesos = Array.isArray(datosOrden.procesos) ? datosOrden.procesos : [];
-        for (const proceso of procesos) {
-            const { data: procesoInsertado, error: errProceso } = await supabaseClient
-                .from('orden_produccion_procesos')
-                .insert([{
-                    orden_produccion_id: ordenProduccionIdCreada,
-                    proceso_nombre: proceso.nombre,
-                    segundos_transcurridos: proceso.segundos,
-                    costo_calculado: proceso.costo
-                }])
-                .select('id')
-                .single();
-
-            if (errProceso) {
-                console.error(`No se pudo guardar el proceso "${proceso.nombre}":`, errProceso.message);
-                continue;
-            }
-
-            if (proceso.empleados && proceso.empleados.length > 0) {
-                const filasEmpleados = proceso.empleados.map(emp => ({
-                    orden_produccion_proceso_id: procesoInsertado.id,
-                    empleado_id: emp.id,
-                    costo_hora_snapshot: emp.costoHora
-                }));
-                await supabaseClient.from('orden_produccion_proceso_empleados').insert(filasEmpleados);
-            }
-
-            // Si el usuario escribió un nombre de proceso nuevo, se agrega al
-            // catálogo para que aparezca sugerido la próxima vez (best-effort).
-            await supabaseClient.from('procesos_produccion').upsert([{ nombre: proceso.nombre }], { onConflict: 'nombre', ignoreDuplicates: true });
-        }
-
-        const { error: errRpcEntrada } = await supabaseClient.rpc('registrar_movimiento_inventario_fifo', {
-            p_producto_id: Number(productoId),
-            p_cantidad: Number(cantidadProducida),
+        const { error: errEnt } = await supabaseClient.rpc('registrar_movimiento_inventario_fifo', {
+            p_producto_id: productoId,
+            p_cantidad: cantidadProducida,
             p_tipo_movimiento: 'entrada_produccion',
-            p_documento_id: Number(documentoIdCreado),
-            p_costo_unitario: Number(costoUnitarioFinal),
-            p_numero_lote: String(numeroLote)
+            p_documento_id: documentoId,
+            p_costo_unitario: costoUnitarioFinal,
+            p_numero_lote: numeroLote
         });
 
-        if (errRpcEntrada) throw new Error(`Error al registrar entrada de producto terminado: ${errRpcEntrada.message}`);
+        if (errEnt) throw new Error(`Error al registrar entrada de producto terminado: ${errEnt.message}`);
 
-        // Se registra la partida del producto terminado en documento_detalles
-        // para que aparezca en el visor de Documentos (antes solo quedaba en
-        // movimientos_inventario / lotes_inventario, invisible ahí).
         const { data: loteCreado } = await supabaseClient
             .from('lotes_inventario')
             .select('id')
             .eq('producto_id', productoId)
             .eq('numero_lote', numeroLote)
-            .eq('documento_id', documentoIdCreado)
+            .eq('documento_id', documentoId)
             .maybeSingle();
 
         await supabaseClient.from('documento_detalles').insert([{
-            documento_id: documentoIdCreado,
+            documento_id: documentoId,
             producto_id: productoId,
             lote_id: loteCreado?.id || null,
             cantidad: cantidadProducida,
@@ -508,11 +612,152 @@ export async function registrarOrdenDeProduccionCompleta(datosOrden) {
 
         await supabaseClient.from('productos').update({ costo_unitario: costoUnitarioFinal }).eq('id', productoId);
 
-        return { success: true, ordenIdCreada: ordenInsertada.id, mensaje: "Orden ejecutada e insumos descontados correctamente por lote (FIFO)." };
+        for (const a of actualizacionesProceso) {
+            await supabaseClient.from('orden_produccion_procesos')
+                .update({ segundos_transcurridos: a.segundos, costo_calculado: a.costo })
+                .eq('id', a.id);
+        }
+
+        const { error: errUpd } = await supabaseClient.from('ordenes_produccion').update({
+            estado: 'cerrada',
+            cerrada_at: new Date().toISOString(),
+            costo_unitario_final: costoUnitarioFinal,
+            costo_total_materiales: costoTotalMateriales,
+            costo_total_mano_obra: costoTotalManoObra,
+            empleados_involucrados: empleadosSet.size
+        }).eq('id', ordenId);
+
+        if (errUpd) throw errUpd;
+
+        return { success: true, mensaje: `Orden cerrada. Costo unitario: $${costoUnitarioFinal.toFixed(2)}.` };
     } catch (error) {
-        console.error("Error en orden de producción:", error.message);
+        console.error("Error al cerrar la orden:", error.message);
         return { success: false, error: error.message };
     }
+}
+
+// --- Panel "Órdenes en Proceso" (admin: sí muestra costos) -------------------
+
+async function cargarOrdenesEnProceso() {
+    const cont = document.getElementById('contenedorOrdenesEnProceso');
+    if (!cont) return;
+
+    const { data: ordenes, error } = await supabaseClient
+        .from('ordenes_produccion')
+        .select(`
+            id, folio, numero_lote, cantidad_producida, abierta_at,
+            productos ( nombre ),
+            orden_produccion_procesos (
+                id, proceso_nombre,
+                orden_produccion_proceso_empleados ( empleado_id, costo_hora_snapshot, empleados ( nombre ) )
+            )
+        `)
+        .eq('estado', 'en_proceso')
+        .order('abierta_at', { ascending: true });
+
+    if (error) {
+        cont.innerHTML = `<p class="text-rose-400 text-xs">Error: ${error.message}</p>`;
+        return;
+    }
+    if (!ordenes || !ordenes.length) {
+        cont.innerHTML = `<p class="text-slate-500 text-xs italic">No hay órdenes en proceso.</p>`;
+        return;
+    }
+
+    const procIds = ordenes.flatMap(o => (o.orden_produccion_procesos || []).map(p => p.id));
+    let registros = [];
+    if (procIds.length) {
+        const { data: regs } = await supabaseClient.from('registros_tiempo')
+            .select('orden_produccion_proceso_id, empleado_id, inicio, fin')
+            .in('orden_produccion_proceso_id', procIds);
+        registros = regs || [];
+    }
+
+    cont.innerHTML = ordenes.map(o => renderTarjetaOrdenEnProceso(o, registros)).join('');
+
+    cont.querySelectorAll('.btn-cerrar-orden').forEach(btn => {
+        btn.onclick = async () => {
+            if (!confirm(`¿Cerrar la orden ${btn.dataset.folio}? Se descontará el inventario (FIFO) y se calcularán los costos. Esto no se puede deshacer.`)) return;
+            btn.disabled = true;
+            btn.textContent = 'Cerrando...';
+            const res = await cerrarOrdenDeProduccion(Number(btn.dataset.id));
+            if (res.success) {
+                alert('✅ ' + res.mensaje);
+                await cargarOrdenesEnProceso();
+                await cargarHistorialProduccion();
+                if (typeof cargarInventarioCompleto === 'function') await cargarInventarioCompleto();
+            } else {
+                alert('❌ ' + res.error);
+                btn.disabled = false;
+                btn.textContent = '🔒 Cerrar orden';
+            }
+        };
+    });
+}
+
+function renderTarjetaOrdenEnProceso(o, registros) {
+    const abierta = o.abierta_at ? new Date(o.abierta_at).toLocaleString() : '';
+    const folio = o.folio || ('#' + o.id);
+
+    const procesosHtml = (o.orden_produccion_procesos || []).map(p => {
+        const regsP = registros.filter(r => r.orden_produccion_proceso_id === p.id);
+        const equipo = p.orden_produccion_proceso_empleados || [];
+
+        const filasEmp = equipo.map(e => {
+            const empId = Number(e.empleado_id);
+            const snap = Number(e.costo_hora_snapshot || 0);
+            let acumCerrado = 0;
+            let inicioAbierto = '';
+            regsP.filter(r => Number(r.empleado_id) === empId).forEach(r => {
+                if (r.fin) acumCerrado += segundosDeIntervalo(r.inicio, r.fin);
+                else inicioAbierto = r.inicio;
+            });
+            const activo = inicioAbierto ? '<span class="text-emerald-400">●</span> ' : '';
+            return `
+                <div class="flex justify-between items-center text-xs py-1">
+                    <span class="text-slate-300">${activo}${e.empleados?.nombre || 'Empleado'}</span>
+                    <span class="font-mono text-slate-400">
+                        <span class="ot-timer" data-acum="${acumCerrado}" data-inicio="${inicioAbierto}">00:00:00</span>
+                        · <span class="ot-costo text-emerald-400" data-acum="${acumCerrado}" data-inicio="${inicioAbierto}" data-costohora="${snap}">$0.00</span>
+                    </span>
+                </div>`;
+        }).join('');
+
+        return `
+            <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+                <p class="text-sm font-semibold text-slate-200 mb-1">${p.proceso_nombre}</p>
+                ${filasEmp || '<p class="text-[11px] text-slate-500 italic">Sin equipo asignado.</p>'}
+            </div>`;
+    }).join('');
+
+    return `
+        <div class="border border-slate-800 rounded-xl p-4 mb-3">
+            <div class="flex flex-wrap justify-between items-start gap-2 mb-3">
+                <div>
+                    <p class="font-mono font-bold text-amber-400 text-sm">${folio}</p>
+                    <p class="text-xs text-slate-300">${o.productos?.nombre || 'Producto'} · ${o.cantidad_producida} u · Lote ${o.numero_lote || 'S/L'}</p>
+                    <p class="text-[11px] text-slate-500">Abierta: ${abierta}</p>
+                </div>
+                <button type="button" class="btn-cerrar-orden bg-rose-700 hover:bg-rose-600 text-white text-xs px-3 py-1.5 rounded-lg" data-id="${o.id}" data-folio="${folio}">🔒 Cerrar orden</button>
+            </div>
+            <div class="space-y-2">${procesosHtml}</div>
+        </div>`;
+}
+
+// Ticker de 1s: recalcula los cronómetros abiertos sin volver a consultar la BD.
+function tickEnProceso() {
+    document.querySelectorAll('#contenedorOrdenesEnProceso .ot-timer').forEach(el => {
+        const acum = Number(el.dataset.acum || 0);
+        const ini = el.dataset.inicio ? new Date(el.dataset.inicio).getTime() : 0;
+        el.textContent = formatoHHMMSS(acum + (ini ? (Date.now() - ini) / 1000 : 0));
+    });
+    document.querySelectorAll('#contenedorOrdenesEnProceso .ot-costo').forEach(el => {
+        const acum = Number(el.dataset.acum || 0);
+        const ini = el.dataset.inicio ? new Date(el.dataset.inicio).getTime() : 0;
+        const ch = Number(el.dataset.costohora || 0);
+        const seg = acum + (ini ? (Date.now() - ini) / 1000 : 0);
+        el.textContent = '$' + ((seg / 3600) * ch).toFixed(2);
+    });
 }
 
 async function cargarHistorialProduccion(idSeleccionarReciente = null) {
@@ -527,13 +772,14 @@ async function cargarHistorialProduccion(idSeleccionarReciente = null) {
 
         const { data: ordenes, error } = await supabaseClient
             .from('ordenes_produccion')
-            .select(`id, producto_id, numero_lote, cantidad_producida, empleados_involucrados, costo_unitario_final, costo_total_materiales, costo_total_mano_obra, created_at, productos ( id, nombre, sku, descripcion, unidades_medida ( nombre ) )`)
+            .select(`id, folio, producto_id, numero_lote, cantidad_producida, empleados_involucrados, costo_unitario_final, costo_total_materiales, costo_total_mano_obra, created_at, productos ( id, nombre, sku, descripcion, unidades_medida ( nombre ) )`)
+            .eq('estado', 'cerrada')
             .order('created_at', { ascending: false });
 
         if (error) throw error;
 
         if (!ordenes || ordenes.length === 0) {
-            contenedorHistorial.innerHTML = `<p class="text-slate-400 text-sm">No hay órdenes de producción registradas.</p>`;
+            contenedorHistorial.innerHTML = `<p class="text-slate-400 text-sm">Todavía no hay órdenes cerradas.</p>`;
             if (selectOrdenId) selectOrdenId.innerHTML = '<option value="">No hay órdenes disponibles</option>';
             if (btnImprimirOrden) btnImprimirOrden.disabled = true;
             return;
@@ -542,7 +788,7 @@ async function cargarHistorialProduccion(idSeleccionarReciente = null) {
         if (selectOrdenId) {
             selectOrdenId.innerHTML = '<option value="">Seleccione orden por ID...</option>';
             ordenes.forEach(o => {
-                selectOrdenId.innerHTML += `<option value="${o.id}">ID #${o.id} - ${o.numero_lote || 'Sin Lote'} (${o.productos?.nombre || 'Producto'})</option>`;
+                selectOrdenId.innerHTML += `<option value="${o.id}">${o.folio || ('ID #' + o.id)} - ${o.numero_lote || 'Sin Lote'} (${o.productos?.nombre || 'Producto'})</option>`;
             });
 
             selectOrdenId.onchange = async (e) => {
@@ -566,14 +812,14 @@ async function cargarHistorialProduccion(idSeleccionarReciente = null) {
             <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 mt-6">Historial General de Órdenes</h4>
             <div class="overflow-x-auto"><table class="w-full text-left text-sm text-slate-300">
                 <thead><tr class="border-b border-slate-800 text-amber-400">
-                    <th class="p-2">ID</th><th class="p-2">Fecha</th><th class="p-2">Lote PT</th><th class="p-2">Producto</th><th class="p-2">Cantidad</th><th class="p-2">Costo Unit. Final</th>
+                    <th class="p-2">Folio</th><th class="p-2">Fecha</th><th class="p-2">Lote PT</th><th class="p-2">Producto</th><th class="p-2">Cantidad</th><th class="p-2">Costo Unit. Final</th>
                 </tr></thead><tbody>
         `;
 
         ordenes.forEach(o => {
             html += `
                 <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition-colors cursor-pointer" onclick="document.getElementById('selectOrdenId').value='${o.id}'; document.getElementById('selectOrdenId').dispatchEvent(new Event('change'));">
-                    <td class="p-2 font-mono text-xs text-amber-300">#${o.id}</td>
+                    <td class="p-2 font-mono text-xs text-amber-300">${o.folio || ('#' + o.id)}</td>
                     <td class="p-2 text-xs text-slate-400">${new Date(o.created_at).toLocaleDateString()}</td>
                     <td class="p-2 font-mono text-xs text-slate-200">${o.numero_lote || 'N/D'}</td>
                     <td class="p-2 font-medium text-slate-100">${o.productos?.nombre || 'Desconocido'}</td>

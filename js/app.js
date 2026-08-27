@@ -9,6 +9,7 @@ import { cargarVistaKardex } from './kardex.js';
 import { cargarVistaDocumentos } from './documentos.js'; 
 import { cargarModuloPlantillas } from './plantillas.js';
 import { cargarModuloEmpleados } from './empleados.js';
+import { montarLogin, cerrarSesion } from './auth.js';
 
 // 1. Exposición de funciones al scope global para eventos HTML (onclick)
 window.toggleSubmenu = function(submenuId) {
@@ -74,10 +75,14 @@ window.loadView = function(viewName) {
     }
 };
 
-// 3. Inicialización controlada de la aplicación
-document.addEventListener('DOMContentLoaded', async () => {
+// 3. Inicialización controlada de la aplicación (solo tras iniciar sesión)
+let appIniciada = false;
+
+async function iniciarApp() {
+    if (appIniciada) return;
+    appIniciada = true;
     console.log("Iniciando Hares de México (Sistema Modular)...");
-    
+
     try {
         await verificarConexionReal();
         await cargarCatalogoInicial();
@@ -96,4 +101,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (error) {
         console.error("Error al inicializar la base de la aplicación:", error);
     }
+}
+
+window.cerrarSesionAdmin = async () => { await cerrarSesion(); };
+
+document.addEventListener('DOMContentLoaded', () => {
+    montarLogin(iniciarApp);
 });

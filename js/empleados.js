@@ -16,9 +16,16 @@ export async function cargarModuloEmpleados() {
                         <label class="block text-xs font-medium text-slate-400 mb-1">NOMBRE</label>
                         <input type="text" id="empNombre" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
                     </div>
-                    <div>
-                        <label class="block text-xs font-medium text-slate-400 mb-1">PUESTO (opcional)</label>
-                        <input type="text" id="empPuesto" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">PUESTO (opcional)</label>
+                            <input type="text" id="empPuesto" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">PIN MÓVIL (4 dígitos)</label>
+                            <input type="text" id="empPin" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="Dejar vacío para no cambiar"
+                                   class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono tracking-widest">
+                        </div>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
@@ -84,14 +91,30 @@ export async function cargarModuloEmpleados() {
                 <div>
                     <p class="text-sm font-semibold text-slate-200">${emp.nombre} ${!emp.activo ? '<span class="text-[10px] text-rose-400">(inactivo)</span>' : ''}</p>
                     <p class="text-[11px] text-slate-500">${emp.puesto || 'Sin puesto'} · $${Number(emp.sueldo_semanal).toFixed(2)}/sem · ${Number(emp.horas_semanales)} hrs/sem</p>
+                    <p class="text-[11px] mt-0.5 ${emp.pin_hash ? 'text-emerald-500' : 'text-amber-500'}">${emp.pin_hash ? 'PIN móvil ✓' : 'Sin PIN móvil'}</p>
                 </div>
                 <div class="flex items-center gap-3">
                     <span class="font-mono text-emerald-400 font-bold text-sm">$${Number(emp.costo_hora).toFixed(2)}/hr</span>
+                    <button type="button" class="btn-pin-emp text-slate-400 hover:text-emerald-400 text-xs" data-id="${emp.id}" title="Restablecer PIN móvil">🔑</button>
                     <button type="button" class="btn-editar-emp text-slate-400 hover:text-sky-400 text-xs" data-id="${emp.id}">✏️</button>
                     <button type="button" class="btn-toggle-emp text-slate-400 hover:text-amber-400 text-xs" data-id="${emp.id}" data-activo="${emp.activo}">${emp.activo ? '🚫' : '✅'}</button>
                 </div>
             </div>
         `).join('');
+
+        cont.querySelectorAll('.btn-pin-emp').forEach(btn => {
+            btn.onclick = async () => {
+                const nuevoPin = (prompt('Nuevo PIN de 4 dígitos para la Orden de Trabajo móvil:') || '').trim();
+                if (!nuevoPin) return;
+                if (!/^\d{4}$/.test(nuevoPin)) { alert('El PIN debe tener exactamente 4 dígitos.'); return; }
+                const { error: errPin } = await supabaseClient.rpc('set_pin_empleado', {
+                    p_empleado_id: Number(btn.dataset.id),
+                    p_pin: nuevoPin
+                });
+                if (errPin) { alert('No se pudo guardar el PIN: ' + errPin.message); return; }
+                cargarLista();
+            };
+        });
 
         cont.querySelectorAll('.btn-editar-emp').forEach(btn => {
             btn.onclick = () => {
@@ -139,13 +162,32 @@ export async function cargarModuloEmpleados() {
             horas_semanales: parseFloat(document.getElementById('empHoras').value) || 1
         };
 
-        const { error } = idEditando
-            ? await supabaseClient.from('empleados').update(registro).eq('id', Number(idEditando))
-            : await supabaseClient.from('empleados').insert([registro]);
+        let empleadoId = idEditando ? Number(idEditando) : null;
+        let error;
+        if (idEditando) {
+            ({ error } = await supabaseClient.from('empleados').update(registro).eq('id', empleadoId));
+        } else {
+            const res = await supabaseClient.from('empleados').insert([registro]).select('id').single();
+            error = res.error;
+            empleadoId = res.data?.id ?? null;
+        }
 
         if (error) {
             alert('❌ Error al guardar: ' + error.message);
             return;
+        }
+
+        const pin = document.getElementById('empPin').value.trim();
+        if (pin && empleadoId) {
+            if (!/^\d{4}$/.test(pin)) {
+                alert('Empleado guardado. El PIN se ignoró: debe tener exactamente 4 dígitos.');
+            } else {
+                const { error: errPin } = await supabaseClient.rpc('set_pin_empleado', {
+                    p_empleado_id: empleadoId,
+                    p_pin: pin
+                });
+                if (errPin) alert('Empleado guardado, pero el PIN no se pudo actualizar: ' + errPin.message);
+            }
         }
 
         resetFormulario();
