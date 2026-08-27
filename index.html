@@ -11,6 +11,34 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
 
+    <!-- Overlay de inicio de sesión (solo administración) -->
+    <div id="loginOverlay" class="hidden fixed inset-0 z-50 bg-slate-950 flex items-center justify-center p-4">
+        <form id="formLogin" class="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-2xl">
+            <div class="text-center">
+                <div class="text-lg font-bold text-sky-400">Hares de México</div>
+                <p class="text-xs text-slate-400 mt-1">Acceso de administración</p>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1">CORREO</label>
+                <input type="email" id="loginEmail" autocomplete="username" required
+                       class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1">CONTRASEÑA</label>
+                <input type="password" id="loginPassword" autocomplete="current-password" required
+                       class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+            </div>
+            <p id="loginError" class="text-xs text-rose-400 min-h-[1rem]"></p>
+            <button type="submit" id="btnLogin"
+                    class="w-full bg-sky-600 hover:bg-sky-500 text-white font-semibold py-2 px-4 rounded-lg text-sm shadow-lg">
+                Entrar
+            </button>
+            <p class="text-[11px] text-slate-500 text-center">
+                ¿Eres operario? Usa la <span class="text-slate-300">Orden de Trabajo</span> en tu celular.
+            </p>
+        </form>
+    </div>
+
     <div id="app" class="flex min-h-screen">
         <!-- Menú Lateral Estático e Independiente -->
         <aside class="w-64 min-w-[16rem] bg-slate-900 border-r border-slate-800 p-4 shrink-0 block">
@@ -21,6 +49,10 @@
                     <div id="statusConexion" class="text-xs bg-slate-950 px-3 py-1.5 rounded-lg text-slate-400 border border-slate-800 text-center font-mono">
                         Estado: Conectando...
                     </div>
+                    <button type="button" onclick="window.cerrarSesionAdmin()"
+                            class="text-[11px] text-slate-500 hover:text-rose-400 transition text-center" style="cursor: pointer;">
+                        Cerrar sesión
+                    </button>
                 </div>
                 <hr class="border-slate-800">
                 <ul class="space-y-1" style="list-style: none; padding: 0;">
