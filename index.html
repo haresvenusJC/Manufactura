@@ -77,6 +77,7 @@
                     <li><button onclick="window.loadView('documentos')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium flex items-center gap-2" style="cursor: pointer;"><span>Documentos</span></button></li>
                     <li><button onclick="window.loadView('produccion')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Producción</button></li>
                     <li><button onclick="window.loadView('auditoria')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Auditoría</button></li>
+                    <li><button onclick="window.loadView('plantillas')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium flex items-center gap-2" style="cursor: pointer;"><span>🖨️ Plantillas de Impresión</span></button></li>
                     <li><button onclick="window.loadView('configuracion')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Configuración</button></li>
                 </ul>
             </div>
@@ -182,6 +183,11 @@
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorAuditoria">Cargando registros de auditoría...</div>
                 </div>
+            </section>
+
+            <!-- Vista: Plantillas de Impresión -->
+            <section id="view-plantillas" class="vista-seccion hidden space-y-4">
+                <!-- Se inyecta dinámicamente el contenido generado por plantillas.js -->
             </section>
 
             <!-- Vista: Configuración -->
