@@ -34,6 +34,7 @@
                         <ul id="submenu-catalogos" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
                             <li><button onclick="window.loadView('catalogo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Productos</button></li>
                             <li><button onclick="window.loadView('proveedores')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Proveedores</button></li>
+                            <li><button onclick="window.loadView('empleados')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">👷 Empleados</button></li>
                         </ul>
                     </li>
                     
@@ -77,8 +78,18 @@
                     <li><button onclick="window.loadView('documentos')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium flex items-center gap-2" style="cursor: pointer;"><span>Documentos</span></button></li>
                     <li><button onclick="window.loadView('produccion')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Producción</button></li>
                     <li><button onclick="window.loadView('auditoria')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Auditoría</button></li>
-                    <li><button onclick="window.loadView('plantillas')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium flex items-center gap-2" style="cursor: pointer;"><span>🖨️ Plantillas de Impresión</span></button></li>
-                    <li><button onclick="window.loadView('configuracion')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Configuración</button></li>
+
+                    <!-- Menú Configuración -->
+                    <li>
+                        <button onclick="window.toggleSubmenu('submenu-configuracion')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
+                            <span>Configuración</span>
+                            <span id="flecha-configuracion" class="text-xs">▼</span>
+                        </button>
+                        <ul id="submenu-configuracion" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
+                            <li><button onclick="window.loadView('configuracion')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">General</button></li>
+                            <li><button onclick="window.loadView('plantillas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">🖨️ Plantillas de Impresión</button></li>
+                        </ul>
+                    </li>
                 </ul>
             </div>
         </aside>
@@ -188,6 +199,11 @@
             <!-- Vista: Plantillas de Impresión -->
             <section id="view-plantillas" class="vista-seccion hidden space-y-4">
                 <!-- Se inyecta dinámicamente el contenido generado por plantillas.js -->
+            </section>
+
+            <!-- Vista: Empleados -->
+            <section id="view-empleados" class="vista-seccion hidden space-y-4">
+                <!-- Se inyecta dinámicamente el contenido generado por empleados.js -->
             </section>
 
             <!-- Vista: Configuración -->
