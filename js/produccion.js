@@ -29,16 +29,20 @@ export async function cargarModuloProduccion() {
                                 <input type="text" id="numeroLoteResultante" placeholder="Ej: LOTE-PT-2026-001" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
                             </div>
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-medium text-slate-400 mb-1">EMPLEADOS</label>
-                                <input type="number" id="empleadosInvolucrados" min="1" value="1" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="block text-xs font-medium text-slate-400">EQUIPOS DE TRABAJO / CRONÓMETROS POR PROCESO</label>
+                                <button type="button" id="btnAgregarProceso" class="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 px-2 py-1 rounded-lg border border-slate-700">+ Agregar Proceso</button>
                             </div>
-                            <div>
-                                <label class="block text-xs font-medium text-slate-400 mb-1">MANO DE OBRA TOTAL ($)</label>
-                                <input type="number" id="costoManoObra" min="0" step="0.01" value="0.00" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
-                            </div>
+                            <div id="listaProcesosOrden" class="space-y-3"></div>
+                            <p id="avisoSinProcesos" class="text-slate-500 text-xs italic mt-1">Sin procesos agregados — la mano de obra se registrará en $0.00. Agrega al menos uno (ej. Pesaje, Mezclado, Envasado), elige el equipo y corre el cronómetro.</p>
                         </div>
+                        <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 flex justify-between items-center">
+                            <span class="text-xs text-slate-400">Mano de obra total (suma de todos los procesos)</span>
+                            <span id="totalManoObraPreview" class="font-mono text-lg font-bold text-emerald-400">$0.00</span>
+                        </div>
+                        <input type="hidden" id="empleadosInvolucrados" value="0">
+                        <input type="hidden" id="costoManoObra" value="0.00">
                         <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2 px-4 rounded-lg transition-all text-sm shadow-lg">
                             🚀 Registrar Producción y Descontar Insumos (FIFO)
                         </button>
@@ -76,16 +80,226 @@ export async function cargarModuloProduccion() {
             });
         }
 
+        // --- Catálogos y estado de los cronómetros por proceso ---
+        const { data: empleadosCatalogo } = await supabaseClient
+            .from('empleados')
+            .select('id, nombre, costo_hora')
+            .eq('activo', true)
+            .order('nombre', { ascending: true });
+
+        const { data: procesosCatalogo } = await supabaseClient
+            .from('procesos_produccion')
+            .select('nombre')
+            .order('nombre', { ascending: true });
+
+        const listaEmpleados = empleadosCatalogo || [];
+        const listaProcesos = procesosCatalogo || [];
+        const procesosState = new Map();
+        let procesoContador = 0;
+
+        function formatoHHMMSS(totalSegundos) {
+            const s = Math.max(0, Math.floor(totalSegundos));
+            const hh = String(Math.floor(s / 3600)).padStart(2, '0');
+            const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+            const ss = String(s % 60).padStart(2, '0');
+            return `${hh}:${mm}:${ss}`;
+        }
+
+        function obtenerSegundosActuales(uid) {
+            const st = procesosState.get(uid);
+            if (!st) return 0;
+            return st.accumSeconds + (st.running ? (Date.now() - st.startTs) / 1000 : 0);
+        }
+
+        function actualizarTotalManoObra() {
+            let total = 0;
+            document.querySelectorAll('.proceso-item').forEach(div => {
+                const uid = div.dataset.uid;
+                const segundos = obtenerSegundosActuales(uid);
+                const seleccionados = Array.from(div.querySelector('.selectEmpleadosProceso').selectedOptions);
+                const sumaCostoHora = seleccionados.reduce((acc, opt) => acc + Number(opt.dataset.costoHora || 0), 0);
+                total += (segundos / 3600) * sumaCostoHora;
+            });
+            document.getElementById('totalManoObraPreview').textContent = `$${total.toFixed(2)}`;
+            document.getElementById('costoManoObra').value = total.toFixed(2);
+        }
+
+        function actualizarCostoProceso(uid) {
+            const div = document.querySelector(`.proceso-item[data-uid="${uid}"]`);
+            if (!div) return;
+            const segundos = obtenerSegundosActuales(uid);
+            const seleccionados = Array.from(div.querySelector('.selectEmpleadosProceso').selectedOptions);
+            const sumaCostoHora = seleccionados.reduce((acc, opt) => acc + Number(opt.dataset.costoHora || 0), 0);
+            const costo = (segundos / 3600) * sumaCostoHora;
+            div.querySelector('.costoProcesoDisplay').textContent = `Costo: $${costo.toFixed(2)}`;
+            actualizarTotalManoObra();
+        }
+
+        function actualizarCronometro(uid) {
+            const div = document.querySelector(`.proceso-item[data-uid="${uid}"]`);
+            if (!div) return;
+            div.querySelector('.cronometroDisplay').textContent = formatoHHMMSS(obtenerSegundosActuales(uid));
+            actualizarCostoProceso(uid);
+        }
+
+        function crearTarjetaProceso() {
+            if (!listaEmpleados.length) {
+                alert('⚠️ No hay empleados activos en el catálogo. Ve a "Empleados" y registra al menos uno antes de agregar un proceso.');
+                return;
+            }
+            procesoContador++;
+            const uid = `proc-${procesoContador}`;
+            procesosState.set(uid, { running: false, accumSeconds: 0, startTs: null, intervalId: null });
+
+            const opcionesProcesos = listaProcesos.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('');
+            const opcionesEmpleados = listaEmpleados.map(e => `<option value="${e.id}" data-costo-hora="${e.costo_hora}">${e.nombre} ($${Number(e.costo_hora).toFixed(2)}/hr)</option>`).join('');
+
+            const div = document.createElement('div');
+            div.className = 'proceso-item bg-slate-950 border border-slate-800 rounded-lg p-3 space-y-2';
+            div.dataset.uid = uid;
+            div.innerHTML = `
+                <div class="flex gap-2 items-center">
+                    <select class="selectProcesoNombre flex-1 bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100">
+                        ${opcionesProcesos}
+                        <option value="__otro__">+ Otro proceso...</option>
+                    </select>
+                    <input type="text" class="inputProcesoNuevoNombre hidden flex-1 bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100" placeholder="Nombre del proceso nuevo">
+                    <button type="button" class="btnQuitarProceso text-rose-400 hover:text-rose-300 text-xs px-1" title="Quitar proceso">✕</button>
+                </div>
+                <div>
+                    <label class="text-[10px] text-slate-500 block mb-1">EQUIPO DE TRABAJO (Ctrl/Cmd+clic para varios)</label>
+                    <select multiple class="selectEmpleadosProceso w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 h-20">
+                        ${opcionesEmpleados}
+                    </select>
+                </div>
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="cronometroDisplay font-mono text-base text-amber-300">00:00:00</span>
+                        <button type="button" class="btnIniciarPausar bg-emerald-700 hover:bg-emerald-600 text-white text-xs px-2 py-1 rounded-lg">▶ Iniciar</button>
+                        <button type="button" class="btnReiniciar bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-2 py-1 rounded-lg">↺</button>
+                    </div>
+                    <span class="costoProcesoDisplay font-mono text-xs text-emerald-400">Costo: $0.00</span>
+                </div>
+            `;
+
+            const selectProcesoNombre = div.querySelector('.selectProcesoNombre');
+            const inputNuevoNombre = div.querySelector('.inputProcesoNuevoNombre');
+            selectProcesoNombre.onchange = () => {
+                inputNuevoNombre.classList.toggle('hidden', selectProcesoNombre.value !== '__otro__');
+            };
+
+            div.querySelector('.selectEmpleadosProceso').onchange = () => actualizarCostoProceso(uid);
+
+            div.querySelector('.btnQuitarProceso').onclick = () => {
+                const st = procesosState.get(uid);
+                if (st?.intervalId) clearInterval(st.intervalId);
+                procesosState.delete(uid);
+                div.remove();
+                actualizarTotalManoObra();
+                if (!document.querySelectorAll('.proceso-item').length) {
+                    document.getElementById('avisoSinProcesos').classList.remove('hidden');
+                }
+            };
+
+            const btnIniciarPausar = div.querySelector('.btnIniciarPausar');
+            btnIniciarPausar.onclick = () => {
+                const st = procesosState.get(uid);
+                if (!st) return;
+                if (st.running) {
+                    st.accumSeconds += (Date.now() - st.startTs) / 1000;
+                    st.running = false;
+                    st.startTs = null;
+                    clearInterval(st.intervalId);
+                    st.intervalId = null;
+                    btnIniciarPausar.textContent = '▶ Reanudar';
+                    btnIniciarPausar.classList.remove('bg-rose-700', 'hover:bg-rose-600');
+                    btnIniciarPausar.classList.add('bg-emerald-700', 'hover:bg-emerald-600');
+                } else {
+                    st.running = true;
+                    st.startTs = Date.now();
+                    st.intervalId = setInterval(() => actualizarCronometro(uid), 1000);
+                    btnIniciarPausar.textContent = '⏸ Pausar';
+                    btnIniciarPausar.classList.remove('bg-emerald-700', 'hover:bg-emerald-600');
+                    btnIniciarPausar.classList.add('bg-rose-700', 'hover:bg-rose-600');
+                }
+            };
+
+            div.querySelector('.btnReiniciar').onclick = () => {
+                const st = procesosState.get(uid);
+                if (!st) return;
+                if (st.intervalId) clearInterval(st.intervalId);
+                Object.assign(st, { running: false, accumSeconds: 0, startTs: null, intervalId: null });
+                btnIniciarPausar.textContent = '▶ Iniciar';
+                btnIniciarPausar.classList.remove('bg-rose-700', 'hover:bg-rose-600');
+                btnIniciarPausar.classList.add('bg-emerald-700', 'hover:bg-emerald-600');
+                actualizarCronometro(uid);
+            };
+
+            document.getElementById('listaProcesosOrden').appendChild(div);
+            document.getElementById('avisoSinProcesos').classList.add('hidden');
+            actualizarCostoProceso(uid);
+        }
+
+        document.getElementById('btnAgregarProceso').onclick = crearTarjetaProceso;
+
+        function detenerTodosLosTimers() {
+            procesosState.forEach(st => {
+                if (st.running) {
+                    st.accumSeconds += (Date.now() - st.startTs) / 1000;
+                    st.running = false;
+                    if (st.intervalId) clearInterval(st.intervalId);
+                    st.intervalId = null;
+                    st.startTs = null;
+                }
+            });
+        }
+
+        function recolectarProcesos() {
+            detenerTodosLosTimers();
+            const procesos = [];
+            document.querySelectorAll('.proceso-item').forEach(div => {
+                const uid = div.dataset.uid;
+                const segundos = obtenerSegundosActuales(uid);
+                let nombre = div.querySelector('.selectProcesoNombre').value;
+                if (nombre === '__otro__') {
+                    nombre = div.querySelector('.inputProcesoNuevoNombre').value.trim() || 'Proceso sin nombre';
+                }
+                const empleadosSeleccionados = Array.from(div.querySelector('.selectEmpleadosProceso').selectedOptions).map(opt => ({
+                    id: Number(opt.value),
+                    costoHora: Number(opt.dataset.costoHora || 0)
+                }));
+                const sumaCostoHora = empleadosSeleccionados.reduce((acc, e) => acc + e.costoHora, 0);
+                const costo = (segundos / 3600) * sumaCostoHora;
+                procesos.push({ nombre, segundos, costo, empleados: empleadosSeleccionados });
+            });
+            return procesos;
+        }
+
+        function limpiarProcesosUI() {
+            procesosState.forEach(st => { if (st.intervalId) clearInterval(st.intervalId); });
+            procesosState.clear();
+            document.getElementById('listaProcesosOrden').innerHTML = '';
+            document.getElementById('avisoSinProcesos').classList.remove('hidden');
+            document.getElementById('totalManoObraPreview').textContent = '$0.00';
+            document.getElementById('costoManoObra').value = '0.00';
+        }
+
         const formOrden = document.getElementById('formOrdenProduccion');
         if (formOrden) {
             formOrden.onsubmit = async (e) => {
                 e.preventDefault();
+                const procesos = recolectarProcesos();
+                const costoTotalManoObra = procesos.reduce((acc, p) => acc + p.costo, 0);
+                const empleadosUnicos = new Set();
+                procesos.forEach(p => p.empleados.forEach(emp => empleadosUnicos.add(emp.id)));
+
                 const datosOrden = {
                     productoId: document.getElementById('productoProducirId').value,
                     cantidadProducida: parseFloat(document.getElementById('cantidadProducida').value),
                     numeroLote: document.getElementById('numeroLoteResultante').value.trim(),
-                    empleadosInvolucrados: parseInt(document.getElementById('empleadosInvolucrados').value) || 1,
-                    costoTotalManoObra: parseFloat(document.getElementById('costoManoObra').value) || 0
+                    empleadosInvolucrados: empleadosUnicos.size,
+                    costoTotalManoObra: costoTotalManoObra,
+                    procesos: procesos
                 };
 
                 const btnSubmit = formOrden.querySelector('button[type="submit"]');
@@ -97,6 +311,7 @@ export async function cargarModuloProduccion() {
                     if (resultado.success) {
                         alert("✅ " + resultado.mensaje);
                         formOrden.reset();
+                        limpiarProcesosUI();
                         await cargarHistorialProduccion(resultado.ordenIdCreada);
                         if (typeof cargarInventarioCompleto === 'function') await cargarInventarioCompleto();
                     } else {
@@ -224,6 +439,41 @@ export async function registrarOrdenDeProduccionCompleta(datosOrden) {
             .single();
 
         if (errOrden) throw errOrden;
+        const ordenProduccionIdCreada = ordenInsertada.id;
+
+        // Se guardan los procesos/cronómetros (Pesaje, Mezclado, Envasado, etc.)
+        // con su equipo de trabajo, para el desglose de mano de obra por etapa.
+        const procesos = Array.isArray(datosOrden.procesos) ? datosOrden.procesos : [];
+        for (const proceso of procesos) {
+            const { data: procesoInsertado, error: errProceso } = await supabaseClient
+                .from('orden_produccion_procesos')
+                .insert([{
+                    orden_produccion_id: ordenProduccionIdCreada,
+                    proceso_nombre: proceso.nombre,
+                    segundos_transcurridos: proceso.segundos,
+                    costo_calculado: proceso.costo
+                }])
+                .select('id')
+                .single();
+
+            if (errProceso) {
+                console.error(`No se pudo guardar el proceso "${proceso.nombre}":`, errProceso.message);
+                continue;
+            }
+
+            if (proceso.empleados && proceso.empleados.length > 0) {
+                const filasEmpleados = proceso.empleados.map(emp => ({
+                    orden_produccion_proceso_id: procesoInsertado.id,
+                    empleado_id: emp.id,
+                    costo_hora_snapshot: emp.costoHora
+                }));
+                await supabaseClient.from('orden_produccion_proceso_empleados').insert(filasEmpleados);
+            }
+
+            // Si el usuario escribió un nombre de proceso nuevo, se agrega al
+            // catálogo para que aparezca sugerido la próxima vez (best-effort).
+            await supabaseClient.from('procesos_produccion').upsert([{ nombre: proceso.nombre }], { onConflict: 'nombre', ignoreDuplicates: true });
+        }
 
         const { error: errRpcEntrada } = await supabaseClient.rpc('registrar_movimiento_inventario_fifo', {
             p_producto_id: Number(productoId),
@@ -426,6 +676,48 @@ async function renderizarDetalleOrden(idSeleccionado, ordenes, contenedorDetalle
             `;
         }
 
+        const { data: procesosOrden } = await supabaseClient
+            .from('orden_produccion_procesos')
+            .select(`
+                id, proceso_nombre, segundos_transcurridos, costo_calculado,
+                orden_produccion_proceso_empleados ( costo_hora_snapshot, empleados ( nombre ) )
+            `)
+            .eq('orden_produccion_id', orden.id)
+            .order('created_at', { ascending: true });
+
+        const formatoHHMMSS = (totalSegundos) => {
+            const s = Math.max(0, Math.floor(totalSegundos));
+            const hh = String(Math.floor(s / 3600)).padStart(2, '0');
+            const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+            const ss = String(s % 60).padStart(2, '0');
+            return `${hh}:${mm}:${ss}`;
+        };
+
+        let htmlProcesos = '';
+        if (procesosOrden && procesosOrden.length > 0) {
+            htmlProcesos = `
+                <div class="mb-4 campo-costo">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">⏱️ Equipos de Trabajo por Proceso</h4>
+                    <div class="space-y-2">
+                        ${procesosOrden.map(p => {
+                            const equipo = (p.orden_produccion_proceso_empleados || []).map(e => e.empleados?.nombre).filter(Boolean).join(', ') || 'Sin equipo asignado';
+                            return `
+                            <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 flex flex-wrap justify-between items-center gap-2">
+                                <div>
+                                    <span class="text-sm font-semibold text-slate-200">${p.proceso_nombre}</span>
+                                    <span class="text-[11px] text-slate-500 block">${equipo}</span>
+                                </div>
+                                <div class="text-right">
+                                    <span class="font-mono text-amber-300 text-sm block">${formatoHHMMSS(p.segundos_transcurridos)}</span>
+                                    <span class="font-mono text-emerald-400 text-xs">$${Number(p.costo_calculado).toFixed(2)}</span>
+                                </div>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
         const mobTotal = Number(orden.costo_total_mano_obra || 0);
         const unitFinal = Number(orden.costo_unitario_final || 0);
         const materialTotalFinal = orden.costo_total_materiales ? Number(orden.costo_total_materiales) : importeTotalFormula;
@@ -442,7 +734,7 @@ async function renderizarDetalleOrden(idSeleccionado, ordenes, contenedorDetalle
                 <div><span class="text-xs text-slate-400 block">FECHA</span><span class="text-slate-300">${new Date(orden.created_at).toLocaleString()}</span></div>
             </div>
             ${orden.productos?.descripcion ? `<p class="text-xs text-slate-400 mb-4 -mt-2">${orden.productos.descripcion}</p>` : ''}
-
+            ${htmlProcesos}
             <table class="w-full text-left text-sm text-slate-300 bg-slate-900 rounded-lg overflow-hidden mb-4">
                 <thead>
                     <tr class="border-b border-slate-800 text-xs text-slate-400 bg-slate-950">

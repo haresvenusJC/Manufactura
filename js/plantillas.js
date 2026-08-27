@@ -110,21 +110,28 @@ export async function cargarModuloPlantillas() {
     let nombresPorTipo = {};
     let tipoActual = '';
 
-    async function cargarTipos() {
-        const select = document.getElementById('selectTipoPlantilla');
-        const { data: tipos, error } = await supabaseClient
-            .from('tipos_movimiento')
-            .select('codigo, nombre')
-            .order('nombre', { ascending: true });
+    // Solo los tipos que la app realmente escribe en documentos.tipo_movimiento.
+    // La tabla tipos_movimiento tiene códigos duplicados/sin usar (compra, venta,
+    // produccion, ajuste_entrada, ajuste_salida, salida_produccion) que solo
+    // confundían este selector — se dejan fuera a propósito.
+    const TIPOS_DOCUMENTO_APP = [
+        { codigo: 'entrada_compra', nombre: 'Entrada por Compra' },
+        { codigo: 'entrada', nombre: 'Entrada Directa' },
+        { codigo: 'entrada_produccion', nombre: 'Entrada por Producción' },
+        { codigo: 'salida_venta', nombre: 'Salida por Venta' },
+        { codigo: 'salida', nombre: 'Salida General' },
+        { codigo: 'merma', nombre: 'Salida por Merma' },
+        { codigo: 'ajuste', nombre: 'Ajuste de Inventario' },
+    ];
 
+    function cargarTipos() {
+        const select = document.getElementById('selectTipoPlantilla');
         nombresPorTipo = { generico: 'Plantilla General (respaldo)' };
         let opciones = '<option value="generico">Plantilla General (respaldo para todos)</option>';
-        if (!error && tipos) {
-            tipos.forEach(t => {
-                nombresPorTipo[t.codigo] = t.nombre;
-                opciones += `<option value="${t.codigo}">${t.nombre}</option>`;
-            });
-        }
+        TIPOS_DOCUMENTO_APP.forEach(t => {
+            nombresPorTipo[t.codigo] = t.nombre;
+            opciones += `<option value="${t.codigo}">${t.nombre}</option>`;
+        });
         select.innerHTML = opciones;
     }
 
@@ -213,7 +220,7 @@ export async function cargarModuloPlantillas() {
         actualizarPreviewLogo(p.logo_url || '');
     }
 
-    await cargarTipos();
+    cargarTipos();
     await cargarPlantillasExistentes();
     tipoActual = document.getElementById('selectTipoPlantilla').value || 'generico';
     rellenarFormulario(tipoActual);
