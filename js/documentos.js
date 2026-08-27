@@ -1,6 +1,8 @@
 import { supabaseClient } from './supabase.js';
+import { imprimirConPlantilla } from './impresion.js';
 
 let documentosCache = [];
+let docActualParaImprimir = null;
 
 export async function cargarVistaDocumentos() {
     const contenedorPrincipal = document.getElementById('view-documentos');
@@ -246,8 +248,8 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
                 cantidad,
                 costo_unitario,
                 subtotal,
-                productos ( nombre, sku, tipo ),
-                lotes_inventario ( numero_lote )
+                productos ( nombre, sku, tipo, descripcion, unidades_medida ( nombre ) ),
+                lotes_inventario ( numero_lote, fecha_ingreso, tipo_cambio, monedas ( codigo ) )
             `)
             .eq('documento_id', docId);
 
@@ -257,13 +259,10 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
         const fechaEmision = docInfo.fecha_emision ? new Date(docInfo.fecha_emision).toLocaleString() : 'N/D';
         const tercero = docInfo.proveedores?.nombre || docInfo.proveedor_cliente || docInfo.cliente_nombre || 'N/D';
 
-        let html = `
-            <!-- Encabezado Visible al Imprimir -->
-            <div class="hidden print:block text-center border-b border-black pb-4 mb-4">
-                <h1 class="text-lg font-bold text-black">Hares de México</h1>
-                <p class="text-xs text-gray-700">Comprobante de Movimiento de Almacén</p>
-            </div>
+        // Se guarda para que window.imprimirDocumentoActual sepa qué plantilla y título usar
+        docActualParaImprimir = { tipoDocumento: docInfo.tipo_movimiento || 'generico', titulo: `Folio: ${docInfo.folio || 'S/Folio'} (Doc #${docId})` };
 
+        let html = `
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-950 p-4 rounded-xl border border-slate-800/80 print:bg-white print:border-black print:text-black">
                 <div>
                     <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-semibold print:text-gray-600">Tipo de Movimiento</span>
@@ -284,12 +283,26 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
                 <div class="sm:col-span-2">
                     <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-semibold print:text-gray-600">Proveedor / Tercero / Cliente</span>
                     <span class="text-xs font-medium text-slate-200 print:text-black">${tercero}</span>
+                    ${(docInfo.proveedores?.contacto || docInfo.proveedores?.telefono) ? `
+                    <span class="text-[11px] text-slate-400 block print:text-gray-700">
+                        ${docInfo.proveedores?.contacto ? `Contacto: ${docInfo.proveedores.contacto}` : ''}
+                        ${docInfo.proveedores?.telefono ? ` · Tel: ${docInfo.proveedores.telefono}` : ''}
+                    </span>` : ''}
                 </div>
                 ${docInfo.descripcion ? `
                 <div class="sm:col-span-2">
                     <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-semibold print:text-gray-600">Descripción / Observaciones</span>
                     <span class="text-xs text-slate-300 print:text-black">${docInfo.descripcion}</span>
                 </div>` : ''}
+                ${docInfo.notas ? `
+                <div class="sm:col-span-2">
+                    <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-semibold print:text-gray-600">Notas</span>
+                    <span class="text-xs text-slate-300 print:text-black">${docInfo.notas}</span>
+                </div>` : ''}
+                <div class="sm:col-span-2">
+                    <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-semibold print:text-gray-600">Documento / Registro</span>
+                    <span class="text-[11px] font-mono text-slate-400 print:text-gray-700">ID #${docInfo.id} · Registrado: ${docInfo.created_at ? new Date(docInfo.created_at).toLocaleString() : 'N/D'}</span>
+                </div>
             </div>
 
             <div>
@@ -302,22 +315,29 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
         } else {
             detalles.forEach((det, index) => {
                 const prod = det.productos || {};
-                const loteNum = det.lotes_inventario?.numero_lote ? `Lote: ${det.lotes_inventario.numero_lote}` : 'Lote: SIN-LOTE';
+                const lote = det.lotes_inventario || {};
+                const loteNum = lote.numero_lote ? `Lote: ${lote.numero_lote}` : 'Lote: SIN-LOTE';
+                const unidad = prod.unidades_medida?.nombre || '';
+                const fechaIngresoLote = lote.fecha_ingreso ? new Date(lote.fecha_ingreso).toLocaleDateString() : null;
+                const monedaCodigo = lote.monedas?.codigo;
+                const tipoCambio = Number(lote.tipo_cambio || 1);
 
                 html += `
                     <div class="bg-slate-950 border border-slate-800 p-3.5 rounded-xl space-y-2 print:bg-white print:border-black print:text-black print:mb-2">
                         <div class="flex justify-between items-start border-b border-slate-800/60 pb-2 print:border-gray-400">
                             <div>
                                 <span class="text-xs font-bold text-amber-400 block print:text-black">${index + 1}. ${prod.nombre || 'Producto Desconocido'}</span>
-                                <span class="text-[10px] text-slate-500 font-mono print:text-gray-600">SKU: ${prod.sku || 'N/D'} | ${loteNum}</span>
+                                <span class="text-[10px] text-slate-500 font-mono print:text-gray-600">SKU: ${prod.sku || 'N/D'} <span class="campo-lote">| ${loteNum}</span></span>
+                                ${prod.descripcion ? `<span class="text-[10px] text-slate-500 block print:text-gray-600">${prod.descripcion}</span>` : ''}
+                                ${fechaIngresoLote ? `<span class="text-[10px] text-slate-500 block campo-lote print:text-gray-600">Ingreso de lote: ${fechaIngresoLote}</span>` : ''}
                             </div>
                             <div class="text-right font-mono">
-                                <span class="text-sm font-bold text-slate-200 print:text-black">${det.cantidad}</span>
+                                <span class="text-sm font-bold text-slate-200 print:text-black">${det.cantidad} ${unidad}</span>
                                 <span class="text-[10px] text-slate-500 block print:text-gray-600">Cantidad</span>
                             </div>
                         </div>
-                        <div class="flex justify-between items-center text-xs font-mono pt-1">
-                            <span class="text-slate-400 print:text-gray-700">Costo Unitario: <strong class="text-emerald-400 print:text-black">$${Number(det.costo_unitario || 0).toFixed(2)}</strong></span>
+                        <div class="flex justify-between items-center text-xs font-mono pt-1 campo-costo">
+                            <span class="text-slate-400 print:text-gray-700">Costo Unitario: <strong class="text-emerald-400 print:text-black">$${Number(det.costo_unitario || 0).toFixed(2)}${monedaCodigo ? ` ${monedaCodigo}` : ''}</strong>${(monedaCodigo && tipoCambio !== 1) ? ` <span class="text-[10px] text-slate-500">(TC: ${tipoCambio})</span>` : ''}</span>
                             <span class="text-slate-400 print:text-gray-700">Subtotal: <strong class="text-amber-300 print:text-black">$${Number(det.subtotal || 0).toFixed(2)}</strong></span>
                         </div>
                     </div>
@@ -335,7 +355,11 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
 };
 
 window.imprimirDocumentoActual = function() {
-    window.print();
+    if (!docActualParaImprimir) {
+        window.print();
+        return;
+    }
+    imprimirConPlantilla(docActualParaImprimir.tipoDocumento, docActualParaImprimir.titulo, 'contenidoModalDoc');
 };
 
 window.cerrarDetalleDocumento = function() {
@@ -344,30 +368,3 @@ window.cerrarDetalleDocumento = function() {
         modalContainer.classList.add('hidden');
     }
 };
-
-// Estilos dinámicos para impresión limpia
-if (!document.getElementById('print-styles-doc')) {
-    const styleSheet = document.createElement('style');
-    styleSheet.id = 'print-styles-doc';
-    styleSheet.innerHTML = `
-        @media print {
-            body * {
-                visibility: hidden;
-            }
-            #modalDetalleDocKardex, #modalDetalleDocKardex * {
-                visibility: visible;
-            }
-            #modalDetalleDocKardex {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-                background: white !important;
-            }
-            .no-print {
-                display: none !important;
-            }
-        }
-    `;
-    document.head.appendChild(styleSheet);
-}

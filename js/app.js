@@ -7,6 +7,7 @@ import { cargarModuloProveedores } from './proveedores.js';
 import { cargarModuloSalidas } from './salidas.js';
 import { cargarVistaKardex } from './kardex.js'; 
 import { cargarVistaDocumentos } from './documentos.js'; 
+import { cargarModuloPlantillas } from './plantillas.js';
 
 // 1. Exposición de funciones al scope global para eventos HTML (onclick)
 window.toggleSubmenu = function(submenuId) {
@@ -60,6 +61,9 @@ window.loadView = function(viewName) {
             break;
         case 'documentos':
             cargarVistaDocumentos();
+            break;
+        case 'plantillas':
+            cargarModuloPlantillas();
             break;
         default:
             break;

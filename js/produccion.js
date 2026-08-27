@@ -1,5 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { cargarInventarioCompleto } from './inventario.js';
+import { imprimirConPlantilla } from './impresion.js';
 
 export async function cargarModuloProduccion() {
     const contenedorProd = document.getElementById('contenedorProduccion');
@@ -235,6 +236,26 @@ export async function registrarOrdenDeProduccionCompleta(datosOrden) {
 
         if (errRpcEntrada) throw new Error(`Error al registrar entrada de producto terminado: ${errRpcEntrada.message}`);
 
+        // Se registra la partida del producto terminado en documento_detalles
+        // para que aparezca en el visor de Documentos (antes solo quedaba en
+        // movimientos_inventario / lotes_inventario, invisible ahí).
+        const { data: loteCreado } = await supabaseClient
+            .from('lotes_inventario')
+            .select('id')
+            .eq('producto_id', productoId)
+            .eq('numero_lote', numeroLote)
+            .eq('documento_id', documentoIdCreado)
+            .maybeSingle();
+
+        await supabaseClient.from('documento_detalles').insert([{
+            documento_id: documentoIdCreado,
+            producto_id: productoId,
+            lote_id: loteCreado?.id || null,
+            cantidad: cantidadProducida,
+            costo_unitario: costoUnitarioFinal,
+            subtotal: costoUnitarioFinal * cantidadProducida
+        }]);
+
         await supabaseClient.from('productos').update({ costo_unitario: costoUnitarioFinal }).eq('id', productoId);
 
         return { success: true, ordenIdCreada: ordenInsertada.id, mensaje: "Orden ejecutada e insumos descontados correctamente por lote (FIFO)." };
@@ -256,7 +277,7 @@ async function cargarHistorialProduccion(idSeleccionarReciente = null) {
 
         const { data: ordenes, error } = await supabaseClient
             .from('ordenes_produccion')
-            .select(`id, producto_id, numero_lote, cantidad_producida, costo_unitario_final, costo_total_materiales, costo_total_mano_obra, created_at, productos ( id, nombre, sku )`)
+            .select(`id, producto_id, numero_lote, cantidad_producida, empleados_involucrados, costo_unitario_final, costo_total_materiales, costo_total_mano_obra, created_at, productos ( id, nombre, sku, descripcion, unidades_medida ( nombre ) )`)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -278,6 +299,16 @@ async function cargarHistorialProduccion(idSeleccionarReciente = null) {
                 const val = Number(e.target.value);
                 if (btnImprimirOrden) btnImprimirOrden.disabled = !val;
                 await renderizarDetalleOrden(val, ordenes, detalleResumenOrden);
+            };
+        }
+
+        if (btnImprimirOrden) {
+            btnImprimirOrden.onclick = () => {
+                const idActual = Number(selectOrdenId?.value);
+                const ordenActual = ordenes.find(o => o.id === idActual);
+                if (!ordenActual) return;
+                const titulo = `Orden de Producción #${ordenActual.id} — Lote ${ordenActual.numero_lote || 'S/L'}`;
+                imprimirConPlantilla('entrada_produccion', titulo, 'detalleResumenOrden');
             };
         }
 
@@ -376,12 +407,12 @@ async function renderizarDetalleOrden(idSeleccionado, ordenes, contenedorDetalle
                 htmlComponentes += `
                     <tr class="border-b border-slate-900/60 text-xs">
                         <td class="py-2.5 px-3 font-medium text-slate-200">
-                            ${nombreInsumo} <span class="text-amber-400 font-mono text-[11px]">${loteOrigen}</span>
+                            ${nombreInsumo} <span class="text-amber-400 font-mono text-[11px] campo-lote">${loteOrigen}</span>
                         </td>
                         <td class="py-2.5 px-3 font-mono text-amber-300">${cantidadDescontada.toFixed(4)}</td>
                         <td class="py-2.5 px-3 text-slate-400">${unidadMedidaTexto}</td>
-                        <td class="py-2.5 px-3 font-mono text-slate-300">$${costoUnitario.toFixed(2)}</td>
-                        <td class="py-2.5 px-3 font-mono text-emerald-400 text-right font-semibold">$${subtotal.toFixed(2)}</td>
+                        <td class="py-2.5 px-3 font-mono text-slate-300 campo-costo">$${costoUnitario.toFixed(2)}</td>
+                        <td class="py-2.5 px-3 font-mono text-emerald-400 text-right font-semibold campo-costo">$${subtotal.toFixed(2)}</td>
                     </tr>
                 `;
             });
@@ -399,33 +430,38 @@ async function renderizarDetalleOrden(idSeleccionado, ordenes, contenedorDetalle
         const unitFinal = Number(orden.costo_unitario_final || 0);
         const materialTotalFinal = orden.costo_total_materiales ? Number(orden.costo_total_materiales) : importeTotalFormula;
 
+        const unidadProducto = orden.productos?.unidades_medida?.nombre || '';
+        const empleados = orden.empleados_involucrados != null ? orden.empleados_involucrados : 'N/D';
+
         contenedorDetalle.innerHTML = `
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4 pb-4 border-b border-slate-800">
-                <div><span class="text-xs text-slate-400 block">ORDEN / LOTE</span><span class="font-mono font-bold text-amber-400">ID #${orden.id} | ${orden.numero_lote}</span></div>
-                <div><span class="text-xs text-slate-400 block">PRODUCTO</span><span class="font-medium text-slate-100">${orden.productos?.nombre}</span></div>
-                <div><span class="text-xs text-slate-400 block">CANTIDAD</span><span class="font-mono text-slate-200">${cantidadProducidaLote}</span></div>
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4 pb-4 border-b border-slate-800">
+                <div class="campo-lote"><span class="text-xs text-slate-400 block">ORDEN / LOTE</span><span class="font-mono font-bold text-amber-400">ID #${orden.id} | ${orden.numero_lote}</span></div>
+                <div><span class="text-xs text-slate-400 block">PRODUCTO</span><span class="font-medium text-slate-100">${orden.productos?.nombre}</span>${orden.productos?.sku ? `<span class="text-[10px] text-slate-500 block font-mono">SKU: ${orden.productos.sku}</span>` : ''}</div>
+                <div><span class="text-xs text-slate-400 block">CANTIDAD</span><span class="font-mono text-slate-200">${cantidadProducidaLote} ${unidadProducto}</span></div>
+                <div><span class="text-xs text-slate-400 block">EMPLEADOS</span><span class="font-mono text-slate-200">${empleados}</span></div>
                 <div><span class="text-xs text-slate-400 block">FECHA</span><span class="text-slate-300">${new Date(orden.created_at).toLocaleString()}</span></div>
             </div>
-            
+            ${orden.productos?.descripcion ? `<p class="text-xs text-slate-400 mb-4 -mt-2">${orden.productos.descripcion}</p>` : ''}
+
             <table class="w-full text-left text-sm text-slate-300 bg-slate-900 rounded-lg overflow-hidden mb-4">
                 <thead>
                     <tr class="border-b border-slate-800 text-xs text-slate-400 bg-slate-950">
                         <th class="py-2.5 px-3">Materia Prima / Componente</th>
                         <th class="py-2.5 px-3">Cantidad</th>
                         <th class="py-2.5 px-3">Unidad</th>
-                        <th class="py-2.5 px-3">Costo</th>
-                        <th class="py-2.5 px-3 text-right">Subtotal</th>
+                        <th class="py-2.5 px-3 campo-costo">Costo</th>
+                        <th class="py-2.5 px-3 text-right campo-costo">Subtotal</th>
                     </tr>
                 </thead>
                 <tbody>${htmlComponentes}</tbody>
             </table>
 
-            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg mb-4 flex justify-between items-center">
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-lg mb-4 flex justify-between items-center campo-costo">
                 <span class="text-sm font-semibold text-amber-400">📊 Importe Total de todos los Componentes de la Fórmula:</span>
                 <span class="text-lg font-mono font-bold text-emerald-400">$${importeTotalFormula.toFixed(2)}</span>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 campo-costo">
                 <div class="bg-slate-900 p-3 rounded-lg border border-slate-800"><span class="text-xs text-slate-400 block">Materiales</span><span class="font-mono text-base text-slate-200 font-bold">$${materialTotalFinal.toFixed(2)}</span></div>
                 <div class="bg-slate-900 p-3 rounded-lg border border-slate-800"><span class="text-xs text-slate-400 block">Mano de Obra</span><span class="font-mono text-base text-slate-200 font-bold">$${mobTotal.toFixed(2)}</span></div>
                 <div class="bg-slate-900 p-3 rounded-lg border border-slate-800"><span class="text-xs text-slate-400 block">Costo Unitario</span><span class="font-mono text-base text-emerald-400 font-bold">$${unitFinal.toFixed(2)}</span></div>
