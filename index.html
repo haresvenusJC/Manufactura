@@ -67,6 +67,7 @@
                             <li><button onclick="window.loadView('catalogo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Productos</button></li>
                             <li><button onclick="window.loadView('proveedores')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Proveedores</button></li>
                             <li><button onclick="window.loadView('empleados')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">👷 Empleados</button></li>
+                            <li><button onclick="window.loadView('importador')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">⬆️ Importar Excel/CSV</button></li>
                         </ul>
                     </li>
                     
@@ -236,6 +237,14 @@
             <!-- Vista: Empleados -->
             <section id="view-empleados" class="vista-seccion hidden space-y-4">
                 <!-- Se inyecta dinámicamente el contenido generado por empleados.js -->
+            </section>
+
+            <!-- Vista: Importador de datos (Excel / CSV) -->
+            <section id="view-importador" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-sky-400">Importar Proveedores y Productos (Excel / CSV)</h2>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div id="contenedorImportador">Cargando importador...</div>
+                </div>
             </section>
 
             <!-- Vista: Configuración -->
