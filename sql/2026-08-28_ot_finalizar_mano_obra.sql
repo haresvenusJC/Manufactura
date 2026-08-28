@@ -46,6 +46,11 @@ create or replace view public.v_ot_proceso_empleados as
 --    y el costo (costo_hora_snapshot * horas) se calcule completo cuando
 --    el admin cierre la orden.
 -- ---------------------------------------------------------------------
+-- Se elimina primero por si ya existe una versión con defaults en los
+-- parámetros: "create or replace" no puede cambiar la firma de una función
+-- existente si los defaults no coinciden.
+drop function if exists public.ot_finalizar(uuid, bigint, boolean);
+
 create or replace function public.ot_finalizar(p_token uuid, p_proceso_id bigint, p_finalizar boolean)
 returns jsonb
 language plpgsql
