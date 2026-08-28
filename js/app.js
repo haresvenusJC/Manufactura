@@ -9,6 +9,7 @@ import { cargarVistaKardex } from './kardex.js';
 import { cargarVistaDocumentos } from './documentos.js'; 
 import { cargarModuloPlantillas } from './plantillas.js';
 import { cargarModuloEmpleados } from './empleados.js';
+import { cargarModuloImportador } from './importador.js';
 import { montarLogin, cerrarSesion } from './auth.js';
 
 // 1. Exposición de funciones al scope global para eventos HTML (onclick)
@@ -69,6 +70,9 @@ window.loadView = function(viewName) {
             break;
         case 'empleados':
             cargarModuloEmpleados();
+            break;
+        case 'importador':
+            cargarModuloImportador();
             break;
         default:
             break;
