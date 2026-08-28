@@ -223,7 +223,7 @@ async function pintarOrden() {
     if (procIds.length) {
         const [{ data: eq }, { data: rg }] = await Promise.all([
             supabaseClient.from('v_ot_proceso_empleados')
-                .select('orden_produccion_proceso_id, empleado_id, empleado_nombre')
+                .select('orden_produccion_proceso_id, empleado_id, empleado_nombre, finalizado_at')
                 .in('orden_produccion_proceso_id', procIds),
             supabaseClient.from('v_ot_registros')
                 .select('orden_produccion_proceso_id, empleado_id, inicio, fin')
@@ -237,7 +237,9 @@ async function pintarOrden() {
 
     const procesosHtml = (procesos || []).map(p => {
         const team = equipos.filter(e => e.orden_produccion_proceso_id === p.id);
-        const asignado = team.some(e => Number(e.empleado_id) === miId);
+        const miAsign = team.find(e => Number(e.empleado_id) === miId);
+        const asignado = !!miAsign;
+        const finalizada = !!(miAsign && miAsign.finalizado_at);
         const mis = registros.filter(r => r.orden_produccion_proceso_id === p.id && Number(r.empleado_id) === miId);
 
         let acum = 0;
@@ -246,18 +248,32 @@ async function pintarOrden() {
 
         const nombres = team.map(e => e.empleado_nombre).filter(Boolean).join(', ') || 'Sin equipo asignado';
 
+        let bloqueOperario = `<p class="text-[11px] text-slate-600 italic">No estás asignado a este proceso.</p>`;
+        if (asignado && finalizada) {
+            bloqueOperario = `
+                <div class="flex items-center justify-between">
+                    <span class="ot-timer font-mono text-lg text-slate-400" data-acum="${acum}" data-inicio="">${fmt(acum)}</span>
+                    <span class="text-emerald-400 text-xs font-semibold">✅ Tarea finalizada</span>
+                </div>
+                <button class="btn-reabrir mt-2 text-xs text-slate-400 underline" data-proceso="${p.id}">Reabrir tarea</button>`;
+        } else if (asignado) {
+            bloqueOperario = `
+                <div class="flex items-center justify-between">
+                    <span class="ot-timer font-mono text-lg text-amber-300" data-acum="${acum}" data-inicio="${abierto}">${fmt(acum)}</span>
+                    <button class="btn-marcar ${abierto ? 'bg-rose-600' : 'bg-emerald-600'} text-white font-semibold rounded-xl px-5 py-3 text-sm active:opacity-80"
+                            data-proceso="${p.id}" data-accion="${abierto ? 'parar' : 'iniciar'}">
+                        ${abierto ? '⏹ Parar' : '▶ Iniciar'}
+                    </button>
+                </div>
+                <button class="btn-finalizar mt-2 w-full bg-slate-800 border border-slate-700 text-slate-200 font-semibold rounded-xl py-2.5 text-sm active:opacity-80"
+                        data-proceso="${p.id}">🏁 Finalizar tarea</button>`;
+        }
+
         return `
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 mb-2">
                 <p class="text-sm font-semibold text-slate-100">${p.proceso_nombre}</p>
                 <p class="text-[11px] text-slate-500 mb-2">${nombres}</p>
-                ${asignado ? `
-                    <div class="flex items-center justify-between">
-                        <span class="ot-timer font-mono text-lg text-amber-300" data-acum="${acum}" data-inicio="${abierto}">00:00:00</span>
-                        <button class="btn-marcar ${abierto ? 'bg-rose-600' : 'bg-emerald-600'} text-white font-semibold rounded-xl px-5 py-3 text-sm active:opacity-80"
-                                data-proceso="${p.id}" data-accion="${abierto ? 'parar' : 'iniciar'}">
-                            ${abierto ? '⏹ Parar' : '▶ Iniciar'}
-                        </button>
-                    </div>` : `<p class="text-[11px] text-slate-600 italic">No estás asignado a este proceso.</p>`}
+                ${bloqueOperario}
             </div>`;
     }).join('');
 
@@ -267,22 +283,41 @@ async function pintarOrden() {
         ${procesosHtml || '<p class="text-slate-500 text-sm">Esta orden no tiene procesos.</p>'}
     `;
 
+    const manejarRpc = async (btn, rpc, params, confirmar) => {
+        if (confirmar && !confirm(confirmar)) return;
+        btn.disabled = true;
+        const { error } = await supabaseClient.rpc(rpc, params);
+        if (error) {
+            if (esErrorSesion(error)) { alert('Tu sesión expiró. Vuelve a identificarte.'); salir(); return; }
+            alert(error.message);
+            btn.disabled = false;
+            return;
+        }
+        await pintarOrden();
+    };
+
     cont.querySelectorAll('.btn-marcar').forEach(b => {
-        b.onclick = async () => {
-            b.disabled = true;
-            const { error } = await supabaseClient.rpc('ot_marcar', {
-                p_token: sesion.token,
-                p_proceso_id: Number(b.dataset.proceso),
-                p_accion: b.dataset.accion
-            });
-            if (error) {
-                if (esErrorSesion(error)) { alert('Tu sesión expiró. Vuelve a identificarte.'); salir(); return; }
-                alert(error.message);
-                b.disabled = false;
-                return;
-            }
-            await pintarOrden();
-        };
+        b.onclick = () => manejarRpc(b, 'ot_marcar', {
+            p_token: sesion.token,
+            p_proceso_id: Number(b.dataset.proceso),
+            p_accion: b.dataset.accion
+        });
+    });
+
+    cont.querySelectorAll('.btn-finalizar').forEach(b => {
+        b.onclick = () => manejarRpc(b, 'ot_finalizar', {
+            p_token: sesion.token,
+            p_proceso_id: Number(b.dataset.proceso),
+            p_finalizar: true
+        }, '¿Finalizar tu tarea en este proceso? Se detendrá el cronómetro y tu tiempo quedará registrado.');
+    });
+
+    cont.querySelectorAll('.btn-reabrir').forEach(b => {
+        b.onclick = () => manejarRpc(b, 'ot_finalizar', {
+            p_token: sesion.token,
+            p_proceso_id: Number(b.dataset.proceso),
+            p_finalizar: false
+        });
     });
 }
 

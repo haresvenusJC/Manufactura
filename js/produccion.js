@@ -649,7 +649,7 @@ async function cargarOrdenesEnProceso() {
             productos ( nombre ),
             orden_produccion_procesos (
                 id, proceso_nombre,
-                orden_produccion_proceso_empleados ( empleado_id, costo_hora_snapshot, empleados ( nombre ) )
+                orden_produccion_proceso_empleados ( empleado_id, costo_hora_snapshot, finalizado_at, empleados ( nombre ) )
             )
         `)
         .eq('estado', 'en_proceso')
@@ -674,6 +674,28 @@ async function cargarOrdenesEnProceso() {
     }
 
     cont.innerHTML = ordenes.map(o => renderTarjetaOrdenEnProceso(o, registros)).join('');
+
+    cont.querySelectorAll('.btn-ajuste-tiempo').forEach(btn => {
+        btn.onclick = async () => {
+            const resp = prompt(`Minutos trabajados a AGREGAR para "${btn.dataset.nombre}" en "${btn.dataset.procNombre}":`);
+            if (resp === null) return;
+            const min = parseFloat(resp);
+            if (!min || Number.isNaN(min) || min <= 0) { alert('Ingresa un número de minutos mayor que 0.'); return; }
+
+            const fin = new Date();
+            const inicio = new Date(fin.getTime() - min * 60000);
+
+            const { error: errIns } = await supabaseClient.from('registros_tiempo').insert([{
+                orden_produccion_proceso_id: Number(btn.dataset.proceso),
+                empleado_id: Number(btn.dataset.empleado),
+                inicio: inicio.toISOString(),
+                fin: fin.toISOString(),
+                fuente: 'admin'
+            }]);
+            if (errIns) { alert('No se pudo registrar el ajuste: ' + errIns.message); return; }
+            await cargarOrdenesEnProceso();
+        };
+    });
 
     cont.querySelectorAll('.btn-cerrar-orden').forEach(btn => {
         btn.onclick = async () => {
@@ -706,6 +728,7 @@ function renderTarjetaOrdenEnProceso(o, registros) {
         const filasEmp = equipo.map(e => {
             const empId = Number(e.empleado_id);
             const snap = Number(e.costo_hora_snapshot || 0);
+            const nombreEmp = e.empleados?.nombre || 'Empleado';
             let acumCerrado = 0;
             let inicioAbierto = '';
             regsP.filter(r => Number(r.empleado_id) === empId).forEach(r => {
@@ -713,12 +736,15 @@ function renderTarjetaOrdenEnProceso(o, registros) {
                 else inicioAbierto = r.inicio;
             });
             const activo = inicioAbierto ? '<span class="text-emerald-400">●</span> ' : '';
+            const marca = e.finalizado_at ? ' <span class="text-emerald-400">✓ finalizada</span>' : '';
             return `
                 <div class="flex justify-between items-center text-xs py-1">
-                    <span class="text-slate-300">${activo}${e.empleados?.nombre || 'Empleado'}</span>
-                    <span class="font-mono text-slate-400">
+                    <span class="text-slate-300">${activo}${nombreEmp}${marca}</span>
+                    <span class="font-mono text-slate-400 flex items-center gap-1">
                         <span class="ot-timer" data-acum="${acumCerrado}" data-inicio="${inicioAbierto}">00:00:00</span>
-                        · <span class="ot-costo text-emerald-400" data-acum="${acumCerrado}" data-inicio="${inicioAbierto}" data-costohora="${snap}">$0.00</span>
+                        · <span class="ot-costo text-emerald-400" data-card="${o.id}" data-acum="${acumCerrado}" data-inicio="${inicioAbierto}" data-costohora="${snap}">$0.00</span>
+                        <button type="button" class="btn-ajuste-tiempo text-slate-500 hover:text-amber-400 ml-1" title="Ajustar tiempo manualmente"
+                                data-proceso="${p.id}" data-empleado="${empId}" data-nombre="${nombreEmp.replace(/"/g, '&quot;')}" data-proc-nombre="${(p.proceso_nombre || '').replace(/"/g, '&quot;')}">✎</button>
                     </span>
                 </div>`;
         }).join('');
@@ -741,6 +767,10 @@ function renderTarjetaOrdenEnProceso(o, registros) {
                 <button type="button" class="btn-cerrar-orden bg-rose-700 hover:bg-rose-600 text-white text-xs px-3 py-1.5 rounded-lg" data-id="${o.id}" data-folio="${folio}">🔒 Cerrar orden</button>
             </div>
             <div class="space-y-2">${procesosHtml}</div>
+            <div class="flex justify-between items-center text-xs mt-3 pt-2 border-t border-slate-800">
+                <span class="text-slate-400">Mano de obra registrada (parcial)</span>
+                <span class="ot-costo-total font-mono font-bold text-emerald-400" data-card="${o.id}">$0.00</span>
+            </div>
         </div>`;
 }
 
@@ -757,6 +787,18 @@ function tickEnProceso() {
         const ch = Number(el.dataset.costohora || 0);
         const seg = acum + (ini ? (Date.now() - ini) / 1000 : 0);
         el.textContent = '$' + ((seg / 3600) * ch).toFixed(2);
+    });
+    // Subtotal de mano de obra por orden = suma de los costos de sus operarios.
+    document.querySelectorAll('#contenedorOrdenesEnProceso .ot-costo-total').forEach(tot => {
+        const card = tot.dataset.card;
+        let sum = 0;
+        document.querySelectorAll(`#contenedorOrdenesEnProceso .ot-costo[data-card="${card}"]`).forEach(el => {
+            const acum = Number(el.dataset.acum || 0);
+            const ini = el.dataset.inicio ? new Date(el.dataset.inicio).getTime() : 0;
+            const ch = Number(el.dataset.costohora || 0);
+            sum += ((acum + (ini ? (Date.now() - ini) / 1000 : 0)) / 3600) * ch;
+        });
+        tot.textContent = '$' + sum.toFixed(2);
     });
 }
 
