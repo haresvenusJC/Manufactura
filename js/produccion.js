@@ -502,10 +502,11 @@ export async function cerrarOrdenDeProduccion(ordenId) {
 
         // Cierra cualquier cronómetro que quedó abierto.
         if (procIds.length) {
-            await supabaseClient.from('registros_tiempo')
+            const { error: errCierre } = await supabaseClient.from('registros_tiempo')
                 .update({ fin: new Date().toISOString() })
                 .is('fin', null)
                 .in('orden_produccion_proceso_id', procIds);
+            if (errCierre) throw new Error(`No se pudieron cerrar los cronómetros abiertos: ${errCierre.message}`);
         }
 
         let registros = [];
