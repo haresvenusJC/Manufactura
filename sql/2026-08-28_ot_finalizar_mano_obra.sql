@@ -46,10 +46,26 @@ create or replace view public.v_ot_proceso_empleados as
 --    y el costo (costo_hora_snapshot * horas) se calcule completo cuando
 --    el admin cierre la orden.
 -- ---------------------------------------------------------------------
--- Se elimina primero por si ya existe una versión con defaults en los
--- parámetros: "create or replace" no puede cambiar la firma de una función
--- existente si los defaults no coinciden.
-drop function if exists public.ot_finalizar(uuid, bigint, boolean);
+-- Se elimina primero cualquier función ot_finalizar que ya exista en el
+-- esquema public, sin importar su firma exacta (tipos/orden de parámetros
+-- o defaults). "create or replace" no puede cambiar la firma de una función
+-- existente si los defaults no coinciden, y un "drop function" con la firma
+-- exacta puede no encontrar coincidencia si la versión ya creada en
+-- Supabase difiere aunque sea un poco (por eso se resuelve dinámicamente).
+do $$
+declare
+    r record;
+begin
+    for r in
+        select p.oid::regprocedure as firma
+          from pg_proc p
+          join pg_namespace n on n.oid = p.pronamespace
+         where n.nspname = 'public'
+           and p.proname = 'ot_finalizar'
+    loop
+        execute format('drop function %s', r.firma);
+    end loop;
+end $$;
 
 create or replace function public.ot_finalizar(p_token uuid, p_proceso_id bigint, p_finalizar boolean)
 returns jsonb
