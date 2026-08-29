@@ -112,6 +112,19 @@
                     <li><button onclick="window.loadView('produccion')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Producción</button></li>
                     <li><button onclick="window.loadView('auditoria')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Auditoría</button></li>
 
+                    <!-- Menú Contabilidad -->
+                    <li>
+                        <button onclick="window.toggleSubmenu('submenu-contabilidad')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
+                            <span>Contabilidad</span>
+                            <span id="flecha-contabilidad" class="text-xs">▼</span>
+                        </button>
+                        <ul id="submenu-contabilidad" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
+                            <li><button onclick="window.loadView('plan-cuentas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Plan de cuentas</button></li>
+                            <li><button onclick="window.loadView('gastos')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Gastos</button></li>
+                            <li><button onclick="window.loadView('polizas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Pólizas</button></li>
+                        </ul>
+                    </li>
+
                     <!-- Menú Configuración -->
                     <li>
                         <button onclick="window.toggleSubmenu('submenu-configuracion')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
@@ -244,6 +257,30 @@
                 <h2 class="text-xl font-bold text-sky-400">Importar Proveedores y Productos (Excel / CSV)</h2>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorImportador">Cargando importador...</div>
+                </div>
+            </section>
+
+            <!-- Vista: Contabilidad - Plan de cuentas -->
+            <section id="view-plan-cuentas" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-sky-400">Contabilidad · Plan de cuentas</h2>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div id="contenedorPlanCuentas">Cargando plan de cuentas...</div>
+                </div>
+            </section>
+
+            <!-- Vista: Contabilidad - Gastos -->
+            <section id="view-gastos" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-sky-400">Contabilidad · Gastos</h2>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div id="contenedorGastos">Cargando gastos...</div>
+                </div>
+            </section>
+
+            <!-- Vista: Contabilidad - Pólizas -->
+            <section id="view-polizas" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-sky-400">Contabilidad · Pólizas</h2>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div id="contenedorPolizas">Cargando pólizas...</div>
                 </div>
             </section>
 
