@@ -112,6 +112,68 @@ export async function configurarFormularioCompras() {
                 </div>
             </div>
 
+            <!-- BLOQUE 4: Datos fiscales / contabilidad -->
+            <div id="bloqueFiscalCompra" class="bg-slate-950 p-4 rounded-xl mb-4 border border-slate-800 shadow-xl hidden">
+                <label class="flex items-center gap-2 text-sm font-semibold text-slate-200 mb-3">
+                    <input type="checkbox" id="compraContabilizar" checked class="accent-emerald-500"> 4. Generar póliza contable
+                </label>
+                <div id="camposFiscalesCompra" class="space-y-3">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Subtotal <button type="button" id="compraSubtotalAuto" class="text-[10px] text-emerald-400 hover:underline">auto</button></label>
+                            <input type="number" step="0.01" min="0" id="compraSubtotal" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">IVA <button type="button" id="compraIva16" class="text-[10px] text-emerald-400 hover:underline">16%</button></label>
+                            <input type="number" step="0.01" min="0" id="compraIva" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">IEPS</label>
+                            <input type="number" step="0.01" min="0" id="compraIeps" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Total</label>
+                            <input type="text" id="compraTotalFiscal" readonly value="$0.00" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-emerald-400 text-right font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Ret. IVA</label>
+                            <input type="number" step="0.01" min="0" id="compraRetIva" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Ret. ISR</label>
+                            <input type="number" step="0.01" min="0" id="compraRetIsr" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Condición</label>
+                            <select id="compraCondicion" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                                <option value="credito">Crédito (por pagar)</option>
+                                <option value="contado">Contado</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Forma de pago</label>
+                            <select id="compraFormaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                                <option value="">—</option><option>efectivo</option><option>transferencia</option><option>tarjeta</option><option>cheque</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="compraPagoWrap" class="hidden">
+                        <label class="block text-xs text-slate-400 mb-1">Pagado desde (caja / banco)</label>
+                        <select id="compraCuentaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">UUID CFDI</label>
+                            <input type="text" id="compraUuid" placeholder="folio fiscal" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">RFC emisor</label>
+                            <input type="text" id="compraRfc" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium p-3 rounded-lg transition shadow-md text-sm" style="cursor: pointer;">
                 Registrar Compra
             </button>
@@ -126,6 +188,7 @@ export async function configurarFormularioCompras() {
     await cargarProveedoresSelect();
     await cargarUnidadesMedidaSelect();
     await precargarProductosParaBusqueda();
+    await cargarBloqueFiscalCompra();
 
     const monedaSelect = document.getElementById('compraMoneda');
     if (monedaSelect) {
@@ -316,7 +379,42 @@ export async function configurarFormularioCompras() {
                 if (errRpc) throw errRpc;
             }
 
-            alert("¡Compra registrada correctamente!");
+            // ---- Contabilizar (genera poliza de Egreso) si el bloque fiscal esta activo ----
+            let msgContab = '';
+            const chkContab = document.getElementById('compraContabilizar');
+            const bloqueVisible = document.getElementById('bloqueFiscalCompra') && !document.getElementById('bloqueFiscalCompra').classList.contains('hidden');
+            if (bloqueVisible && chkContab && chkContab.checked) {
+                const nf = (id) => parseFloat(document.getElementById(id)?.value) || 0;
+                const condicion = document.getElementById('compraCondicion').value;
+                let subtotalFiscal = nf('compraSubtotal');
+                if (subtotalFiscal <= 0) {
+                    subtotalFiscal = partidasAProcesar.reduce((a, p) => a + (p.cantidad * p.costoUnitario), 0);
+                }
+                const p_datos = {
+                    subtotal: subtotalFiscal,
+                    iva: nf('compraIva'),
+                    ieps: nf('compraIeps'),
+                    ret_iva: nf('compraRetIva'),
+                    ret_isr: nf('compraRetIsr'),
+                    condicion,
+                    forma_pago: document.getElementById('compraFormaPago').value || null,
+                    cuenta_pago_id: condicion === 'contado' && document.getElementById('compraCuentaPago').value
+                        ? parseInt(document.getElementById('compraCuentaPago').value) : null,
+                    uuid_cfdi: document.getElementById('compraUuid').value.trim() || null,
+                    rfc_emisor: document.getElementById('compraRfc').value.trim() || null,
+                };
+                try {
+                    const { data: cont, error: errCont } = await supabaseClient.rpc('contabilizar_compra', {
+                        p_documento_id: documentoId, p_datos
+                    });
+                    if (errCont) throw errCont;
+                    msgContab = `\nPóliza de Egreso generada (total $${Number(cont.total).toFixed(2)}).`;
+                } catch (e) {
+                    msgContab = `\nLa compra se registró, pero NO se pudo contabilizar: ${e.message || e}`;
+                }
+            }
+
+            alert("¡Compra registrada correctamente!" + msgContab);
             formCompra.reset();
             listaPartidasCompra = [];
             actualizarTablaPartidasUI();
@@ -334,6 +432,66 @@ export async function configurarFormularioCompras() {
             alert("Error al procesar la compra: " + error.message);
         }
     };
+}
+
+// --------- Bloque fiscal / contabilidad de la compra ---------
+
+function recalcularTotalFiscalCompra() {
+    const n = (id) => parseFloat(document.getElementById(id)?.value) || 0;
+    const total = n('compraSubtotal') + n('compraIva') + n('compraIeps') - n('compraRetIva') - n('compraRetIsr');
+    const el = document.getElementById('compraTotalFiscal');
+    if (el) el.value = '$' + total.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function subtotalPartidasCompra() {
+    if (listaPartidasCompra.length > 0) {
+        return listaPartidasCompra.reduce((a, p) => a + (p.cantidad * p.costoUnitario), 0);
+    }
+    const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 0;
+    const cu = parseFloat(document.getElementById('compraCostUnitario')?.value) || 0;
+    return cant * cu;
+}
+
+async function cargarBloqueFiscalCompra() {
+    const bloque = document.getElementById('bloqueFiscalCompra');
+    if (!bloque) return;
+
+    let cuentasPago = [];
+    try {
+        const { data, error } = await supabaseClient
+            .from('cuentas_contables')
+            .select('id, codigo, nombre')
+            .eq('afectable', true).eq('activa', true)
+            .order('codigo', { ascending: true });
+        if (error) throw error;
+        cuentasPago = (data || []).filter((c) => /^(101|102)/.test(c.codigo));
+    } catch (_) {
+        // modulo de contabilidad no instalado -> se deja el bloque oculto
+        return;
+    }
+
+    bloque.classList.remove('hidden');
+    const selPago = document.getElementById('compraCuentaPago');
+    selPago.innerHTML = '<option value="">— caja / banco —</option>' +
+        cuentasPago.map((c) => `<option value="${c.id}">${c.codigo} · ${c.nombre}</option>`).join('');
+
+    const $ = (id) => document.getElementById(id);
+    const setSubtotalAuto = () => { $('compraSubtotal').value = subtotalPartidasCompra().toFixed(2); recalcularTotalFiscalCompra(); };
+    setSubtotalAuto();
+
+    $('compraSubtotalAuto').addEventListener('click', setSubtotalAuto);
+    $('compraIva16').addEventListener('click', () => {
+        $('compraIva').value = (Math.round((parseFloat($('compraSubtotal').value) || 0) * 16) / 100).toFixed(2);
+        recalcularTotalFiscalCompra();
+    });
+    ['compraSubtotal', 'compraIva', 'compraIeps', 'compraRetIva', 'compraRetIsr'].forEach((id) =>
+        $(id).addEventListener('input', recalcularTotalFiscalCompra));
+    $('compraCondicion').addEventListener('change', () => {
+        $('compraPagoWrap').classList.toggle('hidden', $('compraCondicion').value !== 'contado');
+    });
+    $('compraContabilizar').addEventListener('change', () => {
+        $('camposFiscalesCompra').style.display = $('compraContabilizar').checked ? '' : 'none';
+    });
 }
 
 async function cargarProveedoresSelect() {

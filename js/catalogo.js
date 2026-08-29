@@ -126,6 +126,25 @@ export async function cargarCatalogoInicial() {
             });
         }
 
+        // 5. Cargar cuentas contables (si el modulo de contabilidad ya esta instalado)
+        let cuentasContables = [];
+        try {
+            const { data: resCtas } = await supabaseClient
+                .from('cuentas_contables')
+                .select('id, codigo, nombre, tipo')
+                .eq('afectable', true).eq('activa', true)
+                .order('codigo', { ascending: true });
+            cuentasContables = resCtas || [];
+        } catch (_) { /* modulo de contabilidad aun no instalado */ }
+
+        const opcionesCuentas = (tiposPreferidos = []) => {
+            const pref = cuentasContables.filter(c => tiposPreferidos.includes(c.tipo));
+            const resto = cuentasContables.filter(c => !tiposPreferidos.includes(c.tipo));
+            const linea = c => `<option value="${c.id}">${c.codigo} · ${c.nombre}</option>`;
+            return '<option value="">(sin cuenta)</option>' + pref.map(linea).join('') +
+                (pref.length && resto.length ? '<option disabled>──────</option>' : '') + resto.map(linea).join('');
+        };
+
         const mapaArticulos = {};
         let opcionesBomHtml = '<option value="">Seleccione insumo o componente...</option>';
         if (todosArticulos && todosArticulos.length > 0) {
@@ -216,7 +235,34 @@ export async function cargarCatalogoInicial() {
                             <label class="block text-xs font-medium text-slate-400 mb-1">Descripción / Notas</label>
                             <textarea id="prodDesc" placeholder="Especificaciones adicionales" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" rows="2"></textarea>
                         </div>
-                        
+
+                        <details class="bg-slate-900/40 border border-slate-800 rounded-lg" ${cuentasContables.length ? '' : 'hidden'}>
+                            <summary class="cursor-pointer select-none text-xs font-semibold text-sky-400 px-3 py-2">Datos contables</summary>
+                            <div class="p-3 pt-0 grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">Tasa IVA</label>
+                                    <select id="prodTasaIva" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                        <option value="0.16">16%</option>
+                                        <option value="0.08">8%</option>
+                                        <option value="0">0%</option>
+                                        <option value="">Exento</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">Tasa IEPS</label>
+                                    <input type="number" step="0.0001" min="0" id="prodTasaIeps" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">Cuenta de inventario</label>
+                                    <select id="prodCtaInventario" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${opcionesCuentas(['activo'])}</select>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">Cuenta de costo</label>
+                                    <select id="prodCtaCosto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${opcionesCuentas(['costo', 'gasto'])}</select>
+                                </div>
+                            </div>
+                        </details>
+
                         <hr class="border-slate-800 my-2">
                         
                         <div id="seccionBomContainer" class="space-y-2">
@@ -382,6 +428,15 @@ export async function cargarCatalogoInicial() {
                 document.getElementById('prodProveedorId').value = art.proveedor_id || '';
                 document.getElementById('prodDesc').value = art.descripcion || '';
 
+                // Datos contables (si el modulo esta instalado)
+                const elTasaIva = document.getElementById('prodTasaIva');
+                if (elTasaIva) {
+                    elTasaIva.value = (art.tasa_iva === null || art.tasa_iva === undefined) ? '' : String(art.tasa_iva);
+                    document.getElementById('prodTasaIeps').value = art.tasa_ieps || 0;
+                    document.getElementById('prodCtaInventario').value = art.cuenta_inventario_id || '';
+                    document.getElementById('prodCtaCosto').value = art.cuenta_costo_id || '';
+                }
+
                 tituloForm.textContent = "Modificar Artículo Existente";
                 btnGuardar.textContent = "Actualizar Artículo";
                 btnNuevoModo.classList.remove('hidden');
@@ -510,6 +565,18 @@ export async function cargarCatalogoInicial() {
             const proveedor_id = proveedorIdVal ? parseInt(proveedorIdVal) : null;
             const descripcion = document.getElementById('prodDesc').value.trim();
 
+            // Datos contables (opcionales; solo si el modulo esta instalado)
+            const elTasaIva = document.getElementById('prodTasaIva');
+            const datosContables = {};
+            if (elTasaIva) {
+                datosContables.tasa_iva = elTasaIva.value === '' ? null : parseFloat(elTasaIva.value);
+                datosContables.tasa_ieps = parseFloat(document.getElementById('prodTasaIeps').value) || 0;
+                const ci = document.getElementById('prodCtaInventario').value;
+                const cc = document.getElementById('prodCtaCosto').value;
+                datosContables.cuenta_inventario_id = ci ? parseInt(ci) : null;
+                datosContables.cuenta_costo_id = cc ? parseInt(cc) : null;
+            }
+
             if (!nombre) {
                 alert("El nombre del artículo es obligatorio.");
                 return;
@@ -517,16 +584,17 @@ export async function cargarCatalogoInicial() {
 
             try {
                 let articuloId = productoSeleccionadoId;
-                
+
                 const payload = {
-                    tipo, 
-                    nombre, 
-                    sku: sku || null, 
-                    unidad_medida_id, 
+                    tipo,
+                    nombre,
+                    sku: sku || null,
+                    unidad_medida_id,
                     costo_unitario: costoUnitario,
                     moneda_id,
                     proveedor_id,
-                    descripcion: descripcion || null
+                    descripcion: descripcion || null,
+                    ...datosContables
                 };
 
                 if (articuloId) {
