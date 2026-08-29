@@ -5,6 +5,7 @@ let catalogoProveedoresCache = [];
 let catalogoUnidadesCache = [];
 let listaPartidasCompra = [];
 let catalogoProductosCache = []; // Caché local para la búsqueda AJAX de insumos
+let ivaFiscalEditadoManualmente = false; // true si el usuario escribió el IVA a mano (no seguir el 16% automático)
 
 export async function configurarFormularioCompras() {
     const formCompra = document.getElementById('formCompra');
@@ -418,6 +419,8 @@ export async function configurarFormularioCompras() {
             formCompra.reset();
             listaPartidasCompra = [];
             actualizarTablaPartidasUI();
+            ivaFiscalEditadoManualmente = false;
+            actualizarSubtotalFiscalAuto();
 
             if (inputFecha) {
                 inputFecha.value = new Date().toISOString().split('T')[0];
@@ -452,6 +455,20 @@ function subtotalPartidasCompra() {
     return cant * cu;
 }
 
+// Recalcula Subtotal (y, si no fue editado a mano, el IVA al 16%) cada vez que
+// cambian las partidas de la compra. No hace nada si el bloque fiscal no está
+// visible (módulo de contabilidad no instalado).
+function actualizarSubtotalFiscalAuto() {
+    const elSubtotal = document.getElementById('compraSubtotal');
+    if (!elSubtotal) return;
+    elSubtotal.value = subtotalPartidasCompra().toFixed(2);
+    if (!ivaFiscalEditadoManualmente) {
+        const elIva = document.getElementById('compraIva');
+        if (elIva) elIva.value = (Math.round(parseFloat(elSubtotal.value) * 16) / 100).toFixed(2);
+    }
+    recalcularTotalFiscalCompra();
+}
+
 async function cargarBloqueFiscalCompra() {
     const bloque = document.getElementById('bloqueFiscalCompra');
     if (!bloque) return;
@@ -476,14 +493,16 @@ async function cargarBloqueFiscalCompra() {
         cuentasPago.map((c) => `<option value="${c.id}">${c.codigo} · ${c.nombre}</option>`).join('');
 
     const $ = (id) => document.getElementById(id);
-    const setSubtotalAuto = () => { $('compraSubtotal').value = subtotalPartidasCompra().toFixed(2); recalcularTotalFiscalCompra(); };
-    setSubtotalAuto();
+    ivaFiscalEditadoManualmente = false;
+    actualizarSubtotalFiscalAuto();
 
-    $('compraSubtotalAuto').addEventListener('click', setSubtotalAuto);
+    $('compraSubtotalAuto').addEventListener('click', actualizarSubtotalFiscalAuto);
     $('compraIva16').addEventListener('click', () => {
+        ivaFiscalEditadoManualmente = false;
         $('compraIva').value = (Math.round((parseFloat($('compraSubtotal').value) || 0) * 16) / 100).toFixed(2);
         recalcularTotalFiscalCompra();
     });
+    $('compraIva').addEventListener('input', () => { ivaFiscalEditadoManualmente = true; });
     ['compraSubtotal', 'compraIva', 'compraIeps', 'compraRetIva', 'compraRetIsr'].forEach((id) =>
         $(id).addEventListener('input', recalcularTotalFiscalCompra));
     $('compraCondicion').addEventListener('change', () => {
@@ -621,6 +640,7 @@ function agregarPartidaTemporal() {
     });
 
     actualizarTablaPartidasUI();
+    actualizarSubtotalFiscalAuto();
 
     document.getElementById('compraInsumoNombre').value = '';
     document.getElementById('compraCantidad').value = '';
@@ -660,6 +680,7 @@ function actualizarTablaPartidasUI() {
 window.eliminarPartidaCompra = function(index) {
     listaPartidasCompra.splice(index, 1);
     actualizarTablaPartidasUI();
+    actualizarSubtotalFiscalAuto();
 };
 
 export function toggleTipoCambio() {
