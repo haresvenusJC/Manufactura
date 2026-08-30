@@ -224,12 +224,21 @@ async function extraerTextoImagen(archivo, onProgreso) {
 }
 
 // Busca renglones con exactamente 4 valores numéricos (límite inferior,
-// límite superior o "en adelante", cuota fija, %) — el patrón de una
-// tabla de tarifa ISR. Filtra por un % razonable (0-60) como sanidad
-// mínima antes de aceptar un renglón como tramo real.
+// límite superior o "en adelante", cuota fija, %) — el patrón de un
+// tramo de tarifa ISR. Un PDF del Anexo 8 trae VARIAS tablas (una por
+// periodicidad: diaria, 7/10/15 días, mensual...), así que no basta con
+// tomar los primeros 11 renglones de 4 números que aparezcan: podrían
+// ser de la tabla equivocada. Se valida con dos invariantes que SÍ
+// cumple cualquier tarifa progresiva real:
+//   1. Es contigua: el límite inferior de un tramo es el límite
+//      superior del tramo anterior + 0.01.
+//   2. El % es estrictamente creciente entre tramos.
+// Se busca entre todos los renglones candidatos la cadena contigua más
+// larga que cumpla ambas cosas, y esa es la que se usa — así una tabla
+// distinta mezclada en el mismo texto no puede colarse a la mitad.
 function parsearTextoATramos(texto) {
     const reToken = /en\s*adelante|\d[\d,]*\.\d{1,3}|\d[\d,]*/gi;
-    const tramos = [];
+    const candidatos = [];
 
     for (const linea of texto.split(/\r?\n/)) {
         const tokens = linea.match(reToken);
@@ -245,15 +254,34 @@ function parsearTextoATramos(texto) {
         if (pct <= 0 || pct > 60) continue;
         if (!abierto && (Number.isNaN(limSup) || limSup <= limInf)) continue;
 
-        tramos.push({
-            limite_inferior: limInf.toFixed(2),
-            limite_superior: abierto ? '' : limSup.toFixed(2),
-            cuota_fija: cuota.toFixed(2),
-            porcentaje: pct.toFixed(3),
-        });
-        if (tramos.length >= 11) break;
+        candidatos.push({ limInf, limSup, cuota, pct, abierto });
     }
-    return tramos;
+
+    // Cadena contigua más larga: cada renglón debe amarrar con el
+    // anterior (limite_inferior == limite_superior_previo + 0.01, con
+    // tolerancia de centavos) y traer un % mayor al del tramo previo.
+    let mejorCadena = [];
+    let cadenaActual = [];
+    for (const c of candidatos) {
+        const previo = cadenaActual[cadenaActual.length - 1];
+        const amarra = previo && previo.limSup != null && Math.abs(c.limInf - (previo.limSup + 0.01)) <= 0.05 && c.pct > previo.pct;
+
+        if (cadenaActual.length === 0 || amarra) {
+            cadenaActual.push(c);
+        } else {
+            if (cadenaActual.length > mejorCadena.length) mejorCadena = cadenaActual;
+            cadenaActual = [c];
+        }
+        if (cadenaActual.length >= 11) break;
+    }
+    if (cadenaActual.length > mejorCadena.length) mejorCadena = cadenaActual;
+
+    return mejorCadena.slice(0, 11).map((c) => ({
+        limite_inferior: c.limInf.toFixed(2),
+        limite_superior: c.abierto ? '' : c.limSup.toFixed(2),
+        cuota_fija: c.cuota.toFixed(2),
+        porcentaje: c.pct.toFixed(3),
+    }));
 }
 
 async function duplicarUltimaVersion() {
