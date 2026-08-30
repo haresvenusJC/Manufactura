@@ -110,10 +110,10 @@ export async function cargarModuloNomina() {
                 <div class="grid grid-cols-2 gap-2">
                     <div><label class="block text-[11px] text-slate-400 mb-1">Cuotas IMSS/INFONAVIT patronales</label>
                         <input type="number" step="0.01" min="0" id="nomCuotasImss" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
-                    <div><label class="block text-[11px] text-slate-400 mb-1">ISR retenido <span class="text-slate-600">(% <input type="number" step="0.01" min="0" id="nomIsrPct" value="0" class="w-12 bg-slate-950 border border-slate-800 rounded p-0.5 text-slate-300 font-mono text-center"> aprox.)</span></label>
+                    <div><label class="block text-[11px] text-slate-400 mb-1">ISR retenido</label>
                         <input type="number" step="0.01" min="0" id="nomIsrRetenido" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
                 </div>
-                <p class="text-[10px] text-slate-500 -mt-1">ISR es una tabla progresiva por persona, no un % parejo — el % de arriba es solo una aproximación proporcional al subtotal. Los montos se recalculan solos; edítalos directo si ya traes la cifra exacta.</p>
+                <p id="nomIsrTabla" class="text-[10px] text-slate-500 -mt-1">Calculando ISR con la tabla progresiva por empleado…</p>
 
                 <div>
                     <label class="block text-[11px] text-slate-400 mb-1">Empleados a incluir</label>
@@ -184,9 +184,11 @@ function nomCablear() {
         el.addEventListener('input', () => { nomImssEditadoManualmente = false; nomActualizarTotalImss(); });
     });
 
-    $('nomIsrPct').addEventListener('input', () => { nomIsrEditadoManualmente = false; nomRecalcularImpuestos(); });
     $('nomCuotasImss').addEventListener('input', () => { nomImssEditadoManualmente = true; });
     $('nomIsrRetenido').addEventListener('input', () => { nomIsrEditadoManualmente = true; });
+    ['nomPeriodoInicio', 'nomPeriodoFin', 'nomFechaPago'].forEach((id) => {
+        $(id).addEventListener('change', nomProgramarRecalculoIsr);
+    });
     $('nomForm').addEventListener('submit', nomGuardar);
     $('nomBuscar').addEventListener('click', nomBuscar);
 
@@ -234,7 +236,8 @@ function nomSubtotalMarcado() {
 function nomActualizarSubtotal() {
     const el = document.getElementById('nomSubtotalPreview');
     if (el) el.textContent = money(nomSubtotalMarcado());
-    nomRecalcularImpuestos();
+    nomRecalcularImss();
+    nomProgramarRecalculoIsr();
 }
 
 // Suma el desglose de conceptos patronales IMSS/INFONAVIT y refleja el
@@ -244,25 +247,69 @@ function nomActualizarTotalImss() {
         .reduce((a, el) => a + (parseFloat(el.value) || 0), 0);
     const el = document.getElementById('nomImssPctTotal');
     if (el) el.textContent = total.toFixed(5) + '%';
-    nomRecalcularImpuestos();
+    nomRecalcularImss();
 }
 
-// Recalcula Cuotas IMSS / ISR retenido como % del subtotal marcado, salvo
-// que el usuario haya editado ese monto a mano (mismo criterio que el
+// Recalcula Cuotas IMSS como % del subtotal marcado, salvo que el
+// usuario haya editado ese monto a mano (mismo criterio que el
 // subtotal/IVA automático de Compras).
-function nomRecalcularImpuestos() {
+function nomRecalcularImss() {
     const subtotal = nomSubtotalMarcado();
     const pctImss = [...document.querySelectorAll('.nom-imss-concepto')]
         .reduce((a, el) => a + (parseFloat(el.value) || 0), 0);
-    const pctIsr = parseFloat(document.getElementById('nomIsrPct')?.value) || 0;
 
     if (!nomImssEditadoManualmente) {
         const el = document.getElementById('nomCuotasImss');
         if (el) el.value = (Math.round(subtotal * pctImss) / 100).toFixed(2);
     }
-    if (!nomIsrEditadoManualmente) {
-        const el = document.getElementById('nomIsrRetenido');
-        if (el) el.value = (Math.round(subtotal * pctIsr) / 100).toFixed(2);
+}
+
+// ISR: llama al RPC calcular_isr_nomina (tarifa progresiva real, por
+// empleado) en vez de un % aproximado. Se manda con un pequeño debounce
+// para no disparar una consulta en cada tecla.
+let nomIsrDebounce = null;
+function nomProgramarRecalculoIsr() {
+    clearTimeout(nomIsrDebounce);
+    nomIsrDebounce = setTimeout(nomRecalcularIsr, 350);
+}
+
+async function nomRecalcularIsr() {
+    const etiqueta = document.getElementById('nomIsrTabla');
+    const empleados = nomLineas
+        .filter((l) => l.incluido)
+        .map((l) => ({ empleado_id: l.empleado_id, sueldo: Number(l.sueldo) || 0 }));
+
+    if (empleados.length === 0) {
+        if (!nomIsrEditadoManualmente) document.getElementById('nomIsrRetenido').value = '0.00';
+        if (etiqueta) { etiqueta.textContent = 'Marca empleados para calcular el ISR.'; etiqueta.className = 'text-[10px] text-slate-500 -mt-1'; }
+        return;
+    }
+
+    const p_datos = {
+        periodo_inicio: document.getElementById('nomPeriodoInicio').value,
+        periodo_fin: document.getElementById('nomPeriodoFin').value,
+        fecha_pago: document.getElementById('nomFechaPago').value,
+        empleados,
+    };
+
+    try {
+        const { data, error } = await supabaseClient.rpc('calcular_isr_nomina', { p_datos });
+        if (error) throw error;
+
+        if (!nomIsrEditadoManualmente) {
+            document.getElementById('nomIsrRetenido').value = (Number(data.total) || 0).toFixed(2);
+        }
+        if (etiqueta) {
+            if (data.tarifa_id) {
+                etiqueta.textContent = `ISR calculado por empleado con la tabla vigente desde ${data.tarifa_vigente_desde}${data.tarifa_fuente ? ' (' + data.tarifa_fuente + ')' : ''}.`;
+                etiqueta.className = 'text-[10px] text-emerald-500 -mt-1';
+            } else {
+                etiqueta.textContent = 'No hay tabla ISR cargada todavía (Contabilidad › Tabla ISR) — el monto queda en $0.00 hasta que subas una.';
+                etiqueta.className = 'text-[10px] text-amber-500 -mt-1';
+            }
+        }
+    } catch (err) {
+        if (etiqueta) { etiqueta.textContent = 'No se pudo calcular el ISR: ' + (err.message || err); etiqueta.className = 'text-[10px] text-rose-400 -mt-1'; }
     }
 }
 
@@ -322,7 +369,9 @@ async function nomGuardar(e) {
         condicion,
         cuenta_pago_id: condicion === 'contado' && $('nomCuentaPago').value ? Number($('nomCuentaPago').value) : null,
         cuotas_imss: parseFloat($('nomCuotasImss').value) || 0,
-        isr_retenido: parseFloat($('nomIsrRetenido').value) || 0,
+        // Solo se manda si el usuario lo editó a mano; si no, registrar_nomina
+        // lo calcula solo con la tabla ISR vigente (calcular_isr_nomina).
+        isr_retenido: nomIsrEditadoManualmente ? (parseFloat($('nomIsrRetenido').value) || 0) : null,
         empleados,
     };
 
@@ -330,7 +379,10 @@ async function nomGuardar(e) {
         $('nomGuardar').disabled = true;
         const { data, error } = await supabaseClient.rpc('registrar_nomina', { p_datos });
         if (error) throw error;
-        msg.textContent = `Nómina #${data.nomina_id} registrada — póliza Egreso generada (total ${money(data.total)}).`;
+        const tablaTxt = data.isr_tarifa_vigente_desde
+            ? ` ISR calculado con la tabla vigente desde ${data.isr_tarifa_vigente_desde}${data.isr_tarifa_fuente ? ' (' + data.isr_tarifa_fuente + ')' : ''}.`
+            : '';
+        msg.textContent = `Nómina #${data.nomina_id} registrada — póliza Egreso generada (total ${money(data.total)}).${tablaTxt}`;
         msg.className = 'text-xs text-emerald-400';
 
         const hoy = hoyISO();
