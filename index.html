@@ -120,6 +120,7 @@
                             <span id="flecha-contabilidad" class="text-xs">▼</span>
                         </button>
                         <ul id="submenu-contabilidad" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
+                            <li><button onclick="window.loadView('tareas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">📋 Tareas</button></li>
                             <li><button onclick="window.loadView('plan-cuentas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Plan de cuentas</button></li>
                             <li><button onclick="window.loadView('gastos')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Gastos</button></li>
                             <li><button onclick="window.loadView('polizas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Pólizas</button></li>
@@ -149,7 +150,7 @@
             <!-- Aviso global: nóminas en borrador pendientes de autorizar (visible en cualquier pantalla) -->
             <div id="bannerNominaPendiente" class="hidden mb-4 bg-amber-950/40 border border-amber-700 text-amber-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3 text-sm">
                 <span id="bannerNominaPendienteTexto"></span>
-                <button type="button" onclick="window.loadView('nomina')" class="shrink-0 text-xs bg-amber-800 hover:bg-amber-700 text-amber-100 px-3 py-1.5 rounded-lg border border-amber-600 cursor-pointer">Revisar y autorizar</button>
+                <button type="button" onclick="window.loadView('tareas')" class="shrink-0 text-xs bg-amber-800 hover:bg-amber-700 text-amber-100 px-3 py-1.5 rounded-lg border border-amber-600 cursor-pointer">Revisar y autorizar</button>
             </div>
 
             <!-- Vista: Catálogo y BOM -->
@@ -294,6 +295,14 @@
                 <h2 class="text-xl font-bold text-sky-400">Contabilidad · Pólizas</h2>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorPolizas">Cargando pólizas...</div>
+                </div>
+            </section>
+
+            <!-- Vista: Contabilidad - Tareas -->
+            <section id="view-tareas" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-sky-400">Contabilidad · Tareas</h2>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div id="contenedorTareas">Cargando tareas...</div>
                 </div>
             </section>
 

@@ -17,7 +17,7 @@ const primerDiaMesISO = () => { const d = new Date(); return new Date(d.getFullY
 // cualquier nómina (borrador, registrada o cancelada, para no ofrecer dos
 // veces la misma semana). Si no hay historial, ofrece la semana lunes-
 // domingo que contiene o ya terminó hoy.
-async function siguientePeriodoSugerido() {
+export async function siguientePeriodoSugerido() {
     let inicio;
     try {
         const { data } = await supabaseClient
@@ -509,7 +509,7 @@ async function nomBuscar() {
     }
 }
 
-async function nomCancelar(id) {
+export async function nomCancelar(id) {
     if (!confirm('¿Cancelar esta nómina? Si ya está registrada se generará la póliza de reverso; si es un borrador solo se descarta (nunca se contabilizó).')) return;
     try {
         const { error } = await supabaseClient.rpc('cancelar_nomina', { p_nomina_id: id });
@@ -526,7 +526,7 @@ async function nomCancelar(id) {
 // (autorizar_nomina) y pasa la nómina a 'registrada'. Es el paso que
 // "confirma" el corte de nómina antes de contabilizarlo.
 // ---------------------------------------------------------------------
-async function nomAutorizar(id, btn) {
+export async function nomAutorizar(id, btn) {
     if (!confirm('¿Autorizar esta nómina? Se generará la póliza de Egreso y quedará contabilizada.')) return;
     const textoOriginal = btn ? btn.textContent : '';
     if (btn) { btn.disabled = true; btn.textContent = 'Autorizando…'; }
