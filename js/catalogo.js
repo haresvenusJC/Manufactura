@@ -315,11 +315,6 @@ export async function cargarCatalogoInicial() {
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label class="block text-[10px] text-slate-400 mb-0.5">Merma (%)</label>
-                                    <input type="number" step="0.01" id="bomMerma" placeholder="Ej. 0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-                                </div>
-
                                 <button type="button" id="btnAgregarItemBom" class="w-full bg-slate-800 hover:bg-slate-700 text-sky-300 font-medium py-1.5 rounded-lg text-xs transition">＋ Agregar Componente al BOM</button>
                             </div>
 
@@ -515,9 +510,8 @@ export async function cargarCatalogoInicial() {
                                 componenteId: b.componente_id,
                                 componenteNombre: infoComp.nombre,
                                 cantidad: b.cantidad_requerida,
-                                unidadId: b.unidad_medida, 
-                                unidadNombre: mapaUnidades[b.unidad_medida] || '',
-                                merma: b.factor_merma || 0
+                                unidadId: b.unidad_medida,
+                                unidadNombre: mapaUnidades[b.unidad_medida] || ''
                             });
                         });
                     }
@@ -555,7 +549,7 @@ export async function cargarCatalogoInicial() {
             }
             listaTempEl.innerHTML = itemsBomTemp.map((item, idx) => `
                 <div class="flex justify-between items-center py-1 border-b border-slate-800 last:border-0">
-                    <span>${item.componenteNombre} - <strong>${item.cantidad} ${item.unidadNombre || ''}</strong> (Merma: ${item.merma})</span>
+                    <span>${item.componenteNombre} - <strong>${item.cantidad} ${item.unidadNombre || ''}</strong></span>
                     <button type="button" onclick="window.removerItemBom(${idx})" class="text-red-400 hover:text-red-300 text-xs">Eliminar</button>
                 </div>
             `).join('');
@@ -578,8 +572,6 @@ export async function cargarCatalogoInicial() {
             const unidadId = unidadSelect.value ? parseInt(unidadSelect.value) : null;
             const unidadNombre = unidadSelect.options[unidadSelect.selectedIndex]?.text || '';
 
-            const merma = parseFloat(document.getElementById('bomMerma').value) || 0;
-
             if (cantidad <= 0) {
                 alert("Ingrese una cantidad mayor a 0.");
                 return;
@@ -587,17 +579,15 @@ export async function cargarCatalogoInicial() {
 
             itemsBomTemp.push({
                 componenteId,
-                componenteNombre: nombreInsumo, 
-                cantidad, 
+                componenteNombre: nombreInsumo,
+                cantidad,
                 unidadId,
-                unidadNombre,
-                merma 
+                unidadNombre
             });
-            
+
             actualizarListaBomVisual();
 
             document.getElementById('bomCantidad').value = '';
-            document.getElementById('bomMerma').value = '';
             insumoSelect.value = '';
             unidadSelect.value = '';
         });
@@ -688,8 +678,7 @@ export async function cargarCatalogoInicial() {
                         producto_id: articuloId,
                         componente_id: i.componenteId,
                         cantidad_requerida: i.cantidad,
-                        unidad_medida: i.unidadId ? i.unidadId.toString() : null,
-                        factor_merma: i.merma
+                        unidad_medida: i.unidadId ? i.unidadId.toString() : null
                     }));
 
                     const { error: errB } = await supabaseClient.from('bom').insert(itemsBom);
