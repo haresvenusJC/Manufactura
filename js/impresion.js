@@ -100,8 +100,26 @@ export async function imprimirConPlantilla(tipoDocumento, tituloDocumento, idCon
     host.classList.add('area-imprimible-activa');
 
     host.style.display = 'block';
+
+    // En escritorio window.print() bloquea hasta que se cierra el diálogo,
+    // asi que ocultar el host justo despues es seguro. En iOS/iPadOS NO
+    // bloquea (el share sheet de impresion/PDF aparece de forma asincrona),
+    // asi que ocultar el host de inmediato lo dejaba oculto antes de que el
+    // sistema alcanzara a capturar el contenido, resultando en un PDF en
+    // blanco. Se espera al evento 'afterprint' (dispara en ambos casos al
+    // cerrar el dialogo) con un respaldo por tiempo por si el navegador no
+    // lo dispara.
+    let oculto = false;
+    const ocultar = () => {
+        if (oculto) return;
+        oculto = true;
+        host.style.display = 'none';
+        window.removeEventListener('afterprint', ocultar);
+    };
+    window.addEventListener('afterprint', ocultar);
+    setTimeout(ocultar, 5000);
+
     window.print();
-    host.style.display = 'none';
 }
 
 // Estilos globales de impresión (una sola vez para toda la app)
