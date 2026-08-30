@@ -10,6 +10,9 @@ import { supabaseClient } from './supabase.js';
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const hoyISO = () => new Date().toISOString().slice(0, 10);
 const primerDiaMesISO = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); };
+// Ventana de 7 días terminando hoy — el periodo de nómina real (empleados
+// tienen sueldo_semanal), NO "mes a la fecha" como el filtro de historial.
+const hace6DiasISO = () => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0, 10); };
 
 let nomEmpleados = []; // catálogo de empleados activos: {id, nombre}
 let nomLineas = [];    // [{ empleado_id, nombre, incluido, sueldo }]
@@ -152,7 +155,7 @@ export async function cargarModuloNomina() {
     </div>`;
 
     const hoy = hoyISO();
-    document.getElementById('nomPeriodoInicio').value = primerDiaMesISO();
+    document.getElementById('nomPeriodoInicio').value = hace6DiasISO();
     document.getElementById('nomPeriodoFin').value = hoy;
     document.getElementById('nomFechaPago').value = hoy;
     document.getElementById('nomDesde').value = primerDiaMesISO();
@@ -300,7 +303,14 @@ async function nomRecalcularIsr() {
             document.getElementById('nomIsrRetenido').value = (Number(data.total) || 0).toFixed(2);
         }
         if (etiqueta) {
-            if (data.tarifa_id) {
+            const diasNomina = Number(data.dias_nomina);
+            const diasTabla = Number(data.dias_tabla);
+            const periodoNoCoincide = data.tarifa_id && Number.isFinite(diasNomina) && Number.isFinite(diasTabla) && Math.abs(diasNomina - diasTabla) > 0.5;
+
+            if (periodoNoCoincide) {
+                etiqueta.textContent = `⚠ El periodo capturado dura ${diasNomina} día(s) pero la tabla ISR vigente es para periodos de ${diasTabla} día(s) — el ISR se está prorrateando proporcionalmente. Verifica que "Periodo desde/hasta" cubran una sola nómina antes de guardar.`;
+                etiqueta.className = 'text-[10px] text-amber-500 -mt-1';
+            } else if (data.tarifa_id) {
                 etiqueta.textContent = `ISR calculado por empleado con la tabla vigente desde ${data.tarifa_vigente_desde}${data.tarifa_fuente ? ' (' + data.tarifa_fuente + ')' : ''}.`;
                 etiqueta.className = 'text-[10px] text-emerald-500 -mt-1';
             } else {
@@ -386,7 +396,7 @@ async function nomGuardar(e) {
         msg.className = 'text-xs text-emerald-400';
 
         const hoy = hoyISO();
-        $('nomPeriodoInicio').value = primerDiaMesISO();
+        $('nomPeriodoInicio').value = hace6DiasISO();
         $('nomPeriodoFin').value = hoy;
         $('nomFechaPago').value = hoy;
         nomImssEditadoManualmente = false;
