@@ -970,6 +970,17 @@ async function abrirResumenCompletoProducto(id) {
                                 <p class="text-xs font-mono text-slate-400 bg-slate-950/60 border border-slate-800 rounded-lg px-2 py-1.5">${escaparHtml(valor ?? '—')}</p>
                             </div>`;
                     }
+                    if (clave === 'tipo') {
+                        return `
+                            <div>
+                                <label class="block text-[10px] text-slate-400 mb-1">${etiquetaCampo(clave)}</label>
+                                <select id="rc_${clave}" data-campo="${clave}" data-tipo="text" class="campo-resumen-prod w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                    <option value="producto" ${valor === 'producto' ? 'selected' : ''}>Producto terminado</option>
+                                    <option value="materia_prima" ${valor === 'materia_prima' ? 'selected' : ''}>Materia prima</option>
+                                    <option value="insumo" ${valor === 'insumo' ? 'selected' : ''}>Insumo</option>
+                                </select>
+                            </div>`;
+                    }
                     if (opcionesPorCampo[clave]) {
                         return `
                             <div>
