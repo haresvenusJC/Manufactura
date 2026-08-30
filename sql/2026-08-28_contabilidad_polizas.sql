@@ -107,10 +107,10 @@ begin
         v_abono := round(coalesce((r->>'abono')::numeric, 0), 2);
 
         if v_cargo < 0 or v_abono < 0 then
-            raise exception 'Renglon %: cargo y abono no pueden ser negativos.', v_i;
+            raise exception 'Renglon %: cargo y abono no pueden ser negativos. cargo=%, abono=%, movimiento=%', v_i, v_cargo, v_abono, r;
         end if;
         if (v_cargo > 0 and v_abono > 0) or (v_cargo = 0 and v_abono = 0) then
-            raise exception 'Renglon %: pon importe en cargo O en abono (no ambos, no ninguno).', v_i;
+            raise exception 'Renglon %: pon importe en cargo O en abono (no ambos, no ninguno). cargo=%, abono=%, movimiento=%', v_i, v_cargo, v_abono, r;
         end if;
 
         select * into v_cuenta from public.cuentas_contables where id = (r->>'cuenta_id')::bigint;
