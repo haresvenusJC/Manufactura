@@ -385,7 +385,7 @@ export async function configurarFormularioCompras() {
             const chkContab = document.getElementById('compraContabilizar');
             const bloqueVisible = document.getElementById('bloqueFiscalCompra') && !document.getElementById('bloqueFiscalCompra').classList.contains('hidden');
             if (bloqueVisible && chkContab && chkContab.checked) {
-                const nf = (id) => parseFloat(document.getElementById(id)?.value) || 0;
+                const nf = (id) => Math.max(0, parseFloat(document.getElementById(id)?.value) || 0);
                 const condicion = document.getElementById('compraCondicion').value;
                 let subtotalFiscal = nf('compraSubtotal');
                 if (subtotalFiscal <= 0) {
@@ -504,7 +504,11 @@ async function cargarBloqueFiscalCompra() {
     });
     $('compraIva').addEventListener('input', () => { ivaFiscalEditadoManualmente = true; });
     ['compraSubtotal', 'compraIva', 'compraIeps', 'compraRetIva', 'compraRetIsr'].forEach((id) =>
-        $(id).addEventListener('input', recalcularTotalFiscalCompra));
+        $(id).addEventListener('input', () => {
+            const el = $(id);
+            if (parseFloat(el.value) < 0) el.value = 0;
+            recalcularTotalFiscalCompra();
+        }));
     $('compraCondicion').addEventListener('change', () => {
         $('compraPagoWrap').classList.toggle('hidden', $('compraCondicion').value !== 'contado');
     });

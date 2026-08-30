@@ -53,11 +53,11 @@ set search_path = public, extensions
 as $$
 declare
     v_doc        public.documentos%rowtype;
-    v_subtotal   numeric(14,2) := round(coalesce((p_datos->>'subtotal')::numeric, 0), 2);
-    v_iva        numeric(14,2) := round(coalesce((p_datos->>'iva')::numeric, 0), 2);
-    v_ieps       numeric(14,2) := round(coalesce((p_datos->>'ieps')::numeric, 0), 2);
-    v_ret_iva    numeric(14,2) := round(coalesce((p_datos->>'ret_iva')::numeric, 0), 2);
-    v_ret_isr    numeric(14,2) := round(coalesce((p_datos->>'ret_isr')::numeric, 0), 2);
+    v_subtotal   numeric(14,2) := greatest(0, round(coalesce((p_datos->>'subtotal')::numeric, 0), 2));
+    v_iva        numeric(14,2) := greatest(0, round(coalesce((p_datos->>'iva')::numeric, 0), 2));
+    v_ieps       numeric(14,2) := greatest(0, round(coalesce((p_datos->>'ieps')::numeric, 0), 2));
+    v_ret_iva    numeric(14,2) := greatest(0, round(coalesce((p_datos->>'ret_iva')::numeric, 0), 2));
+    v_ret_isr    numeric(14,2) := greatest(0, round(coalesce((p_datos->>'ret_isr')::numeric, 0), 2));
     v_condicion  text := coalesce(nullif(trim(p_datos->>'condicion'), ''), 'credito');
     v_cta_pago   bigint := (p_datos->>'cuenta_pago_id')::bigint;
     v_total      numeric(14,2);
