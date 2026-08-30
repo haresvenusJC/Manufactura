@@ -171,7 +171,8 @@ async function isrExtraerDeArchivo() {
             });
         }
 
-        const encontrados = parsearTextoATramos(texto);
+        const diasPeriodo = Number(document.getElementById('isrDiasPeriodo')?.value) || 7;
+        const { tramos: encontrados, plausible } = parsearTextoATramos(texto, diasPeriodo);
         if (encontrados.length < 2) {
             msg.textContent = 'No se reconocieron suficientes renglones — captúralos a mano abajo, o intenta con otro archivo/foto más clara.';
             msg.className = 'text-[10px] min-h-[1rem] text-amber-400';
@@ -186,8 +187,13 @@ async function isrExtraerDeArchivo() {
             fuenteInput.value = archivo.name;
         }
 
-        msg.textContent = `Se llenaron ${encontrados.length} renglón(es) a partir de "${archivo.name}" — revísalos contra el documento oficial antes de guardar.`;
-        msg.className = 'text-[10px] min-h-[1rem] text-emerald-400';
+        if (plausible) {
+            msg.textContent = `Se llenaron ${encontrados.length} renglón(es) a partir de "${archivo.name}" — revísalos contra el documento oficial antes de guardar.`;
+            msg.className = 'text-[10px] min-h-[1rem] text-emerald-400';
+        } else {
+            msg.textContent = `⚠ Se llenaron ${encontrados.length} renglón(es) a partir de "${archivo.name}", pero los montos no parecen corresponder al periodo de ${diasPeriodo} días seleccionado (el PDF trae varias tablas — diaria, semanal, mensual, anual — y pudo haber tomado la equivocada). Compara cada renglón contra el documento antes de guardar.`;
+            msg.className = 'text-[10px] min-h-[1rem] text-amber-400';
+        }
     } catch (err) {
         msg.textContent = 'No se pudo leer el archivo: ' + (err.message || err);
         msg.className = 'text-[10px] min-h-[1rem] text-rose-400';
@@ -230,20 +236,30 @@ async function extraerTextoImagen(archivo, onProgreso) {
     return data.text;
 }
 
+// Referencia de magnitud: el tope del ultimo tramo abierto de la tabla
+// oficial de 7 dias verificada contra el Anexo 8 RMF 2026 es $98,009.67.
+// El SAT escala sus tablas de forma PROPORCIONAL a los dias del periodo
+// (diaria, 7/10/15 dias, mensual, anual son la misma progresion a otra
+// escala), asi que se usa esa razon -no un numero fijo- para reconocer
+// que magnitud le toca a la periodicidad seleccionada. Solo sirve para
+// distinguir "esto es del orden de la tabla semanal" de "esto es la
+// mensual/anual" (que difieren en un orden de magnitud); no se usa para
+// validar el valor exacto, asi que sigue sirviendo aunque el tope
+// cambie año con año.
+const ISR_REFERENCIA_TOPE_POR_DIA = 98009.67 / 7;
+
 // Busca renglones con exactamente 4 valores numéricos (límite inferior,
 // límite superior o "en adelante", cuota fija, %) — el patrón de un
 // tramo de tarifa ISR. Un PDF del Anexo 8 trae VARIAS tablas (una por
-// periodicidad: diaria, 7/10/15 días, mensual...), así que no basta con
-// tomar los primeros 11 renglones de 4 números que aparezcan: podrían
-// ser de la tabla equivocada. Se valida con dos invariantes que SÍ
-// cumple cualquier tarifa progresiva real:
-//   1. Es contigua: el límite inferior de un tramo es el límite
-//      superior del tramo anterior + 0.01.
-//   2. El % es estrictamente creciente entre tramos.
-// Se busca entre todos los renglones candidatos la cadena contigua más
-// larga que cumpla ambas cosas, y esa es la que se usa — así una tabla
-// distinta mezclada en el mismo texto no puede colarse a la mitad.
-function parsearTextoATramos(texto) {
+// periodicidad: diaria, 7/10/15 días, mensual, anual...) y todas tienen
+// la MISMA forma (contigua, con % estrictamente creciente), así que no
+// basta con reconocer esa forma para saber cuál es la correcta — hay
+// que ver también si sus montos son del orden de magnitud que le toca a
+// la periodicidad que el usuario seleccionó arriba. Se arman TODAS las
+// cadenas contiguas del texto y se elige la que mejor calce en monto;
+// si ninguna calza bien, se regresa la más larga de todos modos (mejor
+// que nada) pero marcada como no confiable para que la UI avise.
+function parsearTextoATramos(texto, diasPeriodo) {
     const reToken = /en\s*adelante|\d[\d,]*\.\d{1,3}|\d[\d,]*/gi;
     const candidatos = [];
 
@@ -264,31 +280,51 @@ function parsearTextoATramos(texto) {
         candidatos.push({ limInf, limSup, cuota, pct, abierto });
     }
 
-    // Cadena contigua más larga: cada renglón debe amarrar con el
-    // anterior (limite_inferior == limite_superior_previo + 0.01, con
-    // tolerancia de centavos) y traer un % mayor al del tramo previo.
-    let mejorCadena = [];
-    let cadenaActual = [];
+    // Todas las cadenas contiguas (limite_inferior = limite_superior del
+    // renglón previo + 0.01, con % estrictamente creciente) de al menos
+    // 2 renglones — un PDF con varias tablas produce varias cadenas.
+    const cadenas = [];
+    let actual = [];
     for (const c of candidatos) {
-        const previo = cadenaActual[cadenaActual.length - 1];
+        const previo = actual[actual.length - 1];
         const amarra = previo && previo.limSup != null && Math.abs(c.limInf - (previo.limSup + 0.01)) <= 0.05 && c.pct > previo.pct;
 
-        if (cadenaActual.length === 0 || amarra) {
-            cadenaActual.push(c);
+        if (actual.length === 0 || amarra) {
+            actual.push(c);
         } else {
-            if (cadenaActual.length > mejorCadena.length) mejorCadena = cadenaActual;
-            cadenaActual = [c];
+            if (actual.length >= 2) cadenas.push(actual);
+            actual = [c];
         }
-        if (cadenaActual.length >= 11) break;
     }
-    if (cadenaActual.length > mejorCadena.length) mejorCadena = cadenaActual;
+    if (actual.length >= 2) cadenas.push(actual);
 
-    return mejorCadena.slice(0, 11).map((c) => ({
-        limite_inferior: c.limInf.toFixed(2),
-        limite_superior: c.abierto ? '' : c.limSup.toFixed(2),
-        cuota_fija: c.cuota.toFixed(2),
-        porcentaje: c.pct.toFixed(3),
-    }));
+    if (cadenas.length === 0) return { tramos: [], plausible: false };
+
+    const dias = Number(diasPeriodo) > 0 ? Number(diasPeriodo) : 7;
+    const topeEsperado = ISR_REFERENCIA_TOPE_POR_DIA * dias;
+    const topeDeCadena = (cadena) => {
+        const ultimoCerrado = [...cadena].reverse().find((t) => t.limSup != null);
+        return ultimoCerrado ? ultimoCerrado.limSup : cadena[cadena.length - 1].limInf;
+    };
+
+    // Distancia en escala logarítmica: 0 = coincide exacto, 1 ≈ 2.7x de
+    // diferencia. "Plausible" tolera hasta ~3x (el tope real cambia un
+    // poco cada año) pero no un orden de magnitud (52x anual vs semanal,
+    // 12x mensual vs semanal, etc).
+    const candidatas = cadenas
+        .map((cadena) => ({ cadena, distancia: Math.abs(Math.log(Math.max(topeDeCadena(cadena), 0.01) / topeEsperado)) }))
+        .sort((a, b) => a.distancia - b.distancia || b.cadena.length - a.cadena.length);
+
+    const mejor = candidatas[0];
+    return {
+        tramos: mejor.cadena.slice(0, 11).map((c) => ({
+            limite_inferior: c.limInf.toFixed(2),
+            limite_superior: c.abierto ? '' : c.limSup.toFixed(2),
+            cuota_fija: c.cuota.toFixed(2),
+            porcentaje: c.pct.toFixed(3),
+        })),
+        plausible: mejor.distancia <= Math.log(3),
+    };
 }
 
 async function duplicarUltimaVersion() {
