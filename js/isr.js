@@ -33,7 +33,8 @@ export async function cargarModuloIsr() {
                 </div>
                 <div>
                     <label class="block text-[11px] text-slate-400 mb-1">Fuente</label>
-                    <input type="text" id="isrFuente" placeholder="Ej. Anexo 8 RMF 2026, DOF 28/12/2025" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                    <input type="text" id="isrFuente" placeholder="Ej. Anexo 8 RMF 2026, DOF 28/12/2025" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
+                    <p class="text-[10px] text-slate-500 mt-1">Obligatoria — así siempre queda claro de dónde salió cada tabla al verla en "Versiones cargadas".</p>
                 </div>
                 <div>
                     <label class="block text-[11px] text-slate-400 mb-1">Periodicidad de esta tabla</label>
@@ -179,7 +180,13 @@ async function isrExtraerDeArchivo() {
 
         isrTramos = encontrados;
         renderTramos();
-        msg.textContent = `Se llenaron ${encontrados.length} renglón(es) a partir del archivo — revísalos contra el documento oficial antes de guardar.`;
+
+        const fuenteInput = document.getElementById('isrFuente');
+        if (fuenteInput && !fuenteInput.value.trim()) {
+            fuenteInput.value = archivo.name;
+        }
+
+        msg.textContent = `Se llenaron ${encontrados.length} renglón(es) a partir de "${archivo.name}" — revísalos contra el documento oficial antes de guardar.`;
         msg.className = 'text-[10px] min-h-[1rem] text-emerald-400';
     } catch (err) {
         msg.textContent = 'No se pudo leer el archivo: ' + (err.message || err);
