@@ -11,6 +11,9 @@ import { cargarModuloPlantillas } from './plantillas.js';
 import { cargarModuloEmpleados } from './empleados.js';
 import { cargarModuloImportador } from './importador.js';
 import { cargarModuloContabilidad, cargarModuloPolizas, cargarModuloGastos } from './contabilidad.js';
+import { cargarModuloNomina, actualizarBannerNominaPendiente } from './nomina.js';
+import { cargarModuloTareas } from './tareas.js';
+import { cargarModuloIsr } from './isr.js';
 import { cargarModuloReportes } from './reportes.js';
 import { montarLogin, cerrarSesion } from './auth.js';
 
@@ -85,6 +88,15 @@ window.loadView = function(viewName) {
         case 'gastos':
             cargarModuloGastos();
             break;
+        case 'nomina':
+            cargarModuloNomina();
+            break;
+        case 'tareas':
+            cargarModuloTareas();
+            break;
+        case 'isr':
+            cargarModuloIsr();
+            break;
         case 'reportes':
             cargarModuloReportes();
             break;
@@ -112,7 +124,10 @@ async function iniciarApp() {
             cargarModuloProveedores(),
             cargarModuloSalidas(),
             configurarFormularioCompras(),
-            configurarFormularioEntradasDirectas()
+            configurarFormularioEntradasDirectas(),
+            // Aviso global de nóminas en borrador pendientes de autorizar —
+            // se ofrece a quien inicie sesión, sin importar en qué pantalla esté.
+            actualizarBannerNominaPendiente()
         ]);
 
         console.log("Módulos inicializados correctamente.");

@@ -7,6 +7,28 @@ export async function cargarVistaKardex() {
     inicializarBuscadorAjax();
 }
 
+// Navega a la vista de Kardex ya filtrada por un producto específico —
+// usada desde el menú de acciones del Catálogo ("Kardex de este
+// producto"), para no obligar a volver a buscarlo a mano.
+export async function irAKardexDeProducto(productoId, nombreProducto) {
+    window.loadView('kardex');
+    await cargarVistaKardex(); // idempotente: si el buscador ya estaba montado, no lo vuelve a dibujar
+
+    const inputBuscador = document.getElementById('inputBuscadorKardex');
+    const inputHidden = document.getElementById('selectProductoKardex');
+    const selectFiltroLote = document.getElementById('selectFiltroLoteKardex');
+    if (!inputBuscador || !inputHidden) return;
+
+    inputBuscador.value = nombreProducto || '';
+    inputHidden.value = productoId;
+    if (selectFiltroLote) {
+        selectFiltroLote.innerHTML = `<option value="">-- Todos los Lotes --</option>`;
+        selectFiltroLote.disabled = true;
+    }
+
+    await window.consultarKardexProducto();
+}
+
 async function precargarProductosKardex() {
     try {
         const { data: productos, error } = await supabaseClient

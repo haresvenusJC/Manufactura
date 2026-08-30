@@ -66,8 +66,8 @@
                         <ul id="submenu-catalogos" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
                             <li><button onclick="window.loadView('catalogo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Productos</button></li>
                             <li><button onclick="window.loadView('proveedores')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Proveedores</button></li>
-                            <li><button onclick="window.loadView('empleados')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">👷 Empleados</button></li>
-                            <li><button onclick="window.loadView('importador')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">⬆️ Importar Excel/CSV</button></li>
+                            <li><button onclick="window.loadView('empleados')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Empleados</button></li>
+                            <li><button onclick="window.loadView('importador')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Importar Excel/CSV</button></li>
                         </ul>
                     </li>
                     
@@ -85,25 +85,25 @@
 
                     <!-- Submenú: Entradas -->
                     <li>
-                        <button onclick="window.toggleSubmenu('submenu-entradas')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-emerald-400 transition text-sm font-medium" style="cursor: pointer;">
+                        <button onclick="window.toggleSubmenu('submenu-entradas')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
                             <span>+ Entradas</span>
                             <span id="flecha-entradas" class="text-xs">▼</span>
                         </button>
-                        <ul id="submenu-entradas" class="hidden pl-4 space-y-1 mt-1 border-l border-emerald-950/80 ml-3">
-                            <li><button onclick="window.loadView('compras')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-emerald-300 transition text-xs font-medium" style="cursor: pointer;">Compras / Proveedores</button></li>
-                            <li><button onclick="window.loadView('entradas-directas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-emerald-300 transition text-xs font-medium" style="cursor: pointer;">Entradas Directas</button></li>
+                        <ul id="submenu-entradas" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
+                            <li><button onclick="window.loadView('compras')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Compras / Proveedores</button></li>
+                            <li><button onclick="window.loadView('entradas-directas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Entradas Directas</button></li>
                         </ul>
                     </li>
 
                     <!-- Submenú: Salidas -->
                     <li>
-                        <button onclick="window.toggleSubmenu('submenu-salidas')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-rose-400 transition text-sm font-medium" style="cursor: pointer;">
+                        <button onclick="window.toggleSubmenu('submenu-salidas')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
                             <span>- Salidas</span>
                             <span id="flecha-salidas" class="text-xs">▼</span>
                         </button>
-                        <ul id="submenu-salidas" class="hidden pl-4 space-y-1 mt-1 border-l border-rose-950/80 ml-3">
-                            <li><button onclick="window.loadView('ventas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-rose-300 transition text-xs font-medium" style="cursor: pointer;">Ventas / Clientes</button></li>
-                            <li><button onclick="window.loadView('salidas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-rose-300 transition text-xs font-medium" style="cursor: pointer;">Salidas Directas</button></li>
+                        <ul id="submenu-salidas" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
+                            <li><button onclick="window.loadView('ventas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Ventas / Clientes</button></li>
+                            <li><button onclick="window.loadView('salidas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Salidas Directas</button></li>
                         </ul>
                     </li>
 
@@ -111,7 +111,7 @@
                     <li><button onclick="window.loadView('documentos')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium flex items-center gap-2" style="cursor: pointer;"><span>Documentos</span></button></li>
                     <li><button onclick="window.loadView('produccion')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Producción</button></li>
                     <li><button onclick="window.loadView('auditoria')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Auditoría</button></li>
-                    <li><button onclick="window.loadView('reportes')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">📊 Reportes</button></li>
+                    <li><button onclick="window.loadView('reportes')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Reportes</button></li>
 
                     <!-- Menú Contabilidad -->
                     <li>
@@ -120,9 +120,12 @@
                             <span id="flecha-contabilidad" class="text-xs">▼</span>
                         </button>
                         <ul id="submenu-contabilidad" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
+                            <li><button onclick="window.loadView('tareas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Tareas</button></li>
                             <li><button onclick="window.loadView('plan-cuentas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Plan de cuentas</button></li>
                             <li><button onclick="window.loadView('gastos')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Gastos</button></li>
                             <li><button onclick="window.loadView('polizas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Pólizas</button></li>
+                            <li><button onclick="window.loadView('nomina')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Nómina</button></li>
+                            <li><button onclick="window.loadView('isr')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Tabla ISR</button></li>
                         </ul>
                     </li>
 
@@ -134,7 +137,7 @@
                         </button>
                         <ul id="submenu-configuracion" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
                             <li><button onclick="window.loadView('configuracion')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">General</button></li>
-                            <li><button onclick="window.loadView('plantillas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">🖨️ Plantillas de Impresión</button></li>
+                            <li><button onclick="window.loadView('plantillas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Plantillas de Impresión</button></li>
                         </ul>
                     </li>
                 </ul>
@@ -143,7 +146,13 @@
         
         <!-- Contenido Principal -->
         <main class="flex-1 p-6 overflow-y-auto">
-            
+
+            <!-- Aviso global: nóminas en borrador pendientes de autorizar (visible en cualquier pantalla) -->
+            <div id="bannerNominaPendiente" class="hidden mb-4 bg-amber-950/40 border border-amber-700 text-amber-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3 text-sm">
+                <span id="bannerNominaPendienteTexto"></span>
+                <button type="button" onclick="window.loadView('tareas')" class="shrink-0 text-xs bg-amber-800 hover:bg-amber-700 text-amber-100 px-3 py-1.5 rounded-lg border border-amber-600 cursor-pointer">Revisar y autorizar</button>
+            </div>
+
             <!-- Vista: Catálogo y BOM -->
             <section id="view-catalogo" class="vista-seccion space-y-4">
                 <h2 class="text-xl font-bold text-sky-400">Catálogo de Productos y BOM</h2>
@@ -289,6 +298,30 @@
                 </div>
             </section>
 
+            <!-- Vista: Contabilidad - Tareas -->
+            <section id="view-tareas" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-sky-400">Contabilidad · Tareas</h2>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div id="contenedorTareas">Cargando tareas...</div>
+                </div>
+            </section>
+
+            <!-- Vista: Contabilidad - Nómina -->
+            <section id="view-nomina" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-sky-400">Contabilidad · Nómina</h2>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div id="contenedorNomina">Cargando nómina...</div>
+                </div>
+            </section>
+
+            <!-- Vista: Contabilidad - Tabla ISR -->
+            <section id="view-isr" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-sky-400">Contabilidad · Tabla ISR</h2>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div id="contenedorIsr">Cargando tabla ISR...</div>
+                </div>
+            </section>
+
             <!-- Vista: Configuración -->
             <section id="view-configuracion" class="vista-seccion hidden space-y-4">
                 <h2 class="text-xl font-bold text-sky-400">Configuración</h2>
@@ -298,6 +331,18 @@
             </section>
         </main>
     </div>
+
+    <!-- Lectura de archivos para la Tabla ISR (Contabilidad > Tabla ISR):
+         pdf.js extrae el texto de PDFs oficiales, Tesseract.js hace OCR
+         de fotos/capturas. Se cargan aquí (no son módulos ES) para que
+         js/isr.js los use como globales opcionales. -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        if (window.pdfjsLib) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js"></script>
 
     <!-- Script principal de lógica estructurado como módulo -->
     <script type="module" src="js/app.js"></script>

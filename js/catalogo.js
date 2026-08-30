@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { irAKardexDeProducto } from './kardex.js';
 
 export async function verificarConexionReal() {
     const statusEl = document.getElementById('statusConexion');
@@ -181,12 +182,17 @@ export async function cargarCatalogoInicial() {
 
                     <form id="formCrearProducto" class="space-y-3">
                         <div>
-                            <label class="block text-xs font-medium text-amber-400 mb-1">Tipo de Elemento / Segmentación</label>
-                            <select id="tipoElemento" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-slate-100 font-medium">
+                            <label class="block text-xs font-medium text-slate-400 mb-1">¿Qué estás dando de alta?</label>
+                            <select id="tipoElemento" class="hidden">
                                 <option value="producto">Producto (Terminado / Ensamblado)</option>
                                 <option value="materia_prima">Materia Prima</option>
                                 <option value="insumo">Insumo / Componente Auxiliar</option>
                             </select>
+                            <div id="tipoElementoBotones" class="grid grid-cols-3 gap-1.5">
+                                <button type="button" data-tipo="producto" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Producto terminado</button>
+                                <button type="button" data-tipo="materia_prima" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Materia prima</button>
+                                <button type="button" data-tipo="insumo" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Insumo</button>
+                            </div>
                         </div>
 
                         <div class="relative">
@@ -195,17 +201,18 @@ export async function cargarCatalogoInicial() {
                             <div id="sugerenciasProductos" class="absolute z-50 left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl hidden max-h-48 overflow-y-auto"></div>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <label class="block text-xs font-medium text-slate-400 mb-1">SKU / Código</label>
-                                <input type="text" id="prodSku" placeholder="Ej. SKU-001" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-slate-400 mb-1">Unidad de Medida</label>
-                                <select id="prodUnidadMedidaId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
-                                    ${opcionesUnidades}
-                                </select>
-                            </div>
+                        <p id="prodExistenciaActual" class="hidden text-[11px] text-slate-400 bg-slate-900/60 border border-slate-800 rounded-lg px-3 py-2"></p>
+
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">SKU / Código</label>
+                            <input type="text" id="prodSku" placeholder="Ej. SKU-001" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">Unidad de Medida</label>
+                            <select id="prodUnidadMedidaId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
+                                ${opcionesUnidades}
+                            </select>
                         </div>
 
                         <div class="grid grid-cols-2 gap-2">
@@ -222,43 +229,63 @@ export async function cargarCatalogoInicial() {
                         </div>
 
                         <div>
-                            <div class="flex justify-between items-center mb-1">
-                                <label class="block text-xs font-medium text-slate-400">Proveedor</label>
-                                <button type="button" id="btnRefrescarProveedores" class="text-[10px] text-sky-400 hover:underline">🔄 Actualizar lista</button>
-                            </div>
-                            <select id="prodProveedorId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-                                ${opcionesProveedoresHtml}
-                            </select>
+                            <label class="block text-[11px] text-slate-400 mb-1">Stock mínimo</label>
+                            <input type="number" step="0.0001" min="0" id="prodStockMinimo" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                            <p class="text-[10px] text-slate-500 mt-1">Cuando la existencia baje de aquí, Inventario lo marca como "hay que comprar".</p>
                         </div>
 
-                        <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">Descripción / Notas</label>
-                            <textarea id="prodDesc" placeholder="Especificaciones adicionales" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" rows="2"></textarea>
-                        </div>
-
-                        <details class="bg-slate-900/40 border border-slate-800 rounded-lg" ${cuentasContables.length ? '' : 'hidden'}>
-                            <summary class="cursor-pointer select-none text-xs font-semibold text-sky-400 px-3 py-2">Datos contables</summary>
-                            <div class="p-3 pt-0 grid grid-cols-2 gap-2">
+                        <details class="bg-slate-900/40 border border-slate-800 rounded-lg">
+                            <summary class="cursor-pointer select-none text-xs font-semibold text-sky-400 px-3 py-2">Más detalles (opcional)</summary>
+                            <div class="p-3 pt-0 space-y-3">
                                 <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Tasa IVA</label>
-                                    <select id="prodTasaIva" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
-                                        <option value="0.16">16%</option>
-                                        <option value="0.08">8%</option>
-                                        <option value="0">0%</option>
-                                        <option value="">Exento</option>
+                                    <div class="flex justify-between items-center mb-1">
+                                        <label class="block text-[11px] text-slate-400">Proveedor</label>
+                                        <button type="button" id="btnRefrescarProveedores" class="text-[10px] text-sky-400 hover:underline">Actualizar lista</button>
+                                    </div>
+                                    <select id="prodProveedorId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                        ${opcionesProveedoresHtml}
                                     </select>
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Tasa IEPS</label>
-                                    <input type="number" step="0.0001" min="0" id="prodTasaIeps" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block text-[11px] text-slate-400 mb-1">Tiempo de entrega (días)</label>
+                                        <input type="number" step="1" min="0" id="prodTiempoEntrega" placeholder="Ej. 7" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] text-slate-400 mb-1">Compra mínima (MOQ)</label>
+                                        <input type="number" step="0.0001" min="0" id="prodCantidadMinimaCompra" placeholder="Ej. 100" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                    </div>
                                 </div>
                                 <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Cuenta de inventario</label>
-                                    <select id="prodCtaInventario" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${opcionesCuentas(['activo'])}</select>
+                                    <label class="block text-[11px] text-slate-400 mb-1">Descripción / Notas</label>
+                                    <textarea id="prodDesc" placeholder="Especificaciones adicionales" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100" rows="2"></textarea>
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Cuenta de costo</label>
-                                    <select id="prodCtaCosto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${opcionesCuentas(['costo', 'gasto'])}</select>
+
+                                <div class="border-t border-slate-800 pt-3 ${cuentasContables.length ? '' : 'hidden'}">
+                                    <p class="text-[11px] font-semibold text-sky-400 mb-2">Datos contables</p>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label class="block text-[11px] text-slate-400 mb-1">Tasa IVA</label>
+                                            <select id="prodTasaIva" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                                <option value="0.16">16%</option>
+                                                <option value="0.08">8%</option>
+                                                <option value="0">0%</option>
+                                                <option value="">Exento</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-[11px] text-slate-400 mb-1">Tasa IEPS</label>
+                                            <input type="number" step="0.0001" min="0" id="prodTasaIeps" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[11px] text-slate-400 mb-1">Cuenta de inventario</label>
+                                            <select id="prodCtaInventario" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${opcionesCuentas(['activo'])}</select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-[11px] text-slate-400 mb-1">Cuenta de costo</label>
+                                            <select id="prodCtaCosto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${opcionesCuentas(['costo', 'gasto'])}</select>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </details>
@@ -288,11 +315,6 @@ export async function cargarCatalogoInicial() {
                                             ${opcionesUnidades}
                                         </select>
                                     </div>
-                                </div>
-
-                                <div>
-                                    <label class="block text-[10px] text-slate-400 mb-0.5">Merma (%)</label>
-                                    <input type="number" step="0.01" id="bomMerma" placeholder="Ej. 0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                                 </div>
 
                                 <button type="button" id="btnAgregarItemBom" class="w-full bg-slate-800 hover:bg-slate-700 text-sky-300 font-medium py-1.5 rounded-lg text-xs transition">＋ Agregar Componente al BOM</button>
@@ -348,6 +370,27 @@ export async function cargarCatalogoInicial() {
                 actualizarListaBomVisual();
             }
         });
+
+        // Botones de tipo (reemplazan visualmente al <select> oculto, que
+        // sigue siendo la fuente de verdad para el resto del formulario —
+        // así no hay que tocar la lógica de guardar/cargar/BOM de abajo).
+        const botonesTipoElemento = document.querySelectorAll('.tipo-elemento-btn');
+        function marcarBotonTipoActivo(tipo) {
+            botonesTipoElemento.forEach((b) => {
+                const activo = b.dataset.tipo === tipo;
+                b.className = `tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition ${activo
+                    ? 'bg-sky-600 border-sky-500 text-white'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800'}`;
+            });
+        }
+        botonesTipoElemento.forEach((b) => {
+            b.addEventListener('click', () => {
+                selectTipoElemento.value = b.dataset.tipo;
+                marcarBotonTipoActivo(b.dataset.tipo);
+                selectTipoElemento.dispatchEvent(new Event('change'));
+            });
+        });
+        marcarBotonTipoActivo(selectTipoElemento.value || 'producto');
 
         inputNombre.addEventListener('input', async (e) => {
             const query = e.target.value.trim();
@@ -416,11 +459,19 @@ export async function cargarCatalogoInicial() {
 
                 productoSeleccionadoId = art.id;
                 selectTipoElemento.value = art.tipo || 'producto';
+                marcarBotonTipoActivo(art.tipo || 'producto');
                 inputNombre.value = art.nombre;
                 document.getElementById('prodSku').value = art.sku || '';
                 document.getElementById('prodUnidadMedidaId').value = art.unidad_medida_id || '';
                 document.getElementById('prodCosto').value = art.costo_unitario || 0;
-                
+                document.getElementById('prodStockMinimo').value = art.stock_minimo || 0;
+                document.getElementById('prodTiempoEntrega').value = art.tiempo_entrega_dias ?? '';
+                document.getElementById('prodCantidadMinimaCompra').value = art.cantidad_minima_compra ?? '';
+
+                const elExistencia = document.getElementById('prodExistenciaActual');
+                elExistencia.textContent = `Existencia actual: ${Number(art.stock_actual || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })} — se actualiza sola con compras y salidas, no se edita aquí.`;
+                elExistencia.classList.remove('hidden');
+
                 // Asignación directa y robusta del ID de la moneda mapeada en la BD
                 const selectMoneda = document.getElementById('prodMonedaId');
                 selectMoneda.value = art.moneda_id ? art.moneda_id : "";
@@ -461,9 +512,8 @@ export async function cargarCatalogoInicial() {
                                 componenteId: b.componente_id,
                                 componenteNombre: infoComp.nombre,
                                 cantidad: b.cantidad_requerida,
-                                unidadId: b.unidad_medida, 
-                                unidadNombre: mapaUnidades[b.unidad_medida] || '',
-                                merma: b.factor_merma || 0
+                                unidadId: b.unidad_medida,
+                                unidadNombre: mapaUnidades[b.unidad_medida] || ''
                             });
                         });
                     }
@@ -484,10 +534,13 @@ export async function cargarCatalogoInicial() {
             itemsBomTemp = [];
             actualizarListaBomVisual();
             seccionBomContainer.classList.remove('hidden');
+            selectTipoElemento.value = 'producto';
+            marcarBotonTipoActivo('producto');
+            document.getElementById('prodExistenciaActual').classList.add('hidden');
             tituloForm.textContent = "Registro General de Artículos";
             btnGuardar.textContent = "Guardar Artículo";
             btnNuevoModo.classList.add('hidden');
-            
+
             await actualizarSelectProveedores();
         });
 
@@ -498,7 +551,7 @@ export async function cargarCatalogoInicial() {
             }
             listaTempEl.innerHTML = itemsBomTemp.map((item, idx) => `
                 <div class="flex justify-between items-center py-1 border-b border-slate-800 last:border-0">
-                    <span>${item.componenteNombre} - <strong>${item.cantidad} ${item.unidadNombre || ''}</strong> (Merma: ${item.merma})</span>
+                    <span>${item.componenteNombre} - <strong>${item.cantidad} ${item.unidadNombre || ''}</strong></span>
                     <button type="button" onclick="window.removerItemBom(${idx})" class="text-red-400 hover:text-red-300 text-xs">Eliminar</button>
                 </div>
             `).join('');
@@ -521,8 +574,6 @@ export async function cargarCatalogoInicial() {
             const unidadId = unidadSelect.value ? parseInt(unidadSelect.value) : null;
             const unidadNombre = unidadSelect.options[unidadSelect.selectedIndex]?.text || '';
 
-            const merma = parseFloat(document.getElementById('bomMerma').value) || 0;
-
             if (cantidad <= 0) {
                 alert("Ingrese una cantidad mayor a 0.");
                 return;
@@ -530,17 +581,15 @@ export async function cargarCatalogoInicial() {
 
             itemsBomTemp.push({
                 componenteId,
-                componenteNombre: nombreInsumo, 
-                cantidad, 
+                componenteNombre: nombreInsumo,
+                cantidad,
                 unidadId,
-                unidadNombre,
-                merma 
+                unidadNombre
             });
-            
+
             actualizarListaBomVisual();
 
             document.getElementById('bomCantidad').value = '';
-            document.getElementById('bomMerma').value = '';
             insumoSelect.value = '';
             unidadSelect.value = '';
         });
@@ -564,6 +613,11 @@ export async function cargarCatalogoInicial() {
             const proveedorIdVal = document.getElementById('prodProveedorId').value;
             const proveedor_id = proveedorIdVal ? parseInt(proveedorIdVal) : null;
             const descripcion = document.getElementById('prodDesc').value.trim();
+            const stock_minimo = Math.max(0, parseFloat(document.getElementById('prodStockMinimo').value) || 0);
+            const tiempoEntregaVal = document.getElementById('prodTiempoEntrega').value;
+            const tiempo_entrega_dias = tiempoEntregaVal === '' ? null : parseInt(tiempoEntregaVal);
+            const cantidadMinimaVal = document.getElementById('prodCantidadMinimaCompra').value;
+            const cantidad_minima_compra = cantidadMinimaVal === '' ? null : parseFloat(cantidadMinimaVal);
 
             // Datos contables (opcionales; solo si el modulo esta instalado)
             const elTasaIva = document.getElementById('prodTasaIva');
@@ -594,6 +648,9 @@ export async function cargarCatalogoInicial() {
                     moneda_id,
                     proveedor_id,
                     descripcion: descripcion || null,
+                    stock_minimo,
+                    tiempo_entrega_dias,
+                    cantidad_minima_compra,
                     ...datosContables
                 };
 
@@ -623,8 +680,7 @@ export async function cargarCatalogoInicial() {
                         producto_id: articuloId,
                         componente_id: i.componenteId,
                         cantidad_requerida: i.cantidad,
-                        unidad_medida: i.unidadId ? i.unidadId.toString() : null,
-                        factor_merma: i.merma
+                        unidad_medida: i.unidadId ? i.unidadId.toString() : null
                     }));
 
                     const { error: errB } = await supabaseClient.from('bom').insert(itemsBom);
@@ -664,7 +720,7 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
 
     try {
         const [resProd, resProv] = await Promise.all([
-            supabaseClient.from('productos').select('id, nombre, sku, tipo, unidad_medida_id, proveedor_id').order('id', { ascending: true }),
+            supabaseClient.from('productos').select('id, nombre, sku, tipo, unidad_medida_id, proveedor_id, stock_actual, stock_minimo, activo').order('id', { ascending: true }),
             supabaseClient.from('proveedores').select('id, nombre')
         ]);
 
@@ -691,10 +747,16 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
                             <th class="p-3">Nombre</th>
                             <th class="p-3">Unidad</th>
                             <th class="p-3">Proveedor</th>
+                            <th class="p-3 text-right">Existencia</th>
+                            <th class="p-3">Estado</th>
+                            <th class="p-3 text-center">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
         `;
+
+        const mapaProductosPorId = {};
+        productosData.forEach((p) => { mapaProductosPorId[p.id] = p; });
 
         productosData.forEach(item => {
             let badgeColor = "bg-sky-950 text-sky-400 border-sky-800";
@@ -703,14 +765,25 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
 
             const nombreProveedor = mapaProvNombres[item.proveedor_id] || 'N/D';
             const nombreUnidad = mapaUnidades[item.unidad_medida_id] || 'N/D';
+            const activo = item.activo !== false;
+            const stockActual = Number(item.stock_actual || 0);
+            const stockMinimo = Number(item.stock_minimo || 0);
+            const stockBajo = stockMinimo > 0 && stockActual < stockMinimo;
 
             html += `
-                <tr class="border-b border-slate-900 hover:bg-slate-800/50 transition">
+                <tr class="border-b border-slate-900 hover:bg-slate-800/50 transition ${activo ? '' : 'opacity-50'}">
                     <td class="p-3 font-mono text-xs text-sky-300">${item.sku || 'N/D'}</td>
                     <td class="p-3"><span class="text-[10px] px-2 py-0.5 rounded border ${badgeColor} uppercase">${item.tipo || 'producto'}</span></td>
                     <td class="p-3 font-medium text-slate-100">${item.nombre || 'Sin nombre'}</td>
                     <td class="p-3 text-slate-400 text-xs">${nombreUnidad}</td>
                     <td class="p-3 text-slate-300 text-xs">${nombreProveedor}</td>
+                    <td class="p-3 text-right font-mono text-xs ${stockBajo ? 'text-rose-400 font-semibold' : 'text-slate-300'}" title="${stockBajo ? 'Por debajo del stock mínimo (' + stockMinimo + ')' : ''}">${stockActual.toLocaleString('es-MX', { maximumFractionDigits: 4 })}${stockBajo ? ' ⚠' : ''}</td>
+                    <td class="p-3">
+                        <button type="button" class="btn-toggle-activo-prod text-[10px] px-2 py-0.5 rounded border cursor-pointer ${activo ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-slate-800 text-slate-400 border-slate-700'}" data-id="${item.id}" data-activo="${activo}">${activo ? 'Activo' : 'Inactivo'}</button>
+                    </td>
+                    <td class="p-3 text-center">
+                        <button type="button" class="btn-menu-prod text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded px-2 py-1 cursor-pointer" data-id="${item.id}" title="Más acciones">☰</button>
+                    </td>
                 </tr>
             `;
         });
@@ -718,8 +791,251 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
         html += `</tbody></table></div>`;
         contenedorTabla.innerHTML = html;
 
+        contenedorTabla.querySelectorAll('.btn-toggle-activo-prod').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+                const nuevoEstado = btn.dataset.activo !== 'true';
+                const { error } = await supabaseClient.from('productos').update({ activo: nuevoEstado }).eq('id', Number(btn.dataset.id));
+                if (error) { alert('No se pudo cambiar el estado: ' + error.message); return; }
+                await renderizarTablaProductos(mapaUnidades);
+            });
+        });
+
+        contenedorTabla.querySelectorAll('.btn-menu-prod').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const producto = mapaProductosPorId[Number(btn.dataset.id)];
+                if (producto) abrirMenuAccionesProducto(producto, btn);
+            });
+        });
+
     } catch (err) {
         console.error("Error al consultar el catálogo:", err);
         contenedorTabla.innerHTML = `<p class="text-red-400 text-sm">Error al consultar la tabla de productos: ${err.message || err}</p>`;
     }
+}
+
+// =====================================================================
+// Menú de acciones por artículo (☰): atajos útiles que no ameritan su
+// propio botón fijo en la tabla. Se posiciona con coordenadas fijas
+// (no absolute dentro de la tabla) para que nunca quede recortado por
+// el overflow-x-auto del contenedor.
+// =====================================================================
+
+const CAMPOS_NO_EDITABLES_PRODUCTO = new Set(['id', 'created_at', 'updated_at']);
+
+function cerrarMenuAccionesProducto() {
+    document.getElementById('menuAccionesProducto')?.remove();
+    document.removeEventListener('click', cerrarMenuAccionesProducto);
+    document.removeEventListener('keydown', cerrarMenuAccionesProductoEsc);
+}
+
+function cerrarMenuAccionesProductoEsc(e) {
+    if (e.key === 'Escape') cerrarMenuAccionesProducto();
+}
+
+function abrirMenuAccionesProducto(producto, botonAncla) {
+    cerrarMenuAccionesProducto();
+
+    const rect = botonAncla.getBoundingClientRect();
+    const menu = document.createElement('div');
+    menu.id = 'menuAccionesProducto';
+    menu.className = 'fixed z-50 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl text-xs overflow-hidden w-56';
+    menu.style.top = `${rect.bottom + 4}px`;
+    menu.style.left = `${Math.max(8, rect.right - 224)}px`;
+    menu.innerHTML = `
+        <button type="button" id="btnMenuProdKardex" class="w-full text-left px-3 py-2.5 hover:bg-slate-800 text-slate-200 flex items-center gap-2 cursor-pointer">
+            <span>📦</span><span>Kardex de este producto</span>
+        </button>
+        <button type="button" id="btnMenuProdResumen" class="w-full text-left px-3 py-2.5 hover:bg-slate-800 text-slate-200 border-t border-slate-800 flex items-center gap-2 cursor-pointer">
+            <span>📋</span><span>Resumen completo (editable)</span>
+        </button>
+    `;
+    document.body.appendChild(menu);
+
+    document.getElementById('btnMenuProdKardex').addEventListener('click', () => {
+        cerrarMenuAccionesProducto();
+        irAKardexDeProducto(producto.id, producto.nombre);
+    });
+    document.getElementById('btnMenuProdResumen').addEventListener('click', () => {
+        cerrarMenuAccionesProducto();
+        abrirResumenCompletoProducto(producto.id);
+    });
+
+    // Cerrar al hacer clic afuera o con Escape; se difiere un tick para
+    // que no capture el mismo clic que acaba de abrir el menú.
+    setTimeout(() => {
+        document.addEventListener('click', cerrarMenuAccionesProducto);
+        document.addEventListener('keydown', cerrarMenuAccionesProductoEsc);
+    }, 0);
+}
+
+// =====================================================================
+// "Resumen completo (editable)": muestra y permite editar TODAS las
+// columnas de productos para un artículo, incluidas las que el
+// formulario simplificado de arriba no expone. Es una escotilla de
+// escape deliberada — el formulario de alta se mantiene simple a
+// propósito, pero aquí se puede tocar cualquier campo si hace falta.
+// =====================================================================
+
+function tipoDeCampo(valor) {
+    if (typeof valor === 'boolean') return 'boolean';
+    if (typeof valor === 'number') return 'number';
+    return 'text';
+}
+
+function etiquetaCampo(clave) {
+    return clave.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function escaparHtml(valor) {
+    return String(valor).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Arma un <option>...</option> con el registro actualmente seleccionado
+// marcado — usado para que las llaves foráneas (proveedor_id, moneda_id,
+// etc.) se vean y editen por nombre, no por su número interno.
+function construirOpcionesSelector(lista, valorActual, textoFn, etiquetaVacio) {
+    const esVacio = valorActual === null || valorActual === undefined || valorActual === '';
+    let html = `<option value="" ${esVacio ? 'selected' : ''}>${etiquetaVacio}</option>`;
+    (lista || []).forEach((r) => {
+        const seleccionado = String(r.id) === String(valorActual) ? 'selected' : '';
+        html += `<option value="${r.id}" ${seleccionado}>${escaparHtml(textoFn(r))}</option>`;
+    });
+    return html;
+}
+
+async function abrirResumenCompletoProducto(id) {
+    let modal = document.getElementById('modalResumenProducto');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modalResumenProducto';
+        modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4';
+        document.body.appendChild(modal);
+    }
+    modal.innerHTML = `
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-center">
+                <h3 class="text-sm font-bold text-slate-200">Resumen completo del artículo</h3>
+                <button type="button" id="btnCerrarResumenProd" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 cursor-pointer">&times;</button>
+            </div>
+            <div id="cuerpoResumenProd" class="p-5 overflow-y-auto flex-1 text-sm text-slate-300">Cargando…</div>
+            <div class="bg-slate-950 px-5 py-3 border-t border-slate-800 flex justify-end gap-2">
+                <button type="button" id="btnCancelarResumenProd" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer">Cerrar</button>
+                <button type="button" id="btnGuardarResumenProd" class="bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer">Guardar cambios</button>
+            </div>
+        </div>
+    `;
+    modal.classList.remove('hidden');
+
+    const cerrar = () => modal.remove();
+    document.getElementById('btnCerrarResumenProd').addEventListener('click', cerrar);
+    document.getElementById('btnCancelarResumenProd').addEventListener('click', cerrar);
+    modal.addEventListener('click', (e) => { if (e.target === modal) cerrar(); });
+
+    const cuerpo = document.getElementById('cuerpoResumenProd');
+    try {
+        const [{ data: art, error }, resProv, resMon, resUm, resCta] = await Promise.all([
+            supabaseClient.from('productos').select('*').eq('id', id).single(),
+            supabaseClient.from('proveedores').select('id, nombre').order('nombre', { ascending: true }),
+            supabaseClient.from('monedas').select('id, codigo').order('id', { ascending: true }),
+            supabaseClient.from('unidades_medida').select('id, nombre').order('id', { ascending: true }),
+            supabaseClient.from('cuentas_contables').select('id, codigo, nombre').order('codigo', { ascending: true }),
+        ]);
+        if (error) throw error;
+
+        // Llaves foráneas conocidas: se muestran y editan como <select> por
+        // nombre, no como el número interno. Cualquier otra columna que
+        // termine en _id (o que se agregue a futuro) cae al input numérico
+        // genérico de abajo.
+        const opcionesPorCampo = {
+            proveedor_id: construirOpcionesSelector(resProv.data, art.proveedor_id, (r) => r.nombre, '(sin proveedor)'),
+            moneda_id: construirOpcionesSelector(resMon.data, art.moneda_id, (r) => r.codigo, '(sin moneda)'),
+            unidad_medida_id: construirOpcionesSelector(resUm.data, art.unidad_medida_id, (r) => r.nombre, '(sin unidad)'),
+            cuenta_inventario_id: construirOpcionesSelector(resCta.data, art.cuenta_inventario_id, (r) => `${r.codigo} · ${r.nombre}`, '(sin cuenta)'),
+            cuenta_costo_id: construirOpcionesSelector(resCta.data, art.cuenta_costo_id, (r) => `${r.codigo} · ${r.nombre}`, '(sin cuenta)'),
+        };
+
+        const claves = Object.keys(art).sort();
+        cuerpo.innerHTML = `
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                ${claves.map((clave) => {
+                    const valor = art[clave];
+                    const soloLectura = CAMPOS_NO_EDITABLES_PRODUCTO.has(clave);
+                    const tipo = tipoDeCampo(valor);
+
+                    if (soloLectura) {
+                        return `
+                            <div>
+                                <label class="block text-[10px] text-slate-500 mb-1">${etiquetaCampo(clave)}</label>
+                                <p class="text-xs font-mono text-slate-400 bg-slate-950/60 border border-slate-800 rounded-lg px-2 py-1.5">${escaparHtml(valor ?? '—')}</p>
+                            </div>`;
+                    }
+                    if (clave === 'tipo') {
+                        return `
+                            <div>
+                                <label class="block text-[10px] text-slate-400 mb-1">${etiquetaCampo(clave)}</label>
+                                <select id="rc_${clave}" data-campo="${clave}" data-tipo="text" class="campo-resumen-prod w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                    <option value="producto" ${valor === 'producto' ? 'selected' : ''}>Producto terminado</option>
+                                    <option value="materia_prima" ${valor === 'materia_prima' ? 'selected' : ''}>Materia prima</option>
+                                    <option value="insumo" ${valor === 'insumo' ? 'selected' : ''}>Insumo</option>
+                                </select>
+                            </div>`;
+                    }
+                    if (opcionesPorCampo[clave]) {
+                        return `
+                            <div>
+                                <label class="block text-[10px] text-slate-400 mb-1">${etiquetaCampo(clave)}</label>
+                                <select id="rc_${clave}" data-campo="${clave}" data-tipo="number" class="campo-resumen-prod w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                    ${opcionesPorCampo[clave]}
+                                </select>
+                            </div>`;
+                    }
+                    if (tipo === 'boolean') {
+                        return `
+                            <div class="flex items-center gap-2 pt-4">
+                                <input type="checkbox" id="rc_${clave}" data-campo="${clave}" data-tipo="boolean" class="campo-resumen-prod w-4 h-4" ${valor ? 'checked' : ''}>
+                                <label for="rc_${clave}" class="text-xs text-slate-300">${etiquetaCampo(clave)}</label>
+                            </div>`;
+                    }
+                    return `
+                        <div>
+                            <label class="block text-[10px] text-slate-400 mb-1">${etiquetaCampo(clave)}</label>
+                            <input type="${tipo === 'number' ? 'number' : 'text'}" ${tipo === 'number' ? 'step="any"' : ''} id="rc_${clave}" data-campo="${clave}" data-tipo="${tipo}" value="${escaparHtml(valor ?? '')}" class="campo-resumen-prod w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                        </div>`;
+                }).join('')}
+            </div>`;
+    } catch (err) {
+        cuerpo.innerHTML = `<p class="text-rose-400 text-xs">No se pudo cargar el artículo: ${err.message || err}</p>`;
+        return;
+    }
+
+    document.getElementById('btnGuardarResumenProd').addEventListener('click', async () => {
+        const payload = {};
+        cuerpo.querySelectorAll('.campo-resumen-prod').forEach((input) => {
+            const clave = input.dataset.campo;
+            if (input.dataset.tipo === 'boolean') {
+                payload[clave] = input.checked;
+            } else if (input.dataset.tipo === 'number') {
+                payload[clave] = input.value === '' ? null : Number(input.value);
+            } else {
+                payload[clave] = input.value === '' ? null : input.value;
+            }
+        });
+
+        const btnGuardar = document.getElementById('btnGuardarResumenProd');
+        btnGuardar.disabled = true;
+        btnGuardar.textContent = 'Guardando…';
+        const { error } = await supabaseClient.from('productos').update(payload).eq('id', id);
+        if (error) {
+            alert('No se pudo guardar: ' + error.message);
+            btnGuardar.disabled = false;
+            btnGuardar.textContent = 'Guardar cambios';
+            return;
+        }
+        cerrar();
+        const { data: mapaUnidadesActual } = await supabaseClient.from('unidades_medida').select('id, nombre');
+        const mapaUnidades = {};
+        (mapaUnidadesActual || []).forEach((u) => { mapaUnidades[u.id] = u.nombre; });
+        await renderizarTablaProductos(mapaUnidades);
+    });
 }

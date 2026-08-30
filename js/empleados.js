@@ -29,6 +29,36 @@ export async function cargarModuloEmpleados() {
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">FECHA DE INGRESO (opcional)</label>
+                            <input type="date" id="empFechaIngreso" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">DEPARTAMENTO (opcional)</label>
+                            <select id="empDepartamento" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                                <option value="">(sin asignar)</option>
+                                <option value="Producción">Producción</option>
+                                <option value="Administración">Administración</option>
+                                <option value="Ventas">Ventas</option>
+                                <option value="Almacén">Almacén</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">RFC (opcional)</label>
+                            <input type="text" id="empRfc" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono uppercase">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">CURP (opcional)</label>
+                            <input type="text" id="empCurp" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono uppercase">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">NSS (opcional)</label>
+                            <input type="text" id="empNss" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
                             <label class="block text-xs font-medium text-slate-400 mb-1">SUELDO SEMANAL ($)</label>
                             <input type="number" id="empSueldo" min="0" step="0.01" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
                         </div>
@@ -90,7 +120,7 @@ export async function cargarModuloEmpleados() {
             <div class="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg p-3 ${!emp.activo ? 'opacity-50' : ''}">
                 <div>
                     <p class="text-sm font-semibold text-slate-200">${emp.nombre} ${!emp.activo ? '<span class="text-[10px] text-rose-400">(inactivo)</span>' : ''}</p>
-                    <p class="text-[11px] text-slate-500">${emp.puesto || 'Sin puesto'} · $${Number(emp.sueldo_semanal).toFixed(2)}/sem · ${Number(emp.horas_semanales)} hrs/sem</p>
+                    <p class="text-[11px] text-slate-500">${emp.puesto || 'Sin puesto'}${emp.departamento ? ' · ' + emp.departamento : ''} · $${Number(emp.sueldo_semanal).toFixed(2)}/sem · ${Number(emp.horas_semanales)} hrs/sem</p>
                     <p class="text-[11px] mt-0.5 ${emp.pin_hash ? 'text-emerald-500' : 'text-amber-500'}">${emp.pin_hash ? 'PIN móvil ✓' : 'Sin PIN móvil'}</p>
                 </div>
                 <div class="flex items-center gap-3">
@@ -123,6 +153,11 @@ export async function cargarModuloEmpleados() {
                 document.getElementById('empIdEditando').value = emp.id;
                 document.getElementById('empNombre').value = emp.nombre;
                 document.getElementById('empPuesto').value = emp.puesto || '';
+                document.getElementById('empFechaIngreso').value = emp.fecha_ingreso || '';
+                document.getElementById('empDepartamento').value = emp.departamento || '';
+                document.getElementById('empRfc').value = emp.rfc || '';
+                document.getElementById('empCurp').value = emp.curp || '';
+                document.getElementById('empNss').value = emp.nss || '';
                 document.getElementById('empSueldo').value = emp.sueldo_semanal;
                 document.getElementById('empHoras').value = emp.horas_semanales;
                 actualizarPreviewCostoHora();
@@ -158,6 +193,11 @@ export async function cargarModuloEmpleados() {
         const registro = {
             nombre: document.getElementById('empNombre').value.trim(),
             puesto: document.getElementById('empPuesto').value.trim() || null,
+            fecha_ingreso: document.getElementById('empFechaIngreso').value || null,
+            departamento: document.getElementById('empDepartamento').value || null,
+            rfc: document.getElementById('empRfc').value.trim().toUpperCase() || null,
+            curp: document.getElementById('empCurp').value.trim().toUpperCase() || null,
+            nss: document.getElementById('empNss').value.trim() || null,
             sueldo_semanal: parseFloat(document.getElementById('empSueldo').value) || 0,
             horas_semanales: parseFloat(document.getElementById('empHoras').value) || 1
         };
