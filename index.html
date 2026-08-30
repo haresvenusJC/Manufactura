@@ -317,6 +317,18 @@
         </main>
     </div>
 
+    <!-- Lectura de archivos para la Tabla ISR (Contabilidad > Tabla ISR):
+         pdf.js extrae el texto de PDFs oficiales, Tesseract.js hace OCR
+         de fotos/capturas. Se cargan aquí (no son módulos ES) para que
+         js/isr.js los use como globales opcionales. -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        if (window.pdfjsLib) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js"></script>
+
     <!-- Script principal de lógica estructurado como módulo -->
     <script type="module" src="js/app.js"></script>
 </body>

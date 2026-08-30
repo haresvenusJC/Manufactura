@@ -35,9 +35,27 @@ export async function cargarModuloIsr() {
                     <label class="block text-[11px] text-slate-400 mb-1">Fuente</label>
                     <input type="text" id="isrFuente" placeholder="Ej. Anexo 8 RMF 2026, DOF 28/12/2025" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                 </div>
+                <div>
+                    <label class="block text-[11px] text-slate-400 mb-1">Periodicidad de esta tabla</label>
+                    <select id="isrDiasPeriodo" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                        <option value="7">Periodo de 7 días (semanal)</option>
+                        <option value="10">Periodo de 10 días</option>
+                        <option value="15">Periodo de 15 días</option>
+                        <option value="30.42">Mensual</option>
+                    </select>
+                    <p class="text-[10px] text-slate-500 mt-1">El SAT publica una tarifa distinta por periodicidad — usa la que corresponda a como pagas la nómina (semanal por default, ya que así está configurada esta app).</p>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 space-y-2">
+                    <label class="block text-[11px] text-slate-400 font-semibold">Extraer de un archivo (opcional)</label>
+                    <p class="text-[10px] text-slate-500">Sube el PDF oficial (Anexo 8) o una foto/captura de la tabla — se intenta leer y llenar los renglones de abajo, pero SIEMPRE revísalos contra el documento antes de guardar; la lectura automática puede equivocarse.</p>
+                    <input type="file" id="isrArchivo" accept=".pdf,image/*" class="w-full text-[11px] text-slate-300 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-slate-800 file:text-sky-300 file:text-[11px] file:cursor-pointer">
+                    <button type="button" id="isrExtraer" class="w-full text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-3 py-2 rounded-lg border border-slate-700 cursor-pointer" disabled>Extraer de archivo</button>
+                    <p id="isrExtraerMsg" class="text-[10px] min-h-[1rem] text-slate-500"></p>
+                </div>
 
                 <div class="flex items-center justify-between">
-                    <label class="text-[11px] text-slate-400">Tramos (tarifa mensual)</label>
+                    <label class="text-[11px] text-slate-400">Tramos</label>
                     <div class="flex gap-2">
                         <button type="button" id="isrDuplicar" class="text-[10px] text-sky-400 hover:underline">Duplicar última versión</button>
                         <button type="button" id="isrAgregarTramo" class="text-[10px] text-emerald-400 hover:underline">+ Renglón</button>
@@ -82,6 +100,11 @@ export async function cargarModuloIsr() {
     document.getElementById('isrDuplicar').addEventListener('click', duplicarUltimaVersion);
     document.getElementById('isrForm').addEventListener('submit', isrGuardar);
 
+    document.getElementById('isrArchivo').addEventListener('change', (e) => {
+        document.getElementById('isrExtraer').disabled = !e.target.files?.length;
+    });
+    document.getElementById('isrExtraer').addEventListener('click', isrExtraerDeArchivo);
+
     await isrBuscar();
 }
 
@@ -116,12 +139,129 @@ function renderTramos() {
     });
 }
 
+// ---------------------------------------------------------------------
+// Extraer tramos de un archivo (PDF con texto seleccionable, o foto/
+// captura vía OCR). Nunca guarda solo: solo llena la tabla editable de
+// arriba para que el usuario la revise contra el documento antes de
+// darle "Guardar tabla".
+// ---------------------------------------------------------------------
+
+async function isrExtraerDeArchivo() {
+    const input = document.getElementById('isrArchivo');
+    const btn = document.getElementById('isrExtraer');
+    const msg = document.getElementById('isrExtraerMsg');
+    const archivo = input.files?.[0];
+    if (!archivo) return;
+
+    btn.disabled = true;
+    msg.className = 'text-[10px] min-h-[1rem] text-slate-400';
+
+    try {
+        let texto;
+        if (archivo.type === 'application/pdf' || /\.pdf$/i.test(archivo.name)) {
+            msg.textContent = 'Leyendo el PDF…';
+            texto = await extraerTextoPdf(archivo);
+        } else {
+            msg.textContent = 'Reconociendo texto de la imagen (puede tardar unos segundos)…';
+            texto = await extraerTextoImagen(archivo, (m) => {
+                if (m.status === 'recognizing text') {
+                    msg.textContent = `Reconociendo texto de la imagen… ${Math.round((m.progress || 0) * 100)}%`;
+                }
+            });
+        }
+
+        const encontrados = parsearTextoATramos(texto);
+        if (encontrados.length < 2) {
+            msg.textContent = 'No se reconocieron suficientes renglones — captúralos a mano abajo, o intenta con otro archivo/foto más clara.';
+            msg.className = 'text-[10px] min-h-[1rem] text-amber-400';
+            return;
+        }
+
+        isrTramos = encontrados;
+        renderTramos();
+        msg.textContent = `Se llenaron ${encontrados.length} renglón(es) a partir del archivo — revísalos contra el documento oficial antes de guardar.`;
+        msg.className = 'text-[10px] min-h-[1rem] text-emerald-400';
+    } catch (err) {
+        msg.textContent = 'No se pudo leer el archivo: ' + (err.message || err);
+        msg.className = 'text-[10px] min-h-[1rem] text-rose-400';
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function extraerTextoPdf(archivo) {
+    if (!window.pdfjsLib) throw new Error('No se pudo cargar la librería de lectura de PDF (revisa tu conexión y recarga la página).');
+
+    const buffer = await archivo.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+    let textoCompleto = '';
+
+    for (let n = 1; n <= pdf.numPages; n++) {
+        const page = await pdf.getPage(n);
+        const contenido = await page.getTextContent();
+        // Agrupa por renglón (misma coordenada Y) para no perder la
+        // estructura de columnas al concatenar el texto.
+        const porY = new Map();
+        contenido.items.forEach((item) => {
+            const y = Math.round(item.transform[5]);
+            if (!porY.has(y)) porY.set(y, []);
+            porY.get(y).push(item.str);
+        });
+        [...porY.keys()].sort((a, b) => b - a).forEach((y) => {
+            textoCompleto += porY.get(y).join(' ') + '\n';
+        });
+    }
+    return textoCompleto;
+}
+
+async function extraerTextoImagen(archivo, onProgreso) {
+    if (!window.Tesseract) throw new Error('No se pudo cargar la librería de OCR (revisa tu conexión y recarga la página).');
+
+    const { data } = await Tesseract.recognize(archivo, 'spa', {
+        logger: onProgreso,
+    });
+    return data.text;
+}
+
+// Busca renglones con exactamente 4 valores numéricos (límite inferior,
+// límite superior o "en adelante", cuota fija, %) — el patrón de una
+// tabla de tarifa ISR. Filtra por un % razonable (0-60) como sanidad
+// mínima antes de aceptar un renglón como tramo real.
+function parsearTextoATramos(texto) {
+    const reToken = /en\s*adelante|\d[\d,]*\.\d{1,3}|\d[\d,]*/gi;
+    const tramos = [];
+
+    for (const linea of texto.split(/\r?\n/)) {
+        const tokens = linea.match(reToken);
+        if (!tokens || tokens.length !== 4) continue;
+
+        const limInf = parseFloat(tokens[0].replace(/,/g, ''));
+        const abierto = /en\s*adelante/i.test(tokens[1]);
+        const limSup = abierto ? null : parseFloat(tokens[1].replace(/,/g, ''));
+        const cuota = parseFloat(tokens[2].replace(/,/g, ''));
+        const pct = parseFloat(tokens[3].replace(/,/g, ''));
+
+        if (Number.isNaN(limInf) || Number.isNaN(cuota) || Number.isNaN(pct)) continue;
+        if (pct <= 0 || pct > 60) continue;
+        if (!abierto && (Number.isNaN(limSup) || limSup <= limInf)) continue;
+
+        tramos.push({
+            limite_inferior: limInf.toFixed(2),
+            limite_superior: abierto ? '' : limSup.toFixed(2),
+            cuota_fija: cuota.toFixed(2),
+            porcentaje: pct.toFixed(3),
+        });
+        if (tramos.length >= 11) break;
+    }
+    return tramos;
+}
+
 async function duplicarUltimaVersion() {
     const msg = document.getElementById('isrMsg');
     try {
         const { data: ultima, error: errUltima } = await supabaseClient
             .from('isr_tarifas')
-            .select('id, fuente')
+            .select('id, fuente, dias_periodo')
             .order('vigente_desde', { ascending: false })
             .order('created_at', { ascending: false })
             .limit(1)
@@ -137,6 +277,7 @@ async function duplicarUltimaVersion() {
         if (errTramos) throw errTramos;
 
         document.getElementById('isrFuente').value = ultima.fuente || '';
+        if (ultima.dias_periodo) document.getElementById('isrDiasPeriodo').value = ultima.dias_periodo;
         isrTramos = (tramos && tramos.length ? tramos : Array.from({ length: 11 }, TRAMO_VACIO))
             .map((t) => ({
                 limite_inferior: t.limite_inferior ?? '',
@@ -160,6 +301,7 @@ async function isrGuardar(e) {
 
     const vigenteDesde = document.getElementById('isrVigenteDesde').value;
     const fuente = document.getElementById('isrFuente').value.trim() || null;
+    const diasPeriodo = parseFloat(document.getElementById('isrDiasPeriodo').value) || 7;
 
     const tramosValidos = isrTramos
         .filter((t) => t.limite_inferior !== '' && t.porcentaje !== '')
@@ -183,7 +325,7 @@ async function isrGuardar(e) {
 
         const { data: tarifa, error: errTarifa } = await supabaseClient
             .from('isr_tarifas')
-            .insert([{ vigente_desde: vigenteDesde, fuente }])
+            .insert([{ vigente_desde: vigenteDesde, fuente, dias_periodo: diasPeriodo }])
             .select('id')
             .single();
         if (errTarifa) throw errTarifa;
@@ -211,7 +353,7 @@ async function isrBuscar() {
     try {
         const { data, error } = await supabaseClient
             .from('isr_tarifas')
-            .select('id, vigente_desde, fuente, created_at, isr_tarifa_tramos(id)')
+            .select('id, vigente_desde, fuente, dias_periodo, created_at, isr_tarifa_tramos(id)')
             .order('vigente_desde', { ascending: false })
             .order('created_at', { ascending: false })
             .limit(100);
@@ -229,13 +371,14 @@ async function isrBuscar() {
             <div class="overflow-x-auto border border-slate-800 rounded-lg">
                 <table class="w-full text-left text-xs text-slate-300">
                     <thead class="bg-slate-900 text-slate-400 uppercase border-b border-slate-800">
-                        <tr><th class="p-2">Vigente desde</th><th class="p-2">Fuente</th><th class="p-2 text-right">Tramos</th><th class="p-2">Estatus</th></tr>
+                        <tr><th class="p-2">Vigente desde</th><th class="p-2">Fuente</th><th class="p-2">Periodo</th><th class="p-2 text-right">Tramos</th><th class="p-2">Estatus</th></tr>
                     </thead>
                     <tbody>
                         ${data.map((t) => `
                             <tr class="border-b border-slate-900">
                                 <td class="p-2 whitespace-nowrap">${t.vigente_desde}</td>
                                 <td class="p-2 text-slate-400">${t.fuente || '—'}</td>
+                                <td class="p-2 text-slate-400">${t.dias_periodo ? t.dias_periodo + ' días' : '—'}</td>
                                 <td class="p-2 text-right">${t.isr_tarifa_tramos?.length || 0}</td>
                                 <td class="p-2">${t.id === vigenteId ? '<span class="text-emerald-400 font-semibold">Vigente hoy</span>' : '<span class="text-slate-500">Histórica</span>'}</td>
                             </tr>`).join('')}
