@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { imprimirConPlantilla } from './impresion.js';
 
 // =====================================================================
 // Contabilidad · Nómina — arma y postea la póliza de sueldos y salarios
@@ -152,7 +153,8 @@ export async function cargarModuloNomina() {
             </div>
             <div id="nomLista" class="bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm text-slate-500">Cargando nómina...</div>
         </div>
-    </div>`;
+    </div>
+    <div id="nomImprimirArea" class="hidden"></div>`;
 
     const hoy = hoyISO();
     document.getElementById('nomPeriodoInicio').value = hace6DiasISO();
@@ -451,7 +453,8 @@ async function nomBuscar() {
                                 <td class="p-2 text-right font-mono">${money(n.total)}</td>
                                 <td class="p-2 font-mono text-slate-500">${n.polizas ? n.polizas.tipo + ' #' + n.polizas.numero : '—'}</td>
                                 <td class="p-2 ${n.estatus === 'registrada' ? 'text-emerald-400' : 'text-rose-400'}">${n.estatus}</td>
-                                <td class="p-2 text-right">
+                                <td class="p-2 text-right whitespace-nowrap">
+                                    <button data-print="${n.id}" class="nom-print text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 px-2 py-1 rounded border border-slate-700 cursor-pointer mr-1">🖨️ Imprimir</button>
                                     ${n.estatus === 'registrada'
                                         ? `<button data-cancel="${n.id}" class="nom-cancel text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 px-2 py-1 rounded border border-slate-700 cursor-pointer">Cancelar</button>`
                                         : ''}
@@ -462,6 +465,7 @@ async function nomBuscar() {
             </div>`;
 
         cont.querySelectorAll('.nom-cancel').forEach((b) => b.addEventListener('click', () => nomCancelar(Number(b.dataset.cancel))));
+        cont.querySelectorAll('.nom-print').forEach((b) => b.addEventListener('click', () => nomImprimir(Number(b.dataset.print), b)));
     } catch (err) {
         cont.innerHTML = `<p class="text-rose-400 text-xs">Error al consultar nómina. ¿Corriste <span class="font-mono">sql/2026-08-30_contabilidad_nomina.sql</span>?<br>${err.message || err}</p>`;
     }
@@ -475,5 +479,116 @@ async function nomCancelar(id) {
         await nomBuscar();
     } catch (err) {
         alert('No se pudo cancelar: ' + (err.message || err));
+    }
+}
+
+// ---------------------------------------------------------------------
+// Recibo imprimible de una nómina ya registrada: desglose por empleado
+// (sueldo, ISR retenido, neto) + totales + cuotas patronales. Reusa el
+// motor de impresión genérico (js/impresion.js) — mismo patrón que
+// Reportes/Producción/Documentos.
+// ---------------------------------------------------------------------
+async function nomImprimir(id, btn) {
+    const textoOriginal = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Preparando…'; }
+
+    try {
+        const { data: n, error: errN } = await supabaseClient
+            .from('nominas')
+            .select('*, polizas(tipo, numero), cuentas_contables(codigo, nombre), isr_tarifas(fuente, vigente_desde)')
+            .eq('id', id)
+            .single();
+        if (errN) throw errN;
+
+        const { data: detalles, error: errDet } = await supabaseClient
+            .from('nomina_detalles')
+            .select('sueldo, isr, empleados(nombre, puesto)')
+            .eq('nomina_id', id);
+        if (errDet) throw errDet;
+
+        const filas = (detalles || [])
+            .map((d) => ({
+                nombre: d.empleados?.nombre || '—',
+                puesto: d.empleados?.puesto || '',
+                sueldo: Number(d.sueldo) || 0,
+                isr: Number(d.isr) || 0,
+            }))
+            .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+
+        const totalSueldo = filas.reduce((a, f) => a + f.sueldo, 0);
+        const totalIsr = filas.reduce((a, f) => a + f.isr, 0);
+        const totalNeto = totalSueldo - totalIsr;
+
+        const cuentaPago = n.condicion === 'contado' && n.cuentas_contables
+            ? `${n.cuentas_contables.codigo} — ${n.cuentas_contables.nombre}`
+            : (n.condicion === 'credito' ? 'Crédito (por pagar)' : '—');
+
+        const html = `
+            <div style="font-family: Arial, sans-serif; color:#111;">
+                <table style="width:100%; font-size:11px; margin-bottom:14px;">
+                    <tr>
+                        <td><strong>Periodo:</strong> ${n.periodo_inicio} a ${n.periodo_fin}</td>
+                        <td><strong>Fecha de pago:</strong> ${n.fecha_pago}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Condición:</strong> ${n.condicion === 'contado' ? 'Contado' : 'Crédito'}</td>
+                        <td><strong>Pagado desde:</strong> ${cuentaPago}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Póliza:</strong> ${n.polizas ? n.polizas.tipo + ' #' + n.polizas.numero : '—'}</td>
+                        <td><strong>Estatus:</strong> ${n.estatus === 'registrada' ? 'Registrada' : 'Cancelada'}</td>
+                    </tr>
+                </table>
+
+                <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                    <thead>
+                        <tr style="background:#f0f0f0;">
+                            <th style="text-align:left; padding:5px; border:1px solid #ccc;">Empleado</th>
+                            <th style="text-align:left; padding:5px; border:1px solid #ccc;">Puesto</th>
+                            <th style="text-align:right; padding:5px; border:1px solid #ccc;">Sueldo</th>
+                            <th style="text-align:right; padding:5px; border:1px solid #ccc;">ISR retenido</th>
+                            <th style="text-align:right; padding:5px; border:1px solid #ccc;">Neto pagado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${filas.map((f) => `
+                            <tr>
+                                <td style="padding:5px; border:1px solid #ccc;">${f.nombre}</td>
+                                <td style="padding:5px; border:1px solid #ccc;">${f.puesto}</td>
+                                <td style="text-align:right; padding:5px; border:1px solid #ccc; font-family:monospace;">${money(f.sueldo)}</td>
+                                <td style="text-align:right; padding:5px; border:1px solid #ccc; font-family:monospace;">${money(f.isr)}</td>
+                                <td style="text-align:right; padding:5px; border:1px solid #ccc; font-family:monospace;">${money(f.sueldo - f.isr)}</td>
+                            </tr>`).join('')}
+                    </tbody>
+                    <tfoot>
+                        <tr style="font-weight:bold; background:#f7f7f7;">
+                            <td style="padding:5px; border:1px solid #ccc;" colspan="2">Totales</td>
+                            <td style="text-align:right; padding:5px; border:1px solid #ccc; font-family:monospace;">${money(totalSueldo)}</td>
+                            <td style="text-align:right; padding:5px; border:1px solid #ccc; font-family:monospace;">${money(totalIsr)}</td>
+                            <td style="text-align:right; padding:5px; border:1px solid #ccc; font-family:monospace;">${money(totalNeto)}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <table style="width:100%; font-size:11px; margin-top:14px;">
+                    <tr>
+                        <td style="padding:3px 0;">Cuotas IMSS/INFONAVIT patronales</td>
+                        <td style="text-align:right; padding:3px 0; font-family:monospace;">${money(n.cuotas_imss)}</td>
+                    </tr>
+                    <tr style="font-weight:bold;">
+                        <td style="padding:3px 0; border-top:1px solid #ccc;">Total de la nómina (subtotal + cuotas patronales)</td>
+                        <td style="text-align:right; padding:3px 0; border-top:1px solid #ccc; font-family:monospace;">${money(n.total)}</td>
+                    </tr>
+                </table>
+
+                ${n.isr_tarifas ? `<p style="font-size:9px; color:#666; margin-top:14px;">ISR calculado con la tabla vigente desde ${n.isr_tarifas.vigente_desde}${n.isr_tarifas.fuente ? ' (' + n.isr_tarifas.fuente + ')' : ''}.</p>` : ''}
+            </div>`;
+
+        document.getElementById('nomImprimirArea').innerHTML = html;
+        await imprimirConPlantilla('nomina', `Nómina ${n.periodo_inicio} a ${n.periodo_fin}`, 'nomImprimirArea');
+    } catch (err) {
+        alert('No se pudo preparar la impresión: ' + (err.message || err));
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = textoOriginal; }
     }
 }
