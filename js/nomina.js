@@ -563,27 +563,45 @@ export async function contarNominasPendientes() {
 }
 
 // Refresca el aviso amarillo global (fuera del módulo Nómina, visible en
-// cualquier pantalla) con las nóminas en borrador pendientes de
-// autorizar. Se llama al iniciar sesión y después de cada acción que
-// pueda cambiar el conteo (guardar/autorizar/cancelar).
+// cualquier pantalla). Se dispara en dos momentos, encadenados sin
+// estado propio (solo mira lo que ya hay en nominas):
+//   1. Ya hay un borrador pre-ejecutado -> "pendiente de autorizar"
+//      (esto es lo que manda: una vez que existe, se avisa siempre).
+//   2. Todavía no hay borrador, pero ya es viernes de la semana
+//      pendiente (lunes a domingo) -> "es viernes, pre-ejecuta y
+//      autoriza" — recordatorio para que no se pase el corte.
+// Se llama al iniciar sesión y después de cada acción que pueda cambiar
+// el estado (guardar/autorizar/cancelar), así que el aviso se mantiene
+// visible sin interrupción desde el viernes hasta que esa nómina quede
+// autorizada (estatus 'registrada'), momento en el que desaparece solo.
 export async function actualizarBannerNominaPendiente() {
     const banner = document.getElementById('bannerNominaPendiente');
     const texto = document.getElementById('bannerNominaPendienteTexto');
     if (!banner || !texto) return;
 
     const pendientes = await contarNominasPendientes();
-    if (pendientes.length === 0) {
-        banner.classList.add('hidden');
+    if (pendientes.length > 0) {
+        if (pendientes.length === 1) {
+            const p = pendientes[0];
+            texto.textContent = `⏳ Tienes una nómina pendiente de autorizar: semana del ${p.periodo_inicio} al ${p.periodo_fin}.`;
+        } else {
+            texto.textContent = `⏳ Tienes ${pendientes.length} nóminas pendientes de autorizar.`;
+        }
+        banner.classList.remove('hidden');
         return;
     }
 
-    if (pendientes.length === 1) {
-        const p = pendientes[0];
-        texto.textContent = `⏳ Tienes una nómina pendiente de autorizar: semana del ${p.periodo_inicio} al ${p.periodo_fin}.`;
+    const sugerido = await siguientePeriodoSugerido();
+    const viernes = new Date(sugerido.inicio + 'T00:00:00');
+    viernes.setDate(viernes.getDate() + 4); // lunes + 4 días = viernes de esa misma semana
+    const hoy = new Date(hoyISO() + 'T00:00:00');
+
+    if (hoy >= viernes) {
+        texto.textContent = `📋 Ya es viernes de la semana del ${sugerido.inicio} al ${sugerido.fin} — pre-ejecuta y autoriza la nómina cuando puedas.`;
+        banner.classList.remove('hidden');
     } else {
-        texto.textContent = `⏳ Tienes ${pendientes.length} nóminas pendientes de autorizar.`;
+        banner.classList.add('hidden');
     }
-    banner.classList.remove('hidden');
 }
 
 // ---------------------------------------------------------------------
