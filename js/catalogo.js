@@ -203,6 +203,11 @@ export async function cargarCatalogoInicial() {
                         <p id="prodExistenciaActual" class="hidden text-[11px] text-slate-400 bg-slate-900/60 border border-slate-800 rounded-lg px-3 py-2"></p>
 
                         <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">SKU / Código</label>
+                            <input type="text" id="prodSku" placeholder="Ej. SKU-001" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono">
+                        </div>
+
+                        <div>
                             <label class="block text-xs font-medium text-slate-400 mb-1">Unidad de Medida</label>
                             <select id="prodUnidadMedidaId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
                                 ${opcionesUnidades}
@@ -231,10 +236,6 @@ export async function cargarCatalogoInicial() {
                         <details class="bg-slate-900/40 border border-slate-800 rounded-lg">
                             <summary class="cursor-pointer select-none text-xs font-semibold text-sky-400 px-3 py-2">Más detalles (opcional)</summary>
                             <div class="p-3 pt-0 space-y-3">
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">SKU / Código</label>
-                                    <input type="text" id="prodSku" placeholder="Ej. SKU-001" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
-                                </div>
                                 <div>
                                     <div class="flex justify-between items-center mb-1">
                                         <label class="block text-[11px] text-slate-400">Proveedor</label>
