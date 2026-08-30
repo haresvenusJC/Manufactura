@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { irAKardexDeProducto } from './kardex.js';
 
 export async function verificarConexionReal() {
     const statusEl = document.getElementById('statusConexion');
@@ -748,10 +749,14 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
                             <th class="p-3">Proveedor</th>
                             <th class="p-3 text-right">Existencia</th>
                             <th class="p-3">Estado</th>
+                            <th class="p-3 text-center">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
         `;
+
+        const mapaProductosPorId = {};
+        productosData.forEach((p) => { mapaProductosPorId[p.id] = p; });
 
         productosData.forEach(item => {
             let badgeColor = "bg-sky-950 text-sky-400 border-sky-800";
@@ -776,6 +781,9 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
                     <td class="p-3">
                         <button type="button" class="btn-toggle-activo-prod text-[10px] px-2 py-0.5 rounded border cursor-pointer ${activo ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-slate-800 text-slate-400 border-slate-700'}" data-id="${item.id}" data-activo="${activo}">${activo ? 'Activo' : 'Inactivo'}</button>
                     </td>
+                    <td class="p-3 text-center">
+                        <button type="button" class="btn-menu-prod text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded px-2 py-1 cursor-pointer" data-id="${item.id}" title="Más acciones">☰</button>
+                    </td>
                 </tr>
             `;
         });
@@ -792,8 +800,191 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
             });
         });
 
+        contenedorTabla.querySelectorAll('.btn-menu-prod').forEach((btn) => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const producto = mapaProductosPorId[Number(btn.dataset.id)];
+                if (producto) abrirMenuAccionesProducto(producto, btn);
+            });
+        });
+
     } catch (err) {
         console.error("Error al consultar el catálogo:", err);
         contenedorTabla.innerHTML = `<p class="text-red-400 text-sm">Error al consultar la tabla de productos: ${err.message || err}</p>`;
     }
+}
+
+// =====================================================================
+// Menú de acciones por artículo (☰): atajos útiles que no ameritan su
+// propio botón fijo en la tabla. Se posiciona con coordenadas fijas
+// (no absolute dentro de la tabla) para que nunca quede recortado por
+// el overflow-x-auto del contenedor.
+// =====================================================================
+
+const CAMPOS_NO_EDITABLES_PRODUCTO = new Set(['id', 'created_at', 'updated_at']);
+
+function cerrarMenuAccionesProducto() {
+    document.getElementById('menuAccionesProducto')?.remove();
+    document.removeEventListener('click', cerrarMenuAccionesProducto);
+    document.removeEventListener('keydown', cerrarMenuAccionesProductoEsc);
+}
+
+function cerrarMenuAccionesProductoEsc(e) {
+    if (e.key === 'Escape') cerrarMenuAccionesProducto();
+}
+
+function abrirMenuAccionesProducto(producto, botonAncla) {
+    cerrarMenuAccionesProducto();
+
+    const rect = botonAncla.getBoundingClientRect();
+    const menu = document.createElement('div');
+    menu.id = 'menuAccionesProducto';
+    menu.className = 'fixed z-50 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl text-xs overflow-hidden w-56';
+    menu.style.top = `${rect.bottom + 4}px`;
+    menu.style.left = `${Math.max(8, rect.right - 224)}px`;
+    menu.innerHTML = `
+        <button type="button" id="btnMenuProdKardex" class="w-full text-left px-3 py-2.5 hover:bg-slate-800 text-slate-200 flex items-center gap-2 cursor-pointer">
+            <span>📦</span><span>Kardex de este producto</span>
+        </button>
+        <button type="button" id="btnMenuProdResumen" class="w-full text-left px-3 py-2.5 hover:bg-slate-800 text-slate-200 border-t border-slate-800 flex items-center gap-2 cursor-pointer">
+            <span>📋</span><span>Resumen completo (editable)</span>
+        </button>
+    `;
+    document.body.appendChild(menu);
+
+    document.getElementById('btnMenuProdKardex').addEventListener('click', () => {
+        cerrarMenuAccionesProducto();
+        irAKardexDeProducto(producto.id, producto.nombre);
+    });
+    document.getElementById('btnMenuProdResumen').addEventListener('click', () => {
+        cerrarMenuAccionesProducto();
+        abrirResumenCompletoProducto(producto.id);
+    });
+
+    // Cerrar al hacer clic afuera o con Escape; se difiere un tick para
+    // que no capture el mismo clic que acaba de abrir el menú.
+    setTimeout(() => {
+        document.addEventListener('click', cerrarMenuAccionesProducto);
+        document.addEventListener('keydown', cerrarMenuAccionesProductoEsc);
+    }, 0);
+}
+
+// =====================================================================
+// "Resumen completo (editable)": muestra y permite editar TODAS las
+// columnas de productos para un artículo, incluidas las que el
+// formulario simplificado de arriba no expone. Es una escotilla de
+// escape deliberada — el formulario de alta se mantiene simple a
+// propósito, pero aquí se puede tocar cualquier campo si hace falta.
+// =====================================================================
+
+function tipoDeCampo(valor) {
+    if (typeof valor === 'boolean') return 'boolean';
+    if (typeof valor === 'number') return 'number';
+    return 'text';
+}
+
+function etiquetaCampo(clave) {
+    return clave.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function escaparHtml(valor) {
+    return String(valor).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function abrirResumenCompletoProducto(id) {
+    let modal = document.getElementById('modalResumenProducto');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modalResumenProducto';
+        modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4';
+        document.body.appendChild(modal);
+    }
+    modal.innerHTML = `
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-center">
+                <h3 class="text-sm font-bold text-slate-200">Resumen completo del artículo</h3>
+                <button type="button" id="btnCerrarResumenProd" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 cursor-pointer">&times;</button>
+            </div>
+            <div id="cuerpoResumenProd" class="p-5 overflow-y-auto flex-1 text-sm text-slate-300">Cargando…</div>
+            <div class="bg-slate-950 px-5 py-3 border-t border-slate-800 flex justify-end gap-2">
+                <button type="button" id="btnCancelarResumenProd" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer">Cerrar</button>
+                <button type="button" id="btnGuardarResumenProd" class="bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer">Guardar cambios</button>
+            </div>
+        </div>
+    `;
+    modal.classList.remove('hidden');
+
+    const cerrar = () => modal.remove();
+    document.getElementById('btnCerrarResumenProd').addEventListener('click', cerrar);
+    document.getElementById('btnCancelarResumenProd').addEventListener('click', cerrar);
+    modal.addEventListener('click', (e) => { if (e.target === modal) cerrar(); });
+
+    const cuerpo = document.getElementById('cuerpoResumenProd');
+    try {
+        const { data: art, error } = await supabaseClient.from('productos').select('*').eq('id', id).single();
+        if (error) throw error;
+
+        const claves = Object.keys(art).sort();
+        cuerpo.innerHTML = `
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                ${claves.map((clave) => {
+                    const valor = art[clave];
+                    const soloLectura = CAMPOS_NO_EDITABLES_PRODUCTO.has(clave);
+                    const tipo = tipoDeCampo(valor);
+
+                    if (soloLectura) {
+                        return `
+                            <div>
+                                <label class="block text-[10px] text-slate-500 mb-1">${etiquetaCampo(clave)}</label>
+                                <p class="text-xs font-mono text-slate-400 bg-slate-950/60 border border-slate-800 rounded-lg px-2 py-1.5">${escaparHtml(valor ?? '—')}</p>
+                            </div>`;
+                    }
+                    if (tipo === 'boolean') {
+                        return `
+                            <div class="flex items-center gap-2 pt-4">
+                                <input type="checkbox" id="rc_${clave}" data-campo="${clave}" data-tipo="boolean" class="campo-resumen-prod w-4 h-4" ${valor ? 'checked' : ''}>
+                                <label for="rc_${clave}" class="text-xs text-slate-300">${etiquetaCampo(clave)}</label>
+                            </div>`;
+                    }
+                    return `
+                        <div>
+                            <label class="block text-[10px] text-slate-400 mb-1">${etiquetaCampo(clave)}</label>
+                            <input type="${tipo === 'number' ? 'number' : 'text'}" ${tipo === 'number' ? 'step="any"' : ''} id="rc_${clave}" data-campo="${clave}" data-tipo="${tipo}" value="${escaparHtml(valor ?? '')}" class="campo-resumen-prod w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                        </div>`;
+                }).join('')}
+            </div>`;
+    } catch (err) {
+        cuerpo.innerHTML = `<p class="text-rose-400 text-xs">No se pudo cargar el artículo: ${err.message || err}</p>`;
+        return;
+    }
+
+    document.getElementById('btnGuardarResumenProd').addEventListener('click', async () => {
+        const payload = {};
+        cuerpo.querySelectorAll('.campo-resumen-prod').forEach((input) => {
+            const clave = input.dataset.campo;
+            if (input.dataset.tipo === 'boolean') {
+                payload[clave] = input.checked;
+            } else if (input.dataset.tipo === 'number') {
+                payload[clave] = input.value === '' ? null : Number(input.value);
+            } else {
+                payload[clave] = input.value === '' ? null : input.value;
+            }
+        });
+
+        const btnGuardar = document.getElementById('btnGuardarResumenProd');
+        btnGuardar.disabled = true;
+        btnGuardar.textContent = 'Guardando…';
+        const { error } = await supabaseClient.from('productos').update(payload).eq('id', id);
+        if (error) {
+            alert('No se pudo guardar: ' + error.message);
+            btnGuardar.disabled = false;
+            btnGuardar.textContent = 'Guardar cambios';
+            return;
+        }
+        cerrar();
+        const { data: mapaUnidadesActual } = await supabaseClient.from('unidades_medida').select('id, nombre');
+        const mapaUnidades = {};
+        (mapaUnidadesActual || []).forEach((u) => { mapaUnidades[u.id] = u.nombre; });
+        await renderizarTablaProductos(mapaUnidades);
+    });
 }
