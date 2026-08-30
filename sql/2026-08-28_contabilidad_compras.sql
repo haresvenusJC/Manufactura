@@ -97,6 +97,7 @@ begin
                sum(dd.subtotal) as monto_det
           from public.documento_detalles dd
           left join public.productos pr on pr.id = dd.producto_id
+         where dd.documento_id = p_documento_id
          group by coalesce(pr.cuenta_inventario_id, v_cta_inv_def)
          order by 1
     loop
