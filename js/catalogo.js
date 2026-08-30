@@ -891,6 +891,19 @@ function escaparHtml(valor) {
     return String(valor).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// Arma un <option>...</option> con el registro actualmente seleccionado
+// marcado — usado para que las llaves foráneas (proveedor_id, moneda_id,
+// etc.) se vean y editen por nombre, no por su número interno.
+function construirOpcionesSelector(lista, valorActual, textoFn, etiquetaVacio) {
+    const esVacio = valorActual === null || valorActual === undefined || valorActual === '';
+    let html = `<option value="" ${esVacio ? 'selected' : ''}>${etiquetaVacio}</option>`;
+    (lista || []).forEach((r) => {
+        const seleccionado = String(r.id) === String(valorActual) ? 'selected' : '';
+        html += `<option value="${r.id}" ${seleccionado}>${escaparHtml(textoFn(r))}</option>`;
+    });
+    return html;
+}
+
 async function abrirResumenCompletoProducto(id) {
     let modal = document.getElementById('modalResumenProducto');
     if (!modal) {
@@ -921,8 +934,26 @@ async function abrirResumenCompletoProducto(id) {
 
     const cuerpo = document.getElementById('cuerpoResumenProd');
     try {
-        const { data: art, error } = await supabaseClient.from('productos').select('*').eq('id', id).single();
+        const [{ data: art, error }, resProv, resMon, resUm, resCta] = await Promise.all([
+            supabaseClient.from('productos').select('*').eq('id', id).single(),
+            supabaseClient.from('proveedores').select('id, nombre').order('nombre', { ascending: true }),
+            supabaseClient.from('monedas').select('id, codigo').order('id', { ascending: true }),
+            supabaseClient.from('unidades_medida').select('id, nombre').order('id', { ascending: true }),
+            supabaseClient.from('cuentas_contables').select('id, codigo, nombre').order('codigo', { ascending: true }),
+        ]);
         if (error) throw error;
+
+        // Llaves foráneas conocidas: se muestran y editan como <select> por
+        // nombre, no como el número interno. Cualquier otra columna que
+        // termine en _id (o que se agregue a futuro) cae al input numérico
+        // genérico de abajo.
+        const opcionesPorCampo = {
+            proveedor_id: construirOpcionesSelector(resProv.data, art.proveedor_id, (r) => r.nombre, '(sin proveedor)'),
+            moneda_id: construirOpcionesSelector(resMon.data, art.moneda_id, (r) => r.codigo, '(sin moneda)'),
+            unidad_medida_id: construirOpcionesSelector(resUm.data, art.unidad_medida_id, (r) => r.nombre, '(sin unidad)'),
+            cuenta_inventario_id: construirOpcionesSelector(resCta.data, art.cuenta_inventario_id, (r) => `${r.codigo} · ${r.nombre}`, '(sin cuenta)'),
+            cuenta_costo_id: construirOpcionesSelector(resCta.data, art.cuenta_costo_id, (r) => `${r.codigo} · ${r.nombre}`, '(sin cuenta)'),
+        };
 
         const claves = Object.keys(art).sort();
         cuerpo.innerHTML = `
@@ -937,6 +968,15 @@ async function abrirResumenCompletoProducto(id) {
                             <div>
                                 <label class="block text-[10px] text-slate-500 mb-1">${etiquetaCampo(clave)}</label>
                                 <p class="text-xs font-mono text-slate-400 bg-slate-950/60 border border-slate-800 rounded-lg px-2 py-1.5">${escaparHtml(valor ?? '—')}</p>
+                            </div>`;
+                    }
+                    if (opcionesPorCampo[clave]) {
+                        return `
+                            <div>
+                                <label class="block text-[10px] text-slate-400 mb-1">${etiquetaCampo(clave)}</label>
+                                <select id="rc_${clave}" data-campo="${clave}" data-tipo="number" class="campo-resumen-prod w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                    ${opcionesPorCampo[clave]}
+                                </select>
                             </div>`;
                     }
                     if (tipo === 'boolean') {
