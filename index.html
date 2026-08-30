@@ -111,6 +111,7 @@
                     <li><button onclick="window.loadView('documentos')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium flex items-center gap-2" style="cursor: pointer;"><span>Documentos</span></button></li>
                     <li><button onclick="window.loadView('produccion')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Producción</button></li>
                     <li><button onclick="window.loadView('auditoria')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Auditoría</button></li>
+                    <li><button onclick="window.loadView('reportes')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">📊 Reportes</button></li>
 
                     <!-- Menú Contabilidad -->
                     <li>
@@ -241,6 +242,10 @@
                     <div id="contenedorAuditoria">Cargando registros de auditoría...</div>
                 </div>
             </section>
+
+            <!-- Vista: Reportes -->
+            <!-- Se inyecta dinámicamente el contenido generado por reportes.js -->
+            <section id="view-reportes" class="vista-seccion hidden space-y-4"></section>
 
             <!-- Vista: Plantillas de Impresión -->
             <section id="view-plantillas" class="vista-seccion hidden space-y-4">

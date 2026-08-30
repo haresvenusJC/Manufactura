@@ -11,6 +11,7 @@ import { cargarModuloPlantillas } from './plantillas.js';
 import { cargarModuloEmpleados } from './empleados.js';
 import { cargarModuloImportador } from './importador.js';
 import { cargarModuloContabilidad, cargarModuloPolizas, cargarModuloGastos } from './contabilidad.js';
+import { cargarModuloReportes } from './reportes.js';
 import { montarLogin, cerrarSesion } from './auth.js';
 
 // 1. Exposición de funciones al scope global para eventos HTML (onclick)
@@ -83,6 +84,9 @@ window.loadView = function(viewName) {
             break;
         case 'gastos':
             cargarModuloGastos();
+            break;
+        case 'reportes':
+            cargarModuloReportes();
             break;
         default:
             break;
