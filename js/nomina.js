@@ -11,9 +11,40 @@ import { imprimirConPlantilla } from './impresion.js';
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const hoyISO = () => new Date().toISOString().slice(0, 10);
 const primerDiaMesISO = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); };
-// Ventana de 7 días terminando hoy — el periodo de nómina real (empleados
-// tienen sueldo_semanal), NO "mes a la fecha" como el filtro de historial.
-const hace6DiasISO = () => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0, 10); };
+
+// Siguiente semana de nómina (lunes a domingo, coincide con como paga la
+// empresa — sueldo_semanal): la que sigue al último periodo ya usado por
+// cualquier nómina (borrador, registrada o cancelada, para no ofrecer dos
+// veces la misma semana). Si no hay historial, ofrece la semana lunes-
+// domingo que contiene o ya terminó hoy.
+async function siguientePeriodoSugerido() {
+    let inicio;
+    try {
+        const { data } = await supabaseClient
+            .from('nominas')
+            .select('periodo_fin')
+            .order('periodo_fin', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        if (data?.periodo_fin) {
+            const d = new Date(data.periodo_fin + 'T00:00:00');
+            d.setDate(d.getDate() + 1);
+            inicio = d;
+        }
+    } catch { /* sigue al fallback de abajo */ }
+
+    if (!inicio) {
+        const hoy = new Date();
+        const diaSemana = hoy.getDay(); // 0=domingo … 6=sábado
+        const offsetALunes = diaSemana === 0 ? -6 : 1 - diaSemana;
+        inicio = new Date(hoy);
+        inicio.setDate(hoy.getDate() + offsetALunes);
+    }
+
+    const fin = new Date(inicio);
+    fin.setDate(inicio.getDate() + 6);
+    return { inicio: inicio.toISOString().slice(0, 10), fin: fin.toISOString().slice(0, 10) };
+}
 
 let nomEmpleados = []; // catálogo de empleados activos: {id, nombre}
 let nomLineas = [];    // [{ empleado_id, nombre, incluido, sueldo }]
@@ -29,7 +60,8 @@ export async function cargarModuloNomina() {
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <!-- Formulario -->
         <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-3">
-            <h3 class="text-md font-semibold text-sky-400">Registrar nómina</h3>
+            <h3 class="text-md font-semibold text-sky-400">Nueva nómina (borrador)</h3>
+            <p class="text-[11px] text-slate-500">El periodo se sugiere solo (semana lunes a domingo, la siguiente a la última ya usada) — cámbialo aquí si necesitas otro. Al guardar queda como <span class="text-amber-400 font-semibold">borrador</span>: no se contabiliza hasta que alguien la autorice abajo, en el historial.</p>
             <form id="nomForm" class="space-y-3">
                 <div class="grid grid-cols-2 gap-2">
                     <div><label class="block text-[11px] text-slate-400 mb-1">Periodo desde</label>
@@ -136,7 +168,7 @@ export async function cargarModuloNomina() {
                     <span id="nomSubtotalPreview" class="font-mono text-lg font-bold text-emerald-400">$0.00</span>
                 </div>
 
-                <button type="submit" id="nomGuardar" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg text-sm transition cursor-pointer">Registrar nómina</button>
+                <button type="submit" id="nomGuardar" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg text-sm transition cursor-pointer">Pre-ejecutar nómina (borrador)</button>
                 <p id="nomMsg" class="text-xs min-h-[1rem]"></p>
             </form>
         </div>
@@ -157,9 +189,10 @@ export async function cargarModuloNomina() {
     <div id="nomImprimirArea" class="hidden"></div>`;
 
     const hoy = hoyISO();
-    document.getElementById('nomPeriodoInicio').value = hace6DiasISO();
-    document.getElementById('nomPeriodoFin').value = hoy;
-    document.getElementById('nomFechaPago').value = hoy;
+    const sugerido = await siguientePeriodoSugerido();
+    document.getElementById('nomPeriodoInicio').value = sugerido.inicio;
+    document.getElementById('nomPeriodoFin').value = sugerido.fin;
+    document.getElementById('nomFechaPago').value = sugerido.fin;
     document.getElementById('nomDesde').value = primerDiaMesISO();
     document.getElementById('nomHasta').value = hoy;
 
@@ -381,7 +414,7 @@ async function nomGuardar(e) {
         condicion,
         cuenta_pago_id: condicion === 'contado' && $('nomCuentaPago').value ? Number($('nomCuentaPago').value) : null,
         cuotas_imss: parseFloat($('nomCuotasImss').value) || 0,
-        // Solo se manda si el usuario lo editó a mano; si no, registrar_nomina
+        // Solo se manda si el usuario lo editó a mano; si no, precalcular_nomina
         // lo calcula solo con la tabla ISR vigente (calcular_isr_nomina).
         isr_retenido: nomIsrEditadoManualmente ? (parseFloat($('nomIsrRetenido').value) || 0) : null,
         empleados,
@@ -389,22 +422,23 @@ async function nomGuardar(e) {
 
     try {
         $('nomGuardar').disabled = true;
-        const { data, error } = await supabaseClient.rpc('registrar_nomina', { p_datos });
+        const { data, error } = await supabaseClient.rpc('precalcular_nomina', { p_datos });
         if (error) throw error;
         const tablaTxt = data.isr_tarifa_vigente_desde
             ? ` ISR calculado con la tabla vigente desde ${data.isr_tarifa_vigente_desde}${data.isr_tarifa_fuente ? ' (' + data.isr_tarifa_fuente + ')' : ''}.`
             : '';
-        msg.textContent = `Nómina #${data.nomina_id} registrada — póliza Egreso generada (total ${money(data.total)}).${tablaTxt}`;
-        msg.className = 'text-xs text-emerald-400';
+        msg.textContent = `Nómina #${data.nomina_id} pre-ejecutada como borrador (total ${money(data.total)}) — todavía NO se contabilizó. Autorízala en el historial de abajo para generar la póliza.${tablaTxt}`;
+        msg.className = 'text-xs text-amber-400';
 
-        const hoy = hoyISO();
-        $('nomPeriodoInicio').value = hace6DiasISO();
-        $('nomPeriodoFin').value = hoy;
-        $('nomFechaPago').value = hoy;
+        const sugerido = await siguientePeriodoSugerido();
+        $('nomPeriodoInicio').value = sugerido.inicio;
+        $('nomPeriodoFin').value = sugerido.fin;
+        $('nomFechaPago').value = sugerido.fin;
         nomImssEditadoManualmente = false;
         nomIsrEditadoManualmente = false;
         await nomCargarCatalogos();
         await nomBuscar();
+        await actualizarBannerNominaPendiente();
     } catch (err) {
         msg.textContent = err.message || String(err);
         msg.className = 'text-xs text-rose-400';
@@ -452,10 +486,13 @@ async function nomBuscar() {
                                 <td class="p-2 text-right font-mono">${money(n.subtotal)}</td>
                                 <td class="p-2 text-right font-mono">${money(n.total)}</td>
                                 <td class="p-2 font-mono text-slate-500">${n.polizas ? n.polizas.tipo + ' #' + n.polizas.numero : '—'}</td>
-                                <td class="p-2 ${n.estatus === 'registrada' ? 'text-emerald-400' : 'text-rose-400'}">${n.estatus}</td>
+                                <td class="p-2 ${n.estatus === 'registrada' ? 'text-emerald-400' : n.estatus === 'borrador' ? 'text-amber-400 font-semibold' : 'text-rose-400'}">${n.estatus === 'borrador' ? '⏳ pendiente de autorizar' : n.estatus}</td>
                                 <td class="p-2 text-right whitespace-nowrap">
                                     <button data-print="${n.id}" class="nom-print text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 px-2 py-1 rounded border border-slate-700 cursor-pointer mr-1">🖨️ Imprimir</button>
-                                    ${n.estatus === 'registrada'
+                                    ${n.estatus === 'borrador'
+                                        ? `<button data-autorizar="${n.id}" class="nom-autorizar text-[11px] bg-amber-800 hover:bg-amber-700 text-amber-100 px-2 py-1 rounded border border-amber-600 cursor-pointer mr-1">✔ Autorizar</button>`
+                                        : ''}
+                                    ${n.estatus === 'registrada' || n.estatus === 'borrador'
                                         ? `<button data-cancel="${n.id}" class="nom-cancel text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 px-2 py-1 rounded border border-slate-700 cursor-pointer">Cancelar</button>`
                                         : ''}
                                 </td>
@@ -466,20 +503,87 @@ async function nomBuscar() {
 
         cont.querySelectorAll('.nom-cancel').forEach((b) => b.addEventListener('click', () => nomCancelar(Number(b.dataset.cancel))));
         cont.querySelectorAll('.nom-print').forEach((b) => b.addEventListener('click', () => nomImprimir(Number(b.dataset.print), b)));
+        cont.querySelectorAll('.nom-autorizar').forEach((b) => b.addEventListener('click', () => nomAutorizar(Number(b.dataset.autorizar), b)));
     } catch (err) {
         cont.innerHTML = `<p class="text-rose-400 text-xs">Error al consultar nómina. ¿Corriste <span class="font-mono">sql/2026-08-30_contabilidad_nomina.sql</span>?<br>${err.message || err}</p>`;
     }
 }
 
 async function nomCancelar(id) {
-    if (!confirm('¿Cancelar esta nómina? Se generará la póliza de reverso.')) return;
+    if (!confirm('¿Cancelar esta nómina? Si ya está registrada se generará la póliza de reverso; si es un borrador solo se descarta (nunca se contabilizó).')) return;
     try {
         const { error } = await supabaseClient.rpc('cancelar_nomina', { p_nomina_id: id });
         if (error) throw error;
         await nomBuscar();
+        await actualizarBannerNominaPendiente();
     } catch (err) {
         alert('No se pudo cancelar: ' + (err.message || err));
     }
+}
+
+// ---------------------------------------------------------------------
+// Autoriza un borrador ya pre-ejecutado: arma y postea la póliza
+// (autorizar_nomina) y pasa la nómina a 'registrada'. Es el paso que
+// "confirma" el corte de nómina antes de contabilizarlo.
+// ---------------------------------------------------------------------
+async function nomAutorizar(id, btn) {
+    if (!confirm('¿Autorizar esta nómina? Se generará la póliza de Egreso y quedará contabilizada.')) return;
+    const textoOriginal = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Autorizando…'; }
+    try {
+        const { data, error } = await supabaseClient.rpc('autorizar_nomina', { p_nomina_id: id });
+        if (error) throw error;
+        await nomBuscar();
+        await actualizarBannerNominaPendiente();
+        alert(`Nómina #${data.nomina_id} autorizada — póliza #${data.poliza_id} generada (total ${money(data.total)}).`);
+    } catch (err) {
+        alert('No se pudo autorizar: ' + (err.message || err));
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = textoOriginal; }
+    }
+}
+
+// ---------------------------------------------------------------------
+// Consulta ligera (sin cargar todo el módulo) de nóminas en borrador
+// pendientes de autorizar — usada para el aviso global que se muestra a
+// quien inicie sesión, sin importar en qué pantalla esté.
+// ---------------------------------------------------------------------
+export async function contarNominasPendientes() {
+    try {
+        const { data, error } = await supabaseClient
+            .from('nominas')
+            .select('id, periodo_inicio, periodo_fin')
+            .eq('estatus', 'borrador')
+            .order('periodo_fin', { ascending: true });
+        if (error) throw error;
+        return data || [];
+    } catch {
+        return [];
+    }
+}
+
+// Refresca el aviso amarillo global (fuera del módulo Nómina, visible en
+// cualquier pantalla) con las nóminas en borrador pendientes de
+// autorizar. Se llama al iniciar sesión y después de cada acción que
+// pueda cambiar el conteo (guardar/autorizar/cancelar).
+export async function actualizarBannerNominaPendiente() {
+    const banner = document.getElementById('bannerNominaPendiente');
+    const texto = document.getElementById('bannerNominaPendienteTexto');
+    if (!banner || !texto) return;
+
+    const pendientes = await contarNominasPendientes();
+    if (pendientes.length === 0) {
+        banner.classList.add('hidden');
+        return;
+    }
+
+    if (pendientes.length === 1) {
+        const p = pendientes[0];
+        texto.textContent = `⏳ Tienes una nómina pendiente de autorizar: semana del ${p.periodo_inicio} al ${p.periodo_fin}.`;
+    } else {
+        texto.textContent = `⏳ Tienes ${pendientes.length} nóminas pendientes de autorizar.`;
+    }
+    banner.classList.remove('hidden');
 }
 
 // ---------------------------------------------------------------------
