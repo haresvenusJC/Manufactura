@@ -403,17 +403,80 @@ async function isrBuscar() {
                     </thead>
                     <tbody>
                         ${data.map((t) => `
-                            <tr class="border-b border-slate-900">
+                            <tr class="isr-fila-tarifa border-b border-slate-900 cursor-pointer hover:bg-slate-900/60" data-id="${t.id}" title="Clic para ver los tramos guardados">
                                 <td class="p-2 whitespace-nowrap">${t.vigente_desde}</td>
                                 <td class="p-2 text-slate-400">${t.fuente || '—'}</td>
                                 <td class="p-2 text-slate-400">${t.dias_periodo ? t.dias_periodo + ' días' : '—'}</td>
                                 <td class="p-2 text-right">${t.isr_tarifa_tramos?.length || 0}</td>
                                 <td class="p-2">${t.id === vigenteId ? '<span class="text-emerald-400 font-semibold">Vigente hoy</span>' : '<span class="text-slate-500">Histórica</span>'}</td>
+                            </tr>
+                            <tr class="isr-fila-detalle hidden" data-detalle-de="${t.id}">
+                                <td colspan="5" class="p-0"></td>
                             </tr>`).join('')}
                     </tbody>
                 </table>
-            </div>`;
+            </div>
+            <p class="text-[10px] text-slate-500 mt-1">Clic en una fila para ver sus tramos guardados y confirmar que se llenaron bien.</p>`;
+
+        cont.querySelectorAll('.isr-fila-tarifa').forEach((tr) => {
+            tr.addEventListener('click', () => isrToggleDetalleTarifa(Number(tr.dataset.id)));
+        });
     } catch (err) {
         cont.innerHTML = `<p class="text-rose-400 text-xs">Error al consultar la tabla ISR. ¿Corriste <span class="font-mono">sql/2026-08-30_contabilidad_isr.sql</span>?<br>${err.message || err}</p>`;
     }
+}
+
+const isrTramosCache = new Map(); // tarifa_id -> tramos ya consultados, para no repetir la consulta al reabrir
+
+async function isrToggleDetalleTarifa(tarifaId) {
+    const fila = document.querySelector(`.isr-fila-detalle[data-detalle-de="${tarifaId}"]`);
+    if (!fila) return;
+    const celda = fila.querySelector('td');
+
+    if (!fila.classList.contains('hidden')) {
+        fila.classList.add('hidden');
+        return;
+    }
+
+    // Colapsa cualquier otra fila abierta, para no amontonar tablas.
+    document.querySelectorAll('.isr-fila-detalle').forEach((f) => { if (f !== fila) f.classList.add('hidden'); });
+
+    fila.classList.remove('hidden');
+    if (isrTramosCache.has(tarifaId)) {
+        celda.innerHTML = renderTablaTramosSoloLectura(isrTramosCache.get(tarifaId));
+        return;
+    }
+
+    celda.innerHTML = `<p class="text-slate-500 text-[11px] p-2">Cargando tramos…</p>`;
+    try {
+        const { data, error } = await supabaseClient
+            .from('isr_tarifa_tramos')
+            .select('orden, limite_inferior, limite_superior, cuota_fija, porcentaje')
+            .eq('tarifa_id', tarifaId)
+            .order('orden');
+        if (error) throw error;
+        isrTramosCache.set(tarifaId, data || []);
+        celda.innerHTML = renderTablaTramosSoloLectura(data || []);
+    } catch (err) {
+        celda.innerHTML = `<p class="text-rose-400 text-[11px] p-2">No se pudieron cargar los tramos: ${err.message || err}</p>`;
+    }
+}
+
+function renderTablaTramosSoloLectura(tramos) {
+    if (!tramos.length) return `<p class="text-slate-500 text-[11px] p-2">Esta versión no tiene tramos guardados.</p>`;
+    return `
+        <table class="w-full text-[11px] bg-slate-900/60">
+            <thead class="text-slate-500 uppercase">
+                <tr><th class="p-1.5 text-right">Límite inf.</th><th class="p-1.5 text-right">Límite sup.</th><th class="p-1.5 text-right">Cuota fija</th><th class="p-1.5 text-right">%</th></tr>
+            </thead>
+            <tbody>
+                ${tramos.map((t) => `
+                    <tr class="border-t border-slate-800 font-mono text-slate-300">
+                        <td class="p-1.5 text-right">${Number(t.limite_inferior).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+                        <td class="p-1.5 text-right">${t.limite_superior == null ? 'en adelante' : Number(t.limite_superior).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+                        <td class="p-1.5 text-right">${Number(t.cuota_fija).toLocaleString('es-MX', { minimumFractionDigits: 2 })}</td>
+                        <td class="p-1.5 text-right">${Number(t.porcentaje).toLocaleString('es-MX', { minimumFractionDigits: 3 })}</td>
+                    </tr>`).join('')}
+            </tbody>
+        </table>`;
 }
