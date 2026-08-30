@@ -14,6 +14,8 @@ const primerDiaMesISO = () => { const d = new Date(); return new Date(d.getFullY
 let nomEmpleados = []; // catálogo de empleados activos: {id, nombre}
 let nomLineas = [];    // [{ empleado_id, nombre, incluido, sueldo }]
 let nomCtasPago = [];
+let nomImssEditadoManualmente = false; // true si el usuario escribió el monto de IMSS a mano (no seguir el % automático)
+let nomIsrEditadoManualmente = false;  // idem para ISR retenido
 
 export async function cargarModuloNomina() {
     const cont = document.getElementById('contenedorNomina');
@@ -43,6 +45,13 @@ export async function cargarModuloNomina() {
                     <label class="block text-[11px] text-slate-400 mb-1">Pagado desde (caja / banco)</label>
                     <select id="nomCuentaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select>
                 </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div><label class="block text-[11px] text-slate-400 mb-1">% IMSS patronal <span class="text-slate-600">(tu tasa)</span></label>
+                        <input type="number" step="0.01" min="0" id="nomImssPct" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
+                    <div><label class="block text-[11px] text-slate-400 mb-1">% ISR retenido <span class="text-slate-600">(tu tasa)</span></label>
+                        <input type="number" step="0.01" min="0" id="nomIsrPct" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
+                </div>
+                <p class="text-[10px] text-slate-500 -mt-1">Los montos de abajo se calculan solos (% × subtotal de sueldos marcados). Ajusta el % a tu prima de riesgo IMSS real y a la tabla ISR vigente — aquí es solo un cálculo proporcional, no la tabla oficial del SAT. Si ya traes el monto exacto, puedes escribirlo directo abajo.</p>
                 <div class="grid grid-cols-2 gap-2">
                     <div><label class="block text-[11px] text-slate-400 mb-1">Cuotas IMSS/INFONAVIT patronales</label>
                         <input type="number" step="0.01" min="0" id="nomCuotasImss" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
@@ -103,6 +112,10 @@ function nomCablear() {
     $('nomCondicion').addEventListener('change', () => {
         $('nomPagoWrap').style.display = $('nomCondicion').value === 'contado' ? '' : 'none';
     });
+    $('nomImssPct').addEventListener('input', () => { nomImssEditadoManualmente = false; nomRecalcularImpuestos(); });
+    $('nomIsrPct').addEventListener('input', () => { nomIsrEditadoManualmente = false; nomRecalcularImpuestos(); });
+    $('nomCuotasImss').addEventListener('input', () => { nomImssEditadoManualmente = true; });
+    $('nomIsrRetenido').addEventListener('input', () => { nomIsrEditadoManualmente = true; });
     $('nomForm').addEventListener('submit', nomGuardar);
     $('nomBuscar').addEventListener('click', nomBuscar);
 }
@@ -141,10 +154,32 @@ function nomActualizarLinea(e) {
     nomActualizarSubtotal();
 }
 
+function nomSubtotalMarcado() {
+    return nomLineas.filter((l) => l.incluido).reduce((a, l) => a + (Number(l.sueldo) || 0), 0);
+}
+
 function nomActualizarSubtotal() {
-    const subtotal = nomLineas.filter((l) => l.incluido).reduce((a, l) => a + (Number(l.sueldo) || 0), 0);
     const el = document.getElementById('nomSubtotalPreview');
-    if (el) el.textContent = money(subtotal);
+    if (el) el.textContent = money(nomSubtotalMarcado());
+    nomRecalcularImpuestos();
+}
+
+// Recalcula Cuotas IMSS / ISR retenido como % del subtotal marcado, salvo
+// que el usuario haya editado ese monto a mano (mismo criterio que el
+// subtotal/IVA automático de Compras).
+function nomRecalcularImpuestos() {
+    const subtotal = nomSubtotalMarcado();
+    const pctImss = parseFloat(document.getElementById('nomImssPct')?.value) || 0;
+    const pctIsr = parseFloat(document.getElementById('nomIsrPct')?.value) || 0;
+
+    if (!nomImssEditadoManualmente) {
+        const el = document.getElementById('nomCuotasImss');
+        if (el) el.value = (Math.round(subtotal * pctImss) / 100).toFixed(2);
+    }
+    if (!nomIsrEditadoManualmente) {
+        const el = document.getElementById('nomIsrRetenido');
+        if (el) el.value = (Math.round(subtotal * pctIsr) / 100).toFixed(2);
+    }
 }
 
 async function nomCargarCatalogos() {
@@ -218,8 +253,8 @@ async function nomGuardar(e) {
         $('nomPeriodoInicio').value = primerDiaMesISO();
         $('nomPeriodoFin').value = hoy;
         $('nomFechaPago').value = hoy;
-        $('nomCuotasImss').value = '0';
-        $('nomIsrRetenido').value = '0';
+        nomImssEditadoManualmente = false;
+        nomIsrEditadoManualmente = false;
         await nomCargarCatalogos();
         await nomBuscar();
     } catch (err) {
