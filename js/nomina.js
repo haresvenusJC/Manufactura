@@ -45,19 +45,75 @@ export async function cargarModuloNomina() {
                     <label class="block text-[11px] text-slate-400 mb-1">Pagado desde (caja / banco)</label>
                     <select id="nomCuentaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select>
                 </div>
-                <div class="grid grid-cols-2 gap-2">
-                    <div><label class="block text-[11px] text-slate-400 mb-1">% IMSS patronal <span class="text-slate-600">(tu tasa)</span></label>
-                        <input type="number" step="0.01" min="0" id="nomImssPct" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
-                    <div><label class="block text-[11px] text-slate-400 mb-1">% ISR retenido <span class="text-slate-600">(tu tasa)</span></label>
-                        <input type="number" step="0.01" min="0" id="nomIsrPct" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
+                <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-[11px] text-slate-400 font-semibold">Cuotas patronales IMSS/INFONAVIT</label>
+                        <button type="button" id="nomImssToggle" class="text-[10px] text-sky-400 hover:underline">Ver desglose ▾</button>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">Clase de riesgo de trabajo</label>
+                        <select id="nomImssClase" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                            <option value="0.54355">Clase I — Mínimo (0.54355%)</option>
+                            <option value="1.13065">Clase II — Bajo (1.13065%)</option>
+                            <option value="2.59840">Clase III — Medio (2.59840%)</option>
+                            <option value="4.65325">Clase IV — Alto (4.65325%)</option>
+                            <option value="7.58875">Clase V — Máximo (7.58875%)</option>
+                        </select>
+                    </div>
+
+                    <div id="nomImssDesglose" class="hidden space-y-1.5 pt-2 border-t border-slate-800">
+                        <p class="text-[10px] text-slate-500">Primas mínimas de la Ley del Seguro Social; ajusta cualquier renglón si tu contador te da un valor distinto (por ejemplo tu prima de riesgo registrada ante el IMSS). No incluye la cuota fija de Enfermedades y Maternidad (es un monto fijo en UMA, no un %); Cesantía y Vejez puede subir hasta 5.175% para sueldos mayores a 1 UMA.</p>
+                        <div class="grid grid-cols-2 gap-1 text-[11px] items-center">
+                            <span class="text-slate-400">Riesgo de trabajo (según clase)</span>
+                            <input type="number" step="0.00001" min="0" id="nomImssRiesgo" value="0.54355" class="bg-slate-950 border border-slate-800 rounded p-1 text-right font-mono text-slate-100 nom-imss-concepto">
+                        </div>
+                        <div class="grid grid-cols-2 gap-1 text-[11px] items-center">
+                            <span class="text-slate-400">Enf. y maternidad — excedente 3 UMA</span>
+                            <input type="number" step="0.01" min="0" id="nomImssExcedente" value="1.10" class="bg-slate-950 border border-slate-800 rounded p-1 text-right font-mono text-slate-100 nom-imss-concepto">
+                        </div>
+                        <div class="grid grid-cols-2 gap-1 text-[11px] items-center">
+                            <span class="text-slate-400">Enf. y maternidad — especie (pensionados)</span>
+                            <input type="number" step="0.01" min="0" id="nomImssEspecie" value="1.05" class="bg-slate-950 border border-slate-800 rounded p-1 text-right font-mono text-slate-100 nom-imss-concepto">
+                        </div>
+                        <div class="grid grid-cols-2 gap-1 text-[11px] items-center">
+                            <span class="text-slate-400">Enf. y maternidad — dinero</span>
+                            <input type="number" step="0.01" min="0" id="nomImssDinero" value="0.70" class="bg-slate-950 border border-slate-800 rounded p-1 text-right font-mono text-slate-100 nom-imss-concepto">
+                        </div>
+                        <div class="grid grid-cols-2 gap-1 text-[11px] items-center">
+                            <span class="text-slate-400">Guarderías y prestaciones sociales</span>
+                            <input type="number" step="0.01" min="0" id="nomImssGuarderias" value="1.00" class="bg-slate-950 border border-slate-800 rounded p-1 text-right font-mono text-slate-100 nom-imss-concepto">
+                        </div>
+                        <div class="grid grid-cols-2 gap-1 text-[11px] items-center">
+                            <span class="text-slate-400">Invalidez y vida</span>
+                            <input type="number" step="0.01" min="0" id="nomImssInvalidez" value="1.75" class="bg-slate-950 border border-slate-800 rounded p-1 text-right font-mono text-slate-100 nom-imss-concepto">
+                        </div>
+                        <div class="grid grid-cols-2 gap-1 text-[11px] items-center">
+                            <span class="text-slate-400">Retiro</span>
+                            <input type="number" step="0.01" min="0" id="nomImssRetiro" value="2.00" class="bg-slate-950 border border-slate-800 rounded p-1 text-right font-mono text-slate-100 nom-imss-concepto">
+                        </div>
+                        <div class="grid grid-cols-2 gap-1 text-[11px] items-center">
+                            <span class="text-slate-400">Cesantía en edad avanzada y vejez</span>
+                            <input type="number" step="0.001" min="0" id="nomImssCesantia" value="3.150" class="bg-slate-950 border border-slate-800 rounded p-1 text-right font-mono text-slate-100 nom-imss-concepto">
+                        </div>
+                        <div class="grid grid-cols-2 gap-1 text-[11px] items-center">
+                            <span class="text-slate-400">INFONAVIT</span>
+                            <input type="number" step="0.01" min="0" id="nomImssInfonavit" value="5.00" class="bg-slate-950 border border-slate-800 rounded p-1 text-right font-mono text-slate-100 nom-imss-concepto">
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center pt-1 border-t border-slate-800">
+                        <span class="text-[11px] text-slate-300 font-semibold">Total % IMSS patronal</span>
+                        <span id="nomImssPctTotal" class="font-mono text-sm text-emerald-400 font-semibold">0.00000%</span>
+                    </div>
                 </div>
-                <p class="text-[10px] text-slate-500 -mt-1">Los montos de abajo se calculan solos (% × subtotal de sueldos marcados). Ajusta el % a tu prima de riesgo IMSS real y a la tabla ISR vigente — aquí es solo un cálculo proporcional, no la tabla oficial del SAT. Si ya traes el monto exacto, puedes escribirlo directo abajo.</p>
+
                 <div class="grid grid-cols-2 gap-2">
                     <div><label class="block text-[11px] text-slate-400 mb-1">Cuotas IMSS/INFONAVIT patronales</label>
                         <input type="number" step="0.01" min="0" id="nomCuotasImss" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
-                    <div><label class="block text-[11px] text-slate-400 mb-1">ISR retenido</label>
+                    <div><label class="block text-[11px] text-slate-400 mb-1">ISR retenido <span class="text-slate-600">(% <input type="number" step="0.01" min="0" id="nomIsrPct" value="0" class="w-12 bg-slate-950 border border-slate-800 rounded p-0.5 text-slate-300 font-mono text-center"> aprox.)</span></label>
                         <input type="number" step="0.01" min="0" id="nomIsrRetenido" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
                 </div>
+                <p class="text-[10px] text-slate-500 -mt-1">ISR es una tabla progresiva por persona, no un % parejo — el % de arriba es solo una aproximación proporcional al subtotal. Los montos se recalculan solos; edítalos directo si ya traes la cifra exacta.</p>
 
                 <div>
                     <label class="block text-[11px] text-slate-400 mb-1">Empleados a incluir</label>
@@ -112,12 +168,29 @@ function nomCablear() {
     $('nomCondicion').addEventListener('change', () => {
         $('nomPagoWrap').style.display = $('nomCondicion').value === 'contado' ? '' : 'none';
     });
-    $('nomImssPct').addEventListener('input', () => { nomImssEditadoManualmente = false; nomRecalcularImpuestos(); });
+
+    $('nomImssToggle').addEventListener('click', () => {
+        const desglose = $('nomImssDesglose');
+        const abierto = !desglose.classList.contains('hidden');
+        desglose.classList.toggle('hidden');
+        $('nomImssToggle').textContent = abierto ? 'Ver desglose ▾' : 'Ocultar desglose ▴';
+    });
+    $('nomImssClase').addEventListener('change', () => {
+        $('nomImssRiesgo').value = $('nomImssClase').value;
+        nomImssEditadoManualmente = false;
+        nomActualizarTotalImss();
+    });
+    document.querySelectorAll('.nom-imss-concepto').forEach((el) => {
+        el.addEventListener('input', () => { nomImssEditadoManualmente = false; nomActualizarTotalImss(); });
+    });
+
     $('nomIsrPct').addEventListener('input', () => { nomIsrEditadoManualmente = false; nomRecalcularImpuestos(); });
     $('nomCuotasImss').addEventListener('input', () => { nomImssEditadoManualmente = true; });
     $('nomIsrRetenido').addEventListener('input', () => { nomIsrEditadoManualmente = true; });
     $('nomForm').addEventListener('submit', nomGuardar);
     $('nomBuscar').addEventListener('click', nomBuscar);
+
+    nomActualizarTotalImss();
 }
 
 function nomRenderEmpleados() {
@@ -164,12 +237,23 @@ function nomActualizarSubtotal() {
     nomRecalcularImpuestos();
 }
 
+// Suma el desglose de conceptos patronales IMSS/INFONAVIT y refleja el
+// total; de ahí dispara el recálculo del monto en pesos.
+function nomActualizarTotalImss() {
+    const total = [...document.querySelectorAll('.nom-imss-concepto')]
+        .reduce((a, el) => a + (parseFloat(el.value) || 0), 0);
+    const el = document.getElementById('nomImssPctTotal');
+    if (el) el.textContent = total.toFixed(5) + '%';
+    nomRecalcularImpuestos();
+}
+
 // Recalcula Cuotas IMSS / ISR retenido como % del subtotal marcado, salvo
 // que el usuario haya editado ese monto a mano (mismo criterio que el
 // subtotal/IVA automático de Compras).
 function nomRecalcularImpuestos() {
     const subtotal = nomSubtotalMarcado();
-    const pctImss = parseFloat(document.getElementById('nomImssPct')?.value) || 0;
+    const pctImss = [...document.querySelectorAll('.nom-imss-concepto')]
+        .reduce((a, el) => a + (parseFloat(el.value) || 0), 0);
     const pctIsr = parseFloat(document.getElementById('nomIsrPct')?.value) || 0;
 
     if (!nomImssEditadoManualmente) {
