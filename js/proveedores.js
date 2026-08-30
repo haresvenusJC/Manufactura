@@ -278,7 +278,7 @@ function configurarLogicaProveedores() {
                 .from('productos')
                 .select(`
                     nombre,
-                    unidad_medida,
+                    unidades_medida ( nombre ),
                     lotes_inventario (
                         numero_lote,
                         stock_actual,
@@ -320,7 +320,7 @@ function configurarLogicaProveedores() {
                             <tr class="border-b border-slate-900 hover:bg-slate-900/40 text-xs">
                                 <td class="p-2.5 font-medium text-slate-100">${prod.nombre}</td>
                                 <td class="p-2.5 font-mono text-sky-300">${lote.numero_lote || 'S/N'}</td>
-                                <td class="p-2.5 font-mono">${lote.stock_actual} ${prod.unidad_medida || ''}</td>
+                                <td class="p-2.5 font-mono">${lote.stock_actual} ${prod.unidades_medida?.nombre || ''}</td>
                                 <td class="p-2.5 font-mono text-slate-300">$${Number(lote.costo_unitario || 0).toFixed(2)} <span class="text-[10px] text-slate-500">${lote.moneda || 'MXN'}</span></td>
                                 <td class="p-2.5 text-slate-400">${lote.fecha_ingreso ? new Date(lote.fecha_ingreso).toLocaleDateString() : 'N/D'}</td>
                             </tr>

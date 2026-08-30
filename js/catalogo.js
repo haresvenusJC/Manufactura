@@ -181,12 +181,17 @@ export async function cargarCatalogoInicial() {
 
                     <form id="formCrearProducto" class="space-y-3">
                         <div>
-                            <label class="block text-xs font-medium text-amber-400 mb-1">Tipo de Elemento / Segmentación</label>
-                            <select id="tipoElemento" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-slate-100 font-medium">
+                            <label class="block text-xs font-medium text-slate-400 mb-1">¿Qué estás dando de alta?</label>
+                            <select id="tipoElemento" class="hidden">
                                 <option value="producto">Producto (Terminado / Ensamblado)</option>
                                 <option value="materia_prima">Materia Prima</option>
                                 <option value="insumo">Insumo / Componente Auxiliar</option>
                             </select>
+                            <div id="tipoElementoBotones" class="grid grid-cols-3 gap-1.5">
+                                <button type="button" data-tipo="producto" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Producto terminado</button>
+                                <button type="button" data-tipo="materia_prima" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Materia prima</button>
+                                <button type="button" data-tipo="insumo" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Insumo</button>
+                            </div>
                         </div>
 
                         <div class="relative">
@@ -195,17 +200,13 @@ export async function cargarCatalogoInicial() {
                             <div id="sugerenciasProductos" class="absolute z-50 left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl hidden max-h-48 overflow-y-auto"></div>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <label class="block text-xs font-medium text-slate-400 mb-1">SKU / Código</label>
-                                <input type="text" id="prodSku" placeholder="Ej. SKU-001" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-slate-400 mb-1">Unidad de Medida</label>
-                                <select id="prodUnidadMedidaId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
-                                    ${opcionesUnidades}
-                                </select>
-                            </div>
+                        <p id="prodExistenciaActual" class="hidden text-[11px] text-slate-400 bg-slate-900/60 border border-slate-800 rounded-lg px-3 py-2"></p>
+
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">Unidad de Medida</label>
+                            <select id="prodUnidadMedidaId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
+                                ${opcionesUnidades}
+                            </select>
                         </div>
 
                         <div class="grid grid-cols-2 gap-2">
@@ -222,43 +223,67 @@ export async function cargarCatalogoInicial() {
                         </div>
 
                         <div>
-                            <div class="flex justify-between items-center mb-1">
-                                <label class="block text-xs font-medium text-slate-400">Proveedor</label>
-                                <button type="button" id="btnRefrescarProveedores" class="text-[10px] text-sky-400 hover:underline">🔄 Actualizar lista</button>
-                            </div>
-                            <select id="prodProveedorId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-                                ${opcionesProveedoresHtml}
-                            </select>
+                            <label class="block text-[11px] text-slate-400 mb-1">Stock mínimo</label>
+                            <input type="number" step="0.0001" min="0" id="prodStockMinimo" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                            <p class="text-[10px] text-slate-500 mt-1">Cuando la existencia baje de aquí, Inventario lo marca como "hay que comprar".</p>
                         </div>
 
-                        <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">Descripción / Notas</label>
-                            <textarea id="prodDesc" placeholder="Especificaciones adicionales" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" rows="2"></textarea>
-                        </div>
-
-                        <details class="bg-slate-900/40 border border-slate-800 rounded-lg" ${cuentasContables.length ? '' : 'hidden'}>
-                            <summary class="cursor-pointer select-none text-xs font-semibold text-sky-400 px-3 py-2">Datos contables</summary>
-                            <div class="p-3 pt-0 grid grid-cols-2 gap-2">
+                        <details class="bg-slate-900/40 border border-slate-800 rounded-lg">
+                            <summary class="cursor-pointer select-none text-xs font-semibold text-sky-400 px-3 py-2">Más detalles (opcional)</summary>
+                            <div class="p-3 pt-0 space-y-3">
                                 <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Tasa IVA</label>
-                                    <select id="prodTasaIva" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
-                                        <option value="0.16">16%</option>
-                                        <option value="0.08">8%</option>
-                                        <option value="0">0%</option>
-                                        <option value="">Exento</option>
+                                    <label class="block text-[11px] text-slate-400 mb-1">SKU / Código</label>
+                                    <input type="text" id="prodSku" placeholder="Ej. SKU-001" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                                </div>
+                                <div>
+                                    <div class="flex justify-between items-center mb-1">
+                                        <label class="block text-[11px] text-slate-400">Proveedor</label>
+                                        <button type="button" id="btnRefrescarProveedores" class="text-[10px] text-sky-400 hover:underline">Actualizar lista</button>
+                                    </div>
+                                    <select id="prodProveedorId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                        ${opcionesProveedoresHtml}
                                     </select>
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Tasa IEPS</label>
-                                    <input type="number" step="0.0001" min="0" id="prodTasaIeps" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block text-[11px] text-slate-400 mb-1">Tiempo de entrega (días)</label>
+                                        <input type="number" step="1" min="0" id="prodTiempoEntrega" placeholder="Ej. 7" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] text-slate-400 mb-1">Compra mínima (MOQ)</label>
+                                        <input type="number" step="0.0001" min="0" id="prodCantidadMinimaCompra" placeholder="Ej. 100" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                    </div>
                                 </div>
                                 <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Cuenta de inventario</label>
-                                    <select id="prodCtaInventario" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${opcionesCuentas(['activo'])}</select>
+                                    <label class="block text-[11px] text-slate-400 mb-1">Descripción / Notas</label>
+                                    <textarea id="prodDesc" placeholder="Especificaciones adicionales" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100" rows="2"></textarea>
                                 </div>
-                                <div>
-                                    <label class="block text-[11px] text-slate-400 mb-1">Cuenta de costo</label>
-                                    <select id="prodCtaCosto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${opcionesCuentas(['costo', 'gasto'])}</select>
+
+                                <div class="border-t border-slate-800 pt-3 ${cuentasContables.length ? '' : 'hidden'}">
+                                    <p class="text-[11px] font-semibold text-sky-400 mb-2">Datos contables</p>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label class="block text-[11px] text-slate-400 mb-1">Tasa IVA</label>
+                                            <select id="prodTasaIva" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                                <option value="0.16">16%</option>
+                                                <option value="0.08">8%</option>
+                                                <option value="0">0%</option>
+                                                <option value="">Exento</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-[11px] text-slate-400 mb-1">Tasa IEPS</label>
+                                            <input type="number" step="0.0001" min="0" id="prodTasaIeps" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[11px] text-slate-400 mb-1">Cuenta de inventario</label>
+                                            <select id="prodCtaInventario" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${opcionesCuentas(['activo'])}</select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-[11px] text-slate-400 mb-1">Cuenta de costo</label>
+                                            <select id="prodCtaCosto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${opcionesCuentas(['costo', 'gasto'])}</select>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </details>
@@ -349,6 +374,27 @@ export async function cargarCatalogoInicial() {
             }
         });
 
+        // Botones de tipo (reemplazan visualmente al <select> oculto, que
+        // sigue siendo la fuente de verdad para el resto del formulario —
+        // así no hay que tocar la lógica de guardar/cargar/BOM de abajo).
+        const botonesTipoElemento = document.querySelectorAll('.tipo-elemento-btn');
+        function marcarBotonTipoActivo(tipo) {
+            botonesTipoElemento.forEach((b) => {
+                const activo = b.dataset.tipo === tipo;
+                b.className = `tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition ${activo
+                    ? 'bg-sky-600 border-sky-500 text-white'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800'}`;
+            });
+        }
+        botonesTipoElemento.forEach((b) => {
+            b.addEventListener('click', () => {
+                selectTipoElemento.value = b.dataset.tipo;
+                marcarBotonTipoActivo(b.dataset.tipo);
+                selectTipoElemento.dispatchEvent(new Event('change'));
+            });
+        });
+        marcarBotonTipoActivo(selectTipoElemento.value || 'producto');
+
         inputNombre.addEventListener('input', async (e) => {
             const query = e.target.value.trim();
             if (query.length < 2) {
@@ -416,11 +462,19 @@ export async function cargarCatalogoInicial() {
 
                 productoSeleccionadoId = art.id;
                 selectTipoElemento.value = art.tipo || 'producto';
+                marcarBotonTipoActivo(art.tipo || 'producto');
                 inputNombre.value = art.nombre;
                 document.getElementById('prodSku').value = art.sku || '';
                 document.getElementById('prodUnidadMedidaId').value = art.unidad_medida_id || '';
                 document.getElementById('prodCosto').value = art.costo_unitario || 0;
-                
+                document.getElementById('prodStockMinimo').value = art.stock_minimo || 0;
+                document.getElementById('prodTiempoEntrega').value = art.tiempo_entrega_dias ?? '';
+                document.getElementById('prodCantidadMinimaCompra').value = art.cantidad_minima_compra ?? '';
+
+                const elExistencia = document.getElementById('prodExistenciaActual');
+                elExistencia.textContent = `Existencia actual: ${Number(art.stock_actual || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })} — se actualiza sola con compras y salidas, no se edita aquí.`;
+                elExistencia.classList.remove('hidden');
+
                 // Asignación directa y robusta del ID de la moneda mapeada en la BD
                 const selectMoneda = document.getElementById('prodMonedaId');
                 selectMoneda.value = art.moneda_id ? art.moneda_id : "";
@@ -484,10 +538,13 @@ export async function cargarCatalogoInicial() {
             itemsBomTemp = [];
             actualizarListaBomVisual();
             seccionBomContainer.classList.remove('hidden');
+            selectTipoElemento.value = 'producto';
+            marcarBotonTipoActivo('producto');
+            document.getElementById('prodExistenciaActual').classList.add('hidden');
             tituloForm.textContent = "Registro General de Artículos";
             btnGuardar.textContent = "Guardar Artículo";
             btnNuevoModo.classList.add('hidden');
-            
+
             await actualizarSelectProveedores();
         });
 
@@ -564,6 +621,11 @@ export async function cargarCatalogoInicial() {
             const proveedorIdVal = document.getElementById('prodProveedorId').value;
             const proveedor_id = proveedorIdVal ? parseInt(proveedorIdVal) : null;
             const descripcion = document.getElementById('prodDesc').value.trim();
+            const stock_minimo = Math.max(0, parseFloat(document.getElementById('prodStockMinimo').value) || 0);
+            const tiempoEntregaVal = document.getElementById('prodTiempoEntrega').value;
+            const tiempo_entrega_dias = tiempoEntregaVal === '' ? null : parseInt(tiempoEntregaVal);
+            const cantidadMinimaVal = document.getElementById('prodCantidadMinimaCompra').value;
+            const cantidad_minima_compra = cantidadMinimaVal === '' ? null : parseFloat(cantidadMinimaVal);
 
             // Datos contables (opcionales; solo si el modulo esta instalado)
             const elTasaIva = document.getElementById('prodTasaIva');
@@ -594,6 +656,9 @@ export async function cargarCatalogoInicial() {
                     moneda_id,
                     proveedor_id,
                     descripcion: descripcion || null,
+                    stock_minimo,
+                    tiempo_entrega_dias,
+                    cantidad_minima_compra,
                     ...datosContables
                 };
 
@@ -664,7 +729,7 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
 
     try {
         const [resProd, resProv] = await Promise.all([
-            supabaseClient.from('productos').select('id, nombre, sku, tipo, unidad_medida_id, proveedor_id').order('id', { ascending: true }),
+            supabaseClient.from('productos').select('id, nombre, sku, tipo, unidad_medida_id, proveedor_id, stock_actual, stock_minimo, activo').order('id', { ascending: true }),
             supabaseClient.from('proveedores').select('id, nombre')
         ]);
 
@@ -691,6 +756,8 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
                             <th class="p-3">Nombre</th>
                             <th class="p-3">Unidad</th>
                             <th class="p-3">Proveedor</th>
+                            <th class="p-3 text-right">Existencia</th>
+                            <th class="p-3">Estado</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -703,20 +770,37 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
 
             const nombreProveedor = mapaProvNombres[item.proveedor_id] || 'N/D';
             const nombreUnidad = mapaUnidades[item.unidad_medida_id] || 'N/D';
+            const activo = item.activo !== false;
+            const stockActual = Number(item.stock_actual || 0);
+            const stockMinimo = Number(item.stock_minimo || 0);
+            const stockBajo = stockMinimo > 0 && stockActual < stockMinimo;
 
             html += `
-                <tr class="border-b border-slate-900 hover:bg-slate-800/50 transition">
+                <tr class="border-b border-slate-900 hover:bg-slate-800/50 transition ${activo ? '' : 'opacity-50'}">
                     <td class="p-3 font-mono text-xs text-sky-300">${item.sku || 'N/D'}</td>
                     <td class="p-3"><span class="text-[10px] px-2 py-0.5 rounded border ${badgeColor} uppercase">${item.tipo || 'producto'}</span></td>
                     <td class="p-3 font-medium text-slate-100">${item.nombre || 'Sin nombre'}</td>
                     <td class="p-3 text-slate-400 text-xs">${nombreUnidad}</td>
                     <td class="p-3 text-slate-300 text-xs">${nombreProveedor}</td>
+                    <td class="p-3 text-right font-mono text-xs ${stockBajo ? 'text-rose-400 font-semibold' : 'text-slate-300'}" title="${stockBajo ? 'Por debajo del stock mínimo (' + stockMinimo + ')' : ''}">${stockActual.toLocaleString('es-MX', { maximumFractionDigits: 4 })}${stockBajo ? ' ⚠' : ''}</td>
+                    <td class="p-3">
+                        <button type="button" class="btn-toggle-activo-prod text-[10px] px-2 py-0.5 rounded border cursor-pointer ${activo ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-slate-800 text-slate-400 border-slate-700'}" data-id="${item.id}" data-activo="${activo}">${activo ? 'Activo' : 'Inactivo'}</button>
+                    </td>
                 </tr>
             `;
         });
 
         html += `</tbody></table></div>`;
         contenedorTabla.innerHTML = html;
+
+        contenedorTabla.querySelectorAll('.btn-toggle-activo-prod').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+                const nuevoEstado = btn.dataset.activo !== 'true';
+                const { error } = await supabaseClient.from('productos').update({ activo: nuevoEstado }).eq('id', Number(btn.dataset.id));
+                if (error) { alert('No se pudo cambiar el estado: ' + error.message); return; }
+                await renderizarTablaProductos(mapaUnidades);
+            });
+        });
 
     } catch (err) {
         console.error("Error al consultar el catálogo:", err);
