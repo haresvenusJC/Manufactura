@@ -129,7 +129,7 @@ export async function cargarModuloImportador() {
                     Plantilla de ejemplo:
                     <a href="ejemplos/plantilla_materias_primas.xlsx" download class="text-sky-400 hover:underline">Excel</a> ·
                     <a href="ejemplos/plantilla_materias_primas.csv" download class="text-sky-400 hover:underline">CSV</a>
-                    <span class="text-slate-600 block mt-1">Encabezados: Nombre · SKU · Proveedor · Precio · Moneda · Unidad · Notas</span>
+                    <span class="text-slate-600 block mt-1">Encabezados: Nombre · SKU · Tipo · Proveedor · Precio · Moneda · Unidad · Tasa IVA · Tasa IEPS · Stock minimo · Tiempo entrega dias · Cantidad minima compra · Activo · Notas</span>
                 </div>
             </div>
         </div>
