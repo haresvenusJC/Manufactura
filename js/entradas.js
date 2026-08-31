@@ -100,6 +100,17 @@ export async function configurarFormularioEntradasDirectas() {
                 </div>
             </div>
 
+            <div id="edBloqueContable" class="bg-slate-950 p-4 rounded-xl mb-4 border border-slate-800 hidden">
+                <label class="flex items-center gap-2 text-sm font-semibold text-slate-200 mb-2">
+                    <input type="checkbox" id="edContabilizar" checked class="accent-emerald-500"> 4. Generar póliza contable
+                </label>
+                <div id="edCamposContables">
+                    <label class="block text-xs text-slate-400 mb-1">Cuenta de contrapartida (abono)</label>
+                    <select id="edCuentaAbono" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select>
+                    <p class="text-[11px] text-slate-500 mt-1">Ej. 205.01 Acreedores, o una cuenta de ajuste / capital. El inventario se carga a la cuenta contable de cada producto.</p>
+                </div>
+            </div>
+
             <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium p-3 rounded-lg transition shadow-md text-sm" style="cursor: pointer;">
                 Registrar Entrada Directa al Inventario
             </button>
@@ -111,7 +122,8 @@ export async function configurarFormularioEntradasDirectas() {
 
     await Promise.allSettled([
         cargarUnidadesMedidaSelectED(),
-        configurarDatalistInsumosED()
+        configurarDatalistInsumosED(),
+        cargarBloqueContableED()
     ]);
 
     const oldBtn = document.getElementById('btnAgregarPartidaED');
@@ -263,7 +275,28 @@ export async function configurarFormularioEntradasDirectas() {
                 if (errRpc) throw errRpc;
             }
 
-            alert("¡Entrada directa registrada en inventario correctamente!");
+            // Contabilizar (póliza de entrada) si el bloque está activo
+            let msgContab = '';
+            const edChk = document.getElementById('edContabilizar');
+            const edVis = document.getElementById('edBloqueContable') && !document.getElementById('edBloqueContable').classList.contains('hidden');
+            if (edVis && edChk && edChk.checked) {
+                const ctaAbono = document.getElementById('edCuentaAbono').value;
+                if (!ctaAbono) {
+                    msgContab = '\nNo se contabilizó: falta elegir la cuenta de contrapartida.';
+                } else {
+                    try {
+                        const { data: cc, error: eCC } = await supabaseClient.rpc('contabilizar_entrada_directa', {
+                            p_documento_id: documentoId, p_datos: { cuenta_abono_id: parseInt(ctaAbono) }
+                        });
+                        if (eCC) throw eCC;
+                        msgContab = `\nPóliza de entrada generada (total $${Number(cc.total).toFixed(2)}).`;
+                    } catch (e) {
+                        msgContab = `\nEntrada OK, pero NO se contabilizó: ${e.message || e}`;
+                    }
+                }
+            }
+
+            alert("¡Entrada directa registrada en inventario correctamente!" + msgContab);
             partidasEntradaDirecta = [];
             formEntradasDirectas.reset();
 
@@ -375,4 +408,29 @@ async function configurarDatalistInsumosED() {
     });
 
     await refrescarCatalogo();
+}
+
+// Bloque de contabilidad: se muestra solo si el modulo contable esta instalado.
+async function cargarBloqueContableED() {
+    const bloque = document.getElementById('edBloqueContable');
+    if (!bloque) return;
+    let ctas = [];
+    try {
+        const { data, error } = await supabaseClient
+            .from('cuentas_contables')
+            .select('id, codigo, nombre')
+            .eq('afectable', true).eq('activa', true)
+            .order('codigo', { ascending: true });
+        if (error) throw error;
+        ctas = data || [];
+    } catch (_) {
+        return; // modulo de contabilidad no instalado
+    }
+    bloque.classList.remove('hidden');
+    const sel = document.getElementById('edCuentaAbono');
+    sel.innerHTML = '<option value="">— cuenta —</option>' +
+        ctas.map(c => `<option value="${c.id}" ${c.codigo === '205.01' ? 'selected' : ''}>${c.codigo} · ${c.nombre}</option>`).join('');
+    document.getElementById('edContabilizar').onchange = (e) => {
+        document.getElementById('edCamposContables').style.display = e.target.checked ? '' : 'none';
+    };
 }

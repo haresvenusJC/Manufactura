@@ -630,7 +630,24 @@ export async function cerrarOrdenDeProduccion(ordenId) {
 
         if (errUpd) throw errUpd;
 
-        return { success: true, mensaje: `Orden cerrada. Costo unitario: $${costoUnitarioFinal.toFixed(2)}.` };
+        // Contabilizar el cierre (Cargo 115.04 PT / Abono 115.01 MP + 601.01 mano de obra).
+        // No bloquea el cierre si el modulo contable no esta instalado o falla.
+        let msgContab = '';
+        try {
+            const { data: cc, error: errCC } = await supabaseClient.rpc('contabilizar_produccion', {
+                p_documento_id: documentoId,
+                p_datos: { costo_materiales: costoTotalMateriales, costo_mano_obra: costoTotalManoObra }
+            });
+            if (errCC) throw errCC;
+            msgContab = ` Póliza de producción #${cc.poliza_id} generada.`;
+        } catch (e) {
+            const m = e?.message || String(e);
+            if (!/does not exist|could not find|schema cache/i.test(m)) {
+                msgContab = ` (Cierre OK, pero no se contabilizó: ${m})`;
+            }
+        }
+
+        return { success: true, mensaje: `Orden cerrada. Costo unitario: $${costoUnitarioFinal.toFixed(2)}.${msgContab}` };
     } catch (error) {
         console.error("Error al cerrar la orden:", error.message);
         return { success: false, error: error.message };

@@ -99,6 +99,35 @@ export async function cargarModuloSalidas() {
                             </div>
                         </div>
 
+                        <!-- Bloque de contabilidad -->
+                        <div id="salBloqueContable" class="bg-slate-950 border border-slate-800 p-4 rounded-lg mb-4 hidden">
+                            <label class="flex items-center gap-2 text-sm font-semibold text-slate-200 mb-3">
+                                <input type="checkbox" id="salContabilizar" checked class="accent-red-500"> Generar póliza contable
+                            </label>
+                            <div id="salCamposCosto" class="mb-3">
+                                <label class="block text-xs text-slate-400 mb-1">Cuenta destino del costo (cargo)</label>
+                                <select id="salCuentaCargo" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select>
+                                <p class="text-[11px] text-slate-500 mt-1">A dónde va el costo de lo que sale: 501.01 costo de venta, 601.xx merma, cuenta de ajuste… El inventario se abona a la cuenta de cada producto.</p>
+                            </div>
+                            <div id="salCamposVenta" class="hidden grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-slate-800 pt-3">
+                                <div><label class="block text-xs text-slate-400 mb-1">Cliente</label>
+                                    <input type="text" id="salClienteNombre" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+                                <div><label class="block text-xs text-slate-400 mb-1">RFC cliente</label>
+                                    <input type="text" id="salClienteRfc" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono"></div>
+                                <div><label class="block text-xs text-slate-400 mb-1">Condición</label>
+                                    <select id="salCondicion" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                                        <option value="contado">Contado</option><option value="credito">Crédito (por cobrar)</option></select></div>
+                                <div><label class="block text-xs text-slate-400 mb-1">Subtotal venta</label>
+                                    <input type="number" step="0.01" min="0" id="salVentaSubtotal" value="0" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
+                                <div><label class="block text-xs text-slate-400 mb-1">IVA <button type="button" id="salIva16" class="text-[10px] text-red-400 hover:underline">16%</button></label>
+                                    <input type="number" step="0.01" min="0" id="salVentaIva" value="0" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
+                                <div><label class="block text-xs text-slate-400 mb-1">Cobrar a (cuenta)</label>
+                                    <select id="salCuentaCobro" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select></div>
+                                <div class="md:col-span-3"><label class="block text-xs text-slate-400 mb-1">UUID CFDI</label>
+                                    <input type="text" id="salUuid" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono"></div>
+                            </div>
+                        </div>
+
                         <!-- Botón Final -->
                         <button type="button" id="btnProcesarSalidaFinal" class="w-full bg-red-600 hover:bg-red-500 text-white font-semibold py-3 px-4 rounded-lg transition-all text-sm shadow-lg cursor-pointer">
                             🚀 Procesar y Guardar Salida Completa
@@ -118,6 +147,8 @@ export async function cargarModuloSalidas() {
             partidasSalidaTemp = [];
             productoSeleccionadoActual = null;
             loteSeleccionadoActual = null;
+
+            cargarBloqueContableSalidas();
 
             const { data: productos, error: errProd } = await supabaseClient
                 .from('productos')
@@ -256,7 +287,8 @@ export async function cargarModuloSalidas() {
                     });
 
                     if (resultado.success) {
-                        alert("✅ " + resultado.mensaje);
+                        const msgContab = await contabilizarSalidaUI(tipoMovimiento, resultado.documentoId);
+                        alert("✅ " + resultado.mensaje + msgContab);
                         partidasSalidaTemp = [];
                         document.getElementById('folioSalida').value = '';
                         document.getElementById('descripcionSalida').value = '';
@@ -499,11 +531,95 @@ export async function registrarSalidaMultiPartida(datosDoc) {
             }
         }
 
-        return { success: true, mensaje: "Salida multi-partida procesada y registrada exitosamente." };
+        return { success: true, mensaje: "Salida multi-partida procesada y registrada exitosamente.", documentoId };
 
     } catch (error) {
         console.error("Error al procesar salida multi-partida:", error.message);
         return { success: false, error: error.message };
+    }
+}
+
+// Bloque de contabilidad de Salidas: se muestra solo si el modulo contable
+// esta instalado. Para 'salida_venta' aparecen los campos de venta.
+async function cargarBloqueContableSalidas() {
+    const bloque = document.getElementById('salBloqueContable');
+    if (!bloque) return;
+    let ctas = [];
+    try {
+        const { data, error } = await supabaseClient
+            .from('cuentas_contables')
+            .select('id, codigo, nombre, tipo')
+            .eq('afectable', true).eq('activa', true)
+            .order('codigo', { ascending: true });
+        if (error) throw error;
+        ctas = data || [];
+    } catch (_) {
+        return; // modulo de contabilidad no instalado
+    }
+    bloque.classList.remove('hidden');
+
+    const opt = (arr, selCodigo) => '<option value="">— cuenta —</option>' +
+        arr.map(c => `<option value="${c.id}" ${c.codigo === selCodigo ? 'selected' : ''}>${c.codigo} · ${c.nombre}</option>`).join('');
+
+    const gastosYcostos = ctas.filter(c => c.tipo === 'gasto' || c.tipo === 'costo');
+    const cobro = ctas.filter(c => c.tipo === 'activo' && /^(101|102|105)/.test(c.codigo));
+    document.getElementById('salCuentaCargo').innerHTML = opt(gastosYcostos, '501.01');
+    document.getElementById('salCuentaCobro').innerHTML = opt(cobro, '105.01');
+
+    const tipoSel = document.getElementById('tipoSalida');
+    const sync = () => {
+        const esVenta = tipoSel.value === 'salida_venta';
+        document.getElementById('salCamposVenta').classList.toggle('hidden', !esVenta);
+        document.getElementById('salCamposCosto').classList.toggle('hidden', esVenta);
+    };
+    tipoSel.addEventListener('change', sync);
+    sync();
+
+    document.getElementById('salIva16').addEventListener('click', () => {
+        const st = parseFloat(document.getElementById('salVentaSubtotal').value) || 0;
+        document.getElementById('salVentaIva').value = (Math.round(st * 16) / 100).toFixed(2);
+    });
+    document.getElementById('salContabilizar').addEventListener('change', (e) => {
+        document.getElementById('salCamposCosto').style.display = e.target.checked ? '' : 'none';
+        document.getElementById('salCamposVenta').style.display = e.target.checked ? '' : 'none';
+    });
+}
+
+// Postea la poliza de una salida ya registrada (segun su tipo).
+async function contabilizarSalidaUI(tipoMovimiento, documentoId) {
+    const chk = document.getElementById('salContabilizar');
+    const bloqueVisible = document.getElementById('salBloqueContable') &&
+        !document.getElementById('salBloqueContable').classList.contains('hidden');
+    if (!bloqueVisible || !chk || !chk.checked || !documentoId) return '';
+
+    try {
+        if (tipoMovimiento === 'salida_venta') {
+            const p_datos = {
+                venta_subtotal: parseFloat(document.getElementById('salVentaSubtotal').value) || 0,
+                venta_iva: parseFloat(document.getElementById('salVentaIva').value) || 0,
+                condicion: document.getElementById('salCondicion').value,
+                cuenta_cobro_id: document.getElementById('salCuentaCobro').value ? parseInt(document.getElementById('salCuentaCobro').value) : null,
+                uuid_cfdi: document.getElementById('salUuid').value.trim() || null,
+                cliente_nombre: document.getElementById('salClienteNombre').value.trim() || null,
+                cliente_rfc: document.getElementById('salClienteRfc').value.trim() || null,
+            };
+            if (!p_datos.venta_subtotal || !p_datos.cuenta_cobro_id) {
+                return '\nNo se contabilizó: falta el subtotal de venta o la cuenta de cobro.';
+            }
+            const { data, error } = await supabaseClient.rpc('contabilizar_venta', { p_documento_id: documentoId, p_datos });
+            if (error) throw error;
+            return `\nPóliza de venta #${data.poliza_id} generada (cobro $${Number(data.total).toFixed(2)}, costo $${Number(data.costo).toFixed(2)}).`;
+        }
+        // salida / merma / ajuste
+        const ctaCargo = document.getElementById('salCuentaCargo').value;
+        if (!ctaCargo) return '\nNo se contabilizó: falta la cuenta destino del costo.';
+        const { data, error } = await supabaseClient.rpc('contabilizar_salida', {
+            p_documento_id: documentoId, p_datos: { cuenta_cargo_id: parseInt(ctaCargo) }
+        });
+        if (error) throw error;
+        return `\nPóliza #${data.poliza_id} generada (total $${Number(data.total).toFixed(2)}).`;
+    } catch (e) {
+        return `\nLa salida se registró, pero NO se contabilizó: ${e.message || e}`;
     }
 }
 
