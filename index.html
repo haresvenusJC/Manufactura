@@ -157,17 +157,6 @@
                             class="text-[11px] text-slate-500 hover:text-rose-400 transition text-center" style="cursor: pointer;">
                         Cerrar sesión
                     </button>
-                    <div>
-                        <label class="block text-[10px] uppercase tracking-wider text-slate-500 mb-1">Tema</label>
-                        <select id="selectorTema" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-300 focus:outline-none focus:border-sky-500" style="cursor: pointer;">
-                            <option value="slate">Oscuro</option>
-                            <option value="midnight">Medianoche</option>
-                            <option value="forest">Bosque</option>
-                            <option value="plum">Ciruela</option>
-                            <option value="paper">Papel</option>
-                            <option value="mist">Niebla</option>
-                        </select>
-                    </div>
                 </div>
                 <hr class="border-slate-800">
                 <ul class="space-y-1" style="list-style: none; padding: 0;">
@@ -448,6 +437,44 @@
             <!-- Vista: Configuración -->
             <section id="view-configuracion" class="vista-seccion hidden space-y-4">
                 <h2 class="text-xl font-bold text-sky-400">Configuración</h2>
+
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
+                    <h3 class="text-md font-semibold text-slate-200">Tema de colores</h3>
+                    <p class="text-xs text-slate-400">Se guarda en este navegador; cada dispositivo puede tener el suyo.</p>
+                    <div id="temasGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <button type="button" data-tema="slate" class="tema-card flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800 transition text-left" style="cursor:pointer">
+                            <span class="flex gap-1 shrink-0 p-1.5 rounded-lg" style="background:#0f172a">
+                                <span class="w-3 h-3 rounded-full" style="background:#38bdf8"></span><span class="w-3 h-3 rounded-full" style="background:#cbd5e1"></span>
+                            </span><span class="text-sm text-slate-200">Oscuro</span>
+                        </button>
+                        <button type="button" data-tema="midnight" class="tema-card flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800 transition text-left" style="cursor:pointer">
+                            <span class="flex gap-1 shrink-0 p-1.5 rounded-lg" style="background:#161a2e">
+                                <span class="w-3 h-3 rounded-full" style="background:#a5b4fc"></span><span class="w-3 h-3 rounded-full" style="background:#c2c6e6"></span>
+                            </span><span class="text-sm text-slate-200">Medianoche</span>
+                        </button>
+                        <button type="button" data-tema="forest" class="tema-card flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800 transition text-left" style="cursor:pointer">
+                            <span class="flex gap-1 shrink-0 p-1.5 rounded-lg" style="background:#0f201b">
+                                <span class="w-3 h-3 rounded-full" style="background:#2dd4bf"></span><span class="w-3 h-3 rounded-full" style="background:#bcd6cb"></span>
+                            </span><span class="text-sm text-slate-200">Bosque</span>
+                        </button>
+                        <button type="button" data-tema="plum" class="tema-card flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800 transition text-left" style="cursor:pointer">
+                            <span class="flex gap-1 shrink-0 p-1.5 rounded-lg" style="background:#1f1528">
+                                <span class="w-3 h-3 rounded-full" style="background:#e879f9"></span><span class="w-3 h-3 rounded-full" style="background:#d3c1e4"></span>
+                            </span><span class="text-sm text-slate-200">Ciruela</span>
+                        </button>
+                        <button type="button" data-tema="paper" class="tema-card flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800 transition text-left" style="cursor:pointer">
+                            <span class="flex gap-1 shrink-0 p-1.5 rounded-lg" style="background:#efe8d7">
+                                <span class="w-3 h-3 rounded-full" style="background:#b45309"></span><span class="w-3 h-3 rounded-full" style="background:#5f5340"></span>
+                            </span><span class="text-sm text-slate-200">Papel</span>
+                        </button>
+                        <button type="button" data-tema="mist" class="tema-card flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800 transition text-left" style="cursor:pointer">
+                            <span class="flex gap-1 shrink-0 p-1.5 rounded-lg" style="background:#e5eaf1">
+                                <span class="w-3 h-3 rounded-full" style="background:#0369a1"></span><span class="w-3 h-3 rounded-full" style="background:#3f4c60"></span>
+                            </span><span class="text-sm text-slate-200">Niebla</span>
+                        </button>
+                    </div>
+                </div>
+
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <p class="text-slate-400 text-sm">Parámetros generales del sistema de control de inventarios Hares de México.</p>
                 </div>
@@ -467,15 +494,29 @@
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js"></script>
 
-    <!-- Selector de tema de colores -->
+    <!-- Selector de tema de colores (Configuración) -->
     <script>
         (function () {
-            var sel = document.getElementById('selectorTema');
-            if (!sel) return;
-            try { sel.value = localStorage.getItem('hares_tema') || 'slate'; } catch (e) {}
-            sel.addEventListener('change', function () {
-                document.documentElement.setAttribute('data-theme', sel.value);
-                try { localStorage.setItem('hares_tema', sel.value); } catch (e) {}
+            var grid = document.getElementById('temasGrid');
+            if (!grid) return;
+            var actual = 'slate';
+            try { actual = localStorage.getItem('hares_tema') || 'slate'; } catch (e) {}
+            function marcar(t) {
+                grid.querySelectorAll('.tema-card').forEach(function (b) {
+                    var on = b.dataset.tema === t;
+                    b.classList.toggle('ring-2', on);
+                    b.classList.toggle('ring-sky-500', on);
+                    b.classList.toggle('border-sky-500', on);
+                });
+            }
+            marcar(actual);
+            grid.querySelectorAll('.tema-card').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    var t = b.dataset.tema;
+                    document.documentElement.setAttribute('data-theme', t);
+                    try { localStorage.setItem('hares_tema', t); } catch (e) {}
+                    marcar(t);
+                });
             });
         })();
     </script>
