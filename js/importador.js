@@ -16,15 +16,57 @@ import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs';
 // =====================================================================
 
 // Campos destino y las "pistas" para autodetectar la columna del archivo.
+// grupo: 'basico' | 'contable' | 'compras'  (solo para agrupar en la UI)
 const CAMPOS = [
-    { key: 'proveedor',      label: 'Proveedor',            hints: ['proveedor', 'supplier', 'fabricante', 'marca', 'vendor'] },
-    { key: 'nombre',         label: 'Nombre del producto',  hints: ['producto', 'nombre', 'descripcion', 'articulo', 'item', 'description', 'material'] },
-    { key: 'sku',            label: 'SKU / Codigo',         hints: ['sku', 'codigo', 'clave', 'code', 'parte', 'part', 'no. parte', 'referencia'] },
-    { key: 'costo_unitario', label: 'Precio / Costo',       hints: ['precio', 'costo', 'price', 'cost', 'importe', 'unitario', 'unit price', 'pu'] },
-    { key: 'moneda',         label: 'Moneda',               hints: ['moneda', 'currency', 'divisa'] },
-    { key: 'unidad',         label: 'Unidad de medida',     hints: ['unidad', 'um', 'u/m', 'unit', 'medida', 'uom'] },
-    { key: 'descripcion',    label: 'Descripcion / Notas',  hints: ['nota', 'notas', 'detalle', 'observacion', 'especificacion', 'descripcion larga'] },
+    { key: 'proveedor',      label: 'Proveedor',            grupo: 'basico',   hints: ['proveedor', 'supplier', 'fabricante', 'marca', 'vendor'] },
+    { key: 'nombre',         label: 'Nombre del producto',  grupo: 'basico',   hints: ['producto', 'nombre', 'articulo', 'item', 'material', 'insumo'] },
+    { key: 'sku',            label: 'SKU / Codigo',         grupo: 'basico',   hints: ['sku', 'codigo', 'clave', 'code', 'parte', 'part', 'no. parte', 'referencia', 'no parte'] },
+    { key: 'tipo',           label: 'Tipo (MP / insumo / producto)', grupo: 'basico', hints: ['tipo', 'categoria', 'category', 'clase', 'familia', 'segmento'] },
+    { key: 'costo_unitario', label: 'Precio / Costo',       grupo: 'basico',   hints: ['precio', 'costo', 'price', 'cost', 'importe', 'unitario', 'unit price', 'pu', 'p.u'] },
+    { key: 'moneda',         label: 'Moneda',               grupo: 'basico',   hints: ['moneda', 'currency', 'divisa'] },
+    { key: 'unidad',         label: 'Unidad de medida',     grupo: 'basico',   hints: ['unidad', 'um', 'u/m', 'unit', 'medida', 'uom', 'u de m'] },
+    { key: 'descripcion',    label: 'Descripcion / Notas',  grupo: 'basico',   hints: ['descripcion', 'nota', 'notas', 'detalle', 'observacion', 'especificacion', 'description'] },
+
+    // --- Contable (requiere el modulo de contabilidad) ---
+    { key: 'tasa_iva',       label: 'Tasa IVA',             grupo: 'contable', hints: ['iva', 'i.v.a', 'impuesto iva', 'vat', 'tasa iva'] },
+    { key: 'tasa_ieps',      label: 'Tasa IEPS',            grupo: 'contable', hints: ['ieps', 'tasa ieps'] },
+
+    // --- Compras / abasto (campos ERP agregados el 30/08) ---
+    { key: 'stock_minimo',   label: 'Stock minimo / reorden', grupo: 'compras', hints: ['stock minimo', 'minimo', 'reorden', 'reorder', 'punto de pedido', 'punto de reorden', 'existencia minima', 'min stock', 'stock min', 'nivel minimo'] },
+    { key: 'tiempo_entrega_dias', label: 'Tiempo de entrega (dias)', grupo: 'compras', hints: ['tiempo de entrega', 'lead time', 'leadtime', 'dias entrega', 'plazo de entrega', 'dias de surtido', 'entrega dias', 'lead', 'plazo'] },
+    { key: 'cantidad_minima_compra', label: 'Cantidad minima de compra (MOQ)', grupo: 'compras', hints: ['moq', 'minima compra', 'minimo de compra', 'lote minimo', 'pedido minimo', 'compra minima', 'cantidad minima', 'multiplo de compra'] },
+    { key: 'activo',         label: 'Activo / vigente',     grupo: 'compras',  hints: ['activo', 'vigente', 'habilitado', 'enabled', 'estatus', 'status', 'estado', 'alta'] },
 ];
+
+// --------- parsers de los campos nuevos ---------
+
+// '16%' / '16' / '0.16' / '' / 'exento' -> { val } o { err:true }; val=undefined = no tocar
+function parseTasaImp(raw) {
+    const s = String(raw ?? '').trim().toLowerCase();
+    if (s === '') return { val: undefined };
+    if (/exent|exon|n\/a|na/.test(s)) return { val: null };
+    let n = parseNumero(s.replace('%', ''));
+    if (n === null) return { err: true };
+    if (n > 1) n = n / 100;                 // 16 -> 0.16
+    return { val: Math.round(n * 10000) / 10000 };
+}
+
+function parseBooleano(raw) {
+    const s = String(raw ?? '').trim().toLowerCase();
+    if (s === '') return undefined;
+    if (['si', 'sí', 's', 'yes', 'y', '1', 'true', 'x', 'activo', 'vigente', 'alta', 'verdadero'].includes(s)) return true;
+    if (['no', 'n', '0', 'false', 'inactivo', 'baja', 'descontinuado', 'falso'].includes(s)) return false;
+    return undefined; // no reconocido -> no tocar
+}
+
+function parseTipoProducto(raw) {
+    const s = norm(raw);
+    if (!s) return '';
+    if (/materia|prima|\bmp\b/.test(s)) return 'materia_prima';
+    if (/insumo|componente|auxiliar/.test(s)) return 'insumo';
+    if (/producto|terminad|\bpt\b|articulo|final|venta/.test(s)) return 'producto';
+    return '';
+}
 
 // Estado del modulo (se reinicia en cada carga de la vista).
 const estado = {
@@ -319,12 +361,18 @@ function autoMapear(headers) {
     return m;
 }
 
+const GRUPOS = [
+    { id: 'basico',   t: 'Básico' },
+    { id: 'contable', t: 'Contable (requiere módulo de contabilidad)' },
+    { id: 'compras',  t: 'Compras / abasto' },
+];
+
 function renderMapeo() {
     const cont = document.getElementById('impMapeo');
     const opts = (sel) => `<option value="">(ninguna)</option>` +
         estado.headers.map((h) => `<option value="${h}" ${h === sel ? 'selected' : ''}>${h}</option>`).join('');
 
-    cont.innerHTML = CAMPOS.map((campo) => {
+    const campoHtml = (campo) => {
         const val = estado.mapeo[campo.key];
         const tag = val
             ? `<span class="text-emerald-500">detectada: ${val}</span>`
@@ -339,6 +387,14 @@ function renderMapeo() {
                 ${opts(val)}
             </select>
         </div>`;
+    };
+
+    cont.innerHTML = GRUPOS.map((g) => {
+        const campos = CAMPOS.filter((c) => (c.grupo || 'basico') === g.id);
+        if (!campos.length) return '';
+        return `
+            <div class="sm:col-span-2 text-[10px] uppercase tracking-wider text-sky-400/80 mt-1">${g.t}</div>
+            ${campos.map(campoHtml).join('')}`;
     }).join('');
 
     cont.querySelectorAll('.imp-map').forEach((sel) => {
@@ -559,11 +615,52 @@ function validar() {
             if (dupDe) problemas.push('posible duplicado de "' + dupDe + '"');
         }
 
+        // ---- campos nuevos (tipo, tasas, stock minimo, entrega, MOQ, activo) ----
+        const extras = {};
+        let tipoCol = '';
+        if (estado.mapeo.tipo) {
+            tipoCol = parseTipoProducto(celda(fila, 'tipo'));
+            const rawT = String(celda(fila, 'tipo')).trim();
+            if (rawT && !tipoCol) problemas.push('tipo "' + rawT + '" no reconocido');
+        }
+        if (estado.mapeo.tasa_iva) {
+            const r = parseTasaImp(celda(fila, 'tasa_iva'));
+            if (r.err) problemas.push('IVA no numerico');
+            else if (r.val !== undefined) extras.tasa_iva = r.val;   // null = exento
+        }
+        if (estado.mapeo.tasa_ieps) {
+            const r = parseTasaImp(celda(fila, 'tasa_ieps'));
+            if (r.err) problemas.push('IEPS no numerico');
+            else if (r.val !== undefined) extras.tasa_ieps = r.val ?? 0;
+        }
+        for (const [k, lbl] of [
+            ['stock_minimo', 'stock minimo'],
+            ['tiempo_entrega_dias', 'tiempo de entrega'],
+            ['cantidad_minima_compra', 'cantidad minima de compra'],
+        ]) {
+            if (!estado.mapeo[k]) continue;
+            const raw = String(celda(fila, k)).trim();
+            if (raw === '') continue;
+            const n = parseNumero(raw);
+            if (n === null) { problemas.push(lbl + ' no numerico ("' + raw + '")'); continue; }
+            extras[k] = k === 'tiempo_entrega_dias' ? Math.round(Math.abs(n)) : Math.abs(n);
+        }
+        if (estado.mapeo.activo) {
+            const b = parseBooleano(celda(fila, 'activo'));
+            if (b === undefined) {
+                const rawA = String(celda(fila, 'activo')).trim();
+                if (rawA) problemas.push('activo "' + rawA + '" no reconocido (usa si/no)');
+            } else {
+                extras.activo = b;
+            }
+        }
+
         if (!nombre) { accion = 'error'; problemas.push('sin nombre'); }
 
         return {
             fila: estado.filaDatos + idx, nombre, sku, descripcion, provNombre, provId, provNuevo,
             precio, monedaId, monedaTxt, unidadId, unidadTxt, accion, prodId, via, dupDe, problemas,
+            extras, tipoCol,
             // control del usuario:
             incluir: accion !== 'error',   // se puede desmarcar fila por fila
             tipoOverride: '',              // tipo elegido para ESTA fila (solo aplica al crear)
@@ -604,6 +701,10 @@ function renderPreview(plan) {
 
     const selTipo = (p, i) => {
         if (p.accion !== 'crear') return '<span class="text-slate-600">—</span>';
+        if (p.tipoCol) {
+            const lbl = (TIPOS.find((x) => x.v === p.tipoCol) || {}).t || p.tipoCol;
+            return `<span class="text-slate-300" title="tomado del archivo">${lbl} <span class="text-slate-600">(archivo)</span></span>`;
+        }
         const val = p.tipoOverride || tipoDef;
         return `<select data-i="${i}" class="imp-row-tipo bg-slate-900 border border-slate-800 rounded p-1 text-[11px] text-slate-100">
             ${TIPOS.map((x) => `<option value="${x.v}" ${x.v === val ? 'selected' : ''}>${x.t}</option>`).join('')}
@@ -759,6 +860,10 @@ async function importar() {
             if (p.monedaId) campos.moneda_id = p.monedaId;
             if (provId) campos.proveedor_id = provId;
             if (estado.mapeo.descripcion && p.descripcion) campos.descripcion = p.descripcion;
+            // campos nuevos mapeados (tasas, stock minimo, entrega, MOQ, activo)
+            Object.assign(campos, p.extras || {});
+            // el tipo tomado de una columna manda sobre el default / override
+            if (p.tipoCol) campos.tipo = p.tipoCol;
 
             if (p.accion === 'actualizar') {
                 const { error } = await supabaseClient.from('productos').update(campos).eq('id', p.prodId);
@@ -766,7 +871,7 @@ async function importar() {
                 resultados.push({ ...p, estado: 'actualizado', detalle: '' });
                 actualizados++;
             } else {
-                const payload = { tipo: p.tipoOverride || tipoDef, nombre: p.nombre, ...campos };
+                const payload = { tipo: p.tipoCol || p.tipoOverride || tipoDef, nombre: p.nombre, ...campos };
                 const { data, error } = await supabaseClient.from('productos').insert([payload]).select('id').single();
                 if (error) throw new Error(error.code === '23505' ? 'SKU duplicado' : error.message);
                 if (p.sku) R.prodPorSku.set(norm(p.sku), { id: data.id });

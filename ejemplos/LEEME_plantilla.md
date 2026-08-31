@@ -15,20 +15,42 @@ El importador de la app (**Catálogos → ⬆️ Importar Excel/CSV**) lee cualq
 
 ## Columnas
 
+Ninguna columna tiene que llamarse exactamente así: el importador detecta el encabezado por aproximación y además puedes reasignar cada columna a mano en el mapeo.
+
+### Básico
+
 | Columna | ¿Obligatoria? | Qué poner |
 |---|---|---|
-| **Nombre** | **Sí** | Nombre de la materia prima / insumo. Es la clave para saber si ya existe (cuando no hay SKU). |
-| **SKU** | No (recomendado) | Código interno único. Si lo pones, se empareja por SKU. Ej. `MP-CMC`, `INS-ENVASE-PET-60`. |
+| **Nombre** | **Sí** | Nombre del artículo. Clave para saber si ya existe (cuando no hay SKU). |
+| **SKU** | No (recomendado) | Código interno único. Si lo pones, se empareja por SKU. Ej. `MP-CMC`. |
+| **Tipo** | No | `materia prima` · `insumo` · `producto` (también `MP`, `componente`, `PT`…). Si lo pones, manda sobre el tipo por defecto — para crear **y** para actualizar. |
 | **Proveedor** | No | Nombre del proveedor. Si no existe, se crea. |
-| **Precio** | No | Costo unitario (número). Va a `productos.costo_unitario`. Acepta `1234.56` o `$ 1,234.56`. Vacío = sin costo. |
-| **Moneda** | No | `MXN` o `USD`. Vacío = la moneda por defecto que elijas en el importador. |
-| **Unidad** | No | Debe coincidir con el catálogo: Litros, Mililitros, Kilogramos, Gramos, Miligramos, Piezas… Si no coincide, se usa la de por defecto. |
+| **Precio** | No | Costo unitario. Va a `costo_unitario`. Acepta `1234.56` o `$ 1,234.56`. |
+| **Moneda** | No | `MXN` / `USD`. Vacío = la de por defecto. |
+| **Unidad** | No | Litros, Kilogramos, Piezas… Si no coincide, se usa la de por defecto. |
 | **Notas** | No | Texto libre (descripción). |
+
+### Contable *(necesitas el módulo de contabilidad instalado)*
+
+| Columna | Qué poner |
+|---|---|
+| **Tasa IVA** | `16%`, `16`, `0.16`, `0%` o `exento` (exento se guarda como vacío). |
+| **Tasa IEPS** | Igual formato; normalmente `0`. |
+
+### Compras / abasto *(campos ERP)*
+
+| Columna | Qué poner |
+|---|---|
+| **Stock minimo** | Nivel para avisar "hay que comprar" (número). |
+| **Tiempo entrega dias** | Días que tarda el proveedor en surtir (entero). |
+| **Cantidad minima compra** | MOQ: cantidad mínima que vende el proveedor (número). |
+| **Activo** | `si` / `no` (también `1`/`0`, `vigente`, `baja`…). |
 
 ## Reglas de importación
 
-- **Ya existe** (por SKU, o por Nombre si no hay SKU) → se **actualiza** precio, moneda, unidad, proveedor y notas. No se cambia su `tipo`.
-- **No existe** → se **crea** con el tipo que elijas en el importador (Materia prima / Insumo / Producto), ajustable fila por fila en la vista previa.
+- **Ya existe** (por SKU, o por Nombre si no hay SKU) → se **actualiza** con las columnas que hayas mapeado (precio, moneda, unidad, proveedor, notas, tasas, stock mínimo, MOQ, activo… y **tipo** si mapeaste esa columna).
+- **No existe** → se **crea**. El tipo sale de la columna `Tipo` si la mapeaste; si no, del selector "Tipo para productos nuevos" (ajustable fila por fila en la vista previa).
+- Valores que no se entienden (IVA no numérico, `activo` distinto de si/no, tipo desconocido) se marcan como aviso en la fila y ese campo no se toca; el resto de la fila sí entra.
 - En la vista previa marcas qué filas entran. **Nada se guarda hasta pulsar "Importar".**
 
 ## Consejo para las materias primas de LOVLUB
