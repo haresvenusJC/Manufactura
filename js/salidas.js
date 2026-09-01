@@ -866,7 +866,7 @@ async function abrirModalContabilizarSalida(doc) {
             </div>
             <div class="p-5 space-y-3 text-sm">
                 ${esVenta ? `
-                    <div class="grid grid-cols-2 gap-2">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div><label class="block text-xs text-slate-400 mb-1">Cliente</label>
                             <input type="text" id="cbxCliente" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
                         <div><label class="block text-xs text-slate-400 mb-1">RFC</label>

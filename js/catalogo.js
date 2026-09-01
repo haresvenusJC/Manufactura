@@ -194,7 +194,7 @@ export async function cargarCatalogoInicial() {
                                 <option value="materia_prima">Materia Prima</option>
                                 <option value="insumo">Insumo / Componente Auxiliar</option>
                             </select>
-                            <div id="tipoElementoBotones" class="grid grid-cols-3 gap-1.5">
+                            <div id="tipoElementoBotones" class="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
                                 <button type="button" data-tipo="producto" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Producto terminado</button>
                                 <button type="button" data-tipo="materia_prima" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Materia prima</button>
                                 <button type="button" data-tipo="insumo" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Insumo</button>
@@ -221,7 +221,7 @@ export async function cargarCatalogoInicial() {
                             </select>
                         </div>
 
-                        <div class="grid grid-cols-3 gap-2">
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                             <div>
                                 <label class="block text-[11px] text-slate-400 mb-1">Costo Unitario</label>
                                 <input type="number" step="0.01" id="prodCosto" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">

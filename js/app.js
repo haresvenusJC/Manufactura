@@ -35,16 +35,35 @@ window.toggleSubmenu = function(submenuId) {
 
 window.toggleTipoCambio = toggleTipoCambio;
 
+// Menú lateral: cajón deslizable en móvil / tableta.
+window.toggleSidebar = function() {
+    const sb = document.getElementById('sidebar');
+    const bd = document.getElementById('sidebarBackdrop');
+    if (!sb) return;
+    const abierto = !sb.classList.contains('-translate-x-full');
+    sb.classList.toggle('-translate-x-full', abierto);
+    if (bd) bd.classList.toggle('hidden', abierto);
+};
+window.cerrarSidebar = function() {
+    const sb = document.getElementById('sidebar');
+    if (sb && window.innerWidth < 1024) {
+        sb.classList.add('-translate-x-full');
+        document.getElementById('sidebarBackdrop')?.classList.add('hidden');
+    }
+};
+
 // 2. Enrutador global para la navegación de vistas
 window.loadView = function(viewName) {
     document.querySelectorAll('.vista-seccion').forEach(section => {
         section.classList.add('hidden');
     });
-    
+
     const targetSection = document.getElementById(`view-${viewName}`);
     if (targetSection) {
         targetSection.classList.remove('hidden');
     }
+
+    window.cerrarSidebar();
 
     switch (viewName) {
         case 'compras': // <-- Conectado correctamente al menú "Compras / Proveedores"

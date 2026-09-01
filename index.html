@@ -11,17 +11,24 @@
         summary::-webkit-details-marker { display: none; }
 
         /* Form "Registro General de Artículos" más compacto (menos alto) */
-        #detRegistroProducto .space-y-4 > * + * { margin-top: .5rem !important; }
-        #detRegistroProducto .space-y-3 > * + * { margin-top: .4rem !important; }
-        #detRegistroProducto .space-y-2 > * + * { margin-top: .3rem !important; }
-        #detRegistroProducto label { margin-bottom: .15rem !important; }
+        #detRegistroProducto .space-y-4 > * + * { margin-top: .4rem !important; }
+        #detRegistroProducto .space-y-3 > * + * { margin-top: .3rem !important; }
+        #detRegistroProducto .space-y-2 > * + * { margin-top: .22rem !important; }
+        #detRegistroProducto label { margin-bottom: .1rem !important; }
         #detRegistroProducto input,
         #detRegistroProducto select,
-        #detRegistroProducto textarea { padding-top: .3rem !important; padding-bottom: .3rem !important; }
-        #detRegistroProducto hr { margin-top: .35rem !important; margin-bottom: .35rem !important; }
-        #detRegistroProducto .p-4 { padding-left: .75rem !important; padding-right: .75rem !important; padding-bottom: .75rem !important; }
-        #detRegistroProducto details > .p-3 { padding: .55rem !important; }
-        #detRegistroProducto p[class*="text-[1"] { margin-top: .1rem !important; line-height: 1.25 !important; }
+        #detRegistroProducto textarea { padding-top: .25rem !important; padding-bottom: .25rem !important; }
+        #detRegistroProducto hr { margin-top: .3rem !important; margin-bottom: .3rem !important; }
+        #detRegistroProducto .p-4 { padding-left: .7rem !important; padding-right: .7rem !important; padding-bottom: .7rem !important; }
+        #detRegistroProducto details > .p-3 { padding: .5rem !important; }
+        #detRegistroProducto p[class*="text-[1"] { margin-top: .08rem !important; line-height: 1.2 !important; }
+        #detRegistroProducto .tipo-elemento-btn { padding-top: .35rem !important; padding-bottom: .35rem !important; }
+
+        /* ===== Responsive: móvil / tableta ===== */
+        @media (max-width: 640px) {
+            table td, table th { padding-left: .5rem !important; padding-right: .5rem !important; padding-top: .5rem !important; padding-bottom: .5rem !important; }
+            .p-6 { padding: .85rem !important; }
+        }
 
         /* ===================== SELECTOR DE TEMA =====================
            Remapea la paleta neutra (slate) y los acentos a variables.
@@ -158,9 +165,16 @@
         </form>
     </div>
 
-    <div id="app" class="flex min-h-screen">
-        <!-- Menú Lateral Estático e Independiente -->
-        <aside class="w-64 min-w-[16rem] bg-slate-900 border-r border-slate-800 p-4 shrink-0 block">
+    <div id="app" class="min-h-screen lg:flex">
+        <!-- Barra superior (solo móvil / tableta) -->
+        <header class="lg:hidden sticky top-0 z-30 flex items-center gap-3 bg-slate-900 border-b border-slate-800 px-4 py-2.5">
+            <button type="button" onclick="window.toggleSidebar()" aria-label="Menú" class="text-slate-200 text-2xl leading-none px-1 cursor-pointer">&#9776;</button>
+            <span class="text-md font-bold text-sky-400">Hares de México</span>
+        </header>
+        <div id="sidebarBackdrop" onclick="window.toggleSidebar()" class="fixed inset-0 bg-black/50 z-30 hidden lg:hidden"></div>
+
+        <!-- Menú Lateral: fijo en escritorio, cajón deslizable en móvil -->
+        <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-40 w-64 min-w-[16rem] max-w-[85vw] bg-slate-900 border-r border-slate-800 p-4 shrink-0 overflow-y-auto -translate-x-full lg:translate-x-0 transition-transform duration-200">
             <div class="space-y-4">
                 <div class="flex flex-col space-y-2 px-2">
                     <div class="text-lg font-bold text-sky-400">Hares de México</div>
@@ -265,7 +279,7 @@
         </aside>
         
         <!-- Contenido Principal -->
-        <main class="flex-1 p-6 overflow-y-auto">
+        <main class="flex-1 min-w-0 p-3 sm:p-4 lg:p-6 overflow-y-auto">
 
             <!-- Aviso global: nóminas en borrador pendientes de autorizar (visible en cualquier pantalla) -->
             <div id="bannerNominaPendiente" class="hidden mb-4 bg-amber-950/40 border border-amber-700 text-amber-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3 text-sm">
