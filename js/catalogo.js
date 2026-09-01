@@ -173,14 +173,20 @@ export async function cargarCatalogoInicial() {
         }
 
         contenedor.innerHTML = `
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-4 relative">
-                    <div class="flex justify-between items-center">
-                        <h3 id="tituloFormProducto" class="text-md font-semibold text-sky-400">Registro General de Artículos</h3>
-                        <button type="button" id="btnNuevoModo" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded hidden">Limpiar / Nuevo</button>
-                    </div>
+            <div class="space-y-6">
+                <details id="detRegistroProducto" class="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
+                    <summary class="cursor-pointer select-none p-4 flex justify-between items-center hover:bg-slate-900/40 transition">
+                        <span id="tituloFormProducto" class="text-md font-semibold text-sky-400">Registro General de Artículos</span>
+                        <span class="text-[11px] text-slate-500 flex items-center gap-1.5 shrink-0">
+                            <span id="detRegistroChevron">▸ Abrir</span>
+                        </span>
+                    </summary>
+                    <div class="p-4 pt-0 space-y-4 relative">
+                        <div class="flex justify-end">
+                            <button type="button" id="btnNuevoModo" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded hidden">Limpiar / Nuevo</button>
+                        </div>
 
-                    <form id="formCrearProducto" class="space-y-3">
+                        <form id="formCrearProducto" class="space-y-3">
                         <div>
                             <label class="block text-xs font-medium text-slate-400 mb-1">¿Qué estás dando de alta?</label>
                             <select id="tipoElemento" class="hidden">
@@ -326,10 +332,11 @@ export async function cargarCatalogoInicial() {
                         </div>
 
                         <button type="submit" id="btnGuardarProd" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2 rounded-lg transition text-sm shadow-md" style="cursor: pointer;">Guardar Artículo</button>
-                    </form>
-                </div>
+                        </form>
+                    </div>
+                </details>
 
-                <div class="lg:col-span-2 space-y-3">
+                <div class="space-y-3">
                     <div class="flex justify-between items-center">
                         <h3 class="text-md font-semibold text-slate-300">Catálogo General de Artículos</h3>
                         <div class="flex gap-2">
@@ -341,9 +348,22 @@ export async function cargarCatalogoInicial() {
             </div>
         `;
 
+        // El "Registro General" arranca plegado (recuerda tu preferencia) para
+        // que el Catálogo de abajo se vea completo sin desplazarte. Se abre
+        // solo al elegir un artículo existente para editarlo.
+        const detRegistro = document.getElementById('detRegistroProducto');
+        const chevronRegistro = document.getElementById('detRegistroChevron');
+        const LS_FORM_PRODUCTO_ABIERTO = 'hares_catalogo_form_abierto';
+        try { detRegistro.open = localStorage.getItem(LS_FORM_PRODUCTO_ABIERTO) === '1'; } catch (_) { /* noop */ }
+        chevronRegistro.textContent = detRegistro.open ? '▾ Cerrar' : '▸ Abrir';
+        detRegistro.addEventListener('toggle', () => {
+            chevronRegistro.textContent = detRegistro.open ? '▾ Cerrar' : '▸ Abrir';
+            try { localStorage.setItem(LS_FORM_PRODUCTO_ABIERTO, detRegistro.open ? '1' : '0'); } catch (_) { /* noop */ }
+        });
+
         let itemsBomTemp = [];
         let productoSeleccionadoId = null;
-        
+
         const inputNombre = document.getElementById('prodNombre');
         const sugerenciasDiv = document.getElementById('sugerenciasProductos');
         const btnNuevoModo = document.getElementById('btnNuevoModo');
@@ -447,6 +467,8 @@ export async function cargarCatalogoInicial() {
 
         async function cargarDetalleArticuloExistente(id) {
             try {
+                detRegistro.open = true; // se estaba editando: aseguramos que el formulario se vea
+
                 await actualizarSelectProveedores();
 
                 const { data: art, error: errA } = await supabaseClient
