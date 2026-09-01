@@ -10,6 +10,7 @@ import { cargarVistaDocumentos } from './documentos.js';
 import { cargarModuloPlantillas } from './plantillas.js';
 import { cargarModuloEmpleados } from './empleados.js';
 import { cargarModuloImportador } from './importador.js';
+import { cargarModuloClientes } from './clientes.js';
 import { cargarModuloContabilidad, cargarModuloPolizas, cargarModuloGastos, cargarModuloReportesContables } from './contabilidad.js';
 import { cargarModuloNomina, actualizarBannerNominaPendiente } from './nomina.js';
 import { cargarModuloTareas } from './tareas.js';
@@ -78,6 +79,9 @@ window.loadView = function(viewName) {
             break;
         case 'importador':
             cargarModuloImportador();
+            break;
+        case 'clientes':
+            cargarModuloClientes();
             break;
         case 'plan-cuentas':
             cargarModuloContabilidad();

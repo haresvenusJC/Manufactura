@@ -6,6 +6,9 @@ let listaProductosGlobal = [];
 let productoSeleccionadoActual = null;
 let loteSeleccionadoActual = null;
 let historialSalidasCache = [];
+let clientesVentaCache = [];
+let listaPrecioClienteMap = new Map();   // producto_id -> precio (lista del cliente elegido)
+let clienteVentaSelId = null;
 
 export async function cargarModuloSalidas() {
     const contenedor = document.getElementById('contenedorSalidas') || document.getElementById('contenedorPrincipal');
@@ -111,7 +114,9 @@ export async function cargarModuloSalidas() {
                                 <p class="text-[11px] text-slate-500 mt-1">A dónde va el costo de lo que sale: 501.01 costo de venta, 601.xx merma, cuenta de ajuste… El inventario se abona a la cuenta de cada producto.</p>
                             </div>
                             <div id="salCamposVenta" class="hidden grid grid-cols-1 md:grid-cols-3 gap-3 border-t border-slate-800 pt-3">
-                                <div><label class="block text-xs text-slate-400 mb-1">Cliente</label>
+                                <div class="md:col-span-3"><label class="block text-xs text-slate-400 mb-1">Cliente (catálogo)</label>
+                                    <select id="salClienteSelect" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">— sin cliente del catálogo —</option></select></div>
+                                <div><label class="block text-xs text-slate-400 mb-1">Nombre en la venta</label>
                                     <input type="text" id="salClienteNombre" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
                                 <div><label class="block text-xs text-slate-400 mb-1">RFC cliente</label>
                                     <input type="text" id="salClienteRfc" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono"></div>
@@ -300,6 +305,10 @@ export async function cargarModuloSalidas() {
                         const msgContab = await contabilizarSalidaUI(tipoMovimiento, resultado.documentoId);
                         alert("✅ " + resultado.mensaje + msgContab);
                         partidasSalidaTemp = [];
+                        clienteVentaSelId = null;
+                        listaPrecioClienteMap = new Map();
+                        const scli = document.getElementById('salClienteSelect');
+                        if (scli) scli.value = '';
                         document.getElementById('folioSalida').value = '';
                         document.getElementById('descripcionSalida').value = '';
                         renderizarTablaPartidasTemp();
@@ -435,7 +444,9 @@ function recalcularVentaDesdePartidas() {
 
     let subtotal = 0, iva = 0, sinPrecio = 0;
     for (const p of partidasSalidaTemp) {
-        const pv = Number(p.precioVenta);
+        // Precio: 1) lista del cliente elegido  2) precio de venta del producto
+        let pv = listaPrecioClienteMap.get(p.productoId);
+        if (pv === undefined || pv === null) pv = Number(p.precioVenta);
         if (!pv || pv <= 0) { sinPrecio++; continue; }
         const lineSub = p.cantidad * pv;
         subtotal += lineSub;
@@ -452,9 +463,12 @@ function recalcularVentaDesdePartidas() {
         nota.className = 'md:col-span-3 text-[11px] text-amber-400';
         document.getElementById('salCamposVenta')?.appendChild(nota);
     }
-    nota.textContent = sinPrecio
-        ? `⚠ ${sinPrecio} producto(s) sin precio de venta capturado — captúralo en Catálogos → Productos, o ajusta el subtotal a mano.`
-        : '';
+    const cli = clientesVentaCache.find(c => c.id === clienteVentaSelId);
+    const infoLista = cli && listaPrecioClienteMap.size ? ` Precios de la lista del cliente donde aplica.` : '';
+    nota.textContent = (sinPrecio
+        ? `⚠ ${sinPrecio} producto(s) sin precio — captúralo en Catálogos → Productos / Listas de precio, o ajusta el subtotal a mano.`
+        : '') + (sinPrecio ? '' : infoLista.trim() ? infoLista : '');
+    nota.className = 'md:col-span-3 text-[11px] ' + (sinPrecio ? 'text-amber-400' : 'text-slate-500');
 }
 
 export async function registrarSalidaMultiPartida(datosDoc) {
@@ -509,9 +523,15 @@ export async function registrarSalidaMultiPartida(datosDoc) {
                 costo_unitario: partida.costoUnitario,
                 subtotal: partida.cantidad * partida.costoUnitario
             };
-            // precioVenta solo viene lleno si la columna existe (el select extendido funcionó)
-            if (partida.precioVenta !== null && partida.precioVenta !== undefined) {
-                detalle.precio_venta = partida.precioVenta;
+            // Precio de venta que se guarda como snapshot: lista del cliente si aplica,
+            // si no el precio de venta del producto. (Solo si la columna existe.)
+            let pvSnap = partida.precioVenta;
+            if (tipoMovimiento === 'salida_venta') {
+                const lp = listaPrecioClienteMap.get(partida.productoId);
+                if (lp !== undefined && lp !== null) pvSnap = lp;
+            }
+            if (pvSnap !== null && pvSnap !== undefined) {
+                detalle.precio_venta = pvSnap;
             }
             const { error: errDetalle } = await supabaseClient.from('documento_detalles').insert([detalle]);
 
@@ -612,6 +632,22 @@ async function cargarBloqueContableSalidas() {
     document.getElementById('salCuentaCargo').innerHTML = opt(gastosYcostos, '501.01');
     document.getElementById('salCuentaCobro').innerHTML = opt(cobro, '105.01');
 
+    // Clientes del catálogo (si la tabla existe)
+    try {
+        const { data, error } = await supabaseClient
+            .from('clientes')
+            .select('id, nombre, rfc, condicion_pago, cuenta_cobro_id, lista_precio_id')
+            .eq('activo', true).order('nombre');
+        if (error) throw error;
+        clientesVentaCache = data || [];
+    } catch (_) { clientesVentaCache = []; }
+    const selCli = document.getElementById('salClienteSelect');
+    if (selCli) {
+        selCli.innerHTML = '<option value="">— sin cliente del catálogo —</option>' +
+            clientesVentaCache.map(c => `<option value="${c.id}">${c.nombre}${c.rfc ? ' · ' + c.rfc : ''}</option>`).join('');
+        selCli.addEventListener('change', () => aplicarClienteVenta(selCli.value ? Number(selCli.value) : null));
+    }
+
     const tipoSel = document.getElementById('tipoSalida');
     const sync = () => {
         const esVenta = tipoSel.value === 'salida_venta';
@@ -630,6 +666,36 @@ async function cargarBloqueContableSalidas() {
         document.getElementById('salCamposCosto').style.display = e.target.checked ? '' : 'none';
         document.getElementById('salCamposVenta').style.display = e.target.checked ? '' : 'none';
     });
+}
+
+// Aplica el cliente del catálogo a la venta: nombre, RFC, condición, cuenta
+// de cobro y carga su lista de precios para recalcular el subtotal.
+async function aplicarClienteVenta(id) {
+    clienteVentaSelId = id;
+    listaPrecioClienteMap = new Map();
+    const c = clientesVentaCache.find(x => x.id === id);
+    if (c) {
+        document.getElementById('salClienteNombre').value = c.nombre || '';
+        document.getElementById('salClienteRfc').value = c.rfc || '';
+        if (c.condicion_pago) document.getElementById('salCondicion').value = c.condicion_pago;
+        if (c.cuenta_cobro_id) {
+            const sc = document.getElementById('salCuentaCobro');
+            if ([...sc.options].some(o => o.value === String(c.cuenta_cobro_id))) sc.value = String(c.cuenta_cobro_id);
+        }
+        if (c.lista_precio_id) {
+            try {
+                const { data } = await supabaseClient
+                    .from('lista_precio_items').select('producto_id, precio').eq('lista_id', c.lista_precio_id);
+                (data || []).forEach(i => listaPrecioClienteMap.set(i.producto_id, Number(i.precio)));
+            } catch (_) { /* noop */ }
+        }
+    }
+    recalcularVentaDesdePartidas();
+}
+
+async function ligarClienteAlDocumento(docId, clienteId) {
+    if (!clienteId) return;
+    try { await supabaseClient.from('documentos').update({ cliente_id: clienteId }).eq('id', docId); } catch (_) { /* col aun no existe */ }
 }
 
 // Postea la poliza de una salida ya registrada (segun su tipo).
@@ -655,6 +721,7 @@ async function contabilizarSalidaUI(tipoMovimiento, documentoId) {
             }
             const { data, error } = await supabaseClient.rpc('contabilizar_venta', { p_documento_id: documentoId, p_datos });
             if (error) throw error;
+            await ligarClienteAlDocumento(documentoId, clienteVentaSelId);
             return `\nPóliza de venta #${data.poliza_id} generada (cobro $${Number(data.total).toFixed(2)}, costo $${Number(data.costo).toFixed(2)}).`;
         }
         // salida / merma / ajuste
