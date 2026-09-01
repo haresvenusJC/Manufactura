@@ -266,6 +266,10 @@ export async function cargarCatalogoInicial() {
                                     <label class="block text-[11px] text-slate-400 mb-1">Descripción / Notas</label>
                                     <textarea id="prodDesc" placeholder="Especificaciones adicionales" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100" rows="2"></textarea>
                                 </div>
+                                <label class="flex items-center gap-2 text-[11px] text-slate-300">
+                                    <input type="checkbox" id="prodRequiereCaducidad" class="accent-emerald-500 w-3.5 h-3.5">
+                                    Requiere control de caducidad (se pedirá la fecha al recibir cada lote)
+                                </label>
 
                                 <div class="border-t border-slate-800 pt-3 ${cuentasContables.length ? '' : 'hidden'}">
                                     <p class="text-[11px] font-semibold text-sky-400 mb-2">Datos contables</p>
@@ -533,6 +537,7 @@ export async function cargarCatalogoInicial() {
 
                 document.getElementById('prodProveedorId').value = art.proveedor_id || '';
                 document.getElementById('prodDesc').value = art.descripcion || '';
+                document.getElementById('prodRequiereCaducidad').checked = !!art.requiere_caducidad;
 
                 // Datos contables (si el modulo esta instalado)
                 const elTasaIva = document.getElementById('prodTasaIva');
@@ -846,6 +851,11 @@ export async function cargarCatalogoInicial() {
                         throw errCp;
                     }
                 }
+
+                // Bandera de caducidad (best-effort: se ignora si falta el SQL)
+                await supabaseClient.from('productos')
+                    .update({ requiere_caducidad: document.getElementById('prodRequiereCaducidad').checked })
+                    .eq('id', articuloId);
 
                 alert(productoSeleccionadoId ? "¡Artículo actualizado con éxito!" : "¡Artículo registrado con éxito!");
                 

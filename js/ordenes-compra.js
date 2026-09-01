@@ -22,16 +22,23 @@ let ocProdSel = null;          // producto elegido en el autocompletar de la OC
 let ocRecibirId = null;        // OC preseleccionada al entrar a "Recibo de mercancía"
 
 async function ocCargarCatalogos() {
-    const [pv, um, pr, mo] = await Promise.all([
+    const [pv, um, mo] = await Promise.all([
         supabaseClient.from('proveedores').select('id, nombre').order('nombre'),
         supabaseClient.from('unidades_medida').select('id, nombre').order('nombre'),
-        supabaseClient.from('productos').select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id').order('nombre'),
         supabaseClient.from('monedas').select('id, codigo').order('id'),
     ]);
     ocProveedores = pv.data || [];
     ocUnidades = um.data || [];
-    ocProductos = pr.data || [];
     ocMonedas = mo.data || [];
+
+    // requiere_caducidad puede no existir aún: cae al select básico
+    let pr = await supabaseClient.from('productos')
+        .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id, requiere_caducidad').order('nombre');
+    if (pr.error) {
+        pr = await supabaseClient.from('productos')
+            .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id').order('nombre');
+    }
+    ocProductos = pr.data || [];
 }
 
 // =====================================================================
@@ -467,28 +474,31 @@ function rmRenderDetalle(oc) {
 
     const filas = (oc.ordenes_compra_detalle || []).map((d) => {
         const pend = Math.max(0, Number(d.cantidad || 0) - Number(d.cantidad_recibida || 0));
+        const prod = d.producto_id ? ocProductos.find(p => p.id === d.producto_id) : null;
+        const reqCad = !!(prod && prod.requiere_caducidad);
         return `
-        <tr class="border-b border-slate-900" data-detid="${d.id}">
+        <tr class="border-b border-slate-900" data-detid="${d.id}" data-reqcad="${reqCad ? 1 : 0}">
           <td class="p-2 text-center"><input type="checkbox" class="rm-chk accent-emerald-500 w-4 h-4" ${pend > 0 ? 'checked' : ''}></td>
-          <td class="p-2 text-slate-100">${esc(nombreProd(d))}${d.producto_id ? '' : ' <span class="text-[10px] text-amber-400">(nuevo)</span>'}</td>
+          <td class="p-2 text-slate-100">${esc(nombreProd(d))}${d.producto_id ? '' : ' <span class="text-[10px] text-amber-400">(nuevo)</span>'}${reqCad ? ' <span class="text-[10px] text-amber-400">· caducidad requerida</span>' : ''}</td>
           <td class="p-2 text-right font-mono text-slate-400">${d.cantidad}</td>
           <td class="p-2 text-right font-mono text-slate-400">${d.cantidad_recibida}</td>
           <td class="p-2 text-right font-mono">${pend}</td>
           <td class="p-2"><input type="number" step="any" min="0" class="rm-cant w-20 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${pend}"></td>
           <td class="p-2"><input type="number" step="any" min="0" class="rm-costo w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${Number(d.costo_unitario_estimado || 0)}"></td>
-          <td class="p-2"><input type="text" class="rm-lote w-28 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" value="${esc(oc.folio || '')}"></td>
+          <td class="p-2"><input type="text" class="rm-lote w-28 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" placeholder="lote del proveedor"></td>
+          <td class="p-2"><input type="date" class="rm-cad w-32 bg-slate-900 border ${reqCad ? 'border-amber-600' : 'border-slate-800'} rounded px-2 py-1 text-xs text-slate-100 font-mono"></td>
         </tr>`;
     }).join('');
 
     cont.innerHTML = `
       <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
-        <p class="text-xs text-slate-400 mb-2">Ajusta cantidades y costos a lo realmente recibido. Desmarca lo que no llegó.</p>
+        <p class="text-xs text-slate-400 mb-2">Ajusta cantidades y costos a lo realmente recibido. Desmarca lo que no llegó. Captura el <b>lote del proveedor</b> (y su caducidad donde aplique).</p>
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
               <th class="p-2">Recibir</th><th class="p-2">Producto</th><th class="p-2 text-right">Pedido</th>
               <th class="p-2 text-right">Ya recib.</th><th class="p-2 text-right">Pend.</th>
-              <th class="p-2">Cant. a recibir</th><th class="p-2">Costo real</th><th class="p-2">Lote</th>
+              <th class="p-2">Cant. a recibir</th><th class="p-2">Costo real</th><th class="p-2">Lote del proveedor</th><th class="p-2">Caducidad</th>
             </tr></thead>
             <tbody id="rmDetBody">${filas}</tbody>
           </table>
@@ -525,19 +535,23 @@ async function rmConfirmar(ocs) {
     if (!oc) { msg.textContent = 'Elige una orden de compra.'; msg.className = 'text-xs text-rose-400'; return; }
 
     const lineas = [];
+    const errores = [];
     document.querySelectorAll('#rmDetBody tr').forEach(tr => {
         if (!tr.querySelector('.rm-chk').checked) return;
         const cant = parseFloat(tr.querySelector('.rm-cant').value) || 0;
         if (cant <= 0) return;
         const det = (oc.ordenes_compra_detalle || []).find(d => d.id === Number(tr.dataset.detid));
-        lineas.push({
-            det,
-            cantidad: cant,
-            costo: parseFloat(tr.querySelector('.rm-costo').value) || 0,
-            lote: tr.querySelector('.rm-lote').value.trim() || (oc.folio || 'LOTE-COMPRA'),
-        });
+        const nom = det?.producto_id
+            ? (ocProductos.find(p => p.id === det.producto_id)?.nombre || `#${det.producto_id}`)
+            : (det?.descripcion || 'partida');
+        const lote = tr.querySelector('.rm-lote').value.trim();
+        const caducidad = tr.querySelector('.rm-cad').value || null;
+        if (!lote) errores.push(`Falta el lote del proveedor de "${nom}".`);
+        if (tr.dataset.reqcad === '1' && !caducidad) errores.push(`Falta la caducidad de "${nom}".`);
+        lineas.push({ det, cantidad: cant, costo: parseFloat(tr.querySelector('.rm-costo').value) || 0, lote, caducidad });
     });
     if (!lineas.length) { msg.textContent = 'Marca al menos una partida con cantidad mayor a 0.'; msg.className = 'text-xs text-rose-400'; return; }
+    if (errores.length) { alert('⚠ Revisa:\n' + errores.join('\n')); return; }
     if (!confirm(`¿Confirmar recepción de ${lineas.length} partida(s) de la orden ${oc.folio}?`)) return;
 
     const btn = document.getElementById('rmConfirmar');
@@ -589,6 +603,24 @@ async function rmConfirmar(ocs) {
                 p_numero_lote: l.lote,
             });
             if (eFifo) throw eFifo;
+
+            // Guarda el lote del proveedor y la caducidad en el lote recién creado
+            // (best-effort: si aún no corres sql/2026-09-02_caducidad_lotes.sql se ignora)
+            try {
+                let { data: loteRow } = await supabaseClient.from('lotes_inventario')
+                    .select('id').eq('producto_id', productoId).eq('numero_lote', l.lote)
+                    .eq('documento_id', documentoId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+                if (!loteRow) {
+                    ({ data: loteRow } = await supabaseClient.from('lotes_inventario')
+                        .select('id').eq('producto_id', productoId).eq('numero_lote', l.lote)
+                        .order('created_at', { ascending: false }).limit(1).maybeSingle());
+                }
+                if (loteRow) {
+                    await supabaseClient.from('lotes_inventario')
+                        .update({ lote_proveedor: l.lote, fecha_caducidad: l.caducidad })
+                        .eq('id', loteRow.id);
+                }
+            } catch (_) { /* columnas de caducidad aún no existen */ }
 
             await supabaseClient.from('ordenes_compra_detalle')
                 .update({ cantidad_recibida: Number(l.det.cantidad_recibida || 0) + l.cantidad })
