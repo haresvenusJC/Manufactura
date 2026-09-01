@@ -3,6 +3,7 @@ import { cargarInventarioCompleto } from './inventario.js';
 import { configurarFormularioCompras, toggleTipoCambio } from './compras.js';
 import { configurarFormularioEntradasDirectas } from './entradas.js';
 import { cargarModuloOrdenesCompra, cargarModuloReciboMercancia } from './ordenes-compra.js';
+import { cargarModuloPagosProveedor } from './pagos-proveedor.js';
 import { cargarModuloProduccion } from './produccion.js';
 import { cargarModuloProveedores } from './proveedores.js';
 import { cargarModuloSalidas } from './salidas.js';
@@ -208,6 +209,9 @@ window.loadView = function(viewName) {
             break;
         case 'gastos':
             cargarModuloGastos();
+            break;
+        case 'pagos-proveedor':
+            cargarModuloPagosProveedor();
             break;
         case 'reportes-contables':
             cargarModuloReportesContables();

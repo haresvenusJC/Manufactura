@@ -287,6 +287,7 @@ async function ocRenderLista() {
                       <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${OC_ESTATUS[o.estatus] || 'text-slate-400 bg-slate-800'}">${esc(o.estatus)}</span></td>
                       <td class="p-2 text-right whitespace-nowrap">
                         ${puedeRecibir ? `<button type="button" onclick="window.irARecibirOC(${o.id})" class="text-[11px] bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-1 rounded">Recibir</button>` : ''}
+                        ${(o.estatus === 'recibida' || o.estatus === 'recibida_parcial') ? `<button type="button" onclick="window.ocPagar(${o.id})" class="text-[11px] bg-sky-700 hover:bg-sky-600 text-white px-2 py-1 rounded ml-1">Pagar</button>` : ''}
                         ${o.estatus === 'abierta' ? `<button type="button" onclick="window.ocCancelar(${o.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded ml-1">Cancelar</button>` : ''}
                       </td>
                     </tr>`;
@@ -312,6 +313,12 @@ window.ocCancelar = async (id) => {
 window.irARecibirOC = (id) => {
     ocRecibirId = Number(id);
     window.loadView('recibo-mercancia');
+};
+
+// Ir a Cuentas por pagar con las compras de esta OC preseleccionadas.
+window.ocPagar = (id) => {
+    window.__cxpOcPreseleccion = Number(id);
+    window.loadView('pagos-proveedor');
 };
 
 // =====================================================================
