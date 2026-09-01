@@ -241,19 +241,35 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
 
         if (errDoc) throw errDoc;
 
-        const { data: detalles, error: errDetalles } = await supabaseClient
+        let { data: detalles, error: errDetalles } = await supabaseClient
             .from('documento_detalles')
             .select(`
                 id,
                 cantidad,
                 costo_unitario,
                 subtotal,
-                productos ( nombre, sku, tipo, descripcion, unidades_medida ( nombre ) ),
+                precio_venta,
+                productos ( nombre, sku, tipo, descripcion, tasa_iva, unidades_medida ( nombre ) ),
                 lotes_inventario ( numero_lote, fecha_ingreso, tipo_cambio, monedas ( codigo ) )
             `)
             .eq('documento_id', docId);
 
+        if (errDetalles) {
+            // columnas nuevas (precio_venta / tasa_iva) aún no existen: select básico
+            ({ data: detalles, error: errDetalles } = await supabaseClient
+                .from('documento_detalles')
+                .select(`
+                    id, cantidad, costo_unitario, subtotal,
+                    productos ( nombre, sku, tipo, descripcion, unidades_medida ( nombre ) ),
+                    lotes_inventario ( numero_lote, fecha_ingreso, tipo_cambio, monedas ( codigo ) )
+                `)
+                .eq('documento_id', docId));
+        }
+
         if (errDetalles) throw errDetalles;
+
+        const esVenta = (docInfo.tipo_movimiento === 'salida_venta');
+        let ventaSubtotalCalc = 0, ventaIvaCalc = 0;
 
         const contenidoModal = document.getElementById('contenidoModalDoc');
         const fechaEmision = docInfo.fecha_emision ? new Date(docInfo.fecha_emision).toLocaleString() : 'N/D';
@@ -281,12 +297,18 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
                     <span class="text-xs font-semibold text-emerald-400 uppercase print:text-black">${docInfo.estado || 'N/D'}</span>
                 </div>
                 <div class="sm:col-span-2">
-                    <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-semibold print:text-gray-600">Proveedor / Tercero / Cliente</span>
+                    <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-semibold print:text-gray-600">${esVenta ? 'Cliente' : 'Proveedor / Tercero / Cliente'}</span>
                     <span class="text-xs font-medium text-slate-200 print:text-black">${tercero}</span>
                     ${(docInfo.proveedores?.contacto || docInfo.proveedores?.telefono) ? `
                     <span class="text-[11px] text-slate-400 block print:text-gray-700">
                         ${docInfo.proveedores?.contacto ? `Contacto: ${docInfo.proveedores.contacto}` : ''}
                         ${docInfo.proveedores?.telefono ? ` · Tel: ${docInfo.proveedores.telefono}` : ''}
+                    </span>` : ''}
+                    ${esVenta && (docInfo.cliente_rfc || docInfo.condicion || docInfo.uuid_cfdi) ? `
+                    <span class="text-[11px] text-slate-400 block print:text-gray-700 font-mono">
+                        ${docInfo.cliente_rfc ? `RFC: ${docInfo.cliente_rfc}` : ''}
+                        ${docInfo.condicion ? ` · ${String(docInfo.condicion).toUpperCase()}` : ''}
+                        ${docInfo.uuid_cfdi ? `<span class="block">UUID: ${docInfo.uuid_cfdi}</span>` : ''}
                     </span>` : ''}
                 </div>
                 ${docInfo.descripcion ? `
@@ -322,6 +344,25 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
                 const monedaCodigo = lote.monedas?.codigo;
                 const tipoCambio = Number(lote.tipo_cambio || 1);
 
+                // Cifras de venta (si es salida por venta y hay precio capturado)
+                const pv = Number(det.precio_venta || 0);
+                const importeVenta = Number(det.cantidad || 0) * pv;
+                const tIva = (prod.tasa_iva === null || prod.tasa_iva === undefined || prod.tasa_iva === '') ? 0 : Number(prod.tasa_iva);
+                if (esVenta) {
+                    ventaSubtotalCalc += importeVenta;
+                    ventaIvaCalc += importeVenta * tIva;
+                }
+
+                const filaImporte = esVenta
+                    ? `<div class="flex justify-between items-center text-xs font-mono pt-1">
+                            <span class="text-slate-400 print:text-gray-700">Precio unitario: <strong class="text-slate-200 print:text-black">$${pv.toFixed(2)}</strong>${pv <= 0 ? ` <span class="text-[10px] text-rose-400">(sin precio)</span>` : ''}</span>
+                            <span class="text-slate-400 print:text-gray-700">Importe: <strong class="text-emerald-400 print:text-black">$${importeVenta.toFixed(2)}</strong></span>
+                        </div>`
+                    : `<div class="flex justify-between items-center text-xs font-mono pt-1 campo-costo">
+                            <span class="text-slate-400 print:text-gray-700">Costo Unitario: <strong class="text-emerald-400 print:text-black">$${Number(det.costo_unitario || 0).toFixed(2)}${monedaCodigo ? ` ${monedaCodigo}` : ''}</strong>${(monedaCodigo && tipoCambio !== 1) ? ` <span class="text-[10px] text-slate-500">(TC: ${tipoCambio})</span>` : ''}</span>
+                            <span class="text-slate-400 print:text-gray-700">Subtotal: <strong class="text-amber-300 print:text-black">$${Number(det.subtotal || 0).toFixed(2)}</strong></span>
+                        </div>`;
+
                 html += `
                     <div class="bg-slate-950 border border-slate-800 p-3.5 rounded-xl space-y-2 print:bg-white print:border-black print:text-black print:mb-2">
                         <div class="flex justify-between items-start border-b border-slate-800/60 pb-2 print:border-gray-400">
@@ -336,16 +377,32 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
                                 <span class="text-[10px] text-slate-500 block print:text-gray-600">Cantidad</span>
                             </div>
                         </div>
-                        <div class="flex justify-between items-center text-xs font-mono pt-1 campo-costo">
-                            <span class="text-slate-400 print:text-gray-700">Costo Unitario: <strong class="text-emerald-400 print:text-black">$${Number(det.costo_unitario || 0).toFixed(2)}${monedaCodigo ? ` ${monedaCodigo}` : ''}</strong>${(monedaCodigo && tipoCambio !== 1) ? ` <span class="text-[10px] text-slate-500">(TC: ${tipoCambio})</span>` : ''}</span>
-                            <span class="text-slate-400 print:text-gray-700">Subtotal: <strong class="text-amber-300 print:text-black">$${Number(det.subtotal || 0).toFixed(2)}</strong></span>
-                        </div>
+                        ${filaImporte}
                     </div>
                 `;
             });
         }
 
-        html += `</div></div>`;
+        html += `</div>`;
+
+        if (esVenta && detalles && detalles.length) {
+            let subFinal = Number(docInfo.venta_subtotal || 0);
+            if (!subFinal) subFinal = ventaSubtotalCalc;
+            let ivaFinal = Number(docInfo.venta_iva || 0);
+            if (!ivaFinal) ivaFinal = ventaIvaCalc;
+            let totFinal = Number(docInfo.venta_total || 0);
+            if (!totFinal) totFinal = subFinal + ivaFinal;
+
+            html += `
+                <div class="mt-4 ml-auto w-full sm:w-72 border-t-2 border-slate-700 pt-3 space-y-1.5 font-mono print:border-black print:text-black">
+                    <div class="flex justify-between text-xs"><span class="text-slate-400 print:text-gray-700">Subtotal</span><strong class="text-slate-200 print:text-black">$${subFinal.toFixed(2)}</strong></div>
+                    <div class="flex justify-between text-xs"><span class="text-slate-400 print:text-gray-700">IVA</span><strong class="text-slate-200 print:text-black">$${ivaFinal.toFixed(2)}</strong></div>
+                    <div class="flex justify-between text-base border-t border-slate-700 pt-1.5 print:border-gray-400"><span class="font-bold text-slate-100 print:text-black">TOTAL</span><strong class="text-emerald-400 print:text-black">$${totFinal.toFixed(2)}</strong></div>
+                </div>
+            `;
+        }
+
+        html += `</div>`;
         contenidoModal.innerHTML = html;
 
     } catch (err) {

@@ -209,19 +209,17 @@ export async function cargarCatalogoInicial() {
 
                         <p id="prodExistenciaActual" class="hidden text-[11px] text-slate-400 bg-slate-900/60 border border-slate-800 rounded-lg px-3 py-2"></p>
 
-                        <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">SKU / Código</label>
-                            <input type="text" id="prodSku" placeholder="Ej. SKU-001" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono">
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">Unidad de Medida</label>
-                            <select id="prodUnidadMedidaId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
-                                ${opcionesUnidades}
-                            </select>
-                        </div>
-
-                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">SKU / Código <span class="text-rose-400">*</span></label>
+                                <input type="text" id="prodSku" placeholder="Ej. SKU-001" required class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Unidad de Medida</label>
+                                <select id="prodUnidadMedidaId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100" required>
+                                    ${opcionesUnidades}
+                                </select>
+                            </div>
                             <div>
                                 <label class="block text-[11px] text-slate-400 mb-1">Costo Unitario</label>
                                 <input type="number" step="0.01" id="prodCosto" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
@@ -236,12 +234,10 @@ export async function cargarCatalogoInicial() {
                                     ${opcionesMonedas}
                                 </select>
                             </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-[11px] text-slate-400 mb-1">Stock mínimo</label>
-                            <input type="number" step="0.0001" min="0" id="prodStockMinimo" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
-                            <p class="text-[10px] text-slate-500 mt-1">Cuando la existencia baje de aquí, Inventario lo marca como "hay que comprar".</p>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1" title="Cuando la existencia baje de aquí, Inventario lo marca como 'hay que comprar'.">Stock mínimo</label>
+                                <input type="number" step="0.0001" min="0" id="prodStockMinimo" value="0" title="Cuando la existencia baje de aquí, Inventario lo marca como 'hay que comprar'." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                            </div>
                         </div>
 
                         <details class="bg-slate-900/40 border border-slate-800 rounded-lg">
@@ -301,39 +297,38 @@ export async function cargarCatalogoInicial() {
                         </details>
 
                         <hr class="border-slate-800 my-2">
-                        
-                        <div id="seccionBomContainer" class="space-y-2">
-                            <div class="flex justify-between items-center">
-                                <label class="block text-xs font-semibold text-sky-400">Estructura de Componentes / BOM Unificado</label>
-                            </div>
 
-                            <div class="grid grid-cols-1 gap-2 bg-slate-900/50 p-2.5 rounded-lg border border-slate-800">
-                                <div class="flex gap-2">
-                                    <select id="bomInsumo" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-                                        ${opcionesBomHtml}
-                                    </select>
-                                </div>
-                                
-                                <div class="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label class="block text-[10px] text-slate-400 mb-0.5">Cantidad</label>
-                                        <input type="number" step="0.0001" id="bomCantidad" placeholder="Ej. 1" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-                                    </div>
-                                    <div>
-                                        <label class="block text-[10px] text-slate-400 mb-0.5">Unidad Consumo</label>
-                                        <select id="bomUnidadMedidaId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-                                            ${opcionesUnidades}
+                        <details id="detBom" class="bg-slate-900/40 border border-slate-800 rounded-lg">
+                            <summary class="cursor-pointer select-none text-xs font-semibold text-sky-400 px-3 py-2">Estructura de Componentes / BOM (opcional)</summary>
+                            <div class="p-3 pt-0 space-y-2">
+                                <div class="grid grid-cols-1 gap-2 bg-slate-900/50 p-2.5 rounded-lg border border-slate-800">
+                                    <div class="flex gap-2">
+                                        <select id="bomInsumo" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                                            ${opcionesBomHtml}
                                         </select>
                                     </div>
+
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label class="block text-[10px] text-slate-400 mb-0.5">Cantidad</label>
+                                            <input type="number" step="0.0001" id="bomCantidad" placeholder="Ej. 1" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] text-slate-400 mb-0.5">Unidad Consumo</label>
+                                            <select id="bomUnidadMedidaId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                                                ${opcionesUnidades}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <button type="button" id="btnAgregarItemBom" class="w-full bg-slate-800 hover:bg-slate-700 text-sky-300 font-medium py-1.5 rounded-lg text-xs transition">＋ Agregar Componente al BOM</button>
                                 </div>
 
-                                <button type="button" id="btnAgregarItemBom" class="w-full bg-slate-800 hover:bg-slate-700 text-sky-300 font-medium py-1.5 rounded-lg text-xs transition">＋ Agregar Componente al BOM</button>
+                                <div id="listaBomTemporal" class="text-xs text-slate-400 bg-slate-900 p-2 rounded-lg border border-slate-800 min-h-[40px]">
+                                    Sin elementos agregados.
+                                </div>
                             </div>
-
-                            <div id="listaBomTemporal" class="text-xs text-slate-400 bg-slate-900 p-2 rounded-lg border border-slate-800 min-h-[40px]">
-                                Sin elementos agregados.
-                            </div>
-                        </div>
+                        </details>
 
                         <button type="submit" id="btnGuardarProd" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2 rounded-lg transition text-sm shadow-md" style="cursor: pointer;">Guardar Artículo</button>
                         </form>
@@ -382,7 +377,7 @@ export async function cargarCatalogoInicial() {
         const btnAddBom = document.getElementById('btnAgregarItemBom');
         const listaTempEl = document.getElementById('listaBomTemporal');
         const selectTipoElemento = document.getElementById('tipoElemento');
-        const seccionBomContainer = document.getElementById('seccionBomContainer');
+        const seccionBomContainer = document.getElementById('detBom');
 
         if (btnRefrescarProveedores) {
             btnRefrescarProveedores.addEventListener('click', async () => {
@@ -548,6 +543,7 @@ export async function cargarCatalogoInicial() {
                                 unidadNombre: mapaUnidades[b.unidad_medida] || ''
                             });
                         });
+                        seccionBomContainer.open = true;   // ya tiene componentes: mostrarlos
                     }
                     actualizarListaBomVisual();
                 } else {
@@ -667,6 +663,11 @@ export async function cargarCatalogoInicial() {
 
             if (!nombre) {
                 alert("El nombre del artículo es obligatorio.");
+                return;
+            }
+            if (!sku) {
+                alert("El SKU / Código es obligatorio. No se puede registrar un artículo sin SKU.");
+                document.getElementById('prodSku').focus();
                 return;
             }
 

@@ -45,8 +45,8 @@ export async function cargarModuloSalidas() {
                         </div>
 
                         <!-- Sección de Búsqueda AJAX y Selección por Lotes -->
-                        <div class="bg-slate-900 border border-slate-800 p-4 rounded-lg mb-6 relative">
-                            <h4 class="text-xs font-semibold text-amber-400 mb-3 uppercase tracking-wider">🔍 1. Buscar Producto (Buscador AJAX)</h4>
+                        <div id="salBloqueBusqueda" class="bg-slate-900 border border-slate-800 p-4 rounded-lg mb-6 relative">
+                            <h4 id="salBusquedaTitulo" class="text-xs font-semibold text-amber-400 mb-3 uppercase tracking-wider">🔍 1. Buscar Producto (Buscador AJAX)</h4>
                             
                             <div class="relative mb-3">
                                 <input type="text" id="buscadorAjaxProducto" placeholder="Escribe el nombre o SKU del producto..." autocomplete="off" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-500">
@@ -93,18 +93,35 @@ export async function cargarModuloSalidas() {
                                             <th class="p-2.5">Lote Afectado</th>
                                             <th class="p-2.5">Cantidad</th>
                                             <th class="p-2.5">Costo Unit.</th>
+                                            <th class="p-2.5">P. Venta Unit.</th>
                                             <th class="p-2.5 text-right">Acción</th>
                                         </tr>
                                     </thead>
                                     <tbody id="tablaPartidasTempBody">
-                                        <tr><td colspan="5" class="p-4 text-center text-slate-500 italic text-xs">No hay partidas agregadas todavía.</td></tr>
+                                        <tr><td colspan="6" class="p-4 text-center text-slate-500 italic text-xs">No hay partidas agregadas todavía.</td></tr>
                                     </tbody>
                                 </table>
                             </div>
                         </div>
 
+                        <!-- Totales de la venta: van justo después de las partidas -->
+                        <div id="salVentaTotales" class="hidden bg-slate-950 border border-slate-800 p-4 rounded-lg mb-4">
+                            <h4 class="text-xs font-semibold text-amber-400 mb-3 uppercase tracking-wider">🧮 Totales de la venta</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div><label class="block text-xs text-slate-400 mb-1">Subtotal venta</label>
+                                    <input type="number" step="0.01" min="0" id="salVentaSubtotal" value="0" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
+                                <div><label class="block text-xs text-slate-400 mb-1">IVA <button type="button" id="salIva16" class="text-[10px] text-red-400 hover:underline">16%</button></label>
+                                    <input type="number" step="0.01" min="0" id="salVentaIva" value="0" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
+                                <div><label class="block text-xs text-slate-400 mb-1">Cobrar a (cuenta)</label>
+                                    <select id="salCuentaCobro" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select></div>
+                                <div class="md:col-span-3"><label class="block text-xs text-slate-400 mb-1">UUID CFDI</label>
+                                    <input type="text" id="salUuid" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono"></div>
+                            </div>
+                        </div>
+
                         <!-- Bloque de contabilidad -->
                         <div id="salBloqueContable" class="bg-slate-950 border border-slate-800 p-4 rounded-lg mb-4 hidden">
+                            <h4 id="salVentaPaso1" class="hidden text-xs font-semibold text-amber-400 mb-3 uppercase tracking-wider">🧾 1. Cliente y datos de la venta</h4>
                             <label class="flex items-center gap-2 text-sm font-semibold text-slate-200 mb-3">
                                 <input type="checkbox" id="salContabilizar" checked class="accent-red-500"> Generar póliza contable
                             </label>
@@ -123,14 +140,6 @@ export async function cargarModuloSalidas() {
                                 <div><label class="block text-xs text-slate-400 mb-1">Condición</label>
                                     <select id="salCondicion" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                                         <option value="contado">Contado</option><option value="credito">Crédito (por cobrar)</option></select></div>
-                                <div><label class="block text-xs text-slate-400 mb-1">Subtotal venta</label>
-                                    <input type="number" step="0.01" min="0" id="salVentaSubtotal" value="0" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
-                                <div><label class="block text-xs text-slate-400 mb-1">IVA <button type="button" id="salIva16" class="text-[10px] text-red-400 hover:underline">16%</button></label>
-                                    <input type="number" step="0.01" min="0" id="salVentaIva" value="0" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
-                                <div><label class="block text-xs text-slate-400 mb-1">Cobrar a (cuenta)</label>
-                                    <select id="salCuentaCobro" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select></div>
-                                <div class="md:col-span-3"><label class="block text-xs text-slate-400 mb-1">UUID CFDI</label>
-                                    <input type="text" id="salUuid" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono"></div>
                             </div>
                         </div>
 
@@ -158,12 +167,12 @@ export async function cargarModuloSalidas() {
 
             let { data: productos, error: errProd } = await supabaseClient
                 .from('productos')
-                .select('id, nombre, sku, stock_actual, precio_venta, tasa_iva');
+                .select('id, nombre, sku, stock_actual, precio_venta, tasa_iva, tipo');
             if (errProd) {
                 // columnas nuevas aun no creadas: cae al select basico
                 ({ data: productos, error: errProd } = await supabaseClient
                     .from('productos')
-                    .select('id, nombre, sku, stock_actual'));
+                    .select('id, nombre, sku, stock_actual, tipo'));
             }
             if (!errProd && productos) {
                 listaProductosGlobal = productos;
@@ -180,14 +189,19 @@ export async function cargarModuloSalidas() {
                     return;
                 }
 
+                // En "Salida por Venta" solo se venden productos terminados.
+                const soloTerminados = document.getElementById('tipoSalida')?.value === 'salida_venta';
+
                 // Limitar a máximo 15 coincidencias para mejor rendimiento
-                const filtrados = listaProductosGlobal.filter(p => 
-                    (p.nombre && p.nombre.toLowerCase().includes(termino)) || 
-                    (p.sku && p.sku.toLowerCase().includes(termino))
+                const filtrados = listaProductosGlobal.filter(p =>
+                    (!soloTerminados || p.tipo === 'producto') && (
+                        (p.nombre && p.nombre.toLowerCase().includes(termino)) ||
+                        (p.sku && p.sku.toLowerCase().includes(termino))
+                    )
                 ).slice(0, 15);
 
                 if (filtrados.length === 0) {
-                    contenedorSugerencias.innerHTML = `<div class="p-3 text-xs text-slate-400 italic">No se encontraron productos</div>`;
+                    contenedorSugerencias.innerHTML = `<div class="p-3 text-xs text-slate-400 italic">${soloTerminados ? 'Sin productos terminados que coincidan' : 'No se encontraron productos'}</div>`;
                     contenedorSugerencias.classList.remove('hidden');
                     return;
                 }
@@ -338,10 +352,29 @@ export async function cargarModuloSalidas() {
 }
 
 async function seleccionarProducto(id, nombre) {
-    productoSeleccionadoActual = { id, nombre };
-    
+    const prodInfo = (listaProductosGlobal || []).find(p => p.id === id) || {};
+    const pv = (prodInfo.precio_venta === null || prodInfo.precio_venta === undefined) ? null : Number(prodInfo.precio_venta);
+    productoSeleccionadoActual = { id, nombre, precioVenta: pv };
+
     document.getElementById('buscadorAjaxProducto').parentElement.classList.add('hidden');
-    document.getElementById('nombreProdSeleccionadoText').textContent = nombre;
+    const txtNombre = document.getElementById('nombreProdSeleccionadoText');
+    txtNombre.textContent = nombre;
+
+    // Muestra el precio de venta capturado en el catálogo (o avisa si falta)
+    let pvSpan = document.getElementById('pvProdSeleccionadoText');
+    if (!pvSpan) {
+        pvSpan = document.createElement('span');
+        pvSpan.id = 'pvProdSeleccionadoText';
+        pvSpan.className = 'block text-xs font-mono mt-0.5';
+        txtNombre.parentElement.appendChild(pvSpan);
+    }
+    if (pv && pv > 0) {
+        pvSpan.textContent = `Precio de venta: $${pv.toFixed(2)}`;
+        pvSpan.className = 'block text-xs font-mono mt-0.5 text-emerald-400';
+    } else {
+        pvSpan.textContent = '⚠ Sin precio de venta en el catálogo — captúralo en la partida.';
+        pvSpan.className = 'block text-xs font-mono mt-0.5 text-amber-400';
+    }
     document.getElementById('infoProductoSeleccionado').classList.remove('hidden');
 
     const contenedorLotes = document.getElementById('contenedorListaLotes');
@@ -403,18 +436,27 @@ function renderizarTablaPartidasTemp() {
     if (!tbody) return;
 
     if (partidasSalidaTemp.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-500 italic text-xs">No hay partidas agregadas todavía.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500 italic text-xs">No hay partidas agregadas todavía.</td></tr>`;
         return;
     }
 
     let html = '';
     partidasSalidaTemp.forEach((p, index) => {
+        const pv = (p.precioVenta === null || p.precioVenta === undefined) ? '' : Number(p.precioVenta);
+        const bordePv = (pv === '' || pv <= 0) ? 'border-amber-600' : 'border-slate-800';
         html += `
             <tr class="border-b border-slate-800 text-xs">
                 <td class="p-2.5 font-medium text-slate-100">${p.productoNombre}</td>
                 <td class="p-2.5 font-mono text-amber-300">Lote: ${p.numeroLote}</td>
                 <td class="p-2.5 font-mono text-red-400 font-bold">${p.cantidad} un.</td>
                 <td class="p-2.5 font-mono text-slate-300">$${Number(p.costoUnitario).toFixed(2)}</td>
+                <td class="p-2.5">
+                    <div class="flex items-center gap-1">
+                        <span class="text-slate-500">$</span>
+                        <input type="number" step="any" min="0" data-index="${index}" value="${pv}" placeholder="s/precio"
+                               class="inp-pv-partida w-24 bg-slate-950 border ${bordePv} rounded px-2 py-1 text-xs font-mono text-slate-200 focus:outline-none focus:border-amber-500">
+                    </div>
+                </td>
                 <td class="p-2.5 text-right">
                     <button type="button" data-index="${index}" class="btn-eliminar-partida-temp text-red-400 hover:text-red-300 font-bold px-2 py-1 bg-red-950/40 rounded border border-red-900/50 cursor-pointer">🗑️</button>
                 </td>
@@ -429,6 +471,19 @@ function renderizarTablaPartidasTemp() {
             const idx = Number(e.currentTarget.dataset.index);
             partidasSalidaTemp.splice(idx, 1);
             renderizarTablaPartidasTemp();
+            recalcularVentaDesdePartidas();
+        };
+    });
+
+    // Edición del precio de venta por partida (se refleja en el subtotal y en la póliza)
+    tbody.querySelectorAll('.inp-pv-partida').forEach(inp => {
+        inp.onchange = (e) => {
+            const idx = Number(e.currentTarget.dataset.index);
+            const v = e.currentTarget.value.trim();
+            partidasSalidaTemp[idx].precioVenta = (v === '') ? null : Number(v);
+            const ok = partidasSalidaTemp[idx].precioVenta && partidasSalidaTemp[idx].precioVenta > 0;
+            e.currentTarget.classList.toggle('border-amber-600', !ok);
+            e.currentTarget.classList.toggle('border-slate-800', !!ok);
             recalcularVentaDesdePartidas();
         };
     });
@@ -460,15 +515,15 @@ function recalcularVentaDesdePartidas() {
     if (!nota) {
         nota = document.createElement('p');
         nota.id = 'salVentaSinPrecioNota';
-        nota.className = 'md:col-span-3 text-[11px] text-amber-400';
-        document.getElementById('salCamposVenta')?.appendChild(nota);
+        nota.className = 'text-[11px] text-amber-400 mt-2';
+        document.getElementById('salVentaTotales')?.appendChild(nota);
     }
     const cli = clientesVentaCache.find(c => c.id === clienteVentaSelId);
     const infoLista = cli && listaPrecioClienteMap.size ? ` Precios de la lista del cliente donde aplica.` : '';
     nota.textContent = (sinPrecio
         ? `⚠ ${sinPrecio} producto(s) sin precio — captúralo en Catálogos → Productos / Listas de precio, o ajusta el subtotal a mano.`
         : '') + (sinPrecio ? '' : infoLista.trim() ? infoLista : '');
-    nota.className = 'md:col-span-3 text-[11px] ' + (sinPrecio ? 'text-amber-400' : 'text-slate-500');
+    nota.className = 'text-[11px] mt-2 ' + (sinPrecio ? 'text-amber-400' : 'text-slate-500');
 }
 
 export async function registrarSalidaMultiPartida(datosDoc) {
@@ -653,7 +708,33 @@ async function cargarBloqueContableSalidas() {
         const esVenta = tipoSel.value === 'salida_venta';
         document.getElementById('salCamposVenta').classList.toggle('hidden', !esVenta);
         document.getElementById('salCamposCosto').classList.toggle('hidden', esVenta);
-        if (esVenta) recalcularVentaDesdePartidas();
+        const contab = document.getElementById('salContabilizar')?.checked !== false;
+        document.getElementById('salVentaTotales')?.classList.toggle('hidden', !(esVenta && contab));
+
+        // En venta: el bloque de cliente / póliza va ANTES de capturar partidas.
+        // En los demás tipos vuelve a su lugar (antes del botón final).
+        const card = bloque.parentElement;
+        const busqueda = document.getElementById('salBloqueBusqueda');
+        const btnFinal = document.getElementById('btnProcesarSalidaFinal');
+        if (esVenta && busqueda && bloque.nextElementSibling !== busqueda) {
+            card.insertBefore(bloque, busqueda);
+        } else if (!esVenta && btnFinal && bloque.nextElementSibling !== btnFinal) {
+            card.insertBefore(bloque, btnFinal);
+        }
+        document.getElementById('salVentaPaso1')?.classList.toggle('hidden', !esVenta);
+        const tBusq = document.getElementById('salBusquedaTitulo');
+        if (tBusq) tBusq.textContent = esVenta
+            ? '🔍 2. Buscar producto terminado (buscador AJAX)'
+            : '🔍 1. Buscar Producto (Buscador AJAX)';
+
+        if (esVenta) {
+            // En venta solo aplican productos terminados: si el elegido no lo es, obliga a re-elegir.
+            if (productoSeleccionadoActual) {
+                const info = (listaProductosGlobal || []).find(p => p.id === productoSeleccionadoActual.id);
+                if (info && info.tipo !== 'producto') document.getElementById('btnCambiarProducto')?.click();
+            }
+            recalcularVentaDesdePartidas();
+        }
     };
     tipoSel.addEventListener('change', sync);
     sync();
@@ -665,6 +746,9 @@ async function cargarBloqueContableSalidas() {
     document.getElementById('salContabilizar').addEventListener('change', (e) => {
         document.getElementById('salCamposCosto').style.display = e.target.checked ? '' : 'none';
         document.getElementById('salCamposVenta').style.display = e.target.checked ? '' : 'none';
+        const tot = document.getElementById('salVentaTotales');
+        const esVentaAhora = document.getElementById('tipoSalida')?.value === 'salida_venta';
+        if (tot) tot.classList.toggle('hidden', !(e.target.checked && esVentaAhora));
     });
 }
 

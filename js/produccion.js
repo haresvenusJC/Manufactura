@@ -287,7 +287,11 @@ export async function cargarModuloProduccion() {
             const uid = `proc-${procesoContador}`;
 
             const opcionesProcesos = listaProcesos.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('');
-            const opcionesEmpleados = listaEmpleados.map(e => `<option value="${e.id}" data-costo-hora="${e.costo_hora}">${e.nombre} ($${Number(e.costo_hora).toFixed(2)}/hr)</option>`).join('');
+            const casillasEmpleados = listaEmpleados.map(e => `
+                <label class="flex items-center gap-2 text-xs text-slate-200 px-1.5 py-1 rounded hover:bg-slate-800 cursor-pointer">
+                    <input type="checkbox" class="chkEmpleado accent-amber-500 w-3.5 h-3.5" value="${e.id}" data-costo-hora="${e.costo_hora}" data-nombre="${(e.nombre || '').replace(/"/g, '&quot;')}">
+                    <span>${e.nombre} <span class="text-slate-500">($${Number(e.costo_hora).toFixed(2)}/hr)</span></span>
+                </label>`).join('');
 
             const div = document.createElement('div');
             div.className = 'proceso-item bg-slate-950 border border-slate-800 rounded-lg p-3 space-y-2';
@@ -302,10 +306,11 @@ export async function cargarModuloProduccion() {
                     <button type="button" class="btnQuitarProceso text-rose-400 hover:text-rose-300 text-xs px-1" title="Quitar proceso">✕</button>
                 </div>
                 <div>
-                    <label class="text-[10px] text-slate-500 block mb-1">EQUIPO DE TRABAJO (Ctrl/Cmd+clic para varios)</label>
-                    <select multiple class="selectEmpleadosProceso w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 h-20">
-                        ${opcionesEmpleados}
-                    </select>
+                    <label class="text-[10px] text-slate-500 block mb-1">EQUIPO DE TRABAJO (marca a quienes participan)</label>
+                    <div class="equipoEmpleados max-h-28 overflow-y-auto bg-slate-900 border border-slate-800 rounded-lg p-1 space-y-0.5">
+                        ${casillasEmpleados}
+                    </div>
+                    <p class="text-[10px] text-slate-500 mt-1"><span class="equipoCount text-amber-400 font-semibold">0</span> empleado(s) asignado(s)</p>
                 </div>
             `;
 
@@ -314,6 +319,13 @@ export async function cargarModuloProduccion() {
             selectProcesoNombre.onchange = () => {
                 inputNuevoNombre.classList.toggle('hidden', selectProcesoNombre.value !== '__otro__');
             };
+
+            const contadorEquipo = div.querySelector('.equipoCount');
+            div.querySelectorAll('.chkEmpleado').forEach(chk => {
+                chk.addEventListener('change', () => {
+                    contadorEquipo.textContent = div.querySelectorAll('.chkEmpleado:checked').length;
+                });
+            });
 
             div.querySelector('.btnQuitarProceso').onclick = () => {
                 div.remove();
@@ -335,9 +347,9 @@ export async function cargarModuloProduccion() {
                 if (nombre === '__otro__') {
                     nombre = div.querySelector('.inputProcesoNuevoNombre').value.trim() || 'Proceso sin nombre';
                 }
-                const empleados = Array.from(div.querySelector('.selectEmpleadosProceso').selectedOptions).map(opt => ({
-                    id: Number(opt.value),
-                    costoHora: Number(opt.dataset.costoHora || 0)
+                const empleados = Array.from(div.querySelectorAll('.chkEmpleado:checked')).map(chk => ({
+                    id: Number(chk.value),
+                    costoHora: Number(chk.dataset.costoHora || 0)
                 }));
                 procesos.push({ nombre, empleados });
             });
@@ -684,14 +696,39 @@ async function cargarOrdenesEnProceso() {
 
     const procIds = ordenes.flatMap(o => (o.orden_produccion_procesos || []).map(p => p.id));
     let registros = [];
+    let solicitudes = [];
     if (procIds.length) {
         const { data: regs } = await supabaseClient.from('registros_tiempo')
             .select('orden_produccion_proceso_id, empleado_id, inicio, fin')
             .in('orden_produccion_proceso_id', procIds);
         registros = regs || [];
+        // Solicitudes de reasignación pendientes (degrada si el SQL no está)
+        try {
+            const { data: sols, error: errSol } = await supabaseClient.from('solicitudes_reasignacion')
+                .select('id, proceso_id, empleado_id, motivo, creada_at, empleados ( nombre )')
+                .eq('estatus', 'pendiente')
+                .in('proceso_id', procIds);
+            if (!errSol) solicitudes = sols || [];
+        } catch (_) { solicitudes = []; }
     }
 
-    cont.innerHTML = ordenes.map(o => renderTarjetaOrdenEnProceso(o, registros)).join('');
+    cont.innerHTML = ordenes.map(o => renderTarjetaOrdenEnProceso(o, registros, solicitudes)).join('');
+
+    cont.querySelectorAll('.btn-resolver-sol').forEach(btn => {
+        btn.onclick = async () => {
+            const aprobar = btn.dataset.accion === 'aprobar';
+            if (!confirm(aprobar
+                ? `¿Asignar a ${btn.dataset.nombre} al proceso "${btn.dataset.proc}"?`
+                : `¿Rechazar la solicitud de ${btn.dataset.nombre}?`)) return;
+            btn.disabled = true;
+            const { error } = await supabaseClient.rpc('resolver_reasignacion', {
+                p_solicitud_id: Number(btn.dataset.id),
+                p_aprobar: aprobar
+            });
+            if (error) { alert('No se pudo resolver: ' + error.message); btn.disabled = false; return; }
+            await cargarOrdenesEnProceso();
+        };
+    });
 
     cont.querySelectorAll('.btn-ajuste-tiempo').forEach(btn => {
         btn.onclick = async () => {
@@ -735,7 +772,7 @@ async function cargarOrdenesEnProceso() {
     });
 }
 
-function renderTarjetaOrdenEnProceso(o, registros) {
+function renderTarjetaOrdenEnProceso(o, registros, solicitudes = []) {
     const abierta = o.abierta_at ? new Date(o.abierta_at).toLocaleString() : '';
     const folio = o.folio || ('#' + o.id);
 
@@ -767,10 +804,23 @@ function renderTarjetaOrdenEnProceso(o, registros) {
                 </div>`;
         }).join('');
 
+        const solsP = solicitudes.filter(s => Number(s.proceso_id) === p.id);
+        const solsHtml = solsP.map(s => `
+            <div class="flex flex-wrap items-center justify-between gap-2 bg-amber-950/30 border border-amber-800/50 rounded-lg px-2.5 py-1.5 mt-1.5">
+                <span class="text-[11px] text-amber-200">🙋 <b>${s.empleados?.nombre || 'Empleado'}</b> pide entrar a este proceso${s.motivo ? ` — <span class="text-amber-300/80">"${String(s.motivo).replace(/</g, '&lt;')}"</span>` : ''}</span>
+                <span class="flex gap-1">
+                    <button class="btn-resolver-sol text-[11px] bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-1 rounded"
+                            data-id="${s.id}" data-accion="aprobar" data-nombre="${(s.empleados?.nombre || '').replace(/"/g, '&quot;')}" data-proc="${(p.proceso_nombre || '').replace(/"/g, '&quot;')}">Aprobar</button>
+                    <button class="btn-resolver-sol text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded"
+                            data-id="${s.id}" data-accion="rechazar" data-nombre="${(s.empleados?.nombre || '').replace(/"/g, '&quot;')}" data-proc="${(p.proceso_nombre || '').replace(/"/g, '&quot;')}">Rechazar</button>
+                </span>
+            </div>`).join('');
+
         return `
             <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
                 <p class="text-sm font-semibold text-slate-200 mb-1">${p.proceso_nombre}</p>
                 ${filasEmp || '<p class="text-[11px] text-slate-500 italic">Sin equipo asignado.</p>'}
+                ${solsHtml}
             </div>`;
     }).join('');
 

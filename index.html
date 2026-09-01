@@ -10,19 +10,27 @@
         summary { list-style: none; }
         summary::-webkit-details-marker { display: none; }
 
-        /* Form "Registro General de Artículos" más compacto (menos alto) */
-        #detRegistroProducto .space-y-4 > * + * { margin-top: .4rem !important; }
+        /* Form "Registro General de Artículos" — compacto (menos alto) */
+        #detRegistroProducto .space-y-6 > * + * { margin-top: .55rem !important; }
+        #detRegistroProducto .space-y-4 > * + * { margin-top: .28rem !important; }
         #detRegistroProducto .space-y-3 > * + * { margin-top: .3rem !important; }
-        #detRegistroProducto .space-y-2 > * + * { margin-top: .22rem !important; }
-        #detRegistroProducto label { margin-bottom: .1rem !important; }
+        #detRegistroProducto .space-y-2 > * + * { margin-top: .16rem !important; }
+        #detRegistroProducto label { margin-bottom: .1rem !important; line-height: 1.15 !important; }
         #detRegistroProducto input,
         #detRegistroProducto select,
-        #detRegistroProducto textarea { padding-top: .25rem !important; padding-bottom: .25rem !important; }
-        #detRegistroProducto hr { margin-top: .3rem !important; margin-bottom: .3rem !important; }
-        #detRegistroProducto .p-4 { padding-left: .7rem !important; padding-right: .7rem !important; padding-bottom: .7rem !important; }
-        #detRegistroProducto details > .p-3 { padding: .5rem !important; }
-        #detRegistroProducto p[class*="text-[1"] { margin-top: .08rem !important; line-height: 1.2 !important; }
-        #detRegistroProducto .tipo-elemento-btn { padding-top: .35rem !important; padding-bottom: .35rem !important; }
+        #detRegistroProducto textarea { padding-top: .22rem !important; padding-bottom: .22rem !important; line-height: 1.2 !important; }
+        #detRegistroProducto textarea { min-height: 0 !important; }
+        #detRegistroProducto hr { margin-top: .2rem !important; margin-bottom: .2rem !important; }
+        #detRegistroProducto .p-4 { padding: .55rem !important; }
+        #detRegistroProducto > summary.p-4 { padding: .5rem .6rem !important; }
+        #detRegistroProducto .p-4.pt-0 { padding-top: 0 !important; }
+        #detRegistroProducto details > .p-3 { padding: .4rem !important; padding-top: 0 !important; }
+        #detRegistroProducto details > summary { padding-top: .35rem !important; padding-bottom: .35rem !important; }
+        #detRegistroProducto .p-2\.5 { padding: .4rem !important; }
+        #detRegistroProducto p[class*="text-[1"] { margin-top: .05rem !important; line-height: 1.15 !important; }
+        #detRegistroProducto .tipo-elemento-btn { padding-top: .28rem !important; padding-bottom: .28rem !important; }
+        #detRegistroProducto .min-h-\[40px\] { min-height: 26px !important; }
+        #detRegistroProducto #btnGuardarProd { padding-top: .35rem !important; padding-bottom: .35rem !important; }
 
         /* ===== Responsive: móvil / tableta ===== */
         @media (max-width: 640px) {
@@ -124,6 +132,53 @@
         .hover\:bg-red-900:hover, .hover\:bg-amber-900:hover, .hover\:bg-indigo-900:hover { background-color: var(--bg-3) !important; }
 
         select option { background-color: var(--bg-1); color: var(--tx-0); }
+
+        /* ===== Opción 6: riel de iconos + cajón lateral ===== */
+        /* El display se controla aquí (no con la clase .hidden, que lleva !important). */
+        #iconRail { display: none; }
+        #btnFijarNav { display: none; }
+        #iconRail [data-rail] { position: relative; }
+        #iconRail .rail-activo { background: var(--bg-2) !important; color: var(--acc) !important; }
+        #iconRail .rail-activo::before {
+            content: ""; position: absolute; left: 0; top: 8px; bottom: 8px;
+            width: 3px; border-radius: 0 3px 3px 0; background: var(--acc);
+        }
+
+        @media (min-width: 1024px) {
+            #iconRail {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                width: 3.5rem;
+                flex: 0 0 3.5rem;
+            }
+            #btnFijarNav { display: flex; }
+            /* Por defecto el cajón flota pegado al riel y está oculto.
+               El desplazamiento descuenta también los 3.5rem del left, si no
+               asoma un pedazo del menú encima del riel. */
+            #sidebar {
+                position: fixed;
+                left: 3.5rem;          /* ancho del riel (w-14) */
+                top: 0; bottom: 0;
+                width: 16rem;
+                transform: translateX(calc(-100% - 4rem));
+                transition: transform .2s ease;
+                z-index: 40;
+            }
+            #sidebar.nav-abierto {
+                transform: translateX(0);
+                box-shadow: 24px 0 60px rgba(0, 0, 0, .45);
+            }
+            /* Fijado: el cajón vuelve al flujo y empuja el contenido */
+            html[data-nav="fijado"] #sidebar {
+                position: sticky;
+                top: 0;
+                height: 100vh;
+                align-self: flex-start;
+                transform: none;
+                box-shadow: none;
+            }
+        }
     </style>
     <script>
         /* aplica el tema guardado antes de pintar, para que no haya parpadeo */
@@ -131,6 +186,10 @@
             try {
                 var t = localStorage.getItem('hares_tema') || 'slate';
                 document.documentElement.setAttribute('data-theme', t);
+            } catch (e) {}
+            try {
+                var n = localStorage.getItem('hares_nav_fijado') === '1' ? 'fijado' : 'colapsado';
+                document.documentElement.setAttribute('data-nav', n);
             } catch (e) {}
         })();
     </script>
@@ -171,13 +230,68 @@
             <button type="button" onclick="window.toggleSidebar()" aria-label="Menú" class="text-slate-200 text-2xl leading-none px-1 cursor-pointer">&#9776;</button>
             <span class="text-md font-bold text-sky-400">Hares de México</span>
         </header>
-        <div id="sidebarBackdrop" onclick="window.toggleSidebar()" class="fixed inset-0 bg-black/50 z-30 hidden lg:hidden"></div>
+        <div id="sidebarBackdrop" onclick="window.toggleSidebar()" class="fixed inset-0 bg-black/50 z-30 hidden"></div>
 
-        <!-- Menú Lateral: fijo en escritorio, cajón deslizable en móvil -->
+        <!-- Riel de iconos: siempre visible en escritorio (display por CSS, no por .hidden) -->
+        <nav id="iconRail" class="lg:flex-col items-center gap-1 w-14 shrink-0 bg-slate-900 border-r border-slate-800 py-3 lg:sticky lg:top-0 lg:h-screen overflow-y-auto z-40">
+            <button type="button" onclick="window.toggleSidebar()" title="Menú" aria-label="Menú"
+                    class="w-10 h-10 rounded-lg flex items-center justify-center text-slate-200 hover:bg-slate-800 transition mb-1" style="cursor: pointer;">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" class="w-5 h-5"><path d="M3 5.5h14M3 10h14M3 14.5h14"/></svg>
+            </button>
+            <div class="w-6 h-px bg-slate-800 my-1"></div>
+            <button type="button" data-rail="catalogos" onclick="window.railNav('catalogos')" title="Catálogos"
+                    class="w-10 h-10 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition" style="cursor: pointer;">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M3 6.5 10 3l7 3.5v7L10 17l-7-3.5v-7Z"/><path d="M3 6.5 10 10l7-3.5M10 10v7"/></svg>
+            </button>
+            <button type="button" data-rail="inventario" onclick="window.railNav('inventario')" title="Inventario"
+                    class="w-10 h-10 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition" style="cursor: pointer;">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="m10 3 7 3.5-7 3.5-7-3.5L10 3Z"/><path d="m3 10.5 7 3.5 7-3.5M3 14l7 3.5L17 14"/></svg>
+            </button>
+            <button type="button" data-rail="entradas" onclick="window.railNav('entradas')" title="Entradas"
+                    class="w-10 h-10 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition" style="cursor: pointer;">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5"/><path d="M4 16h12"/></svg>
+            </button>
+            <button type="button" data-rail="salidas" onclick="window.railNav('salidas')" title="Salidas / Ventas"
+                    class="w-10 h-10 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition" style="cursor: pointer;">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M10 17V8m0 0 3.5 3.5M10 8 6.5 11.5"/><path d="M4 4h12"/></svg>
+            </button>
+            <button type="button" data-rail="documentos" onclick="window.railNav('documentos')" title="Documentos"
+                    class="w-10 h-10 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition" style="cursor: pointer;">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M5 3h6l4 4v10H5V3Z"/><path d="M11 3v4h4M7.5 11h5M7.5 14h5"/></svg>
+            </button>
+            <button type="button" data-rail="produccion" onclick="window.railNav('produccion')" title="Producción"
+                    class="w-10 h-10 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition" style="cursor: pointer;">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M3 17V9l5 3V9l5 3V7l4 2v8H3Z"/><path d="M6.5 14h.01M10 14h.01M13.5 14h.01"/></svg>
+            </button>
+            <button type="button" data-rail="auditoria" onclick="window.railNav('auditoria')" title="Auditoría"
+                    class="w-10 h-10 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition" style="cursor: pointer;">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M10 3 4 5v5c0 3.5 2.5 5.5 6 7 3.5-1.5 6-3.5 6-7V5l-6-2Z"/><path d="m7.5 10 2 2 3.5-4"/></svg>
+            </button>
+            <button type="button" data-rail="reportes" onclick="window.railNav('reportes')" title="Reportes"
+                    class="w-10 h-10 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition" style="cursor: pointer;">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M4 4v12h12"/><path d="M7.5 13v-3M11 13V7M14.5 13v-5"/></svg>
+            </button>
+            <button type="button" data-rail="contabilidad" onclick="window.railNav('contabilidad')" title="Contabilidad"
+                    class="w-10 h-10 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition" style="cursor: pointer;">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><rect x="4" y="3" width="12" height="14" rx="1.5"/><path d="M7 6h6M7 9.5h.01M10 9.5h.01M13 9.5h.01M7 12.5h.01M10 12.5h.01"/></svg>
+            </button>
+            <button type="button" data-rail="configuracion" onclick="window.railNav('configuracion')" title="Configuración"
+                    class="w-10 h-10 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition" style="cursor: pointer;">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><circle cx="10" cy="10" r="2.5"/><path d="M10 2.5v2M10 15.5v2M17.5 10h-2M4.5 10h-2M15 5l-1.4 1.4M6.4 13.6 5 15M15 15l-1.4-1.4M6.4 6.4 5 5"/></svg>
+            </button>
+        </nav>
+
+        <!-- Menú Lateral: cajón con rótulos (flota junto al riel; se puede fijar) -->
         <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 z-40 w-64 min-w-[16rem] max-w-[85vw] bg-slate-900 border-r border-slate-800 p-4 shrink-0 overflow-y-auto -translate-x-full lg:translate-x-0 transition-transform duration-200">
             <div class="space-y-4">
                 <div class="flex flex-col space-y-2 px-2">
-                    <div class="text-lg font-bold text-sky-400">Hares de México</div>
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="text-lg font-bold text-sky-400">Hares de México</div>
+                        <button type="button" id="btnFijarNav" onclick="window.fijarSidebar()" title="Fijar menú abierto"
+                                class="w-8 h-8 items-center justify-center rounded-lg hover:bg-slate-800 text-slate-500 transition shrink-0" style="cursor: pointer;">
+                            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M12 3 8 7H5l3 3-4 6 6-4 3 3v-3l4-4-4-4V3Z"/></svg>
+                        </button>
+                    </div>
                     <!-- Testigo de conexión -->
                     <div id="statusConexion" class="text-xs bg-slate-950 px-3 py-1.5 rounded-lg text-slate-400 border border-slate-800 text-center font-mono">
                         Estado: Conectando...

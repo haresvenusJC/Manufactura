@@ -874,7 +874,80 @@ const rcFmt = (n) => {
 };
 
 let rcTab = 'balanza';
-let rcCache = null; // { desde, hasta, ctas, movs }
+let rcCache = null; // { desde, hasta, ctas, movs, sinDetalle }
+let rcCuentaExpandida = null; // id de cuenta con el desglose abierto
+
+// Movimientos de UNA cuenta dentro del periodo (para el desglose por cuenta).
+function rcMovsDeCuenta(cuentaId) {
+    const { desde, hasta, movs } = rcCache;
+    return movs
+        .filter((m) => m.cuenta_id === cuentaId && m.polizas && m.polizas.fecha >= desde && m.polizas.fecha <= hasta)
+        .sort((a, b) => (a.polizas.fecha < b.polizas.fecha ? -1 : a.polizas.fecha > b.polizas.fecha ? 1 : (a.id || 0) - (b.id || 0)));
+}
+
+// Fila expandible con el detalle de movimientos de la cuenta + enlace a su póliza.
+function rcFilaDetalleCuenta(cuenta, colspan) {
+    if (rcCache.sinDetalle) {
+        return `<tr class="rc-detalle-row bg-slate-900/40"><td colspan="${colspan}" class="p-3 text-[11px] text-amber-400">
+            El desglose por documento necesita el último SQL de contabilidad. Vuelve a generar el reporte tras correrlo.</td></tr>`;
+    }
+    const lista = rcMovsDeCuenta(cuenta.id);
+    if (!lista.length) {
+        return `<tr class="rc-detalle-row bg-slate-900/40"><td colspan="${colspan}" class="p-3 text-[11px] text-slate-500">Sin movimientos en el periodo.</td></tr>`;
+    }
+    let sc = 0, sa = 0;
+    const filas = lista.map((m) => {
+        const p = m.polizas || {};
+        sc += Number(m.cargo) || 0; sa += Number(m.abono) || 0;
+        return `<tr class="border-b border-slate-900/60">
+            <td class="p-1.5 whitespace-nowrap text-slate-400">${p.fecha || ''}</td>
+            <td class="p-1.5">
+                <button type="button" class="rc-ver-pol text-sky-400 hover:underline font-mono" data-pol="${p.id}">${p.tipo || '?'} #${p.numero ?? '?'}</button>
+                ${p.origen && p.origen !== 'manual' ? `<span class="text-[10px] text-slate-600 ml-1">(${p.origen})</span>` : ''}
+            </td>
+            <td class="p-1.5 text-slate-400">${(m.concepto || p.concepto || '').replace(/</g, '&lt;')}</td>
+            <td class="p-1.5 text-right font-mono">${Number(m.cargo) ? rcFmt(m.cargo) : ''}</td>
+            <td class="p-1.5 text-right font-mono">${Number(m.abono) ? rcFmt(m.abono) : ''}</td>
+        </tr>`;
+    }).join('');
+    return `<tr class="rc-detalle-row bg-slate-900/30"><td colspan="${colspan}" class="p-2">
+        <div class="text-[11px] text-slate-500 mb-1 font-semibold">${cuenta.codigo} · ${cuenta.nombre} — ${lista.length} movimiento(s)</div>
+        <div class="overflow-x-auto">
+        <table class="w-full text-left text-[11px] text-slate-300">
+            <thead class="text-slate-500 uppercase"><tr>
+                <th class="p-1.5 text-left">Fecha</th><th class="p-1.5 text-left">Póliza</th>
+                <th class="p-1.5 text-left">Concepto</th><th class="p-1.5 text-right">Cargo</th><th class="p-1.5 text-right">Abono</th>
+            </tr></thead>
+            <tbody>${filas}</tbody>
+            <tfoot class="border-t border-slate-800 font-mono"><tr>
+                <td class="p-1.5" colspan="3">Suma del periodo</td>
+                <td class="p-1.5 text-right">${rcFmt(sc)}</td>
+                <td class="p-1.5 text-right">${rcFmt(sa)}</td>
+            </tr></tfoot>
+        </table>
+        </div>
+    </td></tr>`;
+}
+
+// Enlaza los click de "desglose por cuenta" y "ver póliza" tras cada render.
+function rcCablearDesglose() {
+    const res = document.getElementById('rcResultado');
+    if (!res) return;
+    res.querySelectorAll('.rc-cuenta-row').forEach((tr) => {
+        tr.addEventListener('click', (e) => {
+            if (e.target.closest('.rc-ver-pol')) return;
+            const id = Number(tr.dataset.cuenta);
+            rcCuentaExpandida = (rcCuentaExpandida === id) ? null : id;
+            rcPintar();
+        });
+    });
+    res.querySelectorAll('.rc-ver-pol').forEach((b) => {
+        b.addEventListener('click', (e) => {
+            e.stopPropagation();
+            window.rcVerPoliza(Number(b.dataset.pol));
+        });
+    });
+}
 
 export async function cargarModuloReportesContables() {
     const cont = document.getElementById('contenedorReportesContables');
@@ -927,21 +1000,32 @@ async function rcGenerar(forzar) {
 
     if (forzar || !rcCache || rcCache.desde !== desde || rcCache.hasta !== hasta) {
         res.innerHTML = '<p class="text-slate-500">Consultando pólizas...</p>';
+        rcCuentaExpandida = null;
         try {
-            const [ctasR, movsR] = await Promise.all([
-                supabaseClient.from('cuentas_contables')
-                    .select('id, codigo, nombre, tipo, naturaleza, nivel, cuenta_padre_id, afectable')
-                    .order('codigo', { ascending: true }),
-                supabaseClient.from('poliza_movimientos')
+            const ctasR = await supabaseClient.from('cuentas_contables')
+                .select('id, codigo, nombre, tipo, naturaleza, nivel, cuenta_padre_id, afectable')
+                .order('codigo', { ascending: true });
+            if (ctasR.error) throw ctasR.error;
+
+            // Movimientos con datos suficientes para el desglose por cuenta.
+            let movsR = await supabaseClient.from('poliza_movimientos')
+                .select('id, cuenta_id, cargo, abono, concepto, polizas!inner(id, fecha, estatus, tipo, numero, concepto, origen)')
+                .eq('polizas.estatus', 'contabilizada')
+                .lte('polizas.fecha', hasta)
+                .limit(50000);
+            let sinDetalle = false;
+            if (movsR.error) {
+                // esquema viejo: cae al select mínimo (sin desglose por documento)
+                sinDetalle = true;
+                movsR = await supabaseClient.from('poliza_movimientos')
                     .select('cuenta_id, cargo, abono, polizas!inner(fecha, estatus)')
                     .eq('polizas.estatus', 'contabilizada')
                     .lte('polizas.fecha', hasta)
-                    .limit(50000),
-            ]);
-            if (ctasR.error) throw ctasR.error;
+                    .limit(50000);
+            }
             if (movsR.error) throw movsR.error;
             const movs = movsR.data || [];
-            rcCache = { desde, hasta, ctas: ctasR.data || [], movs, truncado: movs.length >= 1000 };
+            rcCache = { desde, hasta, ctas: ctasR.data || [], movs, truncado: movs.length >= 1000, sinDetalle };
         } catch (err) {
             res.innerHTML = `<p class="text-rose-400 text-xs">No se pudo generar. ¿Corriste los SQL de contabilidad (fases 1-2)?<br>${err.message || err}</p>`;
             rcCache = null;
@@ -978,6 +1062,7 @@ function rcPintar() {
         res.insertAdjacentHTML('afterbegin',
             '<p class="text-amber-400 text-[11px] mb-2">⚠ Se alcanzó el tope de 1000 movimientos; el reporte puede estar incompleto. Acota el periodo o pide la versión con RPC.</p>');
     }
+    rcCablearDesglose();
 }
 
 function rcPintarBalanza() {
@@ -1006,14 +1091,15 @@ function rcPintarBalanza() {
                 </thead>
                 <tbody>
                     ${filas.map((r) => `
-                        <tr class="border-b border-slate-900">
-                            <td class="p-2 font-mono text-slate-400">${r.c.codigo}</td>
+                        <tr class="rc-cuenta-row border-b border-slate-900 cursor-pointer hover:bg-slate-900/40" data-cuenta="${r.c.id}">
+                            <td class="p-2 font-mono text-slate-400">${rcCuentaExpandida === r.c.id ? '▾' : '▸'} ${r.c.codigo}</td>
                             <td class="p-2">${r.c.nombre}</td>
                             <td class="p-2 text-right font-mono ${r.saldoIni < 0 ? 'text-rose-400' : ''}">${rcFmt(r.saldoIni)}</td>
                             <td class="p-2 text-right font-mono">${rcFmt(r.cargo)}</td>
                             <td class="p-2 text-right font-mono">${rcFmt(r.abono)}</td>
                             <td class="p-2 text-right font-mono ${r.saldoFin < 0 ? 'text-rose-400' : ''}">${rcFmt(r.saldoFin)}</td>
-                        </tr>`).join('')}
+                        </tr>
+                        ${rcCuentaExpandida === r.c.id ? rcFilaDetalleCuenta(r.c, 6) : ''}`).join('')}
                 </tbody>
                 <tfoot class="bg-slate-900 font-semibold border-t border-slate-700">
                     <tr>
@@ -1053,7 +1139,12 @@ function rcPintarResultados() {
 
     const seccion = (titulo, b) => `
         <tr class="bg-slate-900/60"><td class="p-2 font-semibold text-sky-400" colspan="2">${titulo}</td></tr>
-        ${b.items.map((x) => `<tr class="border-b border-slate-900"><td class="p-2 pl-6"><span class="font-mono text-slate-500">${x.c.codigo}</span> ${x.c.nombre}</td><td class="p-2 text-right font-mono">${rcFmt(x.monto)}</td></tr>`).join('') || '<tr><td class="p-2 pl-6 text-slate-600" colspan="2">(sin movimientos)</td></tr>'}
+        ${b.items.map((x) => `
+            <tr class="rc-cuenta-row border-b border-slate-900 cursor-pointer hover:bg-slate-900/40" data-cuenta="${x.c.id}">
+                <td class="p-2 pl-6"><span class="text-slate-600">${rcCuentaExpandida === x.c.id ? '▾' : '▸'}</span> <span class="font-mono text-slate-500">${x.c.codigo}</span> ${x.c.nombre}</td>
+                <td class="p-2 text-right font-mono">${rcFmt(x.monto)}</td>
+            </tr>
+            ${rcCuentaExpandida === x.c.id ? rcFilaDetalleCuenta(x.c, 2) : ''}`).join('') || '<tr><td class="p-2 pl-6 text-slate-600" colspan="2">(sin movimientos)</td></tr>'}
         <tr class="border-b border-slate-800"><td class="p-2 pl-6 font-semibold">Total ${titulo.toLowerCase()}</td><td class="p-2 text-right font-mono font-semibold">${rcFmt(b.total)}</td></tr>`;
 
     res.innerHTML = `
@@ -1073,11 +1164,110 @@ function rcPintarResultados() {
         </div>`;
 }
 
+// Modal: detalle completo de una póliza + enlaces a su documento / gasto de origen.
+window.rcCerrarModalPoliza = function () {
+    document.getElementById('rcModalPoliza')?.remove();
+};
+
+window.rcVerPoliza = async function (polId) {
+    let cont = document.getElementById('rcModalPoliza');
+    if (!cont) {
+        cont = document.createElement('div');
+        cont.id = 'rcModalPoliza';
+        cont.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4';
+        cont.addEventListener('click', (e) => { if (e.target === cont) window.rcCerrarModalPoliza(); });
+        document.body.appendChild(cont);
+    }
+    cont.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 text-sm text-slate-300">
+        <p class="text-slate-500">Cargando póliza #${polId}...</p></div>`;
+
+    const ctaMapa = new Map((rcCache?.ctas || []).map((c) => [c.id, c]));
+    try {
+        const { data: pol, error } = await supabaseClient
+            .from('polizas')
+            .select('*, poliza_movimientos(id, orden, cuenta_id, cargo, abono, concepto)')
+            .eq('id', polId).single();
+        if (error) throw error;
+
+        // Documento(s) y gasto de origen (best-effort; columnas pueden no existir)
+        let docs = [], gasto = null;
+        try {
+            const r = await supabaseClient.from('documentos').select('id, folio, tipo_movimiento').eq('poliza_id', polId);
+            if (!r.error) docs = r.data || [];
+        } catch (_) {}
+        try {
+            const r = await supabaseClient.from('gastos').select('id, concepto, folio_factura').eq('poliza_id', polId);
+            if (!r.error && r.data && r.data.length) gasto = r.data[0];
+        } catch (_) {}
+
+        const movs = (pol.poliza_movimientos || []).slice().sort((a, b) => (a.orden || 0) - (b.orden || 0));
+        const totC = movs.reduce((s, m) => s + (Number(m.cargo) || 0), 0);
+        const totA = movs.reduce((s, m) => s + (Number(m.abono) || 0), 0);
+
+        const enlacesDoc = docs.map((d) => `
+            <button type="button" onclick="window.rcCerrarModalPoliza(); window.loadView('documentos'); window.abrirDetalleDocumentoGlobal(${d.id});"
+                class="text-xs bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-800/60 px-3 py-1.5 rounded-lg font-semibold cursor-pointer">
+                Abrir documento #${d.id}${d.folio ? ' · ' + d.folio : ''}
+            </button>`).join(' ');
+
+        cont.innerHTML = `
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-center">
+                <h3 class="text-sm font-bold text-slate-200">Póliza ${pol.tipo} #${pol.numero} · ${pol.fecha}</h3>
+                <button onclick="window.rcCerrarModalPoliza()" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2">&times;</button>
+            </div>
+            <div class="p-5 space-y-3 overflow-y-auto text-sm">
+                <div class="text-xs text-slate-400">
+                    <span class="font-semibold text-slate-300">Concepto:</span> ${(pol.concepto || '—')}<br>
+                    <span class="font-semibold text-slate-300">Estatus:</span> <span class="${pol.estatus === 'contabilizada' ? 'text-emerald-400' : 'text-rose-400'}">${pol.estatus}</span>
+                    · <span class="font-semibold text-slate-300">Origen:</span> ${pol.origen || 'manual'}
+                </div>
+                <div class="overflow-x-auto border border-slate-800 rounded-lg">
+                    <table class="w-full text-left text-[11px] text-slate-300">
+                        <thead class="bg-slate-950 text-slate-500 uppercase"><tr>
+                            <th class="p-2">Cuenta</th><th class="p-2">Concepto</th>
+                            <th class="p-2 text-right">Cargo</th><th class="p-2 text-right">Abono</th>
+                        </tr></thead>
+                        <tbody>
+                            ${movs.map((m) => {
+                                const c = ctaMapa.get(m.cuenta_id);
+                                return `<tr class="border-b border-slate-900">
+                                    <td class="p-2 font-mono">${c ? c.codigo + ' · ' + c.nombre : 'cuenta ' + m.cuenta_id}</td>
+                                    <td class="p-2 text-slate-400">${(m.concepto || '').replace(/</g, '&lt;')}</td>
+                                    <td class="p-2 text-right font-mono">${Number(m.cargo) ? rcFmt(m.cargo) : ''}</td>
+                                    <td class="p-2 text-right font-mono">${Number(m.abono) ? rcFmt(m.abono) : ''}</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                        <tfoot class="bg-slate-950 font-mono border-t border-slate-700"><tr>
+                            <td class="p-2" colspan="2">Totales</td>
+                            <td class="p-2 text-right">${rcFmt(totC)}</td>
+                            <td class="p-2 text-right">${rcFmt(totA)}</td>
+                        </tr></tfoot>
+                    </table>
+                </div>
+                ${gasto ? `<div class="text-xs text-slate-400"><span class="font-semibold text-slate-300">Gasto de origen:</span> #${gasto.id} · ${gasto.concepto || ''}${gasto.folio_factura ? ' · ' + gasto.folio_factura : ''}</div>` : ''}
+                ${enlacesDoc ? `<div class="flex flex-wrap gap-2 pt-1">${enlacesDoc}</div>`
+                    : `<p class="text-[11px] text-slate-500">Esta póliza no tiene un documento de almacén enlazado (origen: ${pol.origen || 'manual'}).</p>`}
+            </div>
+            <div class="bg-slate-950 px-5 py-3 border-t border-slate-800 text-right">
+                <button onclick="window.rcCerrarModalPoliza()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl font-semibold cursor-pointer">Cerrar</button>
+            </div>
+        </div>`;
+    } catch (err) {
+        cont.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 text-sm">
+            <p class="text-rose-400">No se pudo cargar la póliza #${polId}.<br>${err.message || err}</p>
+            <div class="text-right mt-3"><button onclick="window.rcCerrarModalPoliza()" class="text-xs bg-slate-800 px-4 py-2 rounded-xl text-slate-200">Cerrar</button></div>
+        </div>`;
+    }
+};
+
 function rcExportarCSV() {
     const tabla = document.querySelector('#rcTabla table');
     if (!tabla) { alert('Genera primero un reporte.'); return; }
     const filas = [];
     tabla.querySelectorAll('tr').forEach((tr) => {
+        if (tr.classList.contains('rc-detalle-row') || tr.closest('.rc-detalle-row')) return;
         filas.push([...tr.children].map((td) => {
             const s = (td.textContent || '').trim().replace(/\s+/g, ' ');
             return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;

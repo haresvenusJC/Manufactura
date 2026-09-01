@@ -220,6 +220,7 @@ async function pintarOrden() {
 
     let equipos = [];
     let registros = [];
+    let solicitudes = [];
     if (procIds.length) {
         const [{ data: eq }, { data: rg }] = await Promise.all([
             supabaseClient.from('v_ot_proceso_empleados')
@@ -231,6 +232,13 @@ async function pintarOrden() {
         ]);
         equipos = eq || [];
         registros = rg || [];
+        // Solicitudes de reasignación pendientes (degrada si el SQL no está)
+        try {
+            const { data: so } = await supabaseClient.from('v_ot_solicitudes')
+                .select('proceso_id, empleado_id, empleado_nombre')
+                .in('proceso_id', procIds);
+            solicitudes = so || [];
+        } catch (_) { solicitudes = []; }
     }
 
     const miId = Number(sesion.empleadoId);
@@ -246,9 +254,22 @@ async function pintarOrden() {
         let abierto = '';
         mis.forEach(r => { if (r.fin) acum += segIntervalo(r.inicio, r.fin); else abierto = r.inicio; });
 
-        const nombres = team.map(e => e.empleado_nombre).filter(Boolean).join(', ') || 'Sin equipo asignado';
+        // Estado de cada integrante del equipo: ● trabajando / ✓ finalizó
+        const nombres = (team.map(e => {
+            const eid = Number(e.empleado_id);
+            const trabajando = registros.some(r => r.orden_produccion_proceso_id === p.id && Number(r.empleado_id) === eid && !r.fin);
+            const cls = trabajando ? 'text-emerald-400' : e.finalizado_at ? 'text-slate-500' : 'text-slate-400';
+            const marca = trabajando ? '● ' : e.finalizado_at ? '✓ ' : '';
+            return `<span class="${cls}">${marca}${e.empleado_nombre || ''}${eid === miId ? ' (tú)' : ''}</span>`;
+        }).join(' · ')) || 'Sin equipo asignado';
 
-        let bloqueOperario = `<p class="text-[11px] text-slate-600 italic">No estás asignado a este proceso.</p>`;
+        const miSolicitud = solicitudes.find(s => Number(s.proceso_id) === p.id && Number(s.empleado_id) === miId);
+
+        let bloqueOperario = miSolicitud
+            ? `<p class="text-[11px] text-amber-400">⏳ Pediste que te asignen. Espera a que el administrador lo autorice.</p>`
+            : `<button class="btn-solicitar w-full bg-slate-800 border border-slate-700 text-sky-300 font-semibold rounded-xl py-2.5 text-sm active:opacity-80"
+                       data-proceso="${p.id}" data-nombre="${(p.proceso_nombre || '').replace(/"/g, '&quot;')}">🙋 Solicitar que me asignen</button>
+               <p class="text-[10px] text-slate-600 mt-1">No puedes ejecutar esta tarea hasta que el administrador te reasigne.</p>`;
         if (asignado && finalizada) {
             bloqueOperario = `
                 <div class="flex items-center justify-between">
@@ -318,6 +339,27 @@ async function pintarOrden() {
             p_proceso_id: Number(b.dataset.proceso),
             p_finalizar: false
         });
+    });
+
+    cont.querySelectorAll('.btn-solicitar').forEach(b => {
+        b.onclick = async () => {
+            const motivo = prompt(`Pedir al administrador que te asignen a "${b.dataset.nombre}".\nMotivo (opcional):`, '');
+            if (motivo === null) return;
+            b.disabled = true;
+            const { error } = await supabaseClient.rpc('ot_solicitar_reasignacion', {
+                p_token: sesion.token,
+                p_proceso_id: Number(b.dataset.proceso),
+                p_motivo: motivo || null
+            });
+            if (error) {
+                if (esErrorSesion(error)) { alert('Tu sesión expiró. Vuelve a identificarte.'); salir(); return; }
+                alert(error.message);
+                b.disabled = false;
+                return;
+            }
+            alert('✅ Solicitud enviada. El administrador la verá en Producción → Órdenes en Proceso.');
+            await pintarOrden();
+        };
     });
 }
 
