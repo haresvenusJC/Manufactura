@@ -341,9 +341,11 @@ export async function cargarCatalogoInicial() {
                 </details>
 
                 <div class="space-y-3">
-                    <div class="flex justify-between items-center">
+                    <div class="flex flex-wrap justify-between items-center gap-2">
                         <h3 class="text-md font-semibold text-slate-300">Catálogo General de Artículos</h3>
-                        <div class="flex gap-2">
+                        <div class="flex flex-wrap gap-2 items-center">
+                            <button type="button" id="btnExportProdXlsx" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇️ Excel</button>
+                            <button type="button" id="btnExportProdCsv" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇️ CSV</button>
                             <span class="text-xs bg-slate-900 border border-slate-800 px-2 py-1 rounded text-slate-400">Sincronizado con Supabase</span>
                         </div>
                     </div>
@@ -364,6 +366,9 @@ export async function cargarCatalogoInicial() {
             chevronRegistro.textContent = detRegistro.open ? '▾ Cerrar' : '▸ Abrir';
             try { localStorage.setItem(LS_FORM_PRODUCTO_ABIERTO, detRegistro.open ? '1' : '0'); } catch (_) { /* noop */ }
         });
+
+        document.getElementById('btnExportProdCsv').addEventListener('click', () => exportarCatalogoProductos('csv'));
+        document.getElementById('btnExportProdXlsx').addEventListener('click', () => exportarCatalogoProductos('xlsx'));
 
         let itemsBomTemp = [];
         let productoSeleccionadoId = null;
@@ -741,6 +746,92 @@ export async function cargarCatalogoInicial() {
                 <strong>Error al cargar la sección de catálogo:</strong> ${err.message || err}
             </div>`;
         }
+    }
+}
+
+// =====================================================================
+// Reporteador: exporta TODOS los productos con todas sus columnas
+// (más las llaves foráneas resueltas a nombre) a CSV o Excel.
+// =====================================================================
+
+function _csvCelda(v) {
+    if (v === null || v === undefined) return '';
+    const s = String(v);
+    return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+async function exportarCatalogoProductos(formato) {
+    const btns = ['btnExportProdCsv', 'btnExportProdXlsx'].map((id) => document.getElementById(id));
+    btns.forEach((b) => { if (b) b.disabled = true; });
+    try {
+        const [prod, prov, um, mon, ctas] = await Promise.all([
+            supabaseClient.from('productos').select('*').order('id', { ascending: true }),
+            supabaseClient.from('proveedores').select('id, nombre'),
+            supabaseClient.from('unidades_medida').select('id, nombre'),
+            supabaseClient.from('monedas').select('id, codigo'),
+            supabaseClient.from('cuentas_contables').select('id, codigo, nombre'),
+        ]);
+        if (prod.error) throw prod.error;
+        const filas = prod.data || [];
+        if (!filas.length) { alert('No hay productos para exportar.'); return; }
+
+        const mProv = new Map((prov.data || []).map((x) => [x.id, x.nombre]));
+        const mUm = new Map((um.data || []).map((x) => [x.id, x.nombre]));
+        const mMon = new Map((mon.data || []).map((x) => [x.id, x.codigo]));
+        const mCta = new Map((ctas.data || []).map((x) => [x.id, `${x.codigo} · ${x.nombre}`]));
+
+        // Cada fila: columnas crudas + columnas legibles de las FK.
+        const registros = filas.map((p) => ({
+            ...p,
+            proveedor: mProv.get(p.proveedor_id) || '',
+            unidad: mUm.get(p.unidad_medida_id) || '',
+            moneda: mMon.get(p.moneda_id) || '',
+            cuenta_inventario: mCta.get(p.cuenta_inventario_id) || '',
+            cuenta_costo: mCta.get(p.cuenta_costo_id) || '',
+        }));
+
+        // Orden de columnas: primero las "legibles/útiles", luego el resto alfabético.
+        const preferidas = [
+            'id', 'sku', 'nombre', 'tipo', 'descripcion',
+            'unidad', 'unidad_medida_id', 'costo_unitario', 'precio_venta',
+            'moneda', 'moneda_id', 'proveedor', 'proveedor_id',
+            'stock_actual', 'stock_minimo', 'tiempo_entrega_dias', 'cantidad_minima_compra',
+            'tasa_iva', 'tasa_ieps',
+            'cuenta_inventario', 'cuenta_inventario_id', 'cuenta_costo', 'cuenta_costo_id',
+            'activo', 'created_at',
+        ];
+        const todas = new Set();
+        registros.forEach((r) => Object.keys(r).forEach((k) => todas.add(k)));
+        const columnas = [
+            ...preferidas.filter((c) => todas.has(c)),
+            ...[...todas].filter((c) => !preferidas.includes(c)).sort(),
+        ];
+
+        const stamp = new Date().toISOString().slice(0, 10);
+        const nombreArchivo = `catalogo_productos_${stamp}`;
+
+        if (formato === 'xlsx') {
+            const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs');
+            const aoa = [columnas, ...registros.map((r) => columnas.map((c) => r[c] ?? ''))];
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Productos');
+            XLSX.writeFile(wb, `${nombreArchivo}.xlsx`);
+        } else {
+            const lineas = [columnas.map(_csvCelda).join(',')];
+            registros.forEach((r) => lineas.push(columnas.map((c) => _csvCelda(r[c])).join(',')));
+            const csv = '﻿' + lineas.join('\r\n');
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+            a.download = `${nombreArchivo}.csv`;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        }
+    } catch (err) {
+        console.error('Error al exportar catálogo:', err);
+        alert('No se pudo exportar: ' + (err.message || err));
+    } finally {
+        btns.forEach((b) => { if (b) b.disabled = false; });
     }
 }
 
