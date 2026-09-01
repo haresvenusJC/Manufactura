@@ -10,6 +10,19 @@
         summary { list-style: none; }
         summary::-webkit-details-marker { display: none; }
 
+        /* Form "Registro General de Artículos" más compacto (menos alto) */
+        #detRegistroProducto .space-y-4 > * + * { margin-top: .5rem !important; }
+        #detRegistroProducto .space-y-3 > * + * { margin-top: .4rem !important; }
+        #detRegistroProducto .space-y-2 > * + * { margin-top: .3rem !important; }
+        #detRegistroProducto label { margin-bottom: .15rem !important; }
+        #detRegistroProducto input,
+        #detRegistroProducto select,
+        #detRegistroProducto textarea { padding-top: .3rem !important; padding-bottom: .3rem !important; }
+        #detRegistroProducto hr { margin-top: .35rem !important; margin-bottom: .35rem !important; }
+        #detRegistroProducto .p-4 { padding-left: .75rem !important; padding-right: .75rem !important; padding-bottom: .75rem !important; }
+        #detRegistroProducto details > .p-3 { padding: .55rem !important; }
+        #detRegistroProducto p[class*="text-[1"] { margin-top: .1rem !important; line-height: 1.25 !important; }
+
         /* ===================== SELECTOR DE TEMA =====================
            Remapea la paleta neutra (slate) y los acentos a variables.
            Cambiar de tema = cambiar data-theme en <html>. */
