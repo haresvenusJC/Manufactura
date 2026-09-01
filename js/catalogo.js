@@ -780,10 +780,17 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
         const mapaProductosPorId = {};
         productosData.forEach((p) => { mapaProductosPorId[p.id] = p; });
 
+        const OPCIONES_TIPO = [
+            { v: 'producto', t: 'Producto terminado' },
+            { v: 'materia_prima', t: 'Materia prima' },
+            { v: 'insumo', t: 'Insumo' },
+        ];
+
         productosData.forEach(item => {
-            let badgeColor = "bg-sky-950 text-sky-400 border-sky-800";
-            if (item.tipo === 'materia_prima') badgeColor = "bg-amber-950 text-amber-400 border-amber-800";
-            if (item.tipo === 'insumo') badgeColor = "bg-emerald-950 text-emerald-400 border-emerald-800";
+            const tipoActual = item.tipo || 'producto';
+            let tipoColor = "text-sky-400 border-sky-800";
+            if (tipoActual === 'materia_prima') tipoColor = "text-amber-400 border-amber-800";
+            if (tipoActual === 'insumo') tipoColor = "text-emerald-400 border-emerald-800";
 
             const nombreProveedor = mapaProvNombres[item.proveedor_id] || 'N/D';
             const nombreUnidad = mapaUnidades[item.unidad_medida_id] || 'N/D';
@@ -795,7 +802,11 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
             html += `
                 <tr class="border-b border-slate-900 hover:bg-slate-800/50 transition ${activo ? '' : 'opacity-50'}">
                     <td class="p-3 font-mono text-xs text-sky-300">${item.sku || 'N/D'}</td>
-                    <td class="p-3"><span class="text-[10px] px-2 py-0.5 rounded border ${badgeColor} uppercase">${item.tipo || 'producto'}</span></td>
+                    <td class="p-3">
+                        <select class="sel-tipo-prod bg-slate-950 border ${tipoColor} rounded px-1.5 py-0.5 text-[10px] font-medium cursor-pointer focus:outline-none focus:border-sky-500" data-id="${item.id}" title="Cambiar categoría">
+                            ${OPCIONES_TIPO.map(o => `<option value="${o.v}" ${o.v === tipoActual ? 'selected' : ''}>${o.t}</option>`).join('')}
+                        </select>
+                    </td>
                     <td class="p-3 font-medium text-slate-100">${item.nombre || 'Sin nombre'}</td>
                     <td class="p-3 text-slate-400 text-xs">${nombreUnidad}</td>
                     <td class="p-3 text-slate-300 text-xs">${nombreProveedor}</td>
@@ -819,6 +830,15 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
                 const { error } = await supabaseClient.from('productos').update({ activo: nuevoEstado }).eq('id', Number(btn.dataset.id));
                 if (error) { alert('No se pudo cambiar el estado: ' + error.message); return; }
                 await renderizarTablaProductos(mapaUnidades);
+            });
+        });
+
+        contenedorTabla.querySelectorAll('.sel-tipo-prod').forEach((sel) => {
+            sel.addEventListener('change', async () => {
+                const producto = mapaProductosPorId[Number(sel.dataset.id)];
+                if (!producto) return;
+                const aplicado = await cambiarCategoriaProducto(producto, sel.value, mapaUnidades);
+                if (!aplicado) sel.value = producto.tipo || 'producto'; // cancelado: revertir
             });
         });
 
@@ -861,25 +881,14 @@ function abrirMenuAccionesProducto(producto, botonAncla) {
     const rect = botonAncla.getBoundingClientRect();
     const menu = document.createElement('div');
     menu.id = 'menuAccionesProducto';
-    menu.className = 'fixed z-50 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl text-xs overflow-y-auto max-h-[80vh] w-60';
+    menu.className = 'fixed z-50 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl text-xs overflow-hidden w-56';
     menu.style.top = `${rect.bottom + 4}px`;
-    menu.style.left = `${Math.max(8, rect.right - 240)}px`;
-
-    const opcTipo = (t) => `
-        <button type="button" data-tipo="${t}" class="btn-menu-prod-tipo w-full text-left px-3 py-2 hover:bg-slate-800 flex items-center justify-between gap-2 cursor-pointer ${producto.tipo === t ? 'text-sky-400 font-semibold' : 'text-slate-200'}">
-            <span>${ETIQUETA_TIPO_PRODUCTO[t]}</span>${producto.tipo === t ? '<span>✓</span>' : ''}
-        </button>`;
+    menu.style.left = `${Math.max(8, rect.right - 224)}px`;
 
     menu.innerHTML = `
         <button type="button" id="btnMenuProdKardex" class="w-full text-left px-3 py-2.5 hover:bg-slate-800 text-slate-200 flex items-center gap-2 cursor-pointer">
             <span>📦</span><span>Kardex de este producto</span>
         </button>
-        <div class="border-t border-slate-800">
-            <div class="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-slate-500 flex items-center gap-1"><span>🏷️</span> Cambiar categoría</div>
-            ${opcTipo('producto')}
-            ${opcTipo('materia_prima')}
-            ${opcTipo('insumo')}
-        </div>
         <button type="button" id="btnMenuProdResumen" class="w-full text-left px-3 py-2.5 hover:bg-slate-800 text-slate-200 border-t border-slate-800 flex items-center gap-2 cursor-pointer">
             <span>📋</span><span>Resumen completo (editable)</span>
         </button>
@@ -889,13 +898,6 @@ function abrirMenuAccionesProducto(producto, botonAncla) {
     document.getElementById('btnMenuProdKardex').addEventListener('click', () => {
         cerrarMenuAccionesProducto();
         irAKardexDeProducto(producto.id, producto.nombre);
-    });
-    menu.querySelectorAll('.btn-menu-prod-tipo').forEach((b) => {
-        b.addEventListener('click', async () => {
-            const nuevo = b.dataset.tipo;
-            cerrarMenuAccionesProducto();
-            await cambiarCategoriaProducto(producto, nuevo);
-        });
     });
     document.getElementById('btnMenuProdResumen').addEventListener('click', () => {
         cerrarMenuAccionesProducto();
@@ -934,20 +936,24 @@ const ETIQUETA_TIPO_PRODUCTO = {
     insumo: 'Insumo / componente',
 };
 
-// Reclasifica el articulo (productos.tipo) desde el menu ☰.
-async function cambiarCategoriaProducto(producto, nuevoTipo) {
-    if (nuevoTipo === producto.tipo) return;
+// Reclasifica el articulo (productos.tipo). Devuelve true si se aplico el cambio.
+async function cambiarCategoriaProducto(producto, nuevoTipo, mapaUnidades) {
+    if (nuevoTipo === producto.tipo) return false;
     let aviso = '';
     if (producto.tipo === 'producto' && nuevoTipo !== 'producto') {
         aviso = '\n\nOjo: si tenía receta (BOM), dejará de usarse mientras no vuelva a ser "Producto terminado".';
     }
-    if (!confirm(`¿Cambiar "${producto.nombre}" de ${ETIQUETA_TIPO_PRODUCTO[producto.tipo] || producto.tipo} a ${ETIQUETA_TIPO_PRODUCTO[nuevoTipo]}?${aviso}`)) return;
+    if (!confirm(`¿Cambiar "${producto.nombre}" de ${ETIQUETA_TIPO_PRODUCTO[producto.tipo] || producto.tipo} a ${ETIQUETA_TIPO_PRODUCTO[nuevoTipo]}?${aviso}`)) return false;
     const { error } = await supabaseClient.from('productos').update({ tipo: nuevoTipo }).eq('id', producto.id);
-    if (error) { alert('No se pudo cambiar la categoría: ' + (error.message || error)); return; }
-    const { data: um } = await supabaseClient.from('unidades_medida').select('id, nombre');
-    const mapa = {};
-    (um || []).forEach((u) => { mapa[u.id] = u.nombre; });
+    if (error) { alert('No se pudo cambiar la categoría: ' + (error.message || error)); return false; }
+    let mapa = mapaUnidades;
+    if (!mapa) {
+        const { data: um } = await supabaseClient.from('unidades_medida').select('id, nombre');
+        mapa = {};
+        (um || []).forEach((u) => { mapa[u.id] = u.nombre; });
+    }
     await renderizarTablaProductos(mapa);
+    return true;
 }
 
 function escaparHtml(valor) {
