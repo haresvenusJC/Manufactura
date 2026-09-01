@@ -296,6 +296,33 @@ export async function cargarCatalogoInicial() {
                             </div>
                         </details>
 
+                        <details id="detClavesProv" class="bg-slate-900/40 border border-slate-800 rounded-lg">
+                            <summary class="cursor-pointer select-none text-xs font-semibold text-sky-400 px-3 py-2">Claves de proveedor (para importar facturas XML)</summary>
+                            <div class="p-3 pt-0 space-y-2">
+                                <p class="text-[10px] text-slate-500">Cómo identifica cada proveedor a este producto en sus facturas. Puedes guardar varias.</p>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="col-span-2">
+                                        <label class="block text-[10px] text-slate-400 mb-0.5">Proveedor</label>
+                                        <select id="cpProveedor" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${opcionesProveedoresHtml}</select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] text-slate-400 mb-0.5">Clave del proveedor <span class="text-rose-400">*</span></label>
+                                        <input type="text" id="cpClave" placeholder="Su código / No. identificación" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] text-slate-400 mb-0.5">Clave SAT (ClaveProdServ)</label>
+                                        <input type="text" id="cpClaveSat" placeholder="Opcional · 8 dígitos" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                                    </div>
+                                    <div class="col-span-2">
+                                        <label class="block text-[10px] text-slate-400 mb-0.5">Descripción en la factura</label>
+                                        <input type="text" id="cpDescFactura" placeholder="Opcional · texto tal como llega en el XML" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                    </div>
+                                </div>
+                                <button type="button" id="btnAgregarClaveProv" class="w-full bg-slate-800 hover:bg-slate-700 text-sky-300 font-medium py-1.5 rounded-lg text-xs transition">＋ Agregar clave de proveedor</button>
+                                <div id="listaClavesProv" class="text-xs text-slate-400 bg-slate-900 p-2 rounded-lg border border-slate-800 min-h-[32px]">Sin claves registradas.</div>
+                            </div>
+                        </details>
+
                         <hr class="border-slate-800 my-2">
 
                         <details id="detBom" class="bg-slate-900/40 border border-slate-800 rounded-lg">
@@ -366,6 +393,7 @@ export async function cargarCatalogoInicial() {
         document.getElementById('btnExportProdXlsx').addEventListener('click', () => exportarCatalogoProductos('xlsx'));
 
         let itemsBomTemp = [];
+        let clavesProvTemp = [];   // claves de proveedor del artículo en edición
         let productoSeleccionadoId = null;
 
         const inputNombre = document.getElementById('prodNombre');
@@ -550,6 +578,28 @@ export async function cargarCatalogoInicial() {
                     seccionBomContainer.classList.add('hidden');
                 }
 
+                // Claves de proveedor (degrada si la tabla aún no existe)
+                clavesProvTemp = [];
+                try {
+                    const { data: cps, error: errCps } = await supabaseClient
+                        .from('producto_claves_proveedor')
+                        .select('proveedor_id, clave, clave_sat, descripcion_factura')
+                        .eq('producto_id', id);
+                    if (!errCps && cps) {
+                        const mapProv = new Map((listaProveedores || []).map(p => [p.id, p.nombre]));
+                        clavesProvTemp = cps.map(c => ({
+                            proveedorId: c.proveedor_id,
+                            proveedorNombre: mapProv.get(c.proveedor_id) || '',
+                            clave: c.clave,
+                            claveSat: c.clave_sat || '',
+                            descFactura: c.descripcion_factura || '',
+                        }));
+                    }
+                } catch (_) { clavesProvTemp = []; }
+                renderClavesProv();
+                const detCp = document.getElementById('detClavesProv');
+                if (detCp) detCp.open = clavesProvTemp.length > 0;
+
             } catch (err) {
                 console.error("Error al cargar artículo existente:", err);
                 alert("Error al recuperar los datos del artículo.");
@@ -561,6 +611,9 @@ export async function cargarCatalogoInicial() {
             document.getElementById('formCrearProducto').reset();
             itemsBomTemp = [];
             actualizarListaBomVisual();
+            clavesProvTemp = [];
+            renderClavesProv();
+            document.getElementById('detClavesProv')?.removeAttribute('open');
             seccionBomContainer.classList.remove('hidden');
             selectTipoElemento.value = 'producto';
             marcarBotonTipoActivo('producto');
@@ -626,6 +679,53 @@ export async function cargarCatalogoInicial() {
             itemsBomTemp.splice(index, 1);
             actualizarListaBomVisual();
         };
+
+        // ---- Claves de proveedor (una a varias por producto) ----
+        function renderClavesProv() {
+            const cont = document.getElementById('listaClavesProv');
+            if (!cont) return;
+            if (!clavesProvTemp.length) { cont.innerHTML = 'Sin claves registradas.'; return; }
+            cont.innerHTML = clavesProvTemp.map((c, i) => `
+                <div class="flex justify-between items-start gap-2 py-1 border-b border-slate-800 last:border-0">
+                    <span class="text-[11px]">
+                        <span class="font-mono text-sky-300">${escaparHtml(c.clave)}</span>
+                        <span class="text-slate-500"> · ${escaparHtml(c.proveedorNombre || 'sin proveedor')}</span>
+                        ${c.claveSat ? `<span class="text-slate-500"> · SAT ${escaparHtml(c.claveSat)}</span>` : ''}
+                        ${c.descFactura ? `<span class="text-slate-500 block">"${escaparHtml(c.descFactura)}"</span>` : ''}
+                    </span>
+                    <button type="button" onclick="window.removerClaveProv(${i})" class="text-red-400 hover:text-red-300 text-xs shrink-0">Eliminar</button>
+                </div>`).join('');
+        }
+
+        window.removerClaveProv = function(i) {
+            clavesProvTemp.splice(i, 1);
+            renderClavesProv();
+        };
+
+        const btnAddClaveProv = document.getElementById('btnAgregarClaveProv');
+        if (btnAddClaveProv) {
+            btnAddClaveProv.addEventListener('click', () => {
+                const selProv = document.getElementById('cpProveedor');
+                const clave = document.getElementById('cpClave').value.trim();
+                if (!clave) { alert('Escribe la clave del proveedor.'); return; }
+                const proveedorId = selProv.value ? parseInt(selProv.value) : null;
+                const proveedorNombre = selProv.value ? (selProv.options[selProv.selectedIndex]?.text || '') : '';
+                const dup = clavesProvTemp.some(c =>
+                    (c.proveedorId || null) === proveedorId && c.clave.toLowerCase() === clave.toLowerCase());
+                if (dup) { alert('Esa clave ya está en la lista para ese proveedor.'); return; }
+                clavesProvTemp.push({
+                    proveedorId,
+                    proveedorNombre,
+                    clave,
+                    claveSat: document.getElementById('cpClaveSat').value.trim(),
+                    descFactura: document.getElementById('cpDescFactura').value.trim(),
+                });
+                renderClavesProv();
+                document.getElementById('cpClave').value = '';
+                document.getElementById('cpClaveSat').value = '';
+                document.getElementById('cpDescFactura').value = '';
+            });
+        }
 
         const formProducto = document.getElementById('formCrearProducto');
         formProducto.addEventListener('submit', async (e) => {
@@ -721,6 +821,30 @@ export async function cargarCatalogoInicial() {
 
                     const { error: errB } = await supabaseClient.from('bom').insert(itemsBom);
                     if (errB) throw errB;
+                }
+
+                // Claves de proveedor: se reescriben (borrar + insertar).
+                // Degrada sin romper el alta si la tabla aún no existe.
+                try {
+                    await supabaseClient.from('producto_claves_proveedor').delete().eq('producto_id', articuloId);
+                    if (clavesProvTemp.length > 0) {
+                        const filasCp = clavesProvTemp.map(c => ({
+                            producto_id: articuloId,
+                            proveedor_id: c.proveedorId || null,
+                            clave: c.clave,
+                            clave_sat: c.claveSat || null,
+                            descripcion_factura: c.descFactura || null,
+                        }));
+                        const { error: errCp } = await supabaseClient.from('producto_claves_proveedor').insert(filasCp);
+                        if (errCp) throw errCp;
+                    }
+                } catch (errCp) {
+                    const m = errCp?.message || String(errCp);
+                    if (/does not exist|schema cache|could not find/i.test(m)) {
+                        alert('Aviso: falta correr el SQL de "claves de proveedor". El artículo se guardó, pero sus claves no.');
+                    } else {
+                        throw errCp;
+                    }
                 }
 
                 alert(productoSeleccionadoId ? "¡Artículo actualizado con éxito!" : "¡Artículo registrado con éxito!");
