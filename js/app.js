@@ -2,6 +2,7 @@ import { verificarConexionReal, cargarCatalogoInicial } from './catalogo.js';
 import { cargarInventarioCompleto } from './inventario.js';
 import { configurarFormularioCompras, toggleTipoCambio } from './compras.js';
 import { configurarFormularioEntradasDirectas } from './entradas.js';
+import { cargarModuloOrdenesCompra, cargarModuloReciboMercancia } from './ordenes-compra.js';
 import { cargarModuloProduccion } from './produccion.js';
 import { cargarModuloProveedores } from './proveedores.js';
 import { cargarModuloSalidas } from './salidas.js';
@@ -162,6 +163,12 @@ window.loadView = function(viewName) {
             break;
         case 'entradas-directas':
             configurarFormularioEntradasDirectas();
+            break;
+        case 'ordenes-compra':
+            cargarModuloOrdenesCompra();
+            break;
+        case 'recibo-mercancia':
+            cargarModuloReciboMercancia();
             break;
         case 'salidas':
             cargarModuloSalidas();

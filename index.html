@@ -338,6 +338,8 @@
                             <span id="flecha-entradas" class="text-xs">▼</span>
                         </button>
                         <ul id="submenu-entradas" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
+                            <li><button onclick="window.loadView('ordenes-compra')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Órdenes de compra</button></li>
+                            <li><button onclick="window.loadView('recibo-mercancia')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Recibo de mercancía</button></li>
                             <li><button onclick="window.loadView('compras')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Compras / Proveedores</button></li>
                             <li><button onclick="window.loadView('entradas-directas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Entradas Directas</button></li>
                         </ul>
@@ -481,6 +483,18 @@
             <section id="view-entradas-directas" class="vista-seccion hidden space-y-4">
                 <h2 class="text-xl font-bold text-emerald-400">Entradas Directas de Inventario</h2>
                 <form id="formEntradasDirectas"></form>
+            </section>
+
+            <!-- Vista: Órdenes de compra -->
+            <section id="view-ordenes-compra" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-emerald-400">Órdenes de Compra</h2>
+                <div id="contenedorOrdenesCompra">Cargando módulo de órdenes de compra...</div>
+            </section>
+
+            <!-- Vista: Recibo de mercancía -->
+            <section id="view-recibo-mercancia" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-emerald-400">Recibo de Mercancía</h2>
+                <div id="contenedorReciboMercancia">Cargando módulo de recibo de mercancía...</div>
             </section>
 
             <!-- Vista: Salidas de Inventario -->
