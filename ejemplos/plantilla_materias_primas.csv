@@ -1,13 +1,14 @@
-Nombre,SKU,Tipo,Proveedor,Precio,Moneda,Unidad,Tasa IVA,Tasa IEPS,Stock minimo,Tiempo entrega dias,Cantidad minima compra,Activo,Notas
-CMC,MP-CMC,materia prima,ALKEM,180,MXN,Kilogramos,16%,0,25,7,25,si,Carboximetilcelulosa - espesante
-Glicerina,MP-GLICERINA,materia prima,ALKEM,60,MXN,Litros,16%,0,50,10,200,si,Glicerina USP
-Propilenglicol,MP-PROPILENGLICOL,materia prima,ALKEM,50,MXN,Litros,16%,0,50,10,200,si,Monopropilenglicol
-Acido Citrico,MP-ACIDO-CITRICO,materia prima,ALKEM,160,MXN,Kilogramos,16%,0,10,7,25,si,Regulador de pH
-Sorbato de Potasio,MP-SORBATO-K,materia prima,ALKEM,90,MXN,Kilogramos,16%,0,5,7,25,si,Conservador
-Agua Destilada,MP-AGUA-DESTILADA,materia prima,LABORATORIOS MTY,3,MXN,Litros,0%,0,100,3,200,si,Agua para formulacion
-Dimeticona,MP-DIMETICONA,materia prima,QSD,240,MXN,Litros,16%,0,20,15,20,si,Silicona base lubricante
-Sorbitol,MP-SORBITOL,materia prima,ALKEM,39,MXN,Litros,16%,0,20,10,200,si,Humectante
-Lidocaina,MP-LIDOCAINA,materia prima,SINBIOTIK,550,MXN,Kilogramos,16%,0,2,20,5,si,Anestesico topico
-Saborizante Bubblegum,MP-SAB-BUBBLEGUM,materia prima,ROBERTET,780,MXN,Litros,16%,0,3,30,10,si,Saborizante chicle
-Envase PET 60 ml,INS-ENVASE-PET-60,insumo,ESCOWILL,3.10,MXN,Piezas,16%,0,500,20,1000,si,Envase tipo Boston 60 ml
-Tapa Disc-Top 24/410,INS-TAPA-DISCTOP-24,insumo,MCKERNAN,1.85,MXN,Piezas,16%,0,500,20,1000,si,Tapa negra disc-top
+Nombre,SKU,Tipo,Proveedor,Precio,Precio de venta,Moneda,Unidad,Tasa IVA,Tasa IEPS,Stock minimo,Tiempo entrega dias,Cantidad minima compra,Activo,Notas
+CMC,MP-CMC,materia prima,ALKEM,180,,MXN,Kilogramos,16%,0,25,7,25,si,Carboximetilcelulosa - espesante
+Glicerina,MP-GLICERINA,materia prima,ALKEM,60,,MXN,Litros,16%,0,50,10,200,si,Glicerina USP
+Propilenglicol,MP-PROPILENGLICOL,materia prima,ALKEM,50,,MXN,Litros,16%,0,50,10,200,si,Monopropilenglicol
+Acido Citrico,MP-ACIDO-CITRICO,materia prima,ALKEM,160,,MXN,Kilogramos,16%,0,10,7,25,si,Regulador de pH
+Sorbato de Potasio,MP-SORBATO-K,materia prima,ALKEM,90,,MXN,Kilogramos,16%,0,5,7,25,si,Conservador
+Agua Destilada,MP-AGUA-DESTILADA,materia prima,LABORATORIOS MTY,3,,MXN,Litros,0%,0,100,3,200,si,Agua para formulacion
+Dimeticona,MP-DIMETICONA,materia prima,QSD,240,,MXN,Litros,16%,0,20,15,20,si,Silicona base lubricante
+Sorbitol,MP-SORBITOL,materia prima,ALKEM,39,,MXN,Litros,16%,0,20,10,200,si,Humectante
+Lidocaina,MP-LIDOCAINA,materia prima,SINBIOTIK,550,,MXN,Kilogramos,16%,0,2,20,5,si,Anestesico topico
+Saborizante Bubblegum,MP-SAB-BUBBLEGUM,materia prima,ROBERTET,780,,MXN,Litros,16%,0,3,30,10,si,Saborizante chicle
+Gel lubricante 60 ml,PT-GEL-60,producto,,18.50,45,MXN,Piezas,16%,0,50,0,0,si,Producto terminado - ejemplo con precio de venta
+Envase PET 60 ml,INS-ENVASE-PET-60,insumo,ESCOWILL,3.10,,MXN,Piezas,16%,0,500,20,1000,si,Envase tipo Boston 60 ml
+Tapa Disc-Top 24/410,INS-TAPA-DISCTOP-24,insumo,MCKERNAN,1.85,,MXN,Piezas,16%,0,500,20,1000,si,Tapa negra disc-top

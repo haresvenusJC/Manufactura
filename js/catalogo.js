@@ -221,10 +221,14 @@ export async function cargarCatalogoInicial() {
                             </select>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-2">
+                        <div class="grid grid-cols-3 gap-2">
                             <div>
                                 <label class="block text-[11px] text-slate-400 mb-1">Costo Unitario</label>
                                 <input type="number" step="0.01" id="prodCosto" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Precio de venta</label>
+                                <input type="number" step="0.01" min="0" id="prodPrecioVenta" placeholder="s/IVA" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
                             </div>
                             <div>
                                 <label class="block text-[11px] text-slate-400 mb-1">Moneda</label>
@@ -486,6 +490,7 @@ export async function cargarCatalogoInicial() {
                 document.getElementById('prodSku').value = art.sku || '';
                 document.getElementById('prodUnidadMedidaId').value = art.unidad_medida_id || '';
                 document.getElementById('prodCosto').value = art.costo_unitario || 0;
+                document.getElementById('prodPrecioVenta').value = art.precio_venta ?? '';
                 document.getElementById('prodStockMinimo').value = art.stock_minimo || 0;
                 document.getElementById('prodTiempoEntrega').value = art.tiempo_entrega_dias ?? '';
                 document.getElementById('prodCantidadMinimaCompra').value = art.cantidad_minima_compra ?? '';
@@ -630,6 +635,8 @@ export async function cargarCatalogoInicial() {
             const unidadMedidaIdVal = document.getElementById('prodUnidadMedidaId').value;
             const unidad_medida_id = unidadMedidaIdVal ? parseInt(unidadMedidaIdVal) : null;
             const costoUnitario = parseFloat(document.getElementById('prodCosto').value) || 0;
+            const precioVentaVal = document.getElementById('prodPrecioVenta').value;
+            const precio_venta = precioVentaVal === '' ? null : Math.max(0, parseFloat(precioVentaVal) || 0);
             const monedaIdVal = document.getElementById('prodMonedaId').value;
             const moneda_id = monedaIdVal ? parseInt(monedaIdVal) : null;
             const proveedorIdVal = document.getElementById('prodProveedorId').value;
@@ -667,6 +674,7 @@ export async function cargarCatalogoInicial() {
                     sku: sku || null,
                     unidad_medida_id,
                     costo_unitario: costoUnitario,
+                    precio_venta,
                     moneda_id,
                     proveedor_id,
                     descripcion: descripcion || null,

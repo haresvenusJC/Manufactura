@@ -25,7 +25,8 @@ Ninguna columna tiene que llamarse exactamente así: el importador detecta el en
 | **SKU** | No (recomendado) | Código interno único. Si lo pones, se empareja por SKU. Ej. `MP-CMC`. |
 | **Tipo** | No | `materia prima` · `insumo` · `producto` (también `MP`, `componente`, `PT`…). Si lo pones, manda sobre el tipo por defecto — para crear **y** para actualizar. |
 | **Proveedor** | No | Nombre del proveedor. Si no existe, se crea. |
-| **Precio** | No | Costo unitario. Va a `costo_unitario`. Acepta `1234.56` o `$ 1,234.56`. |
+| **Precio** | No | Costo unitario (de compra). Va a `costo_unitario`. Acepta `1234.56` o `$ 1,234.56`. |
+| **Precio de venta** | No | Precio de lista de venta **sin IVA**. Va a `productos.precio_venta`. Se usa para calcular el ingreso al registrar una venta. |
 | **Moneda** | No | `MXN` / `USD`. Vacío = la de por defecto. |
 | **Unidad** | No | Litros, Kilogramos, Piezas… Si no coincide, se usa la de por defecto. |
 | **Notas** | No | Texto libre (descripción). |

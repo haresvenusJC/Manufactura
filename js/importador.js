@@ -22,7 +22,8 @@ const CAMPOS = [
     { key: 'nombre',         label: 'Nombre del producto',  grupo: 'basico',   hints: ['producto', 'nombre', 'articulo', 'item', 'material', 'insumo'] },
     { key: 'sku',            label: 'SKU / Codigo',         grupo: 'basico',   hints: ['sku', 'codigo', 'clave', 'code', 'parte', 'part', 'no. parte', 'referencia', 'no parte'] },
     { key: 'tipo',           label: 'Tipo (MP / insumo / producto)', grupo: 'basico', hints: ['tipo', 'categoria', 'category', 'clase', 'familia', 'segmento'] },
-    { key: 'costo_unitario', label: 'Precio / Costo',       grupo: 'basico',   hints: ['precio', 'costo', 'price', 'cost', 'importe', 'unitario', 'unit price', 'pu', 'p.u'] },
+    { key: 'precio_venta',   label: 'Precio de venta (s/ IVA)', grupo: 'basico', hints: ['precio venta', 'precio de venta', 'precio publico', 'pvp', 'sale price', 'precio lista', 'lista de precios', 'venta mayoreo', 'venta menudeo', 'precio menudeo', 'precio mayoreo'] },
+    { key: 'costo_unitario', label: 'Costo unitario / de compra', grupo: 'basico', hints: ['costo', 'cost', 'precio compra', 'precio de compra', 'importe', 'unitario', 'unit price', 'pu', 'p.u', 'precio'] },
     { key: 'moneda',         label: 'Moneda',               grupo: 'basico',   hints: ['moneda', 'currency', 'divisa'] },
     { key: 'unidad',         label: 'Unidad de medida',     grupo: 'basico',   hints: ['unidad', 'um', 'u/m', 'unit', 'medida', 'uom', 'u de m'] },
     { key: 'descripcion',    label: 'Descripcion / Notas',  grupo: 'basico',   hints: ['descripcion', 'nota', 'notas', 'detalle', 'observacion', 'especificacion', 'description'] },
@@ -129,7 +130,7 @@ export async function cargarModuloImportador() {
                     Plantilla de ejemplo:
                     <a href="ejemplos/plantilla_materias_primas.xlsx" download class="text-sky-400 hover:underline">Excel</a> ·
                     <a href="ejemplos/plantilla_materias_primas.csv" download class="text-sky-400 hover:underline">CSV</a>
-                    <span class="text-slate-600 block mt-1">Encabezados: Nombre · SKU · Tipo · Proveedor · Precio · Moneda · Unidad · Tasa IVA · Tasa IEPS · Stock minimo · Tiempo entrega dias · Cantidad minima compra · Activo · Notas</span>
+                    <span class="text-slate-600 block mt-1">Encabezados: Nombre · SKU · Tipo · Proveedor · Precio (costo) · Precio de venta · Moneda · Unidad · Tasa IVA · Tasa IEPS · Stock minimo · Tiempo entrega dias · Cantidad minima compra · Activo · Notas</span>
                 </div>
             </div>
         </div>
@@ -634,6 +635,7 @@ function validar() {
             else if (r.val !== undefined) extras.tasa_ieps = r.val ?? 0;
         }
         for (const [k, lbl] of [
+            ['precio_venta', 'precio de venta'],
             ['stock_minimo', 'stock minimo'],
             ['tiempo_entrega_dias', 'tiempo de entrega'],
             ['cantidad_minima_compra', 'cantidad minima de compra'],
