@@ -420,6 +420,11 @@ export async function cargarModuloReciboMercancia() {
         <h3 class="text-md font-semibold text-slate-300 mb-2">Órdenes con recepción pendiente</h3>
         <div id="rmLista" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-500"></div>
       </div>
+
+      <div>
+        <h3 class="text-md font-semibold text-slate-300 mb-2">Recepciones registradas</h3>
+        <div id="rmRecepciones" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-500">Cargando...</div>
+      </div>
     </div>`;
 
     const selOc = document.getElementById('rmOC');
@@ -447,11 +452,57 @@ export async function cargarModuloReciboMercancia() {
     document.getElementById('rmConfirmar').onclick = () => rmConfirmar(ocs);
 
     rmLista(ocs);
+    await rmRecepciones();
 
     if (ocRecibirId) {
         selOc.value = String(ocRecibirId);
         selOc.dispatchEvent(new Event('change'));
         ocRecibirId = null;
+    }
+}
+
+async function rmRecepciones() {
+    const cont = document.getElementById('rmRecepciones');
+    if (!cont) return;
+    try {
+        const { data, error } = await supabaseClient
+            .from('documentos')
+            .select('id, folio, fecha_emision, total, poliza_id, orden_compra_id, notas, proveedores ( nombre ), ordenes_compra ( folio ), documento_detalles ( cantidad, subtotal )')
+            .eq('tipo_movimiento', 'entrada_compra')
+            .not('orden_compra_id', 'is', null)
+            .order('id', { ascending: false })
+            .limit(100);
+        if (error) throw error;
+        if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Aún no hay recepciones registradas.</p>'; return; }
+
+        cont.innerHTML = `
+        <div class="overflow-x-auto border border-slate-800 rounded-lg">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
+              <th class="p-2">Fecha</th><th class="p-2">Orden</th><th class="p-2">Proveedor</th>
+              <th class="p-2 text-right">Partidas</th><th class="p-2 text-right">Total</th><th class="p-2">Contab.</th><th class="p-2 text-right">Acción</th>
+            </tr></thead>
+            <tbody>
+              ${data.map(d => {
+                  const dets = d.documento_detalles || [];
+                  const total = d.total != null ? Number(d.total) : dets.reduce((a, x) => a + Number(x.subtotal || 0), 0);
+                  const fecha = d.fecha_emision ? String(d.fecha_emision).slice(0, 10) : '';
+                  return `
+                    <tr class="border-b border-slate-900">
+                      <td class="p-2 whitespace-nowrap text-slate-400">${fecha}</td>
+                      <td class="p-2 font-mono text-emerald-300">${esc(d.ordenes_compra?.folio || d.folio || '#' + d.id)}</td>
+                      <td class="p-2">${esc(d.proveedores?.nombre || '—')}</td>
+                      <td class="p-2 text-right font-mono">${dets.length}</td>
+                      <td class="p-2 text-right font-mono">${money(total)}</td>
+                      <td class="p-2">${d.poliza_id ? `<span class="text-emerald-400">Póliza #${d.poliza_id}</span>` : '<span class="text-slate-500">—</span>'}</td>
+                      <td class="p-2 text-right"><button type="button" onclick="window.abrirDetalleDocumentoGlobal(${d.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded">Ver</button></td>
+                    </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    } catch (err) {
+        cont.innerHTML = `<p class="text-slate-500 text-xs">No se pudo cargar el historial: ${esc(err.message || err)}</p>`;
     }
 }
 
