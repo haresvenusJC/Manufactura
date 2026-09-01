@@ -839,13 +839,25 @@ function abrirMenuAccionesProducto(producto, botonAncla) {
     const rect = botonAncla.getBoundingClientRect();
     const menu = document.createElement('div');
     menu.id = 'menuAccionesProducto';
-    menu.className = 'fixed z-50 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl text-xs overflow-hidden w-56';
+    menu.className = 'fixed z-50 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl text-xs overflow-y-auto max-h-[80vh] w-60';
     menu.style.top = `${rect.bottom + 4}px`;
-    menu.style.left = `${Math.max(8, rect.right - 224)}px`;
+    menu.style.left = `${Math.max(8, rect.right - 240)}px`;
+
+    const opcTipo = (t) => `
+        <button type="button" data-tipo="${t}" class="btn-menu-prod-tipo w-full text-left px-3 py-2 hover:bg-slate-800 flex items-center justify-between gap-2 cursor-pointer ${producto.tipo === t ? 'text-sky-400 font-semibold' : 'text-slate-200'}">
+            <span>${ETIQUETA_TIPO_PRODUCTO[t]}</span>${producto.tipo === t ? '<span>✓</span>' : ''}
+        </button>`;
+
     menu.innerHTML = `
         <button type="button" id="btnMenuProdKardex" class="w-full text-left px-3 py-2.5 hover:bg-slate-800 text-slate-200 flex items-center gap-2 cursor-pointer">
             <span>📦</span><span>Kardex de este producto</span>
         </button>
+        <div class="border-t border-slate-800">
+            <div class="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-slate-500 flex items-center gap-1"><span>🏷️</span> Cambiar categoría</div>
+            ${opcTipo('producto')}
+            ${opcTipo('materia_prima')}
+            ${opcTipo('insumo')}
+        </div>
         <button type="button" id="btnMenuProdResumen" class="w-full text-left px-3 py-2.5 hover:bg-slate-800 text-slate-200 border-t border-slate-800 flex items-center gap-2 cursor-pointer">
             <span>📋</span><span>Resumen completo (editable)</span>
         </button>
@@ -855,6 +867,13 @@ function abrirMenuAccionesProducto(producto, botonAncla) {
     document.getElementById('btnMenuProdKardex').addEventListener('click', () => {
         cerrarMenuAccionesProducto();
         irAKardexDeProducto(producto.id, producto.nombre);
+    });
+    menu.querySelectorAll('.btn-menu-prod-tipo').forEach((b) => {
+        b.addEventListener('click', async () => {
+            const nuevo = b.dataset.tipo;
+            cerrarMenuAccionesProducto();
+            await cambiarCategoriaProducto(producto, nuevo);
+        });
     });
     document.getElementById('btnMenuProdResumen').addEventListener('click', () => {
         cerrarMenuAccionesProducto();
@@ -885,6 +904,28 @@ function tipoDeCampo(valor) {
 
 function etiquetaCampo(clave) {
     return clave.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+const ETIQUETA_TIPO_PRODUCTO = {
+    producto: 'Producto terminado',
+    materia_prima: 'Materia prima',
+    insumo: 'Insumo / componente',
+};
+
+// Reclasifica el articulo (productos.tipo) desde el menu ☰.
+async function cambiarCategoriaProducto(producto, nuevoTipo) {
+    if (nuevoTipo === producto.tipo) return;
+    let aviso = '';
+    if (producto.tipo === 'producto' && nuevoTipo !== 'producto') {
+        aviso = '\n\nOjo: si tenía receta (BOM), dejará de usarse mientras no vuelva a ser "Producto terminado".';
+    }
+    if (!confirm(`¿Cambiar "${producto.nombre}" de ${ETIQUETA_TIPO_PRODUCTO[producto.tipo] || producto.tipo} a ${ETIQUETA_TIPO_PRODUCTO[nuevoTipo]}?${aviso}`)) return;
+    const { error } = await supabaseClient.from('productos').update({ tipo: nuevoTipo }).eq('id', producto.id);
+    if (error) { alert('No se pudo cambiar la categoría: ' + (error.message || error)); return; }
+    const { data: um } = await supabaseClient.from('unidades_medida').select('id, nombre');
+    const mapa = {};
+    (um || []).forEach((u) => { mapa[u.id] = u.nombre; });
+    await renderizarTablaProductos(mapa);
 }
 
 function escaparHtml(valor) {
