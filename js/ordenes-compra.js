@@ -1,5 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { cargarInventarioCompleto } from './inventario.js';
+import { REGIMENES } from './proveedores.js';
 
 // =====================================================================
 //  Órdenes de compra + Recibo de mercancía  (Fase 1: captura y recepción
@@ -1205,11 +1206,30 @@ async function rmProcesarXml(text) {
     }
 }
 
+// Arma <option>s con el valor leído del XML ya marcado como seleccionado
+// (si no está en el catálogo, se agrega igual como opción suelta para no
+// perder el dato real del CFDI).
+function rmOpcionesConValor(lista, valorActual, etiquetaVacio) {
+    const val = (valorActual || '').trim();
+    let html = `<option value="">${etiquetaVacio}</option>`;
+    let encontrado = false;
+    lista.forEach((x) => {
+        const sel = x.clave === val;
+        if (sel) encontrado = true;
+        html += `<option value="${esc(x.clave)}"${sel ? ' selected' : ''}>${esc(x.clave)} · ${esc(x.descripcion)}</option>`;
+    });
+    if (val && !encontrado) html += `<option value="${esc(val)}" selected>${esc(val)} · (no está en el catálogo, se usa igual)</option>`;
+    return html;
+}
+
 // Abre el mini-formulario de alta de proveedor con los datos REALES leidos
 // del XML (regimen/uso CFDI/forma/metodo/moneda del propio CFDI, no
 // valores inventados) para revisarlos y ajustarlos antes de guardar - la
 // condicion se sugiere por el MetodoPago del CFDI (PPD = credito, si no
-// contado) pero tambien es editable.
+// contado) pero tambien es editable. Los 4 catalogos (regimen SAT, uso
+// CFDI, forma y metodo de pago) salen de las mismas tablas/listas que ya
+// usa el resto de la app (REGIMENES de proveedores.js, y rmCatUso/
+// rmCatForma/rmCatMetodo ya cargados para el formulario de arriba).
 function rmAbrirFormAltaProveedor() {
     if (!rmXmlMeta) return;
     const btn = document.getElementById('rmBtnAltaProveedor');
@@ -1218,6 +1238,7 @@ function rmAbrirFormAltaProveedor() {
     if (btn) btn.classList.add('hidden');
 
     const condicionSugerida = rmXmlMeta.metodoPago === 'PPD' ? 'credito' : 'contado';
+    const optRegimen = '<option value="">— régimen —</option>' + REGIMENES.map(([k, v]) => `<option value="${k}"${k === (rmXmlMeta.regimenFiscal || '') ? ' selected' : ''}>${k} · ${esc(v)}</option>`).join('');
     cont.innerHTML = `
         <div class="mt-2 bg-slate-900/60 border border-amber-800/60 rounded-lg p-2.5 space-y-2 max-w-md">
             <p class="text-[11px] text-amber-300 font-semibold">Dar de alta proveedor — datos leídos del XML, revisa y ajusta si hace falta</p>
@@ -1227,18 +1248,18 @@ function rmAbrirFormAltaProveedor() {
                 <div><label class="block text-[10px] text-slate-400">RFC</label>
                     <input id="rmApRfc" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono uppercase" value="${esc(rmXmlMeta.rfc || '')}"></div>
                 <div><label class="block text-[10px] text-slate-400">Régimen fiscal (SAT)</label>
-                    <input id="rmApRegimen" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" value="${esc(rmXmlMeta.regimenFiscal || '')}" placeholder="Ej. 601"></div>
+                    <select id="rmApRegimen" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100">${optRegimen}</select></div>
                 <div><label class="block text-[10px] text-slate-400">Uso CFDI</label>
-                    <input id="rmApUso" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" value="${esc(rmXmlMeta.usoCfdi || '')}" placeholder="Ej. G01"></div>
+                    <select id="rmApUso" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100">${rmOpcionesConValor(rmCatUso, rmXmlMeta.usoCfdi, '—')}</select></div>
                 <div><label class="block text-[10px] text-slate-400">Condición</label>
                     <select id="rmApCondicion" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100">
                         <option value="contado" ${condicionSugerida === 'contado' ? 'selected' : ''}>Contado</option>
                         <option value="credito" ${condicionSugerida === 'credito' ? 'selected' : ''}>Crédito</option>
                     </select></div>
                 <div><label class="block text-[10px] text-slate-400">Forma de pago (SAT)</label>
-                    <input id="rmApForma" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" value="${esc(rmXmlMeta.formaPago || '')}" placeholder="Ej. 03"></div>
+                    <select id="rmApForma" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100">${rmOpcionesConValor(rmCatForma, rmXmlMeta.formaPago, '—')}</select></div>
                 <div><label class="block text-[10px] text-slate-400">Método de pago</label>
-                    <input id="rmApMetodo" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" value="${esc(rmXmlMeta.metodoPago || '')}" placeholder="Ej. PUE"></div>
+                    <select id="rmApMetodo" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100">${rmOpcionesConValor(rmCatMetodo, rmXmlMeta.metodoPago, '—')}</select></div>
                 <div><label class="block text-[10px] text-slate-400">Moneda</label>
                     <input id="rmApMoneda" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono uppercase" value="${esc(rmXmlMeta.moneda || 'MXN')}"></div>
             </div>
