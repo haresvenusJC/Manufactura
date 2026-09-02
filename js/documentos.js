@@ -53,9 +53,9 @@ export async function cargarVistaDocumentos() {
                         <thead class="bg-slate-950 text-indigo-400 border-b border-slate-800 text-xs uppercase font-mono">
                             <tr>
                                 <th class="p-4 text-left">Acciones</th>
-                                <th class="p-4">ID / Consecutivo</th>
+                                <th class="p-4">ID</th>
                                 <th class="p-4">Folio Comercial</th>
-                                <th class="p-4">Tipo Movimiento</th>
+                                <th class="p-4">Tipo Movimiento / Consecutivo</th>
                                 <th class="p-4">Fecha de Emisión</th>
                                 <th class="p-4">Proveedor / Cliente</th>
                                 <th class="p-4 text-center">Estado</th>
@@ -116,11 +116,12 @@ window.cargarTiposMovimientoFiltro = async function() {
 
 window.cargarListaDocumentos = async function() {
     try {
-        const { data: documentos, error } = await supabaseClient
+        let { data: documentos, error } = await supabaseClient
             .from('documentos')
             .select(`
                 id,
                 tipo_movimiento,
+                consecutivo,
                 folio,
                 fecha_emision,
                 proveedor_cliente,
@@ -131,6 +132,18 @@ window.cargarListaDocumentos = async function() {
                 proveedores ( id, nombre )
             `)
             .order('id', { ascending: false });
+
+        if (error) {
+            // consecutivo aún no existe (falta correr la migración): cae al select sin él.
+            ({ data: documentos, error } = await supabaseClient
+                .from('documentos')
+                .select(`
+                    id, tipo_movimiento, folio, fecha_emision, proveedor_cliente,
+                    cliente_nombre, estado, descripcion, created_at,
+                    proveedores ( id, nombre )
+                `)
+                .order('id', { ascending: false }));
+        }
 
         if (error) throw error;
         documentosCache = documentos || [];
@@ -174,7 +187,10 @@ window.renderizarTablaDocumentos = function(lista) {
                 <td class="p-4 font-mono font-semibold text-slate-200">
                     ${doc.folio || '<span class="text-slate-500 font-normal">S/Folio</span>'}
                 </td>
-                <td class="p-4 text-xs font-semibold uppercase text-slate-300">${doc.tipo_movimiento}</td>
+                <td class="p-4 text-xs">
+                    <div class="font-semibold uppercase text-slate-300">${doc.tipo_movimiento}</div>
+                    <div class="text-slate-500 font-mono">${doc.consecutivo != null ? '#' + doc.consecutivo : '—'}</div>
+                </td>
                 <td class="p-4 text-xs font-mono text-slate-400">${fecha}</td>
                 <td class="p-4 text-xs text-slate-300 font-medium">${tercero}</td>
                 <td class="p-4 text-center">
