@@ -421,6 +421,8 @@ export async function cargarModuloReciboMercancia() {
             <select id="rmMetodoPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optMetodo}</select></div>
           <div><label class="block text-xs text-slate-400 mb-1">Moneda</label>
             <input type="text" id="rmMoneda" value="MXN" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono uppercase"></div>
+          <div><label class="block text-xs text-slate-400 mb-1">Tipo de cambio</label>
+            <input type="number" step="0.0001" min="0" id="rmTipoCambio" value="1" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
           <div class="md:col-span-2"><label class="block text-xs text-slate-400 mb-1">Uso CFDI</label>
             <select id="rmUsoCfdi" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optUso}</select></div>
           <div id="rmPagoWrap" class="hidden md:col-span-2"><label class="block text-xs text-slate-400 mb-1">Pagado desde (caja / banco)</label>
@@ -648,6 +650,12 @@ function rmRenderDetalle(oc) {
     recalc();
 }
 
+// Tipo de cambio a aplicar a los costos (1 si la moneda es MXN).
+function rmTcActual() {
+    const moneda = (document.getElementById('rmMoneda')?.value.trim().toUpperCase()) || 'MXN';
+    return moneda !== 'MXN' ? (parseFloat(document.getElementById('rmTipoCambio')?.value) || 1) : 1;
+}
+
 // Inserta el detalle + mueve inventario FIFO + guarda lote del proveedor y caducidad.
 async function rmAplicarEntradaLinea(documentoId, productoId, cantidad, costo, lote, caducidad) {
     const { error: eDet } = await supabaseClient.from('documento_detalles').insert([{
@@ -682,20 +690,24 @@ async function rmContabilizarDoc(documentoId, subtotalFallback) {
     const chk = document.getElementById('rmContabilizar');
     if (rmSinContab || !chk || !chk.checked) return '';
     const nf = (id) => Math.max(0, parseFloat(document.getElementById(id)?.value) || 0);
-    let subtotal = nf('rmSubtotal');
-    if (subtotal <= 0) subtotal = subtotalFallback;
+    // Los importes en pantalla están en la moneda de la factura; la contabilidad va en MXN.
+    const moneda = (document.getElementById('rmMoneda')?.value.trim().toUpperCase()) || 'MXN';
+    const tc = moneda !== 'MXN' ? (parseFloat(document.getElementById('rmTipoCambio')?.value) || 1) : 1;
+    let subtotal = nf('rmSubtotal') * tc;
+    if (subtotal <= 0) subtotal = subtotalFallback;   // el fallback ya viene en MXN
     const condicion = document.getElementById('rmCondicion').value;
     try {
         const { data: cc, error: eCc } = await supabaseClient.rpc('contabilizar_compra', {
             p_documento_id: documentoId,
             p_datos: {
                 subtotal,
-                iva: nf('rmIva'), ieps: nf('rmIeps'), ret_iva: nf('rmRetIva'), ret_isr: nf('rmRetIsr'),
+                iva: nf('rmIva') * tc, ieps: nf('rmIeps') * tc, ret_iva: nf('rmRetIva') * tc, ret_isr: nf('rmRetIsr') * tc,
                 condicion,
+                tipo_cambio: tc,
                 forma_pago: document.getElementById('rmFormaPago')?.value || null,
                 metodo_pago: document.getElementById('rmMetodoPago')?.value || null,
                 uso_cfdi: document.getElementById('rmUsoCfdi')?.value || null,
-                moneda: document.getElementById('rmMoneda')?.value.trim().toUpperCase() || null,
+                moneda,
                 cuenta_pago_id: condicion === 'contado' && document.getElementById('rmCuentaPago')?.value
                     ? parseInt(document.getElementById('rmCuentaPago').value) : null,
                 uuid_cfdi: document.getElementById('rmUuid').value.trim() || null,
@@ -739,6 +751,9 @@ async function rmConfirmar(ocs) {
     if (!lineas.length) { msg.textContent = 'Marca al menos una partida con cantidad mayor a 0.'; msg.className = 'text-xs text-rose-400'; return; }
     if (errores.length) { alert('⚠ Revisa:\n' + errores.join('\n')); return; }
     if (!confirm(`¿Confirmar recepción de ${lineas.length} partida(s) de la orden ${oc.folio}?`)) return;
+
+    const tc = rmTcActual();
+    if (tc !== 1) lineas.forEach(l => { l.costo = l.costo * tc; });   // a MXN
 
     const btn = document.getElementById('rmConfirmar');
     btn.disabled = true;
@@ -885,6 +900,9 @@ async function rmConfirmarXml() {
     if (errores.length) { alert('⚠ Revisa:\n' + errores.join('\n')); return; }
     if (!confirm(`¿Registrar la recepción de ${lineas.length} partida(s) del CFDI (sin orden de compra)?`)) return;
 
+    const tc = rmTcActual();
+    if (tc !== 1) lineas.forEach(l => { l.costo = l.costo * tc; });   // a MXN
+
     const btn = document.getElementById('rmConfirmar');
     btn.disabled = true;
     try {
@@ -956,6 +974,7 @@ async function rmProcesarXml(text) {
     const nombreEmisor = A(emisor, 'Nombre');
     const uuid = A(byLocal('TimbreFiscalDigital')[0], 'UUID');
     const moneda = (A(comp, 'Moneda') || 'MXN').toUpperCase();
+    const tipoCambio = toNum(A(comp, 'TipoCambio')) || 1;
     const formaPago = A(comp, 'FormaPago');
     const metodoPago = A(comp, 'MetodoPago');
     const usoCfdi = A(byLocal('Receptor')[0], 'UsoCFDI');
@@ -989,6 +1008,7 @@ async function rmProcesarXml(text) {
     const elRfc = document.getElementById('rmRfc'); if (elRfc && rfcEmisor) elRfc.value = rfcEmisor;
     const elUuid = document.getElementById('rmUuid'); if (elUuid && uuid) elUuid.value = uuid;
     const elMon = document.getElementById('rmMoneda'); if (elMon && moneda) elMon.value = moneda;
+    const elTc = document.getElementById('rmTipoCambio'); if (elTc) elTc.value = (moneda !== 'MXN' && tipoCambio > 0) ? tipoCambio : 1;
     const setSel = (id, v) => {
         const el = document.getElementById(id);
         if (!el || !v) return;

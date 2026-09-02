@@ -113,7 +113,8 @@ grant select on public.c_uso_cfdi, public.c_forma_pago, public.c_metodo_pago to 
 alter table public.documentos
     add column if not exists uso_cfdi    text,
     add column if not exists metodo_pago text,
-    add column if not exists moneda      text;
+    add column if not exists moneda      text,
+    add column if not exists tipo_cambio numeric(14,6) default 1;
 
 -- ---------------------------------------------------------------------
 -- 3. registrar_poliza: estampa p_datos.fiscal en cada movimiento
@@ -243,6 +244,8 @@ declare
     v_metodo     text := nullif(trim(p_datos->>'metodo_pago'), '');
     v_forma      text := nullif(trim(p_datos->>'forma_pago'), '');
     v_moneda     text := nullif(trim(p_datos->>'moneda'), '');
+    v_tc         numeric(14,6) := coalesce(nullif(p_datos->>'tipo_cambio', '')::numeric, 1);
+    v_moneda_id  bigint;
     v_uuid       text := nullif(trim(p_datos->>'uuid_cfdi'), '');
     v_rfc        text := nullif(trim(p_datos->>'rfc_emisor'), '');
     v_total      numeric(14,2);
@@ -264,6 +267,9 @@ begin
     v_cta_inv_def := coalesce(
         (select cuenta_id from public.c_uso_cfdi where clave = v_uso and cuenta_id is not null),
         public._cuenta_id('115.01'));
+
+    -- Moneda de la póliza (los importes ya llegan en MXN; esto es para el registro)
+    select id into v_moneda_id from public.monedas where codigo = coalesce(v_moneda, 'MXN') limit 1;
 
     select coalesce(sum(subtotal), 0) into v_sum_det from public.documento_detalles where documento_id = p_documento_id;
     if v_subtotal <= 0 then v_subtotal := round(v_sum_det, 2); end if;
@@ -344,6 +350,8 @@ begin
         'origen', 'compra',
         'origen_tabla', 'documentos',
         'origen_id', p_documento_id,
+        'moneda_id', v_moneda_id,
+        'tipo_cambio', v_tc,
         'movimientos', v_movs,
         'fiscal', jsonb_build_object(
             'uuid_cfdi', v_uuid,
@@ -359,6 +367,7 @@ begin
            forma_pago = v_forma,
            metodo_pago = v_metodo,
            moneda = v_moneda,
+           tipo_cambio = v_tc,
            uso_cfdi = v_uso,
            cuenta_pago_id = case when v_condicion = 'contado' then v_cta_pago else null end,
            uuid_cfdi = v_uuid,
