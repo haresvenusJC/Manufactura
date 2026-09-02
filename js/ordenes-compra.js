@@ -334,6 +334,7 @@ let rmXmlMeta = null;    // { proveedorId, rfc, uuid, folio } cuando el recibo v
 let rmCatUso = [];       // c_uso_cfdi
 let rmCatForma = [];     // c_forma_pago
 let rmCatMetodo = [];    // c_metodo_pago
+let rmCatCuentasGasto = []; // cuentas_contables afectables/activas, para el alta rápida de proveedor
 let rmRecProveedores = [];      // catálogo para el filtro de "Recepciones registradas"
 let rmRecPagina = 1;
 const rmRecPorPagina = 20;
@@ -354,8 +355,9 @@ export async function cargarModuloReciboMercancia() {
         const { data, error } = await supabaseClient.from('cuentas_contables')
             .select('id, codigo, nombre').eq('afectable', true).eq('activa', true).order('codigo');
         if (error) throw error;
+        rmCatCuentasGasto = data || [];
         rmCuentasPago = (data || []).filter(c => /^(101|102)/.test(c.codigo));
-    } catch (_) { rmSinContab = true; rmCuentasPago = []; }
+    } catch (_) { rmSinContab = true; rmCuentasPago = []; rmCatCuentasGasto = []; }
 
     // Catálogos SAT del CFDI (best-effort: si falta el SQL se usan opciones básicas)
     rmCatUso = []; rmCatForma = []; rmCatMetodo = [];
@@ -1047,6 +1049,7 @@ async function rmProcesarXml(text) {
     const rfcEmisor = A(emisor, 'Rfc');
     const nombreEmisor = A(emisor, 'Nombre');
     const regimenEmisor = A(emisor, 'RegimenFiscal');
+    const cpEmisor = A(comp, 'LugarExpedicion');
     const uuid = A(byLocal('TimbreFiscalDigital')[0], 'UUID');
     const moneda = (A(comp, 'Moneda') || 'MXN').toUpperCase();
     const tipoCambio = toNum(A(comp, 'TipoCambio')) || 1;
@@ -1174,7 +1177,7 @@ async function rmProcesarXml(text) {
         }
         rmRenderDetalleXml(conceptos, {
             proveedorId: provId, rfc: rfcEmisor, nombreEmisor, uuid, folio, claves: clavesMap, clavesSat: clavesSatMap,
-            regimenFiscal: regimenEmisor, usoCfdi, formaPago, metodoPago, moneda,
+            regimenFiscal: regimenEmisor, usoCfdi, formaPago, metodoPago, moneda, cp: cpEmisor,
         });
     }
 
@@ -1226,10 +1229,11 @@ function rmOpcionesConValor(lista, valorActual, etiquetaVacio) {
 // del XML (regimen/uso CFDI/forma/metodo/moneda del propio CFDI, no
 // valores inventados) para revisarlos y ajustarlos antes de guardar - la
 // condicion se sugiere por el MetodoPago del CFDI (PPD = credito, si no
-// contado) pero tambien es editable. Los 4 catalogos (regimen SAT, uso
-// CFDI, forma y metodo de pago) salen de las mismas tablas/listas que ya
-// usa el resto de la app (REGIMENES de proveedores.js, y rmCatUso/
-// rmCatForma/rmCatMetodo ya cargados para el formulario de arriba).
+// contado) pero tambien es editable. Los catalogos (regimen SAT, uso
+// CFDI, forma y metodo de pago, cuenta contable) salen de las mismas
+// tablas/listas que ya usa el resto de la app (REGIMENES de proveedores.js,
+// y rmCatUso/rmCatForma/rmCatMetodo/rmCatCuentasGasto ya cargados para el
+// formulario de arriba). El C.P. se lee de Comprobante/@LugarExpedicion.
 function rmAbrirFormAltaProveedor() {
     if (!rmXmlMeta) return;
     const btn = document.getElementById('rmBtnAltaProveedor');
@@ -1239,6 +1243,7 @@ function rmAbrirFormAltaProveedor() {
 
     const condicionSugerida = rmXmlMeta.metodoPago === 'PPD' ? 'credito' : 'contado';
     const optRegimen = '<option value="">— régimen —</option>' + REGIMENES.map(([k, v]) => `<option value="${k}"${k === (rmXmlMeta.regimenFiscal || '') ? ' selected' : ''}>${k} · ${esc(v)}</option>`).join('');
+    const optCtaGasto = '<option value="">— sin cuenta —</option>' + rmCatCuentasGasto.map(c => `<option value="${c.id}"${c.codigo === '201.01' ? ' selected' : ''}>${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
     cont.innerHTML = `
         <div class="mt-2 bg-slate-900/60 border border-amber-800/60 rounded-lg p-2.5 space-y-2 max-w-md">
             <p class="text-[11px] text-amber-300 font-semibold">Dar de alta proveedor — datos leídos del XML, revisa y ajusta si hace falta</p>
@@ -1262,6 +1267,10 @@ function rmAbrirFormAltaProveedor() {
                     <select id="rmApMetodo" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100">${rmOpcionesConValor(rmCatMetodo, rmXmlMeta.metodoPago, '—')}</select></div>
                 <div><label class="block text-[10px] text-slate-400">Moneda</label>
                     <input id="rmApMoneda" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono uppercase" value="${esc(rmXmlMeta.moneda || 'MXN')}"></div>
+                <div><label class="block text-[10px] text-slate-400">C.P.</label>
+                    <input id="rmApCp" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" value="${esc(rmXmlMeta.cp || '')}" maxlength="5"></div>
+                <div class="col-span-2"><label class="block text-[10px] text-slate-400">Cuenta contable</label>
+                    <select id="rmApCuenta" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100">${optCtaGasto}</select></div>
             </div>
             <div class="flex gap-2">
                 <button type="button" id="rmApGuardar" class="text-[11px] bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded">Guardar proveedor</button>
@@ -1289,7 +1298,6 @@ async function rmGuardarProveedorDesdeXml() {
     const btnGuardar = $('rmApGuardar');
     btnGuardar.disabled = true;
     try {
-        const { data: cta } = await supabaseClient.from('cuentas_contables').select('id').eq('codigo', '201.01').maybeSingle();
         const payload = {
             nombre,
             rfc: $('rmApRfc').value.trim().toUpperCase() || null,
@@ -1301,7 +1309,8 @@ async function rmGuardarProveedorDesdeXml() {
             forma_pago: $('rmApForma').value.trim() || null,
             metodo_pago: $('rmApMetodo').value.trim() || null,
             moneda: $('rmApMoneda').value.trim().toUpperCase() || 'MXN',
-            cuenta_gasto_id: cta ? cta.id : null,
+            cp: $('rmApCp').value.trim() || null,
+            cuenta_gasto_id: $('rmApCuenta').value ? Number($('rmApCuenta').value) : null,
             activo: true,
         };
         const { data, error } = await supabaseClient.from('proveedores').insert([payload]).select('id').single();
