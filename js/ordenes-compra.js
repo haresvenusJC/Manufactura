@@ -898,6 +898,17 @@ function rmRenderDetalleXml(conceptos, meta) {
     const clavesMap = meta.claves || new Map();
     const claveSatMap = meta.clavesSat || new Map();
 
+    // Un mismo insumo suele llegar de más de un proveedor, cada quien con su
+    // propio código/nombre en la factura — por eso el match automático (por
+    // clave ya homologada, SKU o nombre) puede fallar aunque el producto ya
+    // exista en el catálogo. Este selector deja elegir el producto real del
+    // catálogo (fuente: tabla productos, como pide CLAUDE.md) en vez de crear
+    // un duplicado; si se homologa un renglón que venía sin coincidencia,
+    // rmConfirmarXml() guarda la clave de este proveedor para ese producto en
+    // producto_claves_proveedor, así la próxima factura del mismo proveedor
+    // ya empareja sola.
+    const optsProductos = ocProductos.map(p => `<option value="${p.id}">${esc(p.sku || 's/SKU')} · ${esc(p.nombre)}</option>`).join('');
+
     let hits = 0;
     const filas = conceptos.map((cp, i) => {
         let prodId = null;
@@ -915,13 +926,17 @@ function rmRenderDetalleXml(conceptos, meta) {
         const prod = prodId ? ocProductos.find(p => p.id === prodId) : null;
         if (prod) hits++;
         const reqCad = !!(prod && prod.requiere_caducidad);
-        const nombre = prod
-            ? esc(prod.nombre)
-            : `<span class="text-amber-400">NUEVO:</span> ${esc(cp.descripcion || cp.noId || 'sin descripción')}`;
         return `
-        <tr class="border-b border-slate-900" data-cpidx="${i}" data-prodid="${prodId || ''}" data-desc="${esc(cp.descripcion || 'Producto CFDI')}" data-unidadid="${prod ? (prod.unidad_medida_id || '') : ''}" data-reqcad="${reqCad ? 1 : 0}">
+        <tr class="border-b border-slate-900" data-cpidx="${i}" data-prodid="${prodId || ''}" data-prodid-auto="${prodId || ''}" data-desc="${esc(cp.descripcion || 'Producto CFDI')}" data-unidadid="${prod ? (prod.unidad_medida_id || '') : ''}" data-reqcad="${reqCad ? 1 : 0}" data-nocfdi="${esc(cp.noId || '')}">
           <td class="p-2 text-center"><input type="checkbox" class="rm-chk accent-emerald-500 w-4 h-4" checked></td>
-          <td class="p-2 text-slate-100">${nombre}${reqCad ? ' <span class="text-[10px] text-amber-400">· caducidad requerida</span>' : ''}</td>
+          <td class="p-2 text-slate-100">
+            <div class="text-[11px] text-slate-500">${esc(cp.descripcion || cp.noId || 'sin descripción')}</div>
+            <select class="rm-prod-select w-full mt-1 bg-slate-900 border ${prod ? 'border-slate-800' : 'border-amber-700'} rounded px-1.5 py-1 text-xs text-slate-100">
+              <option value="">➕ Crear producto nuevo</option>
+              ${optsProductos}
+            </select>
+            <p class="rm-prod-nota text-[10px] mt-0.5 ${prod ? 'text-emerald-400' : 'text-amber-400'}">${prod ? '✓ coincide con el catálogo' : 'sin coincidencia — elige el producto del catálogo o déjalo así para crearlo'}</p>
+          </td>
           <td class="p-2 font-mono text-slate-500 text-[10px]">${esc(cp.claveSat || '')}${cp.noId ? `<br>${esc(cp.noId)}` : ''}</td>
           <td class="p-2"><input type="number" step="any" min="0" class="rm-cant w-20 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${cp.cantidad || 0}"></td>
           <td class="p-2"><input type="number" step="any" min="0" class="rm-costo w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${Number(cp.valorUnitario || 0).toFixed(4)}"></td>
@@ -932,7 +947,7 @@ function rmRenderDetalleXml(conceptos, meta) {
 
     cont.innerHTML = `
       <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
-        <p class="text-xs text-slate-400 mb-2">Partidas del CFDI (sin orden de compra). Revisa cantidades y costos, captura el <b>lote del proveedor</b> y la caducidad. Las marcadas <span class="text-amber-400">NUEVO</span> se dan de alta en el catálogo al confirmar. Coincidieron ${hits} de ${conceptos.length}.</p>
+        <p class="text-xs text-slate-400 mb-2">Partidas del CFDI (sin orden de compra). Revisa cantidades y costos, elige a qué <b>producto del catálogo</b> corresponde cada partida (o déjala para crear uno nuevo), y captura el <b>lote del proveedor</b> y la caducidad. Coincidieron ${hits} de ${conceptos.length}; si eliges el producto correcto en las que no coincidieron, la próxima factura de este proveedor ya empareja sola.</p>
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
@@ -944,6 +959,31 @@ function rmRenderDetalleXml(conceptos, meta) {
         </div>
       </div>`;
     btn.classList.remove('hidden');
+
+    cont.querySelectorAll('.rm-prod-select').forEach(sel => {
+        const tr = sel.closest('tr');
+        sel.value = tr.dataset.prodid || '';
+        sel.addEventListener('change', () => {
+            const prodId = sel.value ? Number(sel.value) : null;
+            const prod = prodId ? ocProductos.find(p => p.id === prodId) : null;
+            tr.dataset.prodid = prodId || '';
+            tr.dataset.unidadid = prod ? (prod.unidad_medida_id || '') : '';
+            const reqCad = !!(prod && prod.requiere_caducidad);
+            tr.dataset.reqcad = reqCad ? '1' : '0';
+            sel.className = sel.className.replace(/border-(slate-800|amber-700)/, prod ? 'border-slate-800' : 'border-amber-700');
+            const cadInput = tr.querySelector('.rm-cad');
+            cadInput.className = cadInput.className.replace(/border-(slate-800|amber-600)/, reqCad ? 'border-amber-600' : 'border-slate-800');
+            const nota = tr.querySelector('.rm-prod-nota');
+            if (prodId) {
+                const esHomologacion = prodId !== Number(tr.dataset.prodidAuto || 0);
+                nota.className = 'rm-prod-nota text-[10px] mt-0.5 text-emerald-400';
+                nota.textContent = esHomologacion ? '✓ producto elegido — se guardará esta clave del proveedor para la próxima vez' : '✓ coincide con el catálogo';
+            } else {
+                nota.className = 'rm-prod-nota text-[10px] mt-0.5 text-amber-400';
+                nota.textContent = 'se creará como producto nuevo en el catálogo';
+            }
+        });
+    });
 }
 
 // Recepción directa a partir de un XML (sin orden de compra).
@@ -962,13 +1002,20 @@ async function rmConfirmarXml() {
         const caducidad = tr.querySelector('.rm-cad').value || null;
         if (!lote) errores.push(`Falta el lote del proveedor de "${desc}".`);
         if (tr.dataset.reqcad === '1' && !caducidad) errores.push(`Falta la caducidad de "${desc}".`);
+        const prodId = tr.dataset.prodid ? Number(tr.dataset.prodid) : null;
+        const prodIdAuto = tr.dataset.prodidAuto ? Number(tr.dataset.prodidAuto) : null;
         lineas.push({
-            prodId: tr.dataset.prodid ? Number(tr.dataset.prodid) : null,
+            prodId,
             desc,
             unidadId: tr.dataset.unidadid ? Number(tr.dataset.unidadid) : null,
             cantidad: cant,
             costo: parseFloat(tr.querySelector('.rm-costo').value) || 0,
             lote, caducidad,
+            // Se homologó a mano si el producto elegido existe y no coincide
+            // con el auto-match (o no hubo auto-match): guarda la clave de
+            // este proveedor para ese producto y la próxima factura empareja sola.
+            noIdCfdi: tr.dataset.nocfdi || '',
+            homologar: !!prodId && prodId !== prodIdAuto,
         });
     });
     if (!lineas.length) { msg.textContent = 'Marca al menos una partida con cantidad mayor a 0.'; msg.className = 'text-xs text-rose-400'; return; }
@@ -1009,6 +1056,21 @@ async function rmConfirmarXml() {
             }
             await rmAplicarEntradaLinea(documentoId, productoId, l.cantidad, l.costo, l.lote, l.caducidad);
             await supabaseClient.from('productos').update({ costo_unitario: l.costo }).eq('id', productoId);
+
+            // Homologación: si se eligió a mano un producto existente para una
+            // partida que el CFDI trae con su propia clave, se guarda esa
+            // clave de este proveedor -> producto, para que la próxima
+            // factura del mismo proveedor empareje sola.
+            if (l.homologar && l.noIdCfdi && rmXmlMeta?.proveedorId) {
+                try {
+                    await supabaseClient.from('producto_claves_proveedor').insert([{
+                        producto_id: productoId,
+                        proveedor_id: rmXmlMeta.proveedorId,
+                        clave: l.noIdCfdi,
+                        descripcion_factura: l.desc,
+                    }]);
+                } catch (_) { /* no bloquea la recepción si la tabla de claves no existe o ya había una */ }
+            }
         }
 
         const msgContab = await rmContabilizarDoc(documentoId, lineas.reduce((a, l) => a + l.cantidad * l.costo, 0));
