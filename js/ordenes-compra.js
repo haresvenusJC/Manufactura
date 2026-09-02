@@ -328,11 +328,14 @@ window.ocPagar = (id) => {
 let rmSinContab = false;
 let rmCuentasPago = [];
 let rmOcActual = null;   // OC seleccionada en Recibo (para conciliar el XML)
+let rmModo = null;       // 'oc' | 'xml'
+let rmXmlMeta = null;    // { proveedorId, rfc, uuid, folio } cuando el recibo viene de un XML sin OC
 
 export async function cargarModuloReciboMercancia() {
     const cont = document.getElementById('contenedorReciboMercancia');
     if (!cont) return;
     cont.innerHTML = '<p class="text-slate-500 text-sm">Cargando...</p>';
+    rmModo = null; rmXmlMeta = null; rmOcActual = null;
     try { await ocCargarCatalogos(); }
     catch (e) { cont.innerHTML = `<p class="text-rose-400 text-xs">Error: ${e.message || e}</p>`; return; }
 
@@ -547,7 +550,12 @@ function rmRenderDetalle(oc) {
     const cont = document.getElementById('rmDetalle');
     const btn = document.getElementById('rmConfirmar');
     rmOcActual = oc || null;
-    if (!oc) { cont.innerHTML = ''; btn.classList.add('hidden'); return; }
+    if (!oc) {
+        if (rmModo === 'xml') return;   // hay un recibo por XML en curso: no lo borres
+        cont.innerHTML = ''; btn.classList.add('hidden');
+        return;
+    }
+    rmModo = 'oc';
 
     const nombreProd = (d) => {
         if (d.producto_id) return ocProductos.find(p => p.id === d.producto_id)?.nombre || `Producto #${d.producto_id}`;
@@ -609,12 +617,74 @@ function rmRenderDetalle(oc) {
     recalc();
 }
 
+// Inserta el detalle + mueve inventario FIFO + guarda lote del proveedor y caducidad.
+async function rmAplicarEntradaLinea(documentoId, productoId, cantidad, costo, lote, caducidad) {
+    const { error: eDet } = await supabaseClient.from('documento_detalles').insert([{
+        documento_id: documentoId, producto_id: productoId, cantidad, costo_unitario: costo, subtotal: cantidad * costo,
+    }]);
+    if (eDet) throw eDet;
+
+    const { error: eFifo } = await supabaseClient.rpc('registrar_movimiento_inventario_fifo', {
+        p_producto_id: productoId, p_cantidad: cantidad, p_tipo_movimiento: 'entrada',
+        p_documento_id: documentoId, p_costo_unitario: costo, p_numero_lote: lote,
+    });
+    if (eFifo) throw eFifo;
+
+    try {
+        let { data: loteRow } = await supabaseClient.from('lotes_inventario')
+            .select('id').eq('producto_id', productoId).eq('numero_lote', lote)
+            .eq('documento_id', documentoId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (!loteRow) {
+            ({ data: loteRow } = await supabaseClient.from('lotes_inventario')
+                .select('id').eq('producto_id', productoId).eq('numero_lote', lote)
+                .order('created_at', { ascending: false }).limit(1).maybeSingle());
+        }
+        if (loteRow) {
+            await supabaseClient.from('lotes_inventario')
+                .update({ lote_proveedor: lote, fecha_caducidad: caducidad }).eq('id', loteRow.id);
+        }
+    } catch (_) { /* columnas de caducidad aún no existen */ }
+}
+
+// Contabiliza el documento con los importes del bloque fiscal. Devuelve un texto de estado.
+async function rmContabilizarDoc(documentoId, subtotalFallback) {
+    const chk = document.getElementById('rmContabilizar');
+    if (rmSinContab || !chk || !chk.checked) return '';
+    const nf = (id) => Math.max(0, parseFloat(document.getElementById(id)?.value) || 0);
+    let subtotal = nf('rmSubtotal');
+    if (subtotal <= 0) subtotal = subtotalFallback;
+    const condicion = document.getElementById('rmCondicion').value;
+    try {
+        const { data: cc, error: eCc } = await supabaseClient.rpc('contabilizar_compra', {
+            p_documento_id: documentoId,
+            p_datos: {
+                subtotal,
+                iva: nf('rmIva'), ieps: nf('rmIeps'), ret_iva: nf('rmRetIva'), ret_isr: nf('rmRetIsr'),
+                condicion,
+                forma_pago: document.getElementById('rmFormaPago').value || null,
+                cuenta_pago_id: condicion === 'contado' && document.getElementById('rmCuentaPago')?.value
+                    ? parseInt(document.getElementById('rmCuentaPago').value) : null,
+                uuid_cfdi: document.getElementById('rmUuid').value.trim() || null,
+                rfc_emisor: document.getElementById('rmRfc').value.trim() || null,
+            },
+        });
+        if (eCc) throw eCc;
+        return cc && cc.total != null
+            ? ` Póliza de Egreso generada (total ${money(cc.total)}).`
+            : ' Póliza de Egreso generada.';
+    } catch (e) {
+        return ` (Entrada OK, pero no se contabilizó: ${e.message || e})`;
+    }
+}
+
 async function rmConfirmar(ocs) {
+    if (rmModo === 'xml') return rmConfirmarXml();
+
     const msg = document.getElementById('rmMsg');
     msg.textContent = ''; msg.className = 'text-xs min-h-[1rem]';
     const ocId = Number(document.getElementById('rmOC').value);
     const oc = ocs.find(o => o.id === ocId);
-    if (!oc) { msg.textContent = 'Elige una orden de compra.'; msg.className = 'text-xs text-rose-400'; return; }
+    if (!oc) { msg.textContent = 'Elige una orden de compra o importa un XML.'; msg.className = 'text-xs text-rose-400'; return; }
 
     const lineas = [];
     const errores = [];
@@ -667,78 +737,14 @@ async function rmConfirmar(ocs) {
                 await supabaseClient.from('ordenes_compra_detalle').update({ producto_id: productoId }).eq('id', l.det.id);
             }
 
-            const { error: eDet } = await supabaseClient.from('documento_detalles').insert([{
-                documento_id: documentoId,
-                producto_id: productoId,
-                cantidad: l.cantidad,
-                costo_unitario: l.costo,
-                subtotal: l.cantidad * l.costo,
-            }]);
-            if (eDet) throw eDet;
-
-            const { error: eFifo } = await supabaseClient.rpc('registrar_movimiento_inventario_fifo', {
-                p_producto_id: productoId,
-                p_cantidad: l.cantidad,
-                p_tipo_movimiento: 'entrada',
-                p_documento_id: documentoId,
-                p_costo_unitario: l.costo,
-                p_numero_lote: l.lote,
-            });
-            if (eFifo) throw eFifo;
-
-            // Guarda el lote del proveedor y la caducidad en el lote recién creado
-            // (best-effort: si aún no corres sql/2026-09-02_caducidad_lotes.sql se ignora)
-            try {
-                let { data: loteRow } = await supabaseClient.from('lotes_inventario')
-                    .select('id').eq('producto_id', productoId).eq('numero_lote', l.lote)
-                    .eq('documento_id', documentoId).order('created_at', { ascending: false }).limit(1).maybeSingle();
-                if (!loteRow) {
-                    ({ data: loteRow } = await supabaseClient.from('lotes_inventario')
-                        .select('id').eq('producto_id', productoId).eq('numero_lote', l.lote)
-                        .order('created_at', { ascending: false }).limit(1).maybeSingle());
-                }
-                if (loteRow) {
-                    await supabaseClient.from('lotes_inventario')
-                        .update({ lote_proveedor: l.lote, fecha_caducidad: l.caducidad })
-                        .eq('id', loteRow.id);
-                }
-            } catch (_) { /* columnas de caducidad aún no existen */ }
+            await rmAplicarEntradaLinea(documentoId, productoId, l.cantidad, l.costo, l.lote, l.caducidad);
 
             await supabaseClient.from('ordenes_compra_detalle')
                 .update({ cantidad_recibida: Number(l.det.cantidad_recibida || 0) + l.cantidad })
                 .eq('id', l.det.id);
         }
 
-        // Contabilizar (reutiliza contabilizar_compra)
-        let msgContab = '';
-        const chk = document.getElementById('rmContabilizar');
-        if (!rmSinContab && chk && chk.checked) {
-            const nf = (id) => Math.max(0, parseFloat(document.getElementById(id)?.value) || 0);
-            let subtotal = nf('rmSubtotal');
-            if (subtotal <= 0) subtotal = lineas.reduce((a, l) => a + l.cantidad * l.costo, 0);
-            const condicion = document.getElementById('rmCondicion').value;
-            try {
-                const { data: cc, error: eCc } = await supabaseClient.rpc('contabilizar_compra', {
-                    p_documento_id: documentoId,
-                    p_datos: {
-                        subtotal,
-                        iva: nf('rmIva'), ieps: nf('rmIeps'), ret_iva: nf('rmRetIva'), ret_isr: nf('rmRetIsr'),
-                        condicion,
-                        forma_pago: document.getElementById('rmFormaPago').value || null,
-                        cuenta_pago_id: condicion === 'contado' && document.getElementById('rmCuentaPago')?.value
-                            ? parseInt(document.getElementById('rmCuentaPago').value) : null,
-                        uuid_cfdi: document.getElementById('rmUuid').value.trim() || null,
-                        rfc_emisor: document.getElementById('rmRfc').value.trim() || null,
-                    },
-                });
-                if (eCc) throw eCc;
-                msgContab = cc && cc.total != null
-                    ? ` Póliza de Egreso generada (total ${money(cc.total)}).`
-                    : ' Póliza de Egreso generada.';
-            } catch (e) {
-                msgContab = ` (Entrada OK, pero no se contabilizó: ${e.message || e})`;
-            }
-        }
+        const msgContab = await rmContabilizarDoc(documentoId, lineas.reduce((a, l) => a + l.cantidad * l.costo, 0));
 
         // Recalcular estatus de la OC
         const { data: detFresco } = await supabaseClient.from('ordenes_compra_detalle')
@@ -749,6 +755,136 @@ async function rmConfirmar(ocs) {
         await supabaseClient.from('ordenes_compra').update({ estatus: nuevo }).eq('id', oc.id);
 
         alert(`✅ Recepción registrada (documento #${documentoId}).${msgContab}\nLa orden ${oc.folio} quedó "${nuevo}".`);
+
+        if (typeof cargarInventarioCompleto === 'function') await cargarInventarioCompleto();
+        await cargarModuloReciboMercancia();
+    } catch (err) {
+        msg.textContent = 'No se pudo registrar la recepción: ' + (err.message || err);
+        msg.className = 'text-xs text-rose-400';
+        btn.disabled = false;
+    }
+}
+
+// Tabla de recepción armada desde los conceptos de un CFDI (sin orden de compra).
+function rmRenderDetalleXml(conceptos, meta) {
+    rmModo = 'xml';
+    rmXmlMeta = meta;
+    const cont = document.getElementById('rmDetalle');
+    const btn = document.getElementById('rmConfirmar');
+    const clavesMap = meta.claves || new Map();
+    const claveSatMap = meta.clavesSat || new Map();
+
+    let hits = 0;
+    const filas = conceptos.map((cp, i) => {
+        let prodId = null;
+        if (cp.noId && clavesMap.has(normTxt(cp.noId))) prodId = clavesMap.get(normTxt(cp.noId));
+        if (!prodId && cp.claveSat && claveSatMap.has(cp.claveSat)) prodId = claveSatMap.get(cp.claveSat);
+        if (!prodId && cp.noId) {
+            const bySku = ocProductos.find(p => p.sku && normTxt(p.sku) === normTxt(cp.noId));
+            if (bySku) prodId = bySku.id;
+        }
+        if (!prodId && cp.descripcion) {
+            const nd = normTxt(cp.descripcion);
+            const byName = ocProductos.find(p => p.nombre && (nd.includes(normTxt(p.nombre)) || normTxt(p.nombre).includes(nd)));
+            if (byName) prodId = byName.id;
+        }
+        const prod = prodId ? ocProductos.find(p => p.id === prodId) : null;
+        if (prod) hits++;
+        const reqCad = !!(prod && prod.requiere_caducidad);
+        const nombre = prod
+            ? esc(prod.nombre)
+            : `<span class="text-amber-400">NUEVO:</span> ${esc(cp.descripcion || cp.noId || 'sin descripción')}`;
+        return `
+        <tr class="border-b border-slate-900" data-cpidx="${i}" data-prodid="${prodId || ''}" data-desc="${esc(cp.descripcion || 'Producto CFDI')}" data-unidadid="${prod ? (prod.unidad_medida_id || '') : ''}" data-reqcad="${reqCad ? 1 : 0}">
+          <td class="p-2 text-center"><input type="checkbox" class="rm-chk accent-emerald-500 w-4 h-4" checked></td>
+          <td class="p-2 text-slate-100">${nombre}${reqCad ? ' <span class="text-[10px] text-amber-400">· caducidad requerida</span>' : ''}</td>
+          <td class="p-2 font-mono text-slate-500 text-[10px]">${esc(cp.claveSat || '')}${cp.noId ? `<br>${esc(cp.noId)}` : ''}</td>
+          <td class="p-2"><input type="number" step="any" min="0" class="rm-cant w-20 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${cp.cantidad || 0}"></td>
+          <td class="p-2"><input type="number" step="any" min="0" class="rm-costo w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${Number(cp.valorUnitario || 0).toFixed(4)}"></td>
+          <td class="p-2"><input type="text" class="rm-lote w-28 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" placeholder="lote del proveedor"></td>
+          <td class="p-2"><input type="date" class="rm-cad w-32 bg-slate-900 border ${reqCad ? 'border-amber-600' : 'border-slate-800'} rounded px-2 py-1 text-xs text-slate-100 font-mono"></td>
+        </tr>`;
+    }).join('');
+
+    cont.innerHTML = `
+      <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
+        <p class="text-xs text-slate-400 mb-2">Partidas del CFDI (sin orden de compra). Revisa cantidades y costos, captura el <b>lote del proveedor</b> y la caducidad. Las marcadas <span class="text-amber-400">NUEVO</span> se dan de alta en el catálogo al confirmar. Coincidieron ${hits} de ${conceptos.length}.</p>
+        <div class="overflow-x-auto border border-slate-800 rounded-lg">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
+              <th class="p-2">Recibir</th><th class="p-2">Producto</th><th class="p-2">Clave SAT / prov.</th>
+              <th class="p-2">Cantidad</th><th class="p-2">Costo</th><th class="p-2">Lote del proveedor</th><th class="p-2">Caducidad</th>
+            </tr></thead>
+            <tbody id="rmDetBody">${filas}</tbody>
+          </table>
+        </div>
+      </div>`;
+    btn.classList.remove('hidden');
+}
+
+// Recepción directa a partir de un XML (sin orden de compra).
+async function rmConfirmarXml() {
+    const msg = document.getElementById('rmMsg');
+    msg.textContent = ''; msg.className = 'text-xs min-h-[1rem]';
+
+    const lineas = [];
+    const errores = [];
+    document.querySelectorAll('#rmDetBody tr').forEach(tr => {
+        if (!tr.querySelector('.rm-chk').checked) return;
+        const cant = parseFloat(tr.querySelector('.rm-cant').value) || 0;
+        if (cant <= 0) return;
+        const desc = tr.dataset.desc || 'Producto CFDI';
+        const lote = tr.querySelector('.rm-lote').value.trim();
+        const caducidad = tr.querySelector('.rm-cad').value || null;
+        if (!lote) errores.push(`Falta el lote del proveedor de "${desc}".`);
+        if (tr.dataset.reqcad === '1' && !caducidad) errores.push(`Falta la caducidad de "${desc}".`);
+        lineas.push({
+            prodId: tr.dataset.prodid ? Number(tr.dataset.prodid) : null,
+            desc,
+            unidadId: tr.dataset.unidadid ? Number(tr.dataset.unidadid) : null,
+            cantidad: cant,
+            costo: parseFloat(tr.querySelector('.rm-costo').value) || 0,
+            lote, caducidad,
+        });
+    });
+    if (!lineas.length) { msg.textContent = 'Marca al menos una partida con cantidad mayor a 0.'; msg.className = 'text-xs text-rose-400'; return; }
+    if (errores.length) { alert('⚠ Revisa:\n' + errores.join('\n')); return; }
+    if (!confirm(`¿Registrar la recepción de ${lineas.length} partida(s) del CFDI (sin orden de compra)?`)) return;
+
+    const btn = document.getElementById('rmConfirmar');
+    btn.disabled = true;
+    try {
+        const folio = (rmXmlMeta && rmXmlMeta.folio) || 'CFDI';
+        const { data: doc, error: eDoc } = await supabaseClient.from('documentos').insert([{
+            tipo_movimiento: 'entrada_compra',
+            folio,
+            proveedor_id: rmXmlMeta ? rmXmlMeta.proveedorId : null,
+            fecha_emision: hoyISO(),
+            notas: `Recibo desde CFDI ${rmXmlMeta && rmXmlMeta.uuid ? rmXmlMeta.uuid : ''}`.trim(),
+            estado: 'completado',
+        }]).select('id').single();
+        if (eDoc) throw eDoc;
+        const documentoId = doc.id;
+
+        for (const l of lineas) {
+            let productoId = l.prodId;
+            if (!productoId) {
+                const { data: np, error: eNp } = await supabaseClient.from('productos').insert([{
+                    nombre: l.desc,
+                    costo_unitario: l.costo,
+                    proveedor_id: rmXmlMeta ? rmXmlMeta.proveedorId : null,
+                    unidad_medida_id: l.unidadId,
+                    tipo: 'materia_prima',
+                    stock_actual: 0,
+                }]).select('id').single();
+                if (eNp) throw eNp;
+                productoId = np.id;
+            }
+            await rmAplicarEntradaLinea(documentoId, productoId, l.cantidad, l.costo, l.lote, l.caducidad);
+        }
+
+        const msgContab = await rmContabilizarDoc(documentoId, lineas.reduce((a, l) => a + l.cantidad * l.costo, 0));
+        alert(`✅ Recepción registrada (documento #${documentoId}).${msgContab}`);
 
         if (typeof cargarInventarioCompleto === 'function') await cargarInventarioCompleto();
         await cargarModuloReciboMercancia();
@@ -867,6 +1003,25 @@ async function rmProcesarXml(text) {
             }
         }
         document.querySelector('#rmDetBody .rm-cant')?.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+        // Sin orden de compra: arma la recepción directamente del CFDI.
+        let provId = null;
+        try {
+            const { data: pv } = await supabaseClient.from('proveedores').select('id').eq('rfc', rfcEmisor).limit(1).maybeSingle();
+            if (pv) provId = pv.id;
+        } catch (_) { /* proveedores sin columna rfc */ }
+        const clavesMap = new Map(), clavesSatMap = new Map();
+        if (provId) {
+            try {
+                const { data } = await supabaseClient.from('producto_claves_proveedor')
+                    .select('producto_id, clave, clave_sat').eq('proveedor_id', provId);
+                (data || []).forEach(c => {
+                    if (c.clave) clavesMap.set(normTxt(c.clave), c.producto_id);
+                    if (c.clave_sat) clavesSatMap.set(String(c.clave_sat).trim(), c.producto_id);
+                });
+            } catch (_) { /* tabla de claves aún no existe */ }
+        }
+        rmRenderDetalleXml(conceptos, { proveedorId: provId, rfc: rfcEmisor, uuid, folio, claves: clavesMap, clavesSat: clavesSatMap });
     }
 
     // Los importes fiscales del CFDI son la verdad: se re-aplican por si la
@@ -885,7 +1040,7 @@ async function rmProcesarXml(text) {
         info.innerHTML = `📄 <b>${esc(nombreEmisor || rfcEmisor || 'CFDI')}</b> · Folio ${esc(folio || '—')} · Total ${money(totalCfdi)} · ${conceptos.length} concepto(s)`
             + (rmOcActual
                 ? ` · <span class="text-emerald-400">${conc} conciliado(s)</span>${sinMatch.length ? ` · <span class="text-amber-400">${sinMatch.length} sin coincidencia</span>` : ''}`
-                : ' · <span class="text-slate-500">elige una orden para conciliar partidas</span>');
+                : ` · <span class="text-emerald-400">recepción directa (sin orden)</span>${rmXmlMeta && !rmXmlMeta.proveedorId ? ' · <span class="text-amber-400">proveedor no identificado por RFC</span>' : ''}`);
         if (sinMatch.length) {
             info.innerHTML += `<br><span class="text-[10px] text-amber-400">Sin coincidencia: ${sinMatch.slice(0, 8).map(esc).join(' · ')}${sinMatch.length > 8 ? '…' : ''}. Ajusta a mano o agrega la clave del proveedor en Catálogos → Productos.</span>`;
         }
