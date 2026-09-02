@@ -87,10 +87,65 @@ export async function cargarModuloContabilidad() {
             <div id="ctaTabla" class="bg-slate-950 border border-slate-800 rounded-xl p-4 text-center text-slate-500 text-sm">Cargando catalogo...</div>
         </div>
     </div>
+
+    <details class="mt-6 bg-slate-950 border border-slate-800 rounded-xl">
+        <summary class="cursor-pointer select-none px-4 py-3 text-md font-semibold text-sky-400">Uso CFDI → cuenta por defecto</summary>
+        <div class="px-4 pb-4">
+            <p class="text-[11px] text-slate-400 mb-3">Al importar una factura, si el producto no trae cuenta de inventario propia, la contabilización usa la cuenta que asignes aquí al <span class="font-mono">UsoCFDI</span> del CFDI.</p>
+            <div id="usoCfdiTabla" class="text-sm text-slate-500">Cargando…</div>
+        </div>
+    </details>
     `;
 
     cablear();
     await recargar();
+    await cargarMapeoUsoCfdi();
+}
+
+async function cargarMapeoUsoCfdi() {
+    const cont = document.getElementById('usoCfdiTabla');
+    if (!cont) return;
+    try {
+        const [usoR, ctasR] = await Promise.all([
+            supabaseClient.from('c_uso_cfdi').select('clave, descripcion, cuenta_id, activo').order('clave'),
+            supabaseClient.from('cuentas_contables').select('id, codigo, nombre').eq('afectable', true).eq('activa', true).order('codigo'),
+        ]);
+        if (usoR.error) throw usoR.error;
+        const usos = usoR.data || [];
+        const ctas = ctasR.data || [];
+        if (!usos.length) { cont.innerHTML = '<p class="text-amber-400 text-xs">Falta correr <span class="font-mono">sql/2026-09-03_cfdi_catalogos.sql</span> en Supabase.</p>'; return; }
+
+        const opts = (sel) => '<option value="">— sin cuenta —</option>' +
+            ctas.map((c) => `<option value="${c.id}" ${String(c.id) === String(sel) ? 'selected' : ''}>${c.codigo} · ${c.nombre}</option>`).join('');
+
+        cont.innerHTML = `
+        <div class="overflow-x-auto border border-slate-800 rounded-lg">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-slate-900 text-slate-400 uppercase"><tr><th class="p-2">Clave</th><th class="p-2">Descripción</th><th class="p-2">Cuenta por defecto</th></tr></thead>
+            <tbody>
+              ${usos.map((u) => `
+                <tr class="border-b border-slate-900 ${u.activo === false ? 'opacity-50' : ''}">
+                  <td class="p-2 font-mono text-sky-300">${u.clave}</td>
+                  <td class="p-2">${u.descripcion}</td>
+                  <td class="p-2"><select class="uso-cta bg-slate-900 border border-slate-800 rounded p-1.5 text-xs text-slate-100" data-clave="${u.clave}">${opts(u.cuenta_id)}</select></td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+
+        cont.querySelectorAll('.uso-cta').forEach((sel) => {
+            sel.addEventListener('change', async () => {
+                const { error } = await supabaseClient.from('c_uso_cfdi')
+                    .update({ cuenta_id: sel.value ? Number(sel.value) : null })
+                    .eq('clave', sel.dataset.clave);
+                if (error) { alert('No se pudo guardar: ' + error.message); return; }
+                sel.classList.add('border-emerald-600');
+                setTimeout(() => sel.classList.remove('border-emerald-600'), 800);
+            });
+        });
+    } catch (err) {
+        cont.innerHTML = `<p class="text-slate-500 text-xs">No disponible: ${err.message || err}</p>`;
+    }
 }
 
 function cablear() {

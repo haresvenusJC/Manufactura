@@ -330,6 +330,9 @@ let rmCuentasPago = [];
 let rmOcActual = null;   // OC seleccionada en Recibo (para conciliar el XML)
 let rmModo = null;       // 'oc' | 'xml'
 let rmXmlMeta = null;    // { proveedorId, rfc, uuid, folio } cuando el recibo viene de un XML sin OC
+let rmCatUso = [];       // c_uso_cfdi
+let rmCatForma = [];     // c_forma_pago
+let rmCatMetodo = [];    // c_metodo_pago
 
 export async function cargarModuloReciboMercancia() {
     const cont = document.getElementById('contenedorReciboMercancia');
@@ -347,6 +350,19 @@ export async function cargarModuloReciboMercancia() {
         if (error) throw error;
         rmCuentasPago = (data || []).filter(c => /^(101|102)/.test(c.codigo));
     } catch (_) { rmSinContab = true; rmCuentasPago = []; }
+
+    // Catálogos SAT del CFDI (best-effort: si falta el SQL se usan opciones básicas)
+    rmCatUso = []; rmCatForma = []; rmCatMetodo = [];
+    try {
+        const [u, f, m] = await Promise.all([
+            supabaseClient.from('c_uso_cfdi').select('clave, descripcion, activo').order('clave'),
+            supabaseClient.from('c_forma_pago').select('clave, descripcion').order('clave'),
+            supabaseClient.from('c_metodo_pago').select('clave, descripcion').order('clave'),
+        ]);
+        rmCatUso = (u.data || []).filter(x => x.activo !== false);
+        rmCatForma = f.data || [];
+        rmCatMetodo = m.data || [];
+    } catch (_) { /* catálogos no instalados */ }
 
     let ocs = [];
     try {
@@ -367,6 +383,16 @@ export async function cargarModuloReciboMercancia() {
 
     const optOc = '<option value="">Elige una orden...</option>' +
         ocs.map(o => `<option value="${o.id}">${esc(o.folio || '#' + o.id)} · ${esc(o.proveedores?.nombre || 's/proveedor')} · ${esc(o.estatus)}</option>`).join('');
+
+    const optForma = '<option value="">—</option>' + (rmCatForma.length
+        ? rmCatForma.map(x => `<option value="${esc(x.clave)}">${esc(x.clave)} · ${esc(x.descripcion)}</option>`).join('')
+        : `<option value="01">01 · Efectivo</option><option value="03">03 · Transferencia</option><option value="04">04 · Tarjeta de crédito</option><option value="28">28 · Tarjeta de débito</option><option value="02">02 · Cheque</option><option value="99">99 · Por definir</option>`);
+    const optMetodo = '<option value="">—</option>' + (rmCatMetodo.length
+        ? rmCatMetodo.map(x => `<option value="${esc(x.clave)}">${esc(x.clave)} · ${esc(x.descripcion)}</option>`).join('')
+        : `<option value="PUE">PUE · Pago en una sola exhibición</option><option value="PPD">PPD · Pago en parcialidades o diferido</option>`);
+    const optUso = '<option value="">—</option>' + (rmCatUso.length
+        ? rmCatUso.map(x => `<option value="${esc(x.clave)}">${esc(x.clave)} · ${esc(x.descripcion)}</option>`).join('')
+        : `<option value="G01">G01 · Adquisición de mercancías</option><option value="G03">G03 · Gastos en general</option>`);
 
     const fiscalHtml = rmSinContab ? '' : `
       <div id="rmBloqueFiscal" class="bg-slate-950 border border-slate-800 rounded-xl p-4 mt-4">
@@ -389,9 +415,14 @@ export async function cargarModuloReciboMercancia() {
           <div><label class="block text-xs text-slate-400 mb-1">Condición</label>
             <select id="rmCondicion" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
               <option value="credito">Crédito (por pagar)</option><option value="contado">Contado</option></select></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Forma de pago</label>
-            <select id="rmFormaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-              <option value="">—</option><option>efectivo</option><option>transferencia</option><option>tarjeta</option><option>cheque</option></select></div>
+          <div><label class="block text-xs text-slate-400 mb-1">Forma de pago (SAT)</label>
+            <select id="rmFormaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optForma}</select></div>
+          <div><label class="block text-xs text-slate-400 mb-1">Método de pago</label>
+            <select id="rmMetodoPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optMetodo}</select></div>
+          <div><label class="block text-xs text-slate-400 mb-1">Moneda</label>
+            <input type="text" id="rmMoneda" value="MXN" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono uppercase"></div>
+          <div class="md:col-span-2"><label class="block text-xs text-slate-400 mb-1">Uso CFDI</label>
+            <select id="rmUsoCfdi" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optUso}</select></div>
           <div id="rmPagoWrap" class="hidden md:col-span-2"><label class="block text-xs text-slate-400 mb-1">Pagado desde (caja / banco)</label>
             <select id="rmCuentaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
               <option value="">— caja / banco —</option>${rmCuentasPago.map(c => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('')}</select></div>
@@ -661,7 +692,10 @@ async function rmContabilizarDoc(documentoId, subtotalFallback) {
                 subtotal,
                 iva: nf('rmIva'), ieps: nf('rmIeps'), ret_iva: nf('rmRetIva'), ret_isr: nf('rmRetIsr'),
                 condicion,
-                forma_pago: document.getElementById('rmFormaPago').value || null,
+                forma_pago: document.getElementById('rmFormaPago')?.value || null,
+                metodo_pago: document.getElementById('rmMetodoPago')?.value || null,
+                uso_cfdi: document.getElementById('rmUsoCfdi')?.value || null,
+                moneda: document.getElementById('rmMoneda')?.value.trim().toUpperCase() || null,
                 cuenta_pago_id: condicion === 'contado' && document.getElementById('rmCuentaPago')?.value
                     ? parseInt(document.getElementById('rmCuentaPago').value) : null,
                 uuid_cfdi: document.getElementById('rmUuid').value.trim() || null,
@@ -921,6 +955,10 @@ async function rmProcesarXml(text) {
     const rfcEmisor = A(emisor, 'Rfc');
     const nombreEmisor = A(emisor, 'Nombre');
     const uuid = A(byLocal('TimbreFiscalDigital')[0], 'UUID');
+    const moneda = (A(comp, 'Moneda') || 'MXN').toUpperCase();
+    const formaPago = A(comp, 'FormaPago');
+    const metodoPago = A(comp, 'MetodoPago');
+    const usoCfdi = A(byLocal('Receptor')[0], 'UsoCFDI');
 
     let iva = 0, ieps = 0, retIva = 0, retIsr = 0;
     const impComp = [...comp.children].find(c => c.localName === 'Impuestos');
@@ -950,6 +988,21 @@ async function rmProcesarXml(text) {
     }
     const elRfc = document.getElementById('rmRfc'); if (elRfc && rfcEmisor) elRfc.value = rfcEmisor;
     const elUuid = document.getElementById('rmUuid'); if (elUuid && uuid) elUuid.value = uuid;
+    const elMon = document.getElementById('rmMoneda'); if (elMon && moneda) elMon.value = moneda;
+    const setSel = (id, v) => {
+        const el = document.getElementById(id);
+        if (!el || !v) return;
+        el.value = v;
+        if (el.value !== v) {   // el código no está en el catálogo cargado
+            const o = document.createElement('option');
+            o.value = v; o.textContent = v + ' · (no en catálogo)';
+            el.appendChild(o);
+            el.value = v;
+        }
+    };
+    setSel('rmFormaPago', formaPago);
+    setSel('rmMetodoPago', metodoPago);
+    setSel('rmUsoCfdi', usoCfdi);
 
     const conceptos = byLocal('Concepto').map(c => ({
         claveSat: A(c, 'ClaveProdServ').trim(),
