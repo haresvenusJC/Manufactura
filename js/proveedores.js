@@ -331,12 +331,12 @@ function configurarLogicaProveedores() {
         cont.innerHTML = `<p class="text-slate-400 text-xs">Cargando compras de ${esc(nombreProveedor)}...</p>`;
         try {
             const { data, error } = await supabaseClient.from('productos')
-                .select('nombre, unidades_medida ( nombre ), lotes_inventario ( numero_lote, stock_actual, costo_unitario, moneda, fecha_ingreso )')
+                .select('nombre, unidades_medida ( nombre ), lotes_inventario ( numero_lote, stock_actual, costo_unitario, fecha_ingreso, monedas ( codigo ) )')
                 .eq('proveedor_id', proveedorId);
             if (error) throw error;
 
             const filas = [];
-            (data || []).forEach(prod => (prod.lotes_inventario || []).forEach(l => filas.push({ prod: prod.nombre, u: prod.unidades_medida?.nombre || '', ...l })));
+            (data || []).forEach(prod => (prod.lotes_inventario || []).forEach(l => filas.push({ prod: prod.nombre, u: prod.unidades_medida?.nombre || '', ...l, moneda: l.monedas?.codigo })));
             if (!filas.length) { cont.innerHTML = '<p class="text-slate-400 text-xs">Sin lotes de inventario de este proveedor.</p>'; return; }
 
             cont.innerHTML = `
