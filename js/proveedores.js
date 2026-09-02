@@ -310,13 +310,28 @@ function configurarLogicaProveedores() {
                 id = data.id;
             }
             // Datos fiscales: best-effort (se ignora si falta el SQL de proveedores)
-            const { error: eF } = await supabaseClient.from('proveedores').update(fiscal).eq('id', id);
+            const { data: dF, error: eF } = await supabaseClient.from('proveedores').update(fiscal).eq('id', id).select('id');
             if (eF && !/does not exist|schema cache|could not find/i.test(eF.message || '')) throw eF;
-            if (eF) { msg.textContent = 'Guardado. Ojo: falta correr sql/2026-09-03_proveedores_fiscal.sql para los datos fiscales.'; msg.className = 'text-xs text-amber-400'; }
-            else { msg.textContent = idEdit ? 'Proveedor actualizado.' : 'Proveedor registrado.'; msg.className = 'text-xs text-emerald-400'; }
+
+            let msgTexto, msgClase;
+            if (eF) {
+                msgTexto = 'Guardado. Ojo: falta correr sql/2026-09-03_proveedores_fiscal.sql para los datos fiscales.';
+                msgClase = 'text-xs text-amber-400';
+            } else if (!dF || dF.length === 0) {
+                // update() sin error pero 0 filas afectadas = normalmente RLS
+                // bloqueando el UPDATE en silencio (Supabase no lo reporta como
+                // error). Los datos fiscales NO se guardaron aunque parezca que sí.
+                msgTexto = 'Se guardó el nombre/contacto, pero los datos fiscales (RFC, régimen, etc.) NO se guardaron — revisa los permisos (RLS) de la tabla proveedores.';
+                msgClase = 'text-xs text-rose-400';
+            } else {
+                msgTexto = idEdit ? 'Proveedor actualizado.' : 'Proveedor registrado.';
+                msgClase = 'text-xs text-emerald-400';
+            }
 
             limpiar();
             await renderizarTablaProveedores();
+            msg.textContent = msgTexto;
+            msg.className = msgClase;
         } catch (err) {
             msg.textContent = 'No se pudo guardar: ' + (err.message || err);
             msg.className = 'text-xs text-rose-400';
