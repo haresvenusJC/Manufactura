@@ -1045,6 +1045,7 @@ async function rmProcesarXml(text) {
     const emisor = byLocal('Emisor')[0];
     const rfcEmisor = A(emisor, 'Rfc');
     const nombreEmisor = A(emisor, 'Nombre');
+    const regimenEmisor = A(emisor, 'RegimenFiscal');
     const uuid = A(byLocal('TimbreFiscalDigital')[0], 'UUID');
     const moneda = (A(comp, 'Moneda') || 'MXN').toUpperCase();
     const tipoCambio = toNum(A(comp, 'TipoCambio')) || 1;
@@ -1170,7 +1171,10 @@ async function rmProcesarXml(text) {
                 });
             } catch (_) { /* tabla de claves aún no existe */ }
         }
-        rmRenderDetalleXml(conceptos, { proveedorId: provId, rfc: rfcEmisor, nombreEmisor, uuid, folio, claves: clavesMap, clavesSat: clavesSatMap });
+        rmRenderDetalleXml(conceptos, {
+            proveedorId: provId, rfc: rfcEmisor, nombreEmisor, uuid, folio, claves: clavesMap, clavesSat: clavesSatMap,
+            regimenFiscal: regimenEmisor, usoCfdi, formaPago, metodoPago, moneda,
+        });
     }
 
     // Los importes fiscales del CFDI son la verdad: se re-aplican por si la
@@ -1195,38 +1199,87 @@ async function rmProcesarXml(text) {
             info.innerHTML += `<br><span class="text-[10px] text-amber-400">Sin coincidencia: ${sinMatch.slice(0, 8).map(esc).join(' · ')}${sinMatch.length > 8 ? '…' : ''}. Ajusta a mano o agrega la clave del proveedor en Catálogos → Productos.</span>`;
         }
         if (sinProveedor && nombreEmisor) {
-            info.innerHTML += `<br><button type="button" id="rmBtnAltaProveedor" class="mt-1 text-[11px] bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2.5 py-1 rounded">➕ Dar de alta a "${esc(nombreEmisor)}" y vincularlo</button>`;
-            document.getElementById('rmBtnAltaProveedor').onclick = rmAltaProveedorDesdeXml;
+            info.innerHTML += `<br><button type="button" id="rmBtnAltaProveedor" class="mt-1 text-[11px] bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2.5 py-1 rounded">➕ Dar de alta a "${esc(nombreEmisor)}" y vincularlo</button><div id="rmAltaProvForm"></div>`;
+            document.getElementById('rmBtnAltaProveedor').onclick = rmAbrirFormAltaProveedor;
         }
     }
 }
 
-// Da de alta al proveedor cuyo RFC no empareja con ninguno existente,
-// usando el nombre/RFC ya leidos del CFDI + los mismos defaults que el
-// alta manual en Proveedores (regimen general de ley, uso CFDI de
-// adquisicion, contado, forma transferencia, metodo PUE, cuenta 201.01
-// Proveedores nacionales), y lo enlaza de inmediato a esta recepcion.
-async function rmAltaProveedorDesdeXml() {
-    if (!rmXmlMeta || rmXmlMeta.proveedorId) return;
-    const rfc = (rmXmlMeta.rfc || '').trim().toUpperCase();
-    const nombre = (rmXmlMeta.nombreEmisor || '').trim();
-    if (!nombre) { alert('No se pudo leer el nombre del proveedor del XML.'); return; }
-
+// Abre el mini-formulario de alta de proveedor con los datos REALES leidos
+// del XML (regimen/uso CFDI/forma/metodo/moneda del propio CFDI, no
+// valores inventados) para revisarlos y ajustarlos antes de guardar - la
+// condicion se sugiere por el MetodoPago del CFDI (PPD = credito, si no
+// contado) pero tambien es editable.
+function rmAbrirFormAltaProveedor() {
+    if (!rmXmlMeta) return;
     const btn = document.getElementById('rmBtnAltaProveedor');
-    if (btn) { btn.disabled = true; btn.textContent = 'Dando de alta…'; }
+    const cont = document.getElementById('rmAltaProvForm');
+    if (!cont) return;
+    if (btn) btn.classList.add('hidden');
+
+    const condicionSugerida = rmXmlMeta.metodoPago === 'PPD' ? 'credito' : 'contado';
+    cont.innerHTML = `
+        <div class="mt-2 bg-slate-900/60 border border-amber-800/60 rounded-lg p-2.5 space-y-2 max-w-md">
+            <p class="text-[11px] text-amber-300 font-semibold">Dar de alta proveedor — datos leídos del XML, revisa y ajusta si hace falta</p>
+            <div class="grid grid-cols-2 gap-2">
+                <div class="col-span-2"><label class="block text-[10px] text-slate-400">Nombre</label>
+                    <input id="rmApNombre" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100" value="${esc(rmXmlMeta.nombreEmisor || '')}"></div>
+                <div><label class="block text-[10px] text-slate-400">RFC</label>
+                    <input id="rmApRfc" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono uppercase" value="${esc(rmXmlMeta.rfc || '')}"></div>
+                <div><label class="block text-[10px] text-slate-400">Régimen fiscal (SAT)</label>
+                    <input id="rmApRegimen" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" value="${esc(rmXmlMeta.regimenFiscal || '')}" placeholder="Ej. 601"></div>
+                <div><label class="block text-[10px] text-slate-400">Uso CFDI</label>
+                    <input id="rmApUso" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" value="${esc(rmXmlMeta.usoCfdi || '')}" placeholder="Ej. G01"></div>
+                <div><label class="block text-[10px] text-slate-400">Condición</label>
+                    <select id="rmApCondicion" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100">
+                        <option value="contado" ${condicionSugerida === 'contado' ? 'selected' : ''}>Contado</option>
+                        <option value="credito" ${condicionSugerida === 'credito' ? 'selected' : ''}>Crédito</option>
+                    </select></div>
+                <div><label class="block text-[10px] text-slate-400">Forma de pago (SAT)</label>
+                    <input id="rmApForma" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" value="${esc(rmXmlMeta.formaPago || '')}" placeholder="Ej. 03"></div>
+                <div><label class="block text-[10px] text-slate-400">Método de pago</label>
+                    <input id="rmApMetodo" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" value="${esc(rmXmlMeta.metodoPago || '')}" placeholder="Ej. PUE"></div>
+                <div><label class="block text-[10px] text-slate-400">Moneda</label>
+                    <input id="rmApMoneda" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono uppercase" value="${esc(rmXmlMeta.moneda || 'MXN')}"></div>
+            </div>
+            <div class="flex gap-2">
+                <button type="button" id="rmApGuardar" class="text-[11px] bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded">Guardar proveedor</button>
+                <button type="button" id="rmApCancelar" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded">Cancelar</button>
+            </div>
+            <p id="rmApMsg" class="text-[11px] min-h-[1rem]"></p>
+        </div>`;
+
+    document.getElementById('rmApCancelar').onclick = () => {
+        cont.innerHTML = '';
+        if (btn) btn.classList.remove('hidden');
+    };
+    document.getElementById('rmApGuardar').onclick = rmGuardarProveedorDesdeXml;
+}
+
+// Guarda el proveedor con los valores que quedaron en el mini-formulario
+// (ya editados o no) y lo enlaza de inmediato a esta recepción.
+async function rmGuardarProveedorDesdeXml() {
+    if (!rmXmlMeta || rmXmlMeta.proveedorId) return;
+    const $ = (id) => document.getElementById(id);
+    const nombre = $('rmApNombre').value.trim();
+    const msg = $('rmApMsg');
+    if (!nombre) { msg.textContent = 'El nombre es obligatorio.'; msg.className = 'text-[11px] text-rose-400'; return; }
+
+    const btnGuardar = $('rmApGuardar');
+    btnGuardar.disabled = true;
     try {
         const { data: cta } = await supabaseClient.from('cuentas_contables').select('id').eq('codigo', '201.01').maybeSingle();
         const payload = {
             nombre,
-            rfc: rfc || null,
+            rfc: $('rmApRfc').value.trim().toUpperCase() || null,
             razon_social: nombre,
-            regimen_fiscal: '601',
-            uso_cfdi: 'G01',
-            condicion_pago: 'contado',
+            regimen_fiscal: $('rmApRegimen').value.trim() || null,
+            uso_cfdi: $('rmApUso').value.trim() || null,
+            condicion_pago: $('rmApCondicion').value || 'contado',
             dias_credito: 0,
-            forma_pago: '03',
-            metodo_pago: 'PUE',
-            moneda: 'MXN',
+            forma_pago: $('rmApForma').value.trim() || null,
+            metodo_pago: $('rmApMetodo').value.trim() || null,
+            moneda: $('rmApMoneda').value.trim().toUpperCase() || 'MXN',
             cuenta_gasto_id: cta ? cta.id : null,
             activo: true,
         };
@@ -1235,7 +1288,7 @@ async function rmAltaProveedorDesdeXml() {
 
         rmXmlMeta.proveedorId = data.id;
         const elRfc = document.getElementById('rmRfc');
-        if (elRfc && rfc) elRfc.value = rfc;
+        if (elRfc && payload.rfc) elRfc.value = payload.rfc;
 
         // Refresca los catálogos de proveedores que ya están cargados en este módulo.
         try {
@@ -1246,12 +1299,11 @@ async function rmAltaProveedorDesdeXml() {
             if (selRecProv) selRecProv.innerHTML = '<option value="">Todos</option>' + rmRecProveedores.map(p => `<option value="${p.id}">${esc(p.nombre)}</option>`).join('');
         } catch (_) { /* no crítico */ }
 
-        if (btn) {
-            btn.outerHTML = `<span class="text-[11px] text-emerald-400">✔ Proveedor "${esc(nombre)}" dado de alta y vinculado a esta recepción.</span>`;
-        }
+        document.getElementById('rmAltaProvForm').innerHTML = `<p class="mt-1 text-[11px] text-emerald-400">✔ Proveedor "${esc(nombre)}" dado de alta y vinculado a esta recepción.</p>`;
     } catch (err) {
-        alert('No se pudo dar de alta el proveedor: ' + (err.message || err));
-        if (btn) { btn.disabled = false; btn.textContent = `➕ Dar de alta a "${nombre}" y vincularlo`; }
+        msg.textContent = 'No se pudo guardar: ' + (err.message || err);
+        msg.className = 'text-[11px] text-rose-400';
+        btnGuardar.disabled = false;
     }
 }
 
