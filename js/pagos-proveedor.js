@@ -188,19 +188,19 @@ async function cxpHistorial() {
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-              <th class="p-2">Fecha</th><th class="p-2">Proveedor</th><th class="p-2">Ref.</th>
-              <th class="p-2 text-right">Total</th><th class="p-2 text-center"># Docs</th><th class="p-2">Estatus</th><th class="p-2 text-right">Acción</th>
+              <th class="p-2 text-left">Acción</th><th class="p-2">Fecha</th><th class="p-2">Proveedor</th><th class="p-2">Ref.</th>
+              <th class="p-2 text-right">Total</th><th class="p-2 text-center"># Docs</th><th class="p-2">Estatus</th>
             </tr></thead>
             <tbody>
               ${data.map(p => `
                 <tr class="border-b border-slate-900 ${p.estatus === 'cancelado' ? 'opacity-50' : ''}">
+                  <td class="p-2">${p.estatus === 'registrado' ? `<button type="button" class="cxp-cancel text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded" data-id="${p.id}">Cancelar</button>` : ''}</td>
                   <td class="p-2 whitespace-nowrap">${p.fecha || ''}</td>
                   <td class="p-2">${esc(p.proveedores?.nombre || '(varios)')}</td>
                   <td class="p-2 text-slate-400">${esc(p.referencia || '')}</td>
                   <td class="p-2 text-right font-mono">${money(p.total)}</td>
                   <td class="p-2 text-center font-mono text-slate-400">${(p.pagos_proveedor_aplicaciones || []).length}</td>
                   <td class="p-2 ${p.estatus === 'registrado' ? 'text-emerald-400' : 'text-rose-400'}">${esc(p.estatus)}</td>
-                  <td class="p-2 text-right">${p.estatus === 'registrado' ? `<button type="button" class="cxp-cancel text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded" data-id="${p.id}">Cancelar</button>` : ''}</td>
                 </tr>`).join('')}
             </tbody>
           </table>

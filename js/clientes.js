@@ -177,19 +177,19 @@ function renderTablaClientes() {
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
             <table class="w-full text-left text-[11px] text-slate-300">
                 <thead class="bg-slate-900 text-slate-400 uppercase border-b border-slate-800">
-                    <tr><th class="p-2">Nombre</th><th class="p-2">RFC</th><th class="p-2">Contacto</th>
-                        <th class="p-2">Cond.</th><th class="p-2">Lista</th><th class="p-2">Estado</th><th class="p-2 text-right">Acciones</th></tr>
+                    <tr><th class="p-2 text-left">Acciones</th><th class="p-2">Nombre</th><th class="p-2">RFC</th><th class="p-2">Contacto</th>
+                        <th class="p-2">Cond.</th><th class="p-2">Lista</th><th class="p-2">Estado</th></tr>
                 </thead>
                 <tbody>
                     ${lista.map((c) => `
                         <tr class="border-b border-slate-900 ${c.activo ? '' : 'opacity-50'}">
+                            <td class="p-2"><button data-edit="${c.id}" class="cli-edit text-[10px] bg-slate-800 hover:bg-slate-700 text-sky-300 px-2 py-1 rounded border border-slate-700 cursor-pointer">Editar</button></td>
                             <td class="p-2 text-slate-100 font-medium">${c.nombre}</td>
                             <td class="p-2 font-mono text-slate-400">${c.rfc || '—'}</td>
                             <td class="p-2 text-slate-400">${c.contacto || '—'}</td>
                             <td class="p-2 text-slate-400">${c.condicion_pago}${c.condicion_pago === 'credito' ? ` (${c.dias_credito}d)` : ''}</td>
                             <td class="p-2 text-slate-400">${c.listas_precio?.nombre || '—'}</td>
                             <td class="p-2"><button data-toggle="${c.id}" class="cli-toggle text-[10px] px-2 py-0.5 rounded border cursor-pointer ${c.activo ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-slate-800 text-slate-400 border-slate-700'}">${c.activo ? 'Activo' : 'Inactivo'}</button></td>
-                            <td class="p-2 text-right"><button data-edit="${c.id}" class="cli-edit text-[10px] bg-slate-800 hover:bg-slate-700 text-sky-300 px-2 py-1 rounded border border-slate-700 cursor-pointer">Editar</button></td>
                         </tr>`).join('')}
                 </tbody>
             </table>

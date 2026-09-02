@@ -170,18 +170,18 @@ async function renderizarTablaProveedores() {
             <div class="overflow-x-auto border border-slate-800 rounded-xl max-h-72 overflow-y-auto bg-slate-950">
                 <table class="w-full text-left text-sm text-slate-300">
                     <thead class="bg-slate-900 text-sky-400 border-b border-slate-800 text-xs uppercase sticky top-0">
-                        <tr><th class="p-3">Proveedor</th><th class="p-3">RFC</th><th class="p-3">Contacto</th><th class="p-3">Cond.</th><th class="p-3">Estado</th><th class="p-3 text-right">Acciones</th></tr>
+                        <tr><th class="p-3 text-left">Acciones</th><th class="p-3">Proveedor</th><th class="p-3">RFC</th><th class="p-3">Contacto</th><th class="p-3">Cond.</th><th class="p-3">Estado</th></tr>
                     </thead>
                     <tbody>
                         ${data.map(p => `
                             <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition ${p.activo === false ? 'opacity-50' : ''}">
+                                <td class="p-3"><button type="button" onclick="window.editarProveedor(${p.id})" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-2.5 py-1 rounded-lg border border-slate-700 cursor-pointer">Editar</button>
+                                    <button type="button" onclick="window.filtrarComprasProveedor(${p.id}, '${esc(p.nombre).replace(/'/g, "\\'")}')" class="text-xs bg-sky-950 hover:bg-sky-900 text-sky-400 px-2.5 py-1 rounded-lg border border-sky-800 ml-1 cursor-pointer">Compras</button></td>
                                 <td class="p-3 font-medium text-slate-100">${esc(p.nombre)}</td>
                                 <td class="p-3 font-mono text-xs text-sky-300">${esc(p.rfc || '—')}</td>
                                 <td class="p-3 text-slate-400 text-xs">${esc(p.contacto || '—')}${p.telefono ? ` · ${esc(p.telefono)}` : ''}</td>
                                 <td class="p-3 text-xs text-slate-400">${esc(p.condicion_pago || '—')}${p.dias_credito ? ` (${p.dias_credito}d)` : ''}</td>
                                 <td class="p-3 text-xs ${p.activo === false ? 'text-rose-400' : 'text-emerald-400'}">${p.activo === false ? 'Inactivo' : 'Activo'}</td>
-                                <td class="p-3 text-right"><button type="button" onclick="window.editarProveedor(${p.id})" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-2.5 py-1 rounded-lg border border-slate-700 cursor-pointer">Editar</button>
-                                    <button type="button" onclick="window.filtrarComprasProveedor(${p.id}, '${esc(p.nombre).replace(/'/g, "\\'")}')" class="text-xs bg-sky-950 hover:bg-sky-900 text-sky-400 px-2.5 py-1 rounded-lg border border-sky-800 ml-1 cursor-pointer">Compras</button></td>
                             </tr>`).join('')}
                     </tbody>
                 </table>

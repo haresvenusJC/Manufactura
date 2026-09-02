@@ -52,13 +52,13 @@ export async function cargarVistaDocumentos() {
                     <table class="w-full text-left text-sm text-slate-300">
                         <thead class="bg-slate-950 text-indigo-400 border-b border-slate-800 text-xs uppercase font-mono">
                             <tr>
+                                <th class="p-4 text-left">Acciones</th>
                                 <th class="p-4">ID / Consecutivo</th>
                                 <th class="p-4">Folio Comercial</th>
                                 <th class="p-4">Tipo Movimiento</th>
                                 <th class="p-4">Fecha de Emisión</th>
                                 <th class="p-4">Proveedor / Cliente</th>
                                 <th class="p-4 text-center">Estado</th>
-                                <th class="p-4 text-right">Acciones</th>
                             </tr>
                         </thead>
                         <tbody id="tablaDocumentosCuerpo">
@@ -153,6 +153,12 @@ window.renderizarTablaDocumentos = function(lista) {
 
         html += `
             <tr class="border-b border-slate-800/60 hover:bg-slate-800/30 transition">
+                <td class="p-4">
+                    <button onclick="window.abrirDetalleDocumentoGlobal(${doc.id})" class="bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-800/60 px-3 py-1.5 rounded-xl text-xs font-semibold transition inline-flex items-center gap-1.5" style="cursor: pointer;">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                        Ver Detalle
+                    </button>
+                </td>
                 <td class="p-4 font-mono">
                     <span class="font-bold text-indigo-400">#${doc.id}</span>
                 </td>
@@ -164,12 +170,6 @@ window.renderizarTablaDocumentos = function(lista) {
                 <td class="p-4 text-xs text-slate-300 font-medium">${tercero}</td>
                 <td class="p-4 text-center">
                     <span class="text-[10px] font-mono uppercase px-2.5 py-1 rounded-full border ${estadoClase}">${doc.estado || 'N/D'}</span>
-                </td>
-                <td class="p-4 text-right">
-                    <button onclick="window.abrirDetalleDocumentoGlobal(${doc.id})" class="bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-800/60 px-3 py-1.5 rounded-xl text-xs font-semibold transition inline-flex items-center gap-1.5" style="cursor: pointer;">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                        Ver Detalle
-                    </button>
                 </td>
             </tr>
         `;

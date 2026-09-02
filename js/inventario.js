@@ -167,13 +167,13 @@ async function renderizarTablaLotes(contenedorLotes) {
                 <table class="w-full text-left text-sm text-slate-300">
                     <thead class="bg-slate-900 text-indigo-400 border-b border-slate-800 text-xs uppercase">
                         <tr>
+                            <th class="p-3 text-left">Acción</th>
                             <th class="p-3">Lote / Ref</th>
                             <th class="p-3">Insumo / Producto</th>
                             <th class="p-3">Tipo</th>
                             <th class="p-3">Stock Lote</th>
                             <th class="p-3">Costo U.</th>
                             <th class="p-3">Ingreso</th>
-                            <th class="p-3 text-center">Acción</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -185,15 +185,15 @@ async function renderizarTablaLotes(contenedorLotes) {
 
             htmlLotes += `
                 <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition">
+                    <td class="p-3">
+                        <button type="button" onclick="window.verDetalleLoteMovimiento(${l.id})" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 text-xs px-2.5 py-1 rounded-lg border border-slate-700 transition font-medium">🔍 Documento</button>
+                    </td>
                     <td class="p-3 font-mono text-xs text-indigo-300">#${l.id} - ${l.numero_lote || 'S/N'}</td>
                     <td class="p-3 font-medium text-slate-100">${nombreProd}</td>
                     <td class="p-3 text-xs uppercase text-slate-400">${tipoProd}</td>
                     <td class="p-3 font-mono text-amber-300 font-semibold">${l.stock_actual}</td>
                     <td class="p-3 font-mono text-slate-300">$${Number(l.costo_unitario || 0).toFixed(2)}</td>
                     <td class="p-3 text-xs text-slate-400">${fechaIng}</td>
-                    <td class="p-3 text-center">
-                        <button type="button" onclick="window.verDetalleLoteMovimiento(${l.id})" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 text-xs px-2.5 py-1 rounded-lg border border-slate-700 transition font-medium">🔍 Documento</button>
-                    </td>
                 </tr>
             `;
         });

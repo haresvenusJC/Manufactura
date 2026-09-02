@@ -268,8 +268,8 @@ async function ocRenderLista() {
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-              <th class="p-2">Folio</th><th class="p-2">Proveedor</th><th class="p-2">Fecha</th>
-              <th class="p-2 text-right">Total est.</th><th class="p-2">Recibido</th><th class="p-2">Estatus</th><th class="p-2 text-right">Acción</th>
+              <th class="p-2 text-left">Acción</th><th class="p-2">Folio</th><th class="p-2">Proveedor</th><th class="p-2">Fecha</th>
+              <th class="p-2 text-right">Total est.</th><th class="p-2">Recibido</th><th class="p-2">Estatus</th>
             </tr></thead>
             <tbody>
               ${data.map(o => {
@@ -281,17 +281,17 @@ async function ocRenderLista() {
                   const puedeRecibir = o.estatus === 'abierta' || o.estatus === 'recibida_parcial';
                   return `
                     <tr class="border-b border-slate-900">
+                      <td class="p-2 whitespace-nowrap">
+                        ${puedeRecibir ? `<button type="button" onclick="window.irARecibirOC(${o.id})" class="text-[11px] bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-1 rounded">Recibir</button>` : ''}
+                        ${(o.estatus === 'recibida' || o.estatus === 'recibida_parcial') ? `<button type="button" onclick="window.ocPagar(${o.id})" class="text-[11px] bg-sky-700 hover:bg-sky-600 text-white px-2 py-1 rounded ml-1">Pagar</button>` : ''}
+                        ${o.estatus === 'abierta' ? `<button type="button" onclick="window.ocCancelar(${o.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded ml-1">Cancelar</button>` : ''}
+                      </td>
                       <td class="p-2 font-mono text-emerald-300">${esc(o.folio || '#' + o.id)}</td>
                       <td class="p-2">${esc(o.proveedores?.nombre || '—')}</td>
                       <td class="p-2 whitespace-nowrap text-slate-400">${o.fecha || ''}</td>
                       <td class="p-2 text-right font-mono">${money(total)}</td>
                       <td class="p-2 font-mono text-slate-400">${pct}%</td>
                       <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${OC_ESTATUS[o.estatus] || 'text-slate-400 bg-slate-800'}">${esc(o.estatus)}</span></td>
-                      <td class="p-2 text-right whitespace-nowrap">
-                        ${puedeRecibir ? `<button type="button" onclick="window.irARecibirOC(${o.id})" class="text-[11px] bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-1 rounded">Recibir</button>` : ''}
-                        ${(o.estatus === 'recibida' || o.estatus === 'recibida_parcial') ? `<button type="button" onclick="window.ocPagar(${o.id})" class="text-[11px] bg-sky-700 hover:bg-sky-600 text-white px-2 py-1 rounded ml-1">Pagar</button>` : ''}
-                        ${o.estatus === 'abierta' ? `<button type="button" onclick="window.ocCancelar(${o.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded ml-1">Cancelar</button>` : ''}
-                      </td>
                     </tr>`;
               }).join('')}
             </tbody>
@@ -601,8 +601,8 @@ async function rmRecepciones() {
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-              <th class="p-2">Fecha</th><th class="p-2">Orden</th><th class="p-2">Proveedor</th>
-              <th class="p-2 text-right">Partidas</th><th class="p-2 text-right">Total</th><th class="p-2">Contab.</th><th class="p-2 text-right">Acción</th>
+              <th class="p-2 text-left">Acción</th><th class="p-2">Fecha</th><th class="p-2">Orden</th><th class="p-2">Proveedor</th>
+              <th class="p-2 text-right">Partidas</th><th class="p-2 text-right">Total</th><th class="p-2">Contab.</th>
             </tr></thead>
             <tbody>
               ${data.map(d => {
@@ -611,13 +611,13 @@ async function rmRecepciones() {
                   const fecha = d.fecha_emision ? String(d.fecha_emision).slice(0, 10) : '';
                   return `
                     <tr class="border-b border-slate-900">
+                      <td class="p-2"><button type="button" onclick="window.abrirDetalleDocumentoGlobal(${d.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded">Ver</button></td>
                       <td class="p-2 whitespace-nowrap text-slate-400">${fecha}</td>
                       <td class="p-2 font-mono text-emerald-300">${esc(d.ordenes_compra?.folio || d.folio || '#' + d.id)}</td>
                       <td class="p-2">${esc(d.proveedores?.nombre || '—')}</td>
                       <td class="p-2 text-right font-mono">${dets.length}</td>
                       <td class="p-2 text-right font-mono">${money(total)}</td>
                       <td class="p-2">${d.poliza_id ? `<span class="text-emerald-400">Póliza #${d.poliza_id}</span>` : '<span class="text-slate-500">—</span>'}</td>
-                      <td class="p-2 text-right"><button type="button" onclick="window.abrirDetalleDocumentoGlobal(${d.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded">Ver</button></td>
                     </tr>`;
               }).join('')}
             </tbody>

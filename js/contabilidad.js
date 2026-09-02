@@ -215,23 +215,23 @@ function renderTabla() {
                 <table class="w-full text-left text-[11px] text-slate-300">
                     <thead class="bg-slate-900 text-slate-400 uppercase border-b border-slate-800">
                         <tr>
-                            <th class="p-2">Codigo</th><th class="p-2">Nombre</th>
+                            <th class="p-2 text-left">Acciones</th><th class="p-2">Codigo</th><th class="p-2">Nombre</th>
                             <th class="p-2">Agrup. SAT</th><th class="p-2">Nat.</th>
-                            <th class="p-2">Detalle</th><th class="p-2 text-right">Acciones</th>
+                            <th class="p-2">Detalle</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${delTipo.map((c) => `
                             <tr class="border-b border-slate-900 hover:bg-slate-900/40 ${c.activa ? '' : 'opacity-40'}">
+                                <td class="p-2 space-x-1">
+                                    <button data-edit="${c.id}" class="cta-edit text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 px-2 py-1 rounded border border-slate-700 cursor-pointer">Editar</button>
+                                    <button data-del="${c.id}" class="cta-del text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 px-2 py-1 rounded border border-slate-700 cursor-pointer">Eliminar</button>
+                                </td>
                                 <td class="p-2 font-mono ${c.afectable ? 'text-slate-300' : 'text-sky-300 font-semibold'}" style="padding-left:${8 + (c.nivel - 1) * 16}px">${c.codigo}</td>
                                 <td class="p-2">${c.nombre}${c.activa ? '' : ' <span class="text-slate-600">(inactiva)</span>'}</td>
                                 <td class="p-2 font-mono text-slate-500">${c.codigo_agrupador || '—'}</td>
                                 <td class="p-2">${c.naturaleza}</td>
                                 <td class="p-2">${c.afectable ? '<span class="text-emerald-500">sí</span>' : '<span class="text-slate-600">mayor</span>'}</td>
-                                <td class="p-2 text-right space-x-1">
-                                    <button data-edit="${c.id}" class="cta-edit text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 px-2 py-1 rounded border border-slate-700 cursor-pointer">Editar</button>
-                                    <button data-del="${c.id}" class="cta-del text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 px-2 py-1 rounded border border-slate-700 cursor-pointer">Eliminar</button>
-                                </td>
                             </tr>`).join('')}
                     </tbody>
                 </table>
