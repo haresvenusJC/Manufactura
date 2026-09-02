@@ -1083,8 +1083,11 @@ async function rmProcesarXml(text) {
         // Sin orden de compra: arma la recepción directamente del CFDI.
         let provId = null;
         try {
-            const { data: pv } = await supabaseClient.from('proveedores').select('id').eq('rfc', rfcEmisor).limit(1).maybeSingle();
-            if (pv) provId = pv.id;
+            const rfcQ = (rfcEmisor || '').trim();
+            if (rfcQ) {
+                const { data: pv } = await supabaseClient.from('proveedores').select('id').ilike('rfc', rfcQ).limit(1).maybeSingle();
+                if (pv) provId = pv.id;
+            }
         } catch (_) { /* proveedores sin columna rfc */ }
         const clavesMap = new Map(), clavesSatMap = new Map();
         if (provId) {
