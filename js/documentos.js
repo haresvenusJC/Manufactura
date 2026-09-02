@@ -76,32 +76,34 @@ export async function cargarVistaDocumentos() {
     await window.cargarListaDocumentos();
 }
 
-// Consulta exacta a la tabla tipos_movimiento utilizando codigo, nombre y naturaleza
+// El filtro se llena con los tipos que REALMENTE existen en documentos.tipo_movimiento
+// (no con el catálogo tipos_movimiento, que incluye códigos como 'salida_produccion'
+// que nunca se escriben ahí: el cierre de una orden de producción guarda un solo
+// documento 'entrada_produccion' -las salidas de materia prima quedan ligadas a ese
+// mismo documento_id-, así que ese código jamás tenía coincidencias y el filtro
+// "Salida por Producción" no mostraba nada). Los nombres bonitos, cuando existen,
+// se toman del catálogo; si un código no está en el catálogo se muestra legible.
 window.cargarTiposMovimientoFiltro = async function() {
+    const select = document.getElementById('filtroTipoDoc');
+    if (!select) return;
     try {
-        const select = document.getElementById('filtroTipoDoc');
-        if (!select) return;
-
-        const { data: tipos, error } = await supabaseClient
-            .from('tipos_movimiento')
-            .select('codigo, nombre, naturaleza')
-            .order('nombre', { ascending: true });
-
+        const { data: docs, error } = await supabaseClient.from('documentos').select('tipo_movimiento');
         if (error) throw error;
+        const codigosUsados = [...new Set((docs || []).map(d => d.tipo_movimiento).filter(Boolean))].sort();
 
-        let opcionesHtml = '<option value="">Todos los tipos</option>';
-        (tipos || []).forEach(tipo => {
-            const naturalezaLabel = tipo.naturaleza ? ` (${tipo.naturaleza})` : '';
-            opcionesHtml += `<option value="${tipo.codigo}">${tipo.nombre}${naturalezaLabel}</option>`;
-        });
+        let mapaNombres = {};
+        try {
+            const { data: tipos } = await supabaseClient.from('tipos_movimiento').select('codigo, nombre, naturaleza');
+            (tipos || []).forEach(t => { mapaNombres[t.codigo] = t.naturaleza ? `${t.nombre} (${t.naturaleza})` : t.nombre; });
+        } catch (_) { /* catálogo opcional, solo para nombres bonitos */ }
 
-        select.innerHTML = opcionesHtml;
+        const etiqueta = (codigo) => mapaNombres[codigo] || codigo.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+        select.innerHTML = '<option value="">Todos los tipos</option>'
+            + codigosUsados.map(c => `<option value="${c}">${etiqueta(c)}</option>`).join('');
     } catch (err) {
         console.error("Error al cargar tipos de movimiento en el filtro:", err);
-        const select = document.getElementById('filtroTipoDoc');
-        if (select) {
-            select.innerHTML = '<option value="">Error al cargar tipos</option>';
-        }
+        select.innerHTML = '<option value="">Error al cargar tipos</option>';
     }
 };
 
