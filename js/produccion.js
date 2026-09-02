@@ -556,14 +556,34 @@ export async function cerrarOrdenDeProduccion(ordenId) {
             throw new Error(`Existencias insuficientes. La orden sigue en proceso:\n${faltantes.map(fmtFaltante).join('\n')}`);
         }
 
-        const folioDocumento = `PROD-${Date.now().toString().slice(-6)}`;
+        // Dos documentos para que el movimiento se lea claro en Documentos/Kardex:
+        // uno de SALIDA (la materia prima que se consume) y uno de ENTRADA (el
+        // producto terminado que resulta). Contablemente siguen siendo una sola
+        // transformación de inventario -una sola póliza-, así que al póliza que
+        // genera contabilizar_produccion() se le liga también el documento de
+        // salida (ver más abajo) en vez de duplicar el asiento.
+        const folioBase = `PROD-${Date.now().toString().slice(-6)}`;
+        const { data: docSalida, error: errDocSalida } = await supabaseClient
+            .from('documentos')
+            .insert([{
+                tipo_movimiento: 'salida_produccion',
+                folio: `${folioBase}-MP`,
+                fecha_emision: new Date().toISOString(),
+                descripcion: `Consumo de materia prima — orden de producción, lote ${numeroLote}`,
+                estado: 'completado'
+            }])
+            .select('id')
+            .single();
+        if (errDocSalida) throw errDocSalida;
+        const documentoSalidaId = docSalida.id;
+
         const { data: docInsertado, error: errDoc } = await supabaseClient
             .from('documentos')
             .insert([{
                 tipo_movimiento: 'entrada_produccion',
-                folio: folioDocumento,
+                folio: folioBase,
                 fecha_emision: new Date().toISOString(),
-                descripcion: `Cierre de orden de producción — lote ${numeroLote}`,
+                descripcion: `Cierre de orden de producción — lote ${numeroLote} (consumo de materia prima: documento ${folioBase}-MP)`,
                 estado: 'completado'
             }])
             .select('id')
@@ -578,7 +598,7 @@ export async function cerrarOrdenDeProduccion(ordenId) {
                 p_producto_id: f.componenteId,
                 p_cantidad_salida: Number(f.requerido),
                 p_tipo_movimiento: 'salida_produccion',
-                p_documento_id: documentoId,
+                p_documento_id: documentoSalidaId,
                 p_costo_unitario_fijo: null
             });
 
@@ -652,6 +672,13 @@ export async function cerrarOrdenDeProduccion(ordenId) {
             });
             if (errCC) throw errCC;
             msgContab = ` Póliza de producción #${cc.poliza_id} generada.`;
+            // La póliza queda ligada al documento de entrada (como ya hacía
+            // contabilizar_produccion); se replica el mismo poliza_id en el
+            // documento de salida para que ambos lados del movimiento se vean
+            // contabilizados en Documentos, sin generar un segundo asiento.
+            if (cc?.poliza_id) {
+                await supabaseClient.from('documentos').update({ poliza_id: cc.poliza_id }).eq('id', documentoSalidaId);
+            }
         } catch (e) {
             const m = e?.message || String(e);
             if (!/does not exist|could not find|schema cache/i.test(m)) {
