@@ -1170,7 +1170,7 @@ async function rmProcesarXml(text) {
                 });
             } catch (_) { /* tabla de claves aún no existe */ }
         }
-        rmRenderDetalleXml(conceptos, { proveedorId: provId, rfc: rfcEmisor, uuid, folio, claves: clavesMap, clavesSat: clavesSatMap });
+        rmRenderDetalleXml(conceptos, { proveedorId: provId, rfc: rfcEmisor, nombreEmisor, uuid, folio, claves: clavesMap, clavesSat: clavesSatMap });
     }
 
     // Los importes fiscales del CFDI son la verdad: se re-aplican por si la
@@ -1186,13 +1186,72 @@ async function rmProcesarXml(text) {
     }
 
     if (info) {
+        const sinProveedor = !rmOcActual && rmXmlMeta && !rmXmlMeta.proveedorId;
         info.innerHTML = `📄 <b>${esc(nombreEmisor || rfcEmisor || 'CFDI')}</b> · Folio ${esc(folio || '—')} · Total ${money(totalCfdi)} · ${conceptos.length} concepto(s)`
             + (rmOcActual
                 ? ` · <span class="text-emerald-400">${conc} conciliado(s)</span>${sinMatch.length ? ` · <span class="text-amber-400">${sinMatch.length} sin coincidencia</span>` : ''}`
-                : ` · <span class="text-emerald-400">recepción directa (sin orden)</span>${rmXmlMeta && !rmXmlMeta.proveedorId ? ' · <span class="text-amber-400">proveedor no identificado por RFC</span>' : ''}`);
+                : ` · <span class="text-emerald-400">recepción directa (sin orden)</span>${sinProveedor ? ' · <span class="text-amber-400">proveedor no identificado por RFC</span>' : ''}`);
         if (sinMatch.length) {
             info.innerHTML += `<br><span class="text-[10px] text-amber-400">Sin coincidencia: ${sinMatch.slice(0, 8).map(esc).join(' · ')}${sinMatch.length > 8 ? '…' : ''}. Ajusta a mano o agrega la clave del proveedor en Catálogos → Productos.</span>`;
         }
+        if (sinProveedor && nombreEmisor) {
+            info.innerHTML += `<br><button type="button" id="rmBtnAltaProveedor" class="mt-1 text-[11px] bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2.5 py-1 rounded">➕ Dar de alta a "${esc(nombreEmisor)}" y vincularlo</button>`;
+            document.getElementById('rmBtnAltaProveedor').onclick = rmAltaProveedorDesdeXml;
+        }
+    }
+}
+
+// Da de alta al proveedor cuyo RFC no empareja con ninguno existente,
+// usando el nombre/RFC ya leidos del CFDI + los mismos defaults que el
+// alta manual en Proveedores (regimen general de ley, uso CFDI de
+// adquisicion, contado, forma transferencia, metodo PUE, cuenta 201.01
+// Proveedores nacionales), y lo enlaza de inmediato a esta recepcion.
+async function rmAltaProveedorDesdeXml() {
+    if (!rmXmlMeta || rmXmlMeta.proveedorId) return;
+    const rfc = (rmXmlMeta.rfc || '').trim().toUpperCase();
+    const nombre = (rmXmlMeta.nombreEmisor || '').trim();
+    if (!nombre) { alert('No se pudo leer el nombre del proveedor del XML.'); return; }
+
+    const btn = document.getElementById('rmBtnAltaProveedor');
+    if (btn) { btn.disabled = true; btn.textContent = 'Dando de alta…'; }
+    try {
+        const { data: cta } = await supabaseClient.from('cuentas_contables').select('id').eq('codigo', '201.01').maybeSingle();
+        const payload = {
+            nombre,
+            rfc: rfc || null,
+            razon_social: nombre,
+            regimen_fiscal: '601',
+            uso_cfdi: 'G01',
+            condicion_pago: 'contado',
+            dias_credito: 0,
+            forma_pago: '03',
+            metodo_pago: 'PUE',
+            moneda: 'MXN',
+            cuenta_gasto_id: cta ? cta.id : null,
+            activo: true,
+        };
+        const { data, error } = await supabaseClient.from('proveedores').insert([payload]).select('id').single();
+        if (error) throw error;
+
+        rmXmlMeta.proveedorId = data.id;
+        const elRfc = document.getElementById('rmRfc');
+        if (elRfc && rfc) elRfc.value = rfc;
+
+        // Refresca los catálogos de proveedores que ya están cargados en este módulo.
+        try {
+            const { data: pv } = await supabaseClient.from('proveedores').select('id, nombre').order('nombre');
+            ocProveedores = pv || [];
+            rmRecProveedores = pv || [];
+            const selRecProv = document.getElementById('rmRecProveedor');
+            if (selRecProv) selRecProv.innerHTML = '<option value="">Todos</option>' + rmRecProveedores.map(p => `<option value="${p.id}">${esc(p.nombre)}</option>`).join('');
+        } catch (_) { /* no crítico */ }
+
+        if (btn) {
+            btn.outerHTML = `<span class="text-[11px] text-emerald-400">✔ Proveedor "${esc(nombre)}" dado de alta y vinculado a esta recepción.</span>`;
+        }
+    } catch (err) {
+        alert('No se pudo dar de alta el proveedor: ' + (err.message || err));
+        if (btn) { btn.disabled = false; btn.textContent = `➕ Dar de alta a "${nombre}" y vincularlo`; }
     }
 }
 
