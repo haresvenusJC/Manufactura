@@ -311,6 +311,17 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
                         ${docInfo.uuid_cfdi ? `<span class="block">UUID: ${docInfo.uuid_cfdi}</span>` : ''}
                     </span>` : ''}
                 </div>
+                ${(!esVenta && (docInfo.moneda || docInfo.uso_cfdi || docInfo.metodo_pago || docInfo.rfc_emisor || docInfo.uuid_cfdi)) ? `
+                <div class="sm:col-span-2">
+                    <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-semibold print:text-gray-600">Datos fiscales del CFDI</span>
+                    <span class="text-[11px] text-slate-400 block print:text-gray-700 font-mono">
+                        ${docInfo.rfc_emisor ? `RFC emisor: ${docInfo.rfc_emisor}` : ''}
+                        ${docInfo.uso_cfdi ? ` · Uso: ${docInfo.uso_cfdi}` : ''}
+                        ${docInfo.metodo_pago ? ` · ${docInfo.metodo_pago}` : ''}
+                        ${(docInfo.moneda && docInfo.moneda !== 'MXN') ? ` · ${docInfo.moneda} @ TC ${Number(docInfo.tipo_cambio || 1)} (importes en MXN)` : ''}
+                        ${docInfo.uuid_cfdi ? `<span class="block">UUID: ${docInfo.uuid_cfdi}</span>` : ''}
+                    </span>
+                </div>` : ''}
                 ${docInfo.descripcion ? `
                 <div class="sm:col-span-2">
                     <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-semibold print:text-gray-600">Descripción / Observaciones</span>

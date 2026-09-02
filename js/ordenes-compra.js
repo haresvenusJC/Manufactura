@@ -787,6 +787,8 @@ async function rmConfirmar(ocs) {
             }
 
             await rmAplicarEntradaLinea(documentoId, productoId, l.cantidad, l.costo, l.lote, l.caducidad);
+            // Deja el costo del catálogo con el último costo de compra (en MXN).
+            await supabaseClient.from('productos').update({ costo_unitario: l.costo }).eq('id', productoId);
 
             await supabaseClient.from('ordenes_compra_detalle')
                 .update({ cantidad_recibida: Number(l.det.cantidad_recibida || 0) + l.cantidad })
@@ -933,6 +935,7 @@ async function rmConfirmarXml() {
                 productoId = np.id;
             }
             await rmAplicarEntradaLinea(documentoId, productoId, l.cantidad, l.costo, l.lote, l.caducidad);
+            await supabaseClient.from('productos').update({ costo_unitario: l.costo }).eq('id', productoId);
         }
 
         const msgContab = await rmContabilizarDoc(documentoId, lineas.reduce((a, l) => a + l.cantidad * l.costo, 0));
