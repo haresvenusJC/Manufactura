@@ -333,12 +333,17 @@ let rmXmlMeta = null;    // { proveedorId, rfc, uuid, folio } cuando el recibo v
 let rmCatUso = [];       // c_uso_cfdi
 let rmCatForma = [];     // c_forma_pago
 let rmCatMetodo = [];    // c_metodo_pago
+let rmRecProveedores = [];      // catálogo para el filtro de "Recepciones registradas"
+let rmRecPagina = 1;
+const rmRecPorPagina = 20;
+let rmRecFiltro = { desde: '', hasta: '', proveedorId: '' };
 
 export async function cargarModuloReciboMercancia() {
     const cont = document.getElementById('contenedorReciboMercancia');
     if (!cont) return;
     cont.innerHTML = '<p class="text-slate-500 text-sm">Cargando...</p>';
     rmModo = null; rmXmlMeta = null; rmOcActual = null;
+    rmRecPagina = 1; rmRecFiltro = { desde: '', hasta: '', proveedorId: '' };
     try { await ocCargarCatalogos(); }
     catch (e) { cont.innerHTML = `<p class="text-rose-400 text-xs">Error: ${e.message || e}</p>`; return; }
 
@@ -464,6 +469,18 @@ export async function cargarModuloReciboMercancia() {
 
       <div>
         <h3 class="text-md font-semibold text-slate-300 mb-2">Recepciones registradas</h3>
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 mb-2">
+          <div class="flex flex-wrap items-end gap-2">
+            <div><label class="block text-[10px] text-slate-400 mb-1">Desde</label>
+              <input type="date" id="rmRecDesde" class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></div>
+            <div><label class="block text-[10px] text-slate-400 mb-1">Hasta</label>
+              <input type="date" id="rmRecHasta" class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></div>
+            <div class="flex-1 min-w-[160px]"><label class="block text-[10px] text-slate-400 mb-1">Proveedor</label>
+              <select id="rmRecProveedor" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"><option value="">Todos</option></select></div>
+            <button type="button" id="rmRecBuscar" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg">Buscar</button>
+            <button type="button" id="rmRecLimpiar" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg">Limpiar</button>
+          </div>
+        </div>
         <div id="rmRecepciones" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-500">Cargando...</div>
       </div>
     </div>`;
@@ -511,6 +528,33 @@ export async function cargarModuloReciboMercancia() {
     };
 
     rmLista(ocs);
+
+    try {
+        const { data: pv } = await supabaseClient.from('proveedores').select('id, nombre').order('nombre');
+        rmRecProveedores = pv || [];
+    } catch (_) { rmRecProveedores = []; }
+    const selRecProv = document.getElementById('rmRecProveedor');
+    if (selRecProv) {
+        selRecProv.innerHTML = '<option value="">Todos</option>' + rmRecProveedores.map(p => `<option value="${p.id}">${esc(p.nombre)}</option>`).join('');
+    }
+    document.getElementById('rmRecBuscar').onclick = () => {
+        rmRecFiltro = {
+            desde: document.getElementById('rmRecDesde').value || '',
+            hasta: document.getElementById('rmRecHasta').value || '',
+            proveedorId: document.getElementById('rmRecProveedor').value || '',
+        };
+        rmRecPagina = 1;
+        rmRecepciones();
+    };
+    document.getElementById('rmRecLimpiar').onclick = () => {
+        document.getElementById('rmRecDesde').value = '';
+        document.getElementById('rmRecHasta').value = '';
+        document.getElementById('rmRecProveedor').value = '';
+        rmRecFiltro = { desde: '', hasta: '', proveedorId: '' };
+        rmRecPagina = 1;
+        rmRecepciones();
+    };
+
     await rmRecepciones();
 
     if (ocRecibirId) {
@@ -523,16 +567,32 @@ export async function cargarModuloReciboMercancia() {
 async function rmRecepciones() {
     const cont = document.getElementById('rmRecepciones');
     if (!cont) return;
+    cont.innerHTML = '<p class="text-slate-500 text-sm">Cargando...</p>';
     try {
-        const { data, error } = await supabaseClient
+        const desde = (rmRecPagina - 1) * rmRecPorPagina;
+        const hasta = desde + rmRecPorPagina - 1;
+
+        let query = supabaseClient
             .from('documentos')
-            .select('id, folio, fecha_emision, total, poliza_id, orden_compra_id, notas, proveedores ( nombre ), ordenes_compra ( folio ), documento_detalles ( cantidad, subtotal )')
-            .eq('tipo_movimiento', 'entrada_compra')
-            .not('orden_compra_id', 'is', null)
-            .order('id', { ascending: false })
-            .limit(100);
+            .select('id, folio, fecha_emision, total, poliza_id, orden_compra_id, proveedor_id, notas, proveedores ( nombre ), ordenes_compra ( folio ), documento_detalles ( cantidad, subtotal )', { count: 'exact' })
+            .eq('tipo_movimiento', 'entrada_compra');
+        // Sin filtro por orden_compra_id: las recepciones directas desde XML
+        // (sin OC) tambien cuentan como recepciones registradas.
+        if (rmRecFiltro.desde) query = query.gte('fecha_emision', rmRecFiltro.desde);
+        if (rmRecFiltro.hasta) query = query.lte('fecha_emision', rmRecFiltro.hasta);
+        if (rmRecFiltro.proveedorId) query = query.eq('proveedor_id', Number(rmRecFiltro.proveedorId));
+        query = query.order('id', { ascending: false }).range(desde, hasta);
+
+        const { data, error, count } = await query;
         if (error) throw error;
-        if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Aún no hay recepciones registradas.</p>'; return; }
+        if (!data || !data.length) {
+            cont.innerHTML = rmRecPagina > 1
+                ? '<p class="text-slate-500 text-sm">No hay más recepciones en esta página.</p>'
+                : '<p class="text-slate-500 text-sm">Aún no hay recepciones registradas.</p>';
+            return;
+        }
+
+        const totalPaginas = Math.ceil((count || data.length) / rmRecPorPagina) || 1;
 
         cont.innerHTML = `
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
@@ -559,7 +619,17 @@ async function rmRecepciones() {
               }).join('')}
             </tbody>
           </table>
+        </div>
+        <div class="flex items-center justify-between mt-2 text-xs">
+          <span class="text-slate-500">${count ?? data.length} recepción(es) · página ${rmRecPagina} de ${totalPaginas}</span>
+          <div class="flex gap-2">
+            <button type="button" id="rmRecAnterior" ${rmRecPagina <= 1 ? 'disabled' : ''} class="${rmRecPagina <= 1 ? 'opacity-50 cursor-not-allowed bg-slate-900 text-slate-600 border border-slate-800' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'} px-3 py-1.5 rounded-lg">← Anterior</button>
+            <button type="button" id="rmRecSiguiente" ${rmRecPagina >= totalPaginas ? 'disabled' : ''} class="${rmRecPagina >= totalPaginas ? 'opacity-50 cursor-not-allowed bg-slate-900 text-slate-600 border border-slate-800' : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'} px-3 py-1.5 rounded-lg">Siguiente →</button>
+          </div>
         </div>`;
+
+        document.getElementById('rmRecAnterior')?.addEventListener('click', () => { if (rmRecPagina > 1) { rmRecPagina--; rmRecepciones(); } });
+        document.getElementById('rmRecSiguiente')?.addEventListener('click', () => { if (rmRecPagina < totalPaginas) { rmRecPagina++; rmRecepciones(); } });
     } catch (err) {
         cont.innerHTML = `<p class="text-slate-500 text-xs">No se pudo cargar el historial: ${esc(err.message || err)}</p>`;
     }
