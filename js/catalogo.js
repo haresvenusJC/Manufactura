@@ -1,6 +1,8 @@
 import { supabaseClient } from './supabase.js';
 import { irAKardexDeProducto } from './kardex.js';
 
+let catBusqueda = ''; // texto del buscador en vivo del Catálogo General (SKU y/o nombre)
+
 export async function verificarConexionReal() {
     const statusEl = document.getElementById('statusConexion');
     try {
@@ -375,6 +377,8 @@ export async function cargarCatalogoInicial() {
                             <span class="text-xs bg-slate-900 border border-slate-800 px-2 py-1 rounded text-slate-400">Sincronizado con Supabase</span>
                         </div>
                     </div>
+                    <input type="text" id="catBuscador" placeholder="🔍 Buscar por SKU o nombre..." value="${escaparHtml(catBusqueda)}"
+                        class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500">
                     <div id="tablaProductosContainer">Cargando listado...</div>
                 </div>
             </div>
@@ -395,6 +399,10 @@ export async function cargarCatalogoInicial() {
 
         document.getElementById('btnExportProdCsv').addEventListener('click', () => exportarCatalogoProductos('csv'));
         document.getElementById('btnExportProdXlsx').addEventListener('click', () => exportarCatalogoProductos('xlsx'));
+        document.getElementById('catBuscador').addEventListener('input', (e) => {
+            catBusqueda = e.target.value;
+            aplicarFiltroCatalogo();
+        });
 
         let itemsBomTemp = [];
         let clavesProvTemp = [];   // claves de proveedor del artículo en edición
@@ -970,6 +978,23 @@ async function exportarCatalogoProductos(formato) {
     }
 }
 
+// Filtra en vivo las filas ya renderizadas del Catálogo por SKU y/o nombre
+// (búsqueda local, sin volver a consultar Supabase en cada tecleo).
+function aplicarFiltroCatalogo() {
+    const cont = document.getElementById('tablaProductosContainer');
+    if (!cont) return;
+    const term = catBusqueda.trim().toLowerCase();
+    const filas = [...cont.querySelectorAll('tbody tr')];
+    let visibles = 0;
+    filas.forEach((tr) => {
+        const coincide = !term || tr.dataset.sku.includes(term) || tr.dataset.nombre.includes(term);
+        tr.classList.toggle('hidden', !coincide);
+        if (coincide) visibles++;
+    });
+    const msg = document.getElementById('catSinResultados');
+    if (msg) msg.classList.toggle('hidden', filas.length === 0 || visibles > 0);
+}
+
 async function renderizarTablaProductos(mapaUnidades = {}) {
     const contenedorTabla = document.getElementById('tablaProductosContainer');
     if (!contenedorTabla) return;
@@ -998,14 +1023,14 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
                 <table class="w-full text-left text-sm text-slate-300">
                     <thead>
                         <tr class="border-b border-slate-800 text-sky-400 bg-slate-950">
+                            <th class="p-3 text-center">Acciones</th>
+                            <th class="p-3">Estado</th>
                             <th class="p-3">SKU</th>
                             <th class="p-3">Tipo</th>
                             <th class="p-3">Nombre</th>
                             <th class="p-3">Unidad</th>
                             <th class="p-3">Proveedor</th>
                             <th class="p-3 text-right">Existencia</th>
-                            <th class="p-3">Estado</th>
-                            <th class="p-3 text-center">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1033,8 +1058,16 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
             const stockMinimo = Number(item.stock_minimo || 0);
             const stockBajo = stockMinimo > 0 && stockActual < stockMinimo;
 
+            const skuBusq = (item.sku || '').toLowerCase();
+            const nombreBusq = (item.nombre || '').toLowerCase();
             html += `
-                <tr class="border-b border-slate-900 hover:bg-slate-800/50 transition ${activo ? '' : 'opacity-50'}">
+                <tr class="border-b border-slate-900 hover:bg-slate-800/50 transition ${activo ? '' : 'opacity-50'}" data-sku="${escaparHtml(skuBusq)}" data-nombre="${escaparHtml(nombreBusq)}">
+                    <td class="p-3 text-center">
+                        <button type="button" class="btn-menu-prod text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded px-2 py-1 cursor-pointer" data-id="${item.id}" title="Más acciones">☰</button>
+                    </td>
+                    <td class="p-3">
+                        <button type="button" class="btn-toggle-activo-prod text-[10px] px-2 py-0.5 rounded border cursor-pointer ${activo ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-slate-800 text-slate-400 border-slate-700'}" data-id="${item.id}" data-activo="${activo}">${activo ? 'Activo' : 'Inactivo'}</button>
+                    </td>
                     <td class="p-3 font-mono text-xs text-sky-300">${item.sku || 'N/D'}</td>
                     <td class="p-3">
                         <select class="sel-tipo-prod bg-slate-950 border ${tipoColor} rounded px-1.5 py-0.5 text-[10px] font-medium cursor-pointer focus:outline-none focus:border-sky-500" data-id="${item.id}" title="Cambiar categoría">
@@ -1045,18 +1078,13 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
                     <td class="p-3 text-slate-400 text-xs">${nombreUnidad}</td>
                     <td class="p-3 text-slate-300 text-xs">${nombreProveedor}</td>
                     <td class="p-3 text-right font-mono text-xs ${stockBajo ? 'text-rose-400 font-semibold' : 'text-slate-300'}" title="${stockBajo ? 'Por debajo del stock mínimo (' + stockMinimo + ')' : ''}">${stockActual.toLocaleString('es-MX', { maximumFractionDigits: 4 })}${stockBajo ? ' ⚠' : ''}</td>
-                    <td class="p-3">
-                        <button type="button" class="btn-toggle-activo-prod text-[10px] px-2 py-0.5 rounded border cursor-pointer ${activo ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-slate-800 text-slate-400 border-slate-700'}" data-id="${item.id}" data-activo="${activo}">${activo ? 'Activo' : 'Inactivo'}</button>
-                    </td>
-                    <td class="p-3 text-center">
-                        <button type="button" class="btn-menu-prod text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded px-2 py-1 cursor-pointer" data-id="${item.id}" title="Más acciones">☰</button>
-                    </td>
                 </tr>
             `;
         });
 
-        html += `</tbody></table></div>`;
+        html += `</tbody></table></div><p id="catSinResultados" class="hidden text-slate-500 text-xs p-3">Sin resultados.</p>`;
         contenedorTabla.innerHTML = html;
+        aplicarFiltroCatalogo();
 
         contenedorTabla.querySelectorAll('.btn-toggle-activo-prod').forEach((btn) => {
             btn.addEventListener('click', async () => {
