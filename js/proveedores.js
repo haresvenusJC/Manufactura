@@ -48,17 +48,23 @@ export async function cargarModuloProveedores() {
         provCatMetodo = m.data || [];
     } catch (_) { /* catálogos no instalados */ }
 
-    const optReg = '<option value="">— régimen —</option>' + REGIMENES.map(([k, v]) => `<option value="${k}">${k} · ${esc(v)}</option>`).join('');
+    // Valores por defecto para agilizar el alta (el caso mas comun de esta
+    // empresa): regimen general de ley, uso CFDI de adquisicion de
+    // mercancias, forma de pago transferencia, metodo PUE, y la cuenta de
+    // proveedores nacionales. Quedan como "selected" en el HTML para que
+    // tambien apliquen despues de un form.reset() (boton "Nuevo").
+    const sel = (cond) => (cond ? ' selected' : '');
+    const optReg = '<option value="">— régimen —</option>' + REGIMENES.map(([k, v]) => `<option value="${k}"${sel(k === '601')}>${k} · ${esc(v)}</option>`).join('');
     const optUso = '<option value="">—</option>' + (provCatUso.length
-        ? provCatUso.map(x => `<option value="${esc(x.clave)}">${esc(x.clave)} · ${esc(x.descripcion)}</option>`).join('')
-        : '<option value="G01">G01 · Adquisición de mercancías</option><option value="G03">G03 · Gastos en general</option>');
+        ? provCatUso.map(x => `<option value="${esc(x.clave)}"${sel(x.clave === 'G01')}>${esc(x.clave)} · ${esc(x.descripcion)}</option>`).join('')
+        : `<option value="G01" selected>G01 · Adquisición de mercancías</option><option value="G03">G03 · Gastos en general</option>`);
     const optForma = '<option value="">—</option>' + (provCatForma.length
-        ? provCatForma.map(x => `<option value="${esc(x.clave)}">${esc(x.clave)} · ${esc(x.descripcion)}</option>`).join('')
-        : '<option value="01">01 · Efectivo</option><option value="03">03 · Transferencia</option><option value="04">04 · Tarjeta de crédito</option><option value="99">99 · Por definir</option>');
+        ? provCatForma.map(x => `<option value="${esc(x.clave)}"${sel(x.clave === '03')}>${esc(x.clave)} · ${esc(x.descripcion)}</option>`).join('')
+        : `<option value="01">01 · Efectivo</option><option value="03" selected>03 · Transferencia</option><option value="04">04 · Tarjeta de crédito</option><option value="99">99 · Por definir</option>`);
     const optMetodo = '<option value="">—</option>' + (provCatMetodo.length
-        ? provCatMetodo.map(x => `<option value="${esc(x.clave)}">${esc(x.clave)} · ${esc(x.descripcion)}</option>`).join('')
-        : '<option value="PUE">PUE · Pago en una sola exhibición</option><option value="PPD">PPD · Pago en parcialidades o diferido</option>');
-    const optCta = '<option value="">— sin cuenta —</option>' + provCtas.map(c => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
+        ? provCatMetodo.map(x => `<option value="${esc(x.clave)}"${sel(x.clave === 'PUE')}>${esc(x.clave)} · ${esc(x.descripcion)}</option>`).join('')
+        : `<option value="PUE" selected>PUE · Pago en una sola exhibición</option><option value="PPD">PPD · Pago en parcialidades o diferido</option>`);
+    const optCta = '<option value="">— sin cuenta —</option>' + provCtas.map(c => `<option value="${c.id}"${sel(c.codigo === '201.01')}>${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
 
     contenedor.innerHTML = `
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -104,7 +110,7 @@ export async function cargarModuloProveedores() {
                                 <select id="provUso" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optUso}</select></div>
                             <div><label class="block text-[11px] text-slate-400 mb-1">Condición</label>
                                 <select id="provCondicion" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-                                    <option value="credito">Crédito</option><option value="contado">Contado</option></select></div>
+                                    <option value="contado" selected>Contado</option><option value="credito">Crédito</option></select></div>
                             <div><label class="block text-[11px] text-slate-400 mb-1">Días de crédito</label>
                                 <input type="number" step="1" min="0" id="provDias" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
                             <div><label class="block text-[11px] text-slate-400 mb-1">Forma de pago (SAT)</label>
