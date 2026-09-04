@@ -41,6 +41,8 @@ Ninguna columna tiene que llamarse exactamente así: el importador detecta el en
 |---|---|
 | **Tasa IVA** | `16%`, `16`, `0.16`, `0%` o `exento` (exento se guarda como vacío). |
 | **Tasa IEPS** | Igual formato; normalmente `0`. |
+| **Cuenta inventario** | Código (ej. `115-01`) o nombre de la cuenta contable donde se registra el inventario de ese artículo. Debe existir ya en el plan de cuentas — si no matchea nada, la fila se marca para revisión y no se incluye sola (no hay "cuenta por defecto" a la que caer). |
+| **Cuenta costo** | Igual que la anterior, pero la cuenta de costo/gasto (ej. `509-01`). |
 
 ### Compras / abasto *(campos ERP)*
 

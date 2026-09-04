@@ -31,6 +31,8 @@ const CAMPOS = [
     // --- Contable (requiere el modulo de contabilidad) ---
     { key: 'tasa_iva',       label: 'Tasa IVA',             grupo: 'contable', hints: ['iva', 'i.v.a', 'impuesto iva', 'vat', 'tasa iva'] },
     { key: 'tasa_ieps',      label: 'Tasa IEPS',            grupo: 'contable', hints: ['ieps', 'tasa ieps'] },
+    { key: 'cuenta_inventario', label: 'Cuenta de inventario', grupo: 'contable', hints: ['cuenta inventario', 'cuenta de inventario', 'cta inventario', 'codigo cuenta inventario', 'cuenta contable inventario'] },
+    { key: 'cuenta_costo',   label: 'Cuenta de costo',      grupo: 'contable', hints: ['cuenta costo', 'cuenta de costo', 'cta costo', 'codigo cuenta costo', 'cuenta contable costo'] },
 
     // --- Compras / abasto (campos ERP agregados el 30/08) ---
     { key: 'stock_minimo',   label: 'Stock minimo / reorden', grupo: 'compras', hints: ['stock minimo', 'minimo', 'reorden', 'reorder', 'punto de pedido', 'punto de reorden', 'existencia minima', 'min stock', 'stock min', 'nivel minimo'] },
@@ -526,6 +528,23 @@ async function cargarReferencias() {
         selUm.innerHTML = `<option value="">(ninguna)</option>` +
             R.unidades.map((u) => `<option value="${u.id}">${u.nombre}</option>`).join('');
 
+        // Cuentas contables: best-effort, en un try aparte para que si el
+        // modulo de contabilidad no esta instalado (tabla no existe) no
+        // tumbe la carga de proveedores/monedas/unidades/productos de arriba.
+        R.cuentaPorCodigo = new Map();
+        R.cuentaPorNombre = new Map();
+        try {
+            const { data: ctas, error: errCtas } = await supabaseClient
+                .from('cuentas_contables')
+                .select('id, codigo, nombre')
+                .eq('afectable', true).eq('activa', true);
+            if (errCtas) throw errCtas;
+            (ctas || []).forEach((c) => {
+                R.cuentaPorCodigo.set(norm(c.codigo), c.id);
+                R.cuentaPorNombre.set(norm(c.nombre), c.id);
+            });
+        } catch (_) { /* modulo de contabilidad aun no instalado */ }
+
         // si ya habia una hoja cargada, recalcula el pre-resumen con los catalogos frescos
         if (estado.filas.length) renderPreResumen();
     } catch (err) {
@@ -639,6 +658,21 @@ function validar() {
             const r = parseTasaImp(celda(fila, 'tasa_ieps'));
             if (r.err) problemas.push('IEPS no numerico');
             else if (r.val !== undefined) extras.tasa_ieps = r.val ?? 0;
+        }
+        // Cuenta contable (inventario / costo): se busca por codigo y, si no
+        // matchea, por nombre — igual que moneda/unidad, sin cuenta "por
+        // defecto" a la que caer, asi que si no se encuentra la fila queda
+        // para revision en vez de guardarse sin cuenta o con la equivocada.
+        for (const [k, lbl, mapaCodigo, mapaNombre, destino] of [
+            ['cuenta_inventario', 'cuenta de inventario', 'cuentaPorCodigo', 'cuentaPorNombre', 'cuenta_inventario_id'],
+            ['cuenta_costo', 'cuenta de costo', 'cuentaPorCodigo', 'cuentaPorNombre', 'cuenta_costo_id'],
+        ]) {
+            if (!estado.mapeo[k]) continue;
+            const raw = String(celda(fila, k)).trim();
+            if (raw === '') continue;
+            const hit = R[mapaCodigo].get(norm(raw)) ?? R[mapaNombre].get(norm(raw));
+            if (hit) extras[destino] = hit;
+            else { problemas.push(lbl + ' "' + raw + '" no existe en el plan de cuentas, revisa antes de incluir esta fila'); requiereRevision = true; }
         }
         for (const [k, lbl] of [
             ['precio_venta', 'precio de venta'],
