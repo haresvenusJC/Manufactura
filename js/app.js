@@ -12,6 +12,7 @@ import { cargarVistaDocumentos } from './documentos.js';
 import { cargarModuloPlantillas } from './plantillas.js';
 import { cargarModuloEmpleados } from './empleados.js';
 import { cargarModuloImportador } from './importador.js';
+import { cargarModuloImportadorBom } from './importador-bom.js';
 import { cargarModuloClientes } from './clientes.js';
 import { cargarModuloContabilidad, cargarModuloPolizas, cargarModuloGastos, cargarModuloReportesContables } from './contabilidad.js';
 import { cargarModuloNomina, actualizarBannerNominaPendiente } from './nomina.js';
@@ -145,6 +146,24 @@ window.addEventListener('resize', () => {
     if (bd) bd.classList.add('hidden');
 });
 
+// Pestañas del módulo Importar (Productos vs. BOM) — solo alternan qué
+// panel se ve, los datos de cada uno ya se cargaron al entrar a la vista.
+window.mostrarTabImportador = function(tab) {
+    const activo = 'bg-sky-600 border-sky-500 text-white';
+    const inactivo = 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800';
+    const btnProd = document.getElementById('tabImportadorProductos');
+    const btnBom = document.getElementById('tabImportadorBom');
+    const panelProd = document.getElementById('panelImportadorProductos');
+    const panelBom = document.getElementById('panelImportadorBom');
+    if (!btnProd || !btnBom || !panelProd || !panelBom) return;
+
+    const esBom = tab === 'bom';
+    panelProd.classList.toggle('hidden', esBom);
+    panelBom.classList.toggle('hidden', !esBom);
+    btnProd.className = `text-xs font-medium px-3 py-1.5 rounded-lg border transition cursor-pointer ${esBom ? inactivo : activo}`;
+    btnBom.className = `text-xs font-medium px-3 py-1.5 rounded-lg border transition cursor-pointer ${esBom ? activo : inactivo}`;
+};
+
 // 2. Enrutador global para la navegación de vistas
 window.loadView = function(viewName) {
     document.querySelectorAll('.vista-seccion').forEach(section => {
@@ -197,6 +216,7 @@ window.loadView = function(viewName) {
             break;
         case 'importador':
             cargarModuloImportador();
+            cargarModuloImportadorBom();
             break;
         case 'clientes':
             cargarModuloClientes();
