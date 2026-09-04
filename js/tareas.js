@@ -3,15 +3,19 @@ import { siguientePeriodoSugerido, nomAutorizar, nomCancelar, actualizarBannerNo
 
 // =====================================================================
 // Contabilidad · Tareas — bandeja de pendientes que requieren revisión
-// humana antes de que algo se contabilice. Por ahora solo hay un tipo
-// (nóminas en borrador esperando autorización), pero está pensada para
-// crecer: cada tarea es un objeto { tipo, titulo, detalle, acciones },
-// así que agregar un tipo nuevo a futuro es sumar un fetcher, no
-// rediseñar la pantalla.
+// humana. Dos orígenes:
+//   1. Tareas persistentes de la tabla public.tareas (las genera el
+//      sistema solo: hoy 'inventario_bajo_minimo'). Se pueden marcar
+//      Atendida / No aceptada (posponer) / No aplica (archivar).
+//   2. Señales calculadas al vuelo (nóminas en borrador, recordatorio
+//      del viernes) que no viven en una tabla.
+// Agregar un tipo nuevo = sumar un fetcher, no rediseñar la pantalla.
 // =====================================================================
 
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const hoyISO = () => new Date().toISOString().slice(0, 10);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const TABLA_FALTA = /does not exist|schema cache|could not find|relation .* does not exist/i;
 
 export async function cargarModuloTareas() {
     const cont = document.getElementById('contenedorTareas');
@@ -19,21 +23,37 @@ export async function cargarModuloTareas() {
     cont.innerHTML = `<p class="text-slate-500">Cargando tareas...</p>`;
 
     try {
-        const [borradores, recordatorio] = await Promise.all([
+        const [sistema, borradores, recordatorio] = await Promise.all([
+            fetchTareasSistema(),
             fetchNominasBorrador(),
             fetchRecordatorioViernes(),
         ]);
 
-        if (borradores.length === 0 && !recordatorio) {
-            cont.innerHTML = `<p class="text-emerald-400 text-sm">✔ No hay tareas pendientes. Todo lo que se ha pre-ejecutado ya está autorizado.</p>`;
+        if (sistema.length === 0 && borradores.length === 0 && !recordatorio) {
+            cont.innerHTML = `<p class="text-emerald-400 text-sm">✔ No hay tareas pendientes.</p>`;
             return;
         }
 
         cont.innerHTML = `
             <div class="space-y-3">
                 ${recordatorio ? renderRecordatorio(recordatorio) : ''}
+                ${sistema.map(renderTareaSistema).join('')}
                 ${borradores.map(renderNominaBorrador).join('')}
             </div>`;
+
+        cont.querySelectorAll('.tarea-atender').forEach((b) => b.addEventListener('click', () => resolverTarea(b, 'atender', null, 'Marcada como atendida')));
+        cont.querySelectorAll('.tarea-descartar').forEach((b) => b.addEventListener('click', () => {
+            const d = prompt('¿En cuántos días quieres que vuelva a aparecer si sigue bajo el mínimo?', '7');
+            if (d === null) return;
+            resolverTarea(b, 'posponer', Math.max(1, parseInt(d, 10) || 7), 'No aceptada por el usuario');
+        }));
+        cont.querySelectorAll('.tarea-ir-oc').forEach((b) => b.addEventListener('click', () => {
+            window.__ocPreProducto = {
+                id: Number(b.dataset.prod),
+                cantidad: b.dataset.sug ? parseFloat(b.dataset.sug) : null,
+            };
+            window.loadView('ordenes-compra');
+        }));
 
         cont.querySelectorAll('.tarea-autorizar').forEach((b) => b.addEventListener('click', async () => {
             await nomAutorizar(Number(b.dataset.id), b);
@@ -47,6 +67,68 @@ export async function cargarModuloTareas() {
     } catch (err) {
         cont.innerHTML = `<p class="text-rose-400 text-xs">Error al consultar tareas: ${err.message || err}</p>`;
     }
+}
+
+// --- Tareas persistentes (tabla public.tareas) --------------------------
+
+async function fetchTareasSistema() {
+    const ahora = new Date().toISOString();
+    const { data, error } = await supabaseClient
+        .from('tareas')
+        .select('*')
+        .or(`estatus.eq.pendiente,and(estatus.eq.pospuesta,posponer_hasta.lte.${ahora})`)
+        .order('prioridad', { ascending: true })
+        .order('creada_en', { ascending: true });
+    if (error) {
+        if (TABLA_FALTA.test(error.message || '')) return [];   // aún no se corre el SQL
+        throw error;
+    }
+    return data || [];
+}
+
+async function resolverTarea(btn, accion, dias, nota) {
+    btn.disabled = true;
+    const { error } = await supabaseClient.rpc('tarea_resolver', {
+        p_id: Number(btn.dataset.tarea),
+        p_accion: accion,
+        p_nota: nota || null,
+        p_dias: dias ?? null,
+    });
+    if (error) {
+        alert('No se pudo actualizar la tarea: ' + (error.message || error));
+        btn.disabled = false;
+        return;
+    }
+    await cargarModuloTareas();
+}
+
+function renderTareaSistema(t) {
+    const chip = t.prioridad === 1
+        ? '<span class="text-[10px] bg-rose-900/60 text-rose-300 border border-rose-700 rounded px-1.5 py-0.5">Alta</span>'
+        : t.prioridad === 3
+            ? '<span class="text-[10px] bg-slate-800 text-slate-400 border border-slate-700 rounded px-1.5 py-0.5">Baja</span>'
+            : '<span class="text-[10px] bg-amber-900/50 text-amber-300 border border-amber-700 rounded px-1.5 py-0.5">Normal</span>';
+    const sug = t.datos && t.datos.sugerido_pedir != null ? t.datos.sugerido_pedir : '';
+    const botonOc = t.accion_sugerida === 'crear_orden_compra' && t.entidad_id
+        ? `<button type="button" data-prod="${t.entidad_id}" data-sug="${sug}" class="tarea-ir-oc text-xs bg-emerald-700 hover:bg-emerald-600 text-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-600 cursor-pointer">🛒 Crear orden de compra</button>`
+        : '';
+    const revivida = t.estatus === 'pospuesta'
+        ? `<p class="text-[11px] text-sky-400/80">Reapareció: venció el aplazamiento y sigue bajo el mínimo.</p>` : '';
+    return `
+        <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 space-y-2">
+            <div class="flex items-start justify-between flex-wrap gap-2">
+                <div class="min-w-0">
+                    <p class="text-sm text-slate-200 font-semibold flex items-center gap-2">${chip} ${esc(t.titulo)}</p>
+                    ${t.detalle ? `<p class="text-[11px] text-slate-500 mt-0.5">${esc(t.detalle)}</p>` : ''}
+                    ${revivida}
+                </div>
+                <div class="flex gap-2 flex-wrap justify-end shrink-0">
+                    ${botonOc}
+                    <button type="button" data-tarea="${t.id}" class="tarea-atender text-xs bg-amber-800 hover:bg-amber-700 text-amber-100 px-3 py-1.5 rounded-lg border border-amber-600 cursor-pointer">✔ Atendida</button>
+                    <button type="button" data-tarea="${t.id}" class="tarea-descartar text-xs bg-slate-800 hover:bg-slate-700 text-rose-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">✕ No aceptada</button>
+                </div>
+            </div>
+        </div>`;
 }
 
 async function fetchNominasBorrador() {

@@ -118,7 +118,27 @@ export async function cargarModuloOrdenesCompra() {
     if (mxn) document.getElementById('ocMoneda').value = mxn.id;
 
     ocWireFormulario();
+    ocAplicarPreseleccion();
     await ocRenderLista();
+}
+
+// Preselección al entrar desde una tarea/sugerencia ("Crear orden de compra"
+// en Contabilidad · Tareas). window.__ocPreProducto = { id, cantidad }.
+function ocAplicarPreseleccion() {
+    const pre = window.__ocPreProducto;
+    window.__ocPreProducto = null;
+    if (!pre || !pre.id) return;
+    const p = ocProductos.find((x) => x.id === Number(pre.id));
+    if (!p) return;
+    ocProdSel = p;
+    const set = (id, v) => { const el = document.getElementById(id); if (el != null && v != null && v !== '') el.value = v; };
+    set('ocProdInput', p.nombre);
+    set('ocProdCosto', p.costo_unitario);
+    set('ocProdUnidad', p.unidad_medida_id);
+    set('ocProveedor', p.proveedor_id);
+    if (pre.cantidad) set('ocProdCant', pre.cantidad);
+    const cant = document.getElementById('ocProdCant');
+    if (cant) cant.focus();
 }
 
 function ocWireFormulario() {
