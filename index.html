@@ -546,9 +546,22 @@
 
             <!-- Vista: Importador de datos (Excel / CSV) -->
             <section id="view-importador" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-sky-400">Importar Proveedores y Productos (Excel / CSV)</h2>
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                <h2 class="text-xl font-bold text-sky-400">Importar datos (Excel / CSV)</h2>
+                <div class="flex gap-2">
+                    <button type="button" id="tabImportadorProductos" onclick="window.mostrarTabImportador('productos')"
+                        class="text-xs font-medium px-3 py-1.5 rounded-lg border transition cursor-pointer bg-sky-600 border-sky-500 text-white">
+                        Proveedores y Productos
+                    </button>
+                    <button type="button" id="tabImportadorBom" onclick="window.mostrarTabImportador('bom')"
+                        class="text-xs font-medium px-3 py-1.5 rounded-lg border transition cursor-pointer bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800">
+                        Estructura de Componentes (BOM)
+                    </button>
+                </div>
+                <div id="panelImportadorProductos" class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorImportador">Cargando importador...</div>
+                </div>
+                <div id="panelImportadorBom" class="hidden bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div id="contenedorImportadorBom">Cargando importador...</div>
                 </div>
             </section>
 

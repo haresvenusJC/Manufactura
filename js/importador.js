@@ -89,7 +89,8 @@ const estado = {
 
 // Normaliza para comparar: minusculas, sin acentos, espacios colapsados.
 // (Asi "LIMON" empata con "limon" y "  Acido   Citrico " con "acido citrico".)
-function norm(x) {
+// Se exporta porque el importador de BOM (importador-bom.js) la reusa tal cual.
+export function norm(x) {
     return String(x ?? '')
         .normalize('NFD')
         .replace(/[̀-ͯ]/g, '') // quita marcas diacriticas combinantes
@@ -97,7 +98,7 @@ function norm(x) {
         .replace(/\s+/g, ' ');
 }
 
-function parseNumero(v) {
+export function parseNumero(v) {
     if (v === null || v === undefined || v === '') return null;
     if (typeof v === 'number') return isFinite(v) ? v : null;
     let s = String(v).trim().replace(/[^0-9.,\-]/g, '');
@@ -565,6 +566,11 @@ function validar() {
 
     const plan = estado.filas.map((fila, idx) => {
         const problemas = [];
+        // Campos que vienen de un catálogo (moneda/unidad/tipo): si el texto
+        // del archivo no matchea nada, NO se incluyen solos aunque haya un
+        // valor "por defecto" al que caer — se desmarcan para que el usuario
+        // decida a mano en vez de que se cuele un dato equivocado en silencio.
+        let requiereRevision = false;
         const nombre = String(celda(fila, 'nombre')).trim();
         const sku = String(celda(fila, 'sku')).trim();
         const descripcion = String(celda(fila, 'descripcion')).trim();
@@ -584,7 +590,7 @@ function validar() {
         if (monRaw) {
             const hit = R.monPorCodigo.get(norm(monRaw));
             if (hit) { monedaId = hit; monedaTxt = monRaw.toUpperCase(); }
-            else { monedaTxt = monRaw.toUpperCase() + ' → def'; problemas.push('moneda "' + monRaw + '" desconocida, se usa la de por defecto'); }
+            else { monedaTxt = monRaw.toUpperCase() + ' → def'; problemas.push('moneda "' + monRaw + '" desconocida, revisa antes de incluir esta fila'); requiereRevision = true; }
         }
 
         // unidad
@@ -593,7 +599,7 @@ function validar() {
         if (uniRaw) {
             const hit = R.umPorNombre.get(norm(uniRaw));
             if (hit) { unidadId = hit; unidadTxt = uniRaw; }
-            else { unidadTxt = uniRaw + ' → def'; problemas.push('unidad "' + uniRaw + '" no existe, se usa la de por defecto'); }
+            else { unidadTxt = uniRaw + ' → def'; problemas.push('unidad "' + uniRaw + '" no existe, revisa antes de incluir esta fila'); requiereRevision = true; }
         }
 
         // proveedor
@@ -622,7 +628,7 @@ function validar() {
         if (estado.mapeo.tipo) {
             tipoCol = parseTipoProducto(celda(fila, 'tipo'));
             const rawT = String(celda(fila, 'tipo')).trim();
-            if (rawT && !tipoCol) problemas.push('tipo "' + rawT + '" no reconocido');
+            if (rawT && !tipoCol) { problemas.push('tipo "' + rawT + '" no reconocido, revisa antes de incluir esta fila'); requiereRevision = true; }
         }
         if (estado.mapeo.tasa_iva) {
             const r = parseTasaImp(celda(fila, 'tasa_iva'));
@@ -662,9 +668,10 @@ function validar() {
         return {
             fila: estado.filaDatos + idx, nombre, sku, descripcion, provNombre, provId, provNuevo,
             precio, monedaId, monedaTxt, unidadId, unidadTxt, accion, prodId, via, dupDe, problemas,
-            extras, tipoCol,
-            // control del usuario:
-            incluir: accion !== 'error',   // se puede desmarcar fila por fila
+            extras, tipoCol, requiereRevision,
+            // control del usuario: si hubo un dato de catálogo (moneda/unidad/tipo)
+            // que no matcheó, arranca desmarcada para forzar una decisión consciente.
+            incluir: accion !== 'error' && !requiereRevision,
             tipoOverride: '',              // tipo elegido para ESTA fila (solo aplica al crear)
         };
     });
@@ -692,6 +699,7 @@ function renderPreview(plan) {
     const crear = plan.filter((p) => p.accion === 'crear').length;
     const actualizar = plan.filter((p) => p.accion === 'actualizar').length;
     const errores = plan.filter((p) => p.accion === 'error').length;
+    const revision = plan.filter((p) => p.requiereRevision).length;
     const provNuevos = new Set(plan.filter((p) => p.provNuevo).map((p) => norm(p.provNombre))).size;
     const tipoDef = document.getElementById('impTipo').value;
 
@@ -718,6 +726,7 @@ function renderPreview(plan) {
             <span class="px-2 py-1 rounded bg-emerald-950 border border-emerald-800 text-emerald-400">${crear} a crear</span>
             <span class="px-2 py-1 rounded bg-sky-950 border border-sky-800 text-sky-400">${actualizar} a actualizar</span>
             <span class="px-2 py-1 rounded bg-rose-950 border border-rose-800 text-rose-400">${errores} con error</span>
+            <span class="px-2 py-1 rounded bg-amber-950 border border-amber-800 text-amber-400">${revision} requiere revisión (desmarcadas)</span>
             <span class="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-slate-300">${provNuevos} proveedor(es) nuevo(s)</span>
         </div>
 
@@ -750,7 +759,7 @@ function renderPreview(plan) {
                                     ${p.incluir ? 'checked' : ''} ${p.accion === 'error' ? 'disabled' : ''}>
                             </td>
                             <td class="p-2 text-slate-500">${p.fila}</td>
-                            <td class="p-2">${badge(p.accion)}${p.via ? ` <span class="text-slate-600">(${p.via})</span>` : ''}</td>
+                            <td class="p-2">${badge(p.accion)}${p.via ? ` <span class="text-slate-600">(${p.via})</span>` : ''}${p.requiereRevision ? ' <span class="text-amber-400" title="Dato de catálogo sin match, revisa antes de incluir">⚠</span>' : ''}</td>
                             <td class="p-2">${selTipo(p, i)}</td>
                             <td class="p-2 text-slate-100">${p.nombre || '<span class="text-rose-400">—</span>'}</td>
                             <td class="p-2 font-mono text-slate-400">${p.sku || ''}</td>
