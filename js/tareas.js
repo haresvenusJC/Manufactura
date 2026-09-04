@@ -18,6 +18,8 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const TABLA_FALTA = /does not exist|schema cache|could not find|relation .* does not exist/i;
 
 export async function cargarModuloTareas() {
+    cargarHistorialTareas();   // independiente: se ve aunque no haya pendientes
+
     const cont = document.getElementById('contenedorTareas');
     if (!cont) return;
     cont.innerHTML = `<p class="text-slate-500">Cargando tareas...</p>`;
@@ -188,4 +190,165 @@ function renderNominaBorrador(n) {
                 <div class="bg-slate-900 rounded p-2"><span class="text-slate-500 block">Total</span><span class="font-mono text-emerald-400 font-semibold">${money(n.total)}</span></div>
             </div>
         </div>`;
+}
+
+// =====================================================================
+// Historial — TODAS las tareas del sistema (no solo las pendientes),
+// filtrable por estatus / tipo / rango de fechas / quién la resolvió.
+// public.tareas nunca borra una fila: pendiente -> atendida / pospuesta
+// -> archivada quedan ahí; esto solo es la ventana para consultarlas.
+// Requiere sql/2026-09-07_tareas_historial.sql (rpc tareas_historial).
+// =====================================================================
+
+const ESTATUS_LABEL = {
+    pendiente: 'Pendiente', atendida: 'Atendida',
+    pospuesta: 'Pospuesta', archivada: 'Archivada',
+};
+const ESTATUS_BADGE = {
+    pendiente: 'bg-amber-900/50 text-amber-300 border-amber-700',
+    atendida: 'bg-emerald-900/50 text-emerald-300 border-emerald-700',
+    pospuesta: 'bg-sky-900/50 text-sky-300 border-sky-700',
+    archivada: 'bg-slate-800 text-slate-400 border-slate-700',
+};
+const TIPO_LABEL = { inventario_bajo_minimo: 'Inventario bajo mínimo' };
+
+let histFilasCache = [];   // último resultado del servidor (ya filtrado por estatus/tipo/fechas)
+
+function fmtFechaHora(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+async function cargarHistorialTareas() {
+    const cont = document.getElementById('contenedorTareasHistorial');
+    if (!cont) return;
+    cont.innerHTML = `<p class="text-slate-500">Cargando historial...</p>`;
+
+    try {
+        histFilasCache = await fetchHistorialTareas({});
+    } catch (err) {
+        if (TABLA_FALTA.test(err.message || '')) {
+            cont.innerHTML = `<p class="text-slate-600 text-xs">El historial de tareas aún no está activado (falta correr sql/2026-09-07_tareas_historial.sql).</p>`;
+            return;
+        }
+        cont.innerHTML = `<p class="text-rose-400 text-xs">Error al consultar el historial: ${err.message || err}</p>`;
+        return;
+    }
+
+    const tipos = [...new Set(histFilasCache.map((r) => r.tipo))];
+
+    cont.innerHTML = `
+        <h3 class="text-sm font-semibold text-slate-300 mb-3">Historial de tareas</h3>
+        <div class="flex flex-wrap items-end gap-2 mb-3 text-xs">
+            <div>
+                <label class="block text-slate-500 mb-1">Estatus</label>
+                <select id="histEstatus" class="bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-slate-200">
+                    <option value="">Todas</option>
+                    ${Object.entries(ESTATUS_LABEL).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
+                </select>
+            </div>
+            <div>
+                <label class="block text-slate-500 mb-1">Tipo</label>
+                <select id="histTipo" class="bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-slate-200">
+                    <option value="">Todos</option>
+                    ${tipos.map((t) => `<option value="${esc(t)}">${esc(TIPO_LABEL[t] || t)}</option>`).join('')}
+                </select>
+            </div>
+            <div>
+                <label class="block text-slate-500 mb-1">Desde</label>
+                <input type="date" id="histDesde" class="bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-slate-200">
+            </div>
+            <div>
+                <label class="block text-slate-500 mb-1">Hasta</label>
+                <input type="date" id="histHasta" class="bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-slate-200">
+            </div>
+            <div>
+                <label class="block text-slate-500 mb-1">Procesada por</label>
+                <select id="histQuien" class="bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-slate-200"></select>
+            </div>
+            <button type="button" id="histFiltrar" class="bg-sky-800 hover:bg-sky-700 text-sky-100 px-3 py-1.5 rounded-lg border border-sky-600 cursor-pointer">Filtrar</button>
+            <button type="button" id="histLimpiar" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">Limpiar</button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+                <thead>
+                    <tr class="text-left text-slate-500 border-b border-slate-800">
+                        <th class="p-2">Título</th><th class="p-2">Tipo</th><th class="p-2">Estatus</th>
+                        <th class="p-2">Creada</th><th class="p-2">Resuelta</th><th class="p-2">Por</th><th class="p-2">Nota</th>
+                    </tr>
+                </thead>
+                <tbody id="histCuerpo"></tbody>
+            </table>
+        </div>`;
+
+    renderTablaQuienYCuerpo();
+
+    document.getElementById('histFiltrar').addEventListener('click', async () => {
+        const cuerpo = document.getElementById('histCuerpo');
+        cuerpo.innerHTML = `<tr><td colspan="7" class="p-3 text-slate-500">Filtrando...</td></tr>`;
+        try {
+            histFilasCache = await fetchHistorialTareas({
+                estatus: document.getElementById('histEstatus').value || null,
+                tipo: document.getElementById('histTipo').value || null,
+                desde: document.getElementById('histDesde').value || null,
+                hasta: document.getElementById('histHasta').value || null,
+            });
+        } catch (err) {
+            cuerpo.innerHTML = `<tr><td colspan="7" class="p-3 text-rose-400">${esc(err.message || String(err))}</td></tr>`;
+            return;
+        }
+        renderTablaQuienYCuerpo();
+    });
+
+    document.getElementById('histLimpiar').addEventListener('click', () => cargarHistorialTareas());
+}
+
+function renderTablaQuienYCuerpo() {
+    const selQuien = document.getElementById('histQuien');
+    const previoQuien = selQuien.value;
+    const quienes = [...new Set(histFilasCache.map((r) => r.resuelta_por_email || '__auto__'))];
+    selQuien.innerHTML = `<option value="">Todos</option>` + quienes.map((q) =>
+        q === '__auto__'
+            ? `<option value="__auto__">— (sin resolver / automático)</option>`
+            : `<option value="${esc(q)}">${esc(q)}</option>`
+    ).join('');
+    if (quienes.includes(previoQuien)) selQuien.value = previoQuien;
+    selQuien.onchange = () => pintarCuerpoHistorial();
+
+    pintarCuerpoHistorial();
+}
+
+function pintarCuerpoHistorial() {
+    const quien = document.getElementById('histQuien').value;
+    const filas = quien
+        ? histFilasCache.filter((r) => (r.resuelta_por_email || '__auto__') === quien)
+        : histFilasCache;
+
+    const cuerpo = document.getElementById('histCuerpo');
+    if (filas.length === 0) {
+        cuerpo.innerHTML = `<tr><td colspan="7" class="p-3 text-slate-500">Sin resultados.</td></tr>`;
+        return;
+    }
+    cuerpo.innerHTML = filas.map((t) => `
+        <tr class="border-b border-slate-900">
+            <td class="p-2 text-slate-200">${esc(t.titulo)}</td>
+            <td class="p-2 text-slate-400">${esc(TIPO_LABEL[t.tipo] || t.tipo)}</td>
+            <td class="p-2"><span class="text-[10px] border rounded px-1.5 py-0.5 ${ESTATUS_BADGE[t.estatus] || ''}">${ESTATUS_LABEL[t.estatus] || t.estatus}</span></td>
+            <td class="p-2 text-slate-500 whitespace-nowrap">${fmtFechaHora(t.creada_en)}</td>
+            <td class="p-2 text-slate-500 whitespace-nowrap">${fmtFechaHora(t.resuelta_en)}</td>
+            <td class="p-2 text-slate-400">${esc(t.resuelta_por_email) || (t.estatus === 'archivada' ? 'Automático' : '—')}</td>
+            <td class="p-2 text-slate-500">${esc(t.nota_resolucion || '')}</td>
+        </tr>`).join('');
+}
+
+async function fetchHistorialTareas({ estatus, tipo, desde, hasta }) {
+    const { data, error } = await supabaseClient.rpc('tareas_historial', {
+        p_estatus: estatus || null,
+        p_tipo: tipo || null,
+        p_desde: desde ? `${desde}T00:00:00` : null,
+        p_hasta: hasta ? `${hasta}T23:59:59` : null,
+        p_limit: 300,
+    });
+    if (error) throw error;
+    return data || [];
 }
