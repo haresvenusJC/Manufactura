@@ -83,8 +83,10 @@ En `ejemplos/`:
   completo: importar productos primero, BOM después).
 - `LEEME_plantilla_bom.md` — qué va en cada columna.
 
-Encabezados (fila 1): `Producto (padre)` · `Componente` · `Cantidad`
-(las tres obligatorias) · `Unidad` (opcional).
+Encabezados: `Producto padre (SKU o nombre)` · `Componente (SKU o nombre)` ·
+`Cantidad` (las tres obligatorias) · `Unidad` (opcional). El archivo trae
+notas explicativas arriba (líneas `#`); el importador detecta la fila de
+encabezados sola sin importar cuántas notas haya encima.
 
 ## Flujo
 

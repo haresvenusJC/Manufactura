@@ -1,3 +1,16 @@
+"# ==========================================================================="
+"# PLANTILLA DE EJEMPLO - Alta de Productos / Materias primas / Insumos"
+"# ==========================================================================="
+"# Borra estas notas y las filas de ejemplo de abajo; deja la fila de"
+"# encabezados (la que dice ""Nombre,SKU,Tipo..."") y captura tus articulos."
+"# Sube el archivo en: Catalogos > Importar Excel/CSV > pestaña"
+"# ""Proveedores y Productos"". Unica columna obligatoria: Nombre."
+"# Tipo = materia prima / insumo / producto. Moneda y Unidad deben YA"
+"# existir en esos catalogos, o la fila se marca para revisar a mano."
+"# Detalle de cada columna: ejemplos/LEEME_plantilla.md"
+"# Las ultimas 3 filas (Gel lubricante, Envase PET, Tapa Disc-Top) arman"
+"# despues el ejemplo de BOM en ejemplos/plantilla_bom.csv — no las"
+"# borres si tambien vas a probar ese importador."
 Nombre,SKU,Tipo,Proveedor,Precio,Precio de venta,Moneda,Unidad,Tasa IVA,Tasa IEPS,Stock minimo,Tiempo entrega dias,Cantidad minima compra,Activo,Notas
 CMC,MP-CMC,materia prima,ALKEM,180,,MXN,Kilogramos,16%,0,25,7,25,si,Carboximetilcelulosa - espesante
 Glicerina,MP-GLICERINA,materia prima,ALKEM,60,,MXN,Litros,16%,0,50,10,200,si,Glicerina USP

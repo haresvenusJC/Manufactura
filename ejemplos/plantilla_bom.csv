@@ -1,3 +1,15 @@
-Producto (padre),Componente,Cantidad,Unidad
+"# ==========================================================================="
+"# PLANTILLA DE EJEMPLO - Estructura de Componentes (BOM / receta)"
+"# ==========================================================================="
+"# Antes de esto: da de alta (o importa) los productos/insumos que usa la"
+"# receta — este importador NO crea productos, solo los relaciona."
+"# Una fila por cada componente; repite el mismo producto padre tantas"
+"# veces como componentes tenga su receta."
+"# Sube el archivo en: Catalogos > Importar Excel/CSV > pestaña"
+"# ""Estructura de Componentes (BOM)""."
+"# Detalle de cada columna: ejemplos/LEEME_plantilla_bom.md"
+"# Este ejemplo arma la receta del Gel lubricante 60 ml (PT-GEL-60) de"
+"# plantilla_materias_primas.csv — importa ese archivo primero."
+Producto padre (SKU o nombre),Componente (SKU o nombre),Cantidad,Unidad
 PT-GEL-60,INS-ENVASE-PET-60,1,Piezas
 PT-GEL-60,INS-TAPA-DISCTOP-24,1,Piezas
