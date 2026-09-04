@@ -117,10 +117,17 @@
         .text-emerald-400, .text-emerald-300, .text-emerald-500 { color: var(--ok) !important; }
         .text-rose-400, .text-rose-300 { color: var(--bad) !important; }
         .text-red-400, .text-red-300 { color: var(--err) !important; }
-        .text-amber-400, .text-amber-300, .text-amber-500 { color: var(--warn) !important; }
+        .text-amber-400, .text-amber-300, .text-amber-500,
+        .text-amber-200, .text-amber-300\/80 { color: var(--warn) !important; }
+
+        /* Bordes de tarjetas de aviso (bg-*-950/*-900 + texto claro) —
+           sin esto, el borde se queda con su color fijo de Tailwind y
+           pierde contraste en los temas claros (paper, mist). */
+        .border-amber-700, .border-amber-800\/50 { border-color: var(--warn) !important; }
 
         .bg-sky-950, .bg-emerald-950, .bg-rose-950, .bg-red-950, .bg-red-950\/40,
-        .bg-amber-950, .bg-amber-950\/25, .bg-amber-950\/40, .bg-indigo-600\/20 { background-color: var(--chip) !important; }
+        .bg-amber-950, .bg-amber-950\/25, .bg-amber-950\/30, .bg-amber-950\/40,
+        .bg-indigo-600\/20 { background-color: var(--chip) !important; }
 
         .hover\:bg-slate-800:hover { background-color: var(--bg-2) !important; }
         .hover\:bg-slate-700:hover { background-color: var(--bg-3) !important; }
