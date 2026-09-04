@@ -651,27 +651,36 @@ export async function cargarCatalogoInicial() {
             `).join('');
         }
 
-        btnAddBom.addEventListener('click', () => {
+        // Empuja a itemsBomTemp lo que haya capturado en los campos del BOM.
+        // Se usa tanto en el clic explícito de "＋ Agregar Componente al BOM"
+        // (con alertas si falta algo) como, en modo silencioso, justo antes
+        // de guardar el artículo — así, si el usuario llenó insumo/cantidad
+        // pero olvidó dar clic en "Agregar", esa fila no se pierde sin más.
+        function agregarItemBomPendiente({ mostrarAlertas } = { mostrarAlertas: true }) {
             const insumoSelect = document.getElementById('bomInsumo');
+            const cantidadInput = document.getElementById('bomCantidad');
+            const unidadSelect = document.getElementById('bomUnidadMedidaId');
+
+            if (!mostrarAlertas && !insumoSelect.value && !cantidadInput.value) {
+                return true; // nada pendiente, no hay nada que agregar
+            }
+
             const componenteId = parseInt(insumoSelect.value);
-            
             if (!componenteId || isNaN(componenteId)) {
-                alert("Seleccione un componente válido de la lista.");
-                return;
+                if (mostrarAlertas) alert("Seleccione un componente válido de la lista.");
+                return false;
+            }
+
+            const cantidad = parseFloat(cantidadInput.value) || 0;
+            if (cantidad <= 0) {
+                if (mostrarAlertas) alert("Ingrese una cantidad mayor a 0.");
+                return false;
             }
 
             const selectedOption = insumoSelect.options[insumoSelect.selectedIndex];
             const nombreInsumo = selectedOption.text.split(' [')[0];
-            
-            const cantidad = parseFloat(document.getElementById('bomCantidad').value) || 0;
-            const unidadSelect = document.getElementById('bomUnidadMedidaId');
             const unidadId = unidadSelect.value ? parseInt(unidadSelect.value) : null;
             const unidadNombre = unidadSelect.options[unidadSelect.selectedIndex]?.text || '';
-
-            if (cantidad <= 0) {
-                alert("Ingrese una cantidad mayor a 0.");
-                return;
-            }
 
             itemsBomTemp.push({
                 componenteId,
@@ -683,10 +692,13 @@ export async function cargarCatalogoInicial() {
 
             actualizarListaBomVisual();
 
-            document.getElementById('bomCantidad').value = '';
+            cantidadInput.value = '';
             insumoSelect.value = '';
             unidadSelect.value = '';
-        });
+            return true;
+        }
+
+        btnAddBom.addEventListener('click', () => agregarItemBomPendiente({ mostrarAlertas: true }));
 
         window.removerItemBom = function(index) {
             itemsBomTemp.splice(index, 1);
@@ -743,6 +755,16 @@ export async function cargarCatalogoInicial() {
         const formProducto = document.getElementById('formCrearProducto');
         formProducto.addEventListener('submit', async (e) => {
             e.preventDefault();
+
+            // Si quedó un insumo/cantidad capturado en el BOM pero el usuario
+            // no dio clic en "＋ Agregar Componente al BOM", lo sumamos aquí
+            // en silencio para que no se pierda al guardar (ver definición
+            // de agregarItemBomPendiente más arriba).
+            if (selectTipoElemento.value === 'producto' && !agregarItemBomPendiente({ mostrarAlertas: false })) {
+                alert("Revisa el componente del BOM que estás agregando: falta seleccionar un insumo válido o poner una cantidad mayor a 0.");
+                return;
+            }
+
             const tipo = selectTipoElemento.value;
             const nombre = inputNombre.value.trim();
             const sku = document.getElementById('prodSku').value.trim();
