@@ -12,25 +12,30 @@ con las mismas columnas).
    materias primas/insumos que va a usar la receta — este importador **no
    crea productos nuevos**, solo relaciona los que ya existen.
 2. Una fila por cada componente. Si un producto lleva 5 insumos, son 5 filas
-   con el mismo "Producto (padre)" y distinto "Componente".
-3. **No cambies ni muevas los encabezados de la fila 1.**
+   con el mismo "Producto padre" y distinto "Componente".
+3. El archivo trae unas notas arriba (líneas que empiezan con `#`) — bórralas
+   junto con las filas de ejemplo antes de capturar tus datos reales. **No
+   cambies ni muevas la fila de encabezados** (la que dice "Producto padre
+   (SKU o nombre), Componente (SKU o nombre), Cantidad, Unidad"); el
+   importador la detecta sola aunque tenga notas arriba.
 4. Guarda como `.xlsx` o `.csv` y súbelo en el módulo.
 
 ## Columnas
 
 | Columna | ¿Obligatoria? | Qué poner |
 |---|---|---|
-| **Producto (padre)** | **Sí** | SKU o nombre del producto terminado al que le vas a cargar la receta. Debe existir ya en el Catálogo y ser de tipo "Producto terminado". |
-| **Componente** | **Sí** | SKU o nombre del insumo, materia prima o subensamble que entra en la receta. Debe existir ya en el Catálogo (de cualquier tipo). |
+| **Producto padre (SKU o nombre)** | **Sí** | SKU o nombre del producto terminado al que le vas a cargar la receta. Debe existir ya en el Catálogo y ser de tipo "Producto terminado". |
+| **Componente (SKU o nombre)** | **Sí** | SKU o nombre del insumo, materia prima o subensamble que entra en la receta. Debe existir ya en el Catálogo (de cualquier tipo). |
 | **Cantidad** | **Sí** | Cuánto se consume del componente por cada unidad del producto padre. Número mayor a 0. |
 | **Unidad** | No | Unidad en la que viene esa cantidad (Piezas, Kilogramos, Litros…). Si no coincide con ninguna del catálogo de unidades, la fila se marca para revisión y **no se incluye sola**. |
 
 ## El ejemplo del archivo
 
-Las 2 filas de `plantilla_bom.csv` arman la receta del "Gel lubricante 60 ml"
-(`PT-GEL-60`) usando el envase y la tapa de `plantilla_materias_primas.csv` —
-súbelas en ese orden (productos primero, BOM después) para ver el flujo
-completo de punta a punta antes de cargar tu información real.
+Las 2 filas de datos de `plantilla_bom.csv` arman la receta del "Gel
+lubricante 60 ml" (`PT-GEL-60`) usando el envase y la tapa de
+`plantilla_materias_primas.csv` — súbelas en ese orden (productos primero,
+BOM después) para ver el flujo completo de punta a punta antes de cargar tu
+información real.
 
 ## Reglas de importación
 

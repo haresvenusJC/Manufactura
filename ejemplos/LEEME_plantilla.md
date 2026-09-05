@@ -9,8 +9,12 @@ El importador de la app (**Catálogos → ⬆️ Importar Excel/CSV**) lee cualq
 
 ## Cómo armar tu archivo
 
-1. Abre la plantilla, **borra las filas de ejemplo** y captura las tuyas.
-2. **No cambies ni muevas los encabezados de la fila 1.** El importador los detecta solos.
+1. Abre la plantilla. El `.csv` trae unas notas arriba (líneas que empiezan
+   con `#`) explicando el archivo — bórralas junto con las **filas de
+   ejemplo** antes de capturar las tuyas.
+2. **No cambies ni muevas la fila de encabezados** (la que dice
+   "Nombre, SKU, Tipo…"). El importador la detecta sola aunque tenga notas
+   arriba — no importa en qué fila del archivo quede.
 3. Guarda como `.xlsx` o `.csv` y súbelo en el módulo.
 
 ## Columnas
@@ -37,6 +41,8 @@ Ninguna columna tiene que llamarse exactamente así: el importador detecta el en
 |---|---|
 | **Tasa IVA** | `16%`, `16`, `0.16`, `0%` o `exento` (exento se guarda como vacío). |
 | **Tasa IEPS** | Igual formato; normalmente `0`. |
+| **Cuenta inventario** | Código (ej. `115-01`) o nombre de la cuenta contable donde se registra el inventario de ese artículo. Debe existir ya en el plan de cuentas — si no matchea nada, la fila se marca para revisión y no se incluye sola (no hay "cuenta por defecto" a la que caer). |
+| **Cuenta costo** | Igual que la anterior, pero la cuenta de costo/gasto (ej. `509-01`). |
 
 ### Compras / abasto *(campos ERP)*
 

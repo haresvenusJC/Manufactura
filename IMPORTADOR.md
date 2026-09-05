@@ -43,14 +43,20 @@ Encabezados (fila 1): `Nombre` (obligatorio) · `SKU` · `Proveedor` · `Precio`
 - **Proveedor** no existente → se crea en `proveedores` (casilla marcable).
 - **Moneda / Unidad** se resuelven contra `monedas` / `unidades_medida`; si no
   hay match se usa el valor por defecto del formulario.
+- **Cuenta de inventario / Cuenta de costo** *(si el módulo de contabilidad
+  está instalado)*: se resuelven contra `cuentas_contables` por código o por
+  nombre y se guardan como `cuenta_inventario_id` / `cuenta_costo_id` — nunca
+  como texto suelto. No hay cuenta "por defecto": si el archivo trae una y no
+  matchea ninguna del plan de cuentas, la fila requiere revisión (ver abajo).
 - **Precio** acepta `$1,234.56`, `1234,56`, etc. Si no es numérico, la fila
   entra sin precio y se avisa.
 
 ## Filas que "requieren revisión"
 
-Cuando el archivo trae **Moneda**, **Unidad** o **Tipo** y el texto no
-matchea ningún catálogo, la fila ya **no** se cae en automático a un valor
-por defecto: se marca con ⚠ y arranca **desmarcada** en la vista previa
+Cuando el archivo trae **Moneda**, **Unidad**, **Tipo**, **Cuenta de
+inventario** o **Cuenta de costo** y el texto no matchea ningún catálogo, la
+fila ya **no** se cae en automático a un valor por defecto (o se guarda sin
+ese dato): se marca con ⚠ y arranca **desmarcada** en la vista previa
 (contador "requiere revisión"). Así un dato de catálogo mal escrito no se
 cuela con el valor equivocado — el usuario decide fila por fila si corrige
 el archivo o acepta el valor por defecto marcando la casilla a mano.
@@ -83,8 +89,10 @@ En `ejemplos/`:
   completo: importar productos primero, BOM después).
 - `LEEME_plantilla_bom.md` — qué va en cada columna.
 
-Encabezados (fila 1): `Producto (padre)` · `Componente` · `Cantidad`
-(las tres obligatorias) · `Unidad` (opcional).
+Encabezados: `Producto padre (SKU o nombre)` · `Componente (SKU o nombre)` ·
+`Cantidad` (las tres obligatorias) · `Unidad` (opcional). El archivo trae
+notas explicativas arriba (líneas `#`); el importador detecta la fila de
+encabezados sola sin importar cuántas notas haya encima.
 
 ## Flujo
 

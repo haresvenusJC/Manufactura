@@ -59,7 +59,11 @@ export async function cargarModuloImportadorBom() {
                 <div class="text-[11px] text-slate-400 pt-2 border-t border-slate-800 mt-2">
                     Plantilla de ejemplo:
                     <a href="ejemplos/plantilla_bom.csv" download class="text-amber-400 hover:underline">CSV</a>
-                    <span class="text-slate-600 block mt-1">Encabezados: Producto (padre) · Componente · Cantidad · Unidad. El producto y el componente deben existir ya en el Catálogo (búscalos por SKU o nombre).</span>
+                    <span class="text-slate-600 block mt-1">Encabezados: Producto padre (SKU o nombre) · Componente (SKU o nombre) · Cantidad · Unidad. El producto y el componente deben existir ya en el Catálogo.</span>
+                </div>
+                <div class="text-[11px] text-slate-400 pt-2 border-t border-slate-800 mt-2">
+                    <button type="button" id="bomiExportarXlsx" class="w-full bg-slate-800 hover:bg-slate-700 text-amber-300 font-medium py-1.5 rounded-lg text-xs transition cursor-pointer">⬇️ Exportar BOM actual (Excel)</button>
+                    <span class="text-slate-600 block mt-1">Descarga la receta completa de todos los productos tal como está hoy en la base de datos — mismos encabezados que la plantilla, así se puede editar y volver a subir.</span>
                 </div>
             </div>
         </div>
@@ -145,6 +149,70 @@ function cablearEventos() {
 
     $('bomiValidar').addEventListener('click', validar);
     $('bomiImportar').addEventListener('click', importar);
+    $('bomiExportarXlsx').addEventListener('click', exportarBom);
+}
+
+// --------------------------- exportar a Excel ---------------------------
+
+// Exporta la receta completa (todos los productos) tal como está hoy en
+// `bom`, con los mismos encabezados que la plantilla de importación —
+// para poder editar el archivo y volver a subirlo sin transformarlo.
+async function exportarBom() {
+    const btn = document.getElementById('bomiExportarXlsx');
+    if (btn) { btn.disabled = true; btn.textContent = 'Exportando…'; }
+    try {
+        const [bomRes, prodRes, umRes] = await Promise.all([
+            supabaseClient.from('bom').select('producto_id, componente_id, cantidad_requerida, unidad_medida').order('producto_id', { ascending: true }),
+            supabaseClient.from('productos').select('id, nombre, sku'),
+            supabaseClient.from('unidades_medida').select('id, nombre'),
+        ]);
+        for (const r of [bomRes, prodRes, umRes]) if (r.error) throw r.error;
+
+        const filas = bomRes.data || [];
+        if (!filas.length) { alert('No hay componentes de BOM registrados todavía para exportar.'); return; }
+
+        const mapaProd = new Map((prodRes.data || []).map((p) => [p.id, p]));
+        // unidad_medida en `bom` guarda el id de la unidad como texto (ver
+        // catalogo.js), por eso se vuelve a Number antes de buscarlo aquí.
+        const mapaUnidad = new Map((umRes.data || []).map((u) => [u.id, u.nombre]));
+
+        const encabezados = ['Producto padre (SKU o nombre)', 'Componente (SKU o nombre)', 'Cantidad', 'Unidad'];
+        const registros = filas.map((f) => {
+            const padre = mapaProd.get(f.producto_id);
+            const comp = mapaProd.get(f.componente_id);
+            const unidadNombre = f.unidad_medida ? (mapaUnidad.get(Number(f.unidad_medida)) || '') : '';
+            // Se exporta por SKU (y si no tiene, por nombre) porque asi es
+            // como el importador vuelve a resolver cada componente al leerlo.
+            return [
+                padre?.sku || padre?.nombre || `#${f.producto_id}`,
+                comp?.sku || comp?.nombre || `#${f.componente_id}`,
+                f.cantidad_requerida ?? '',
+                unidadNombre,
+            ];
+        });
+
+        // Mismas notas explicativas que trae la plantilla de ejemplo — el
+        // detector de encabezados de ambos importadores las ignora solo
+        // (busca la fila con más "pinta" de encabezado, no la primera).
+        const stamp = new Date().toISOString().slice(0, 10);
+        const notas = [
+            [`# BOM exportado el ${stamp} desde Catálogos > Importar Excel/CSV > "Estructura de Componentes (BOM)".`],
+            ['# Esta es la receta completa de TODOS los productos que ya tienen componentes cargados.'],
+            ['# Puedes editar cantidades/unidades (o borrar filas) y volver a subir este mismo archivo para actualizar.'],
+            ['# Detalle de cada columna: ejemplos/LEEME_plantilla_bom.md'],
+        ];
+        const aoa = [...notas, encabezados, ...registros];
+
+        const XLSX = await import('https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs');
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'BOM');
+        XLSX.writeFile(wb, `bom_actual_${stamp}.xlsx`);
+    } catch (err) {
+        alert('No se pudo exportar el BOM: ' + (err.message || err));
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '⬇️ Exportar BOM actual (Excel)'; }
+    }
 }
 
 // --------------------------- parseo del archivo ---------------------------
