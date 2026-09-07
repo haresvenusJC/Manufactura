@@ -167,22 +167,33 @@ window.consultarKardexProducto = async function() {
 
         if (errProdInfo) throw errProdInfo;
 
-        const { data: movimientos, error } = await supabaseClient
-            .from('movimientos_inventario')
-            .select(`
-                id, 
-                tipo_movimiento, 
-                cantidad, 
-                stock_anterior, 
-                stock_resultante, 
-                costo_unitario, 
-                created_at, 
+        const colsMov = `
+                id,
+                tipo_movimiento,
+                cantidad,
+                stock_anterior,
+                stock_resultante,
+                costo_unitario,
+                created_at,
                 documento_id,
                 lote_id,
+                criterio_lote,
                 lotes_inventario ( id, numero_lote )
-            `)
+            `;
+        let { data: movimientos, error } = await supabaseClient
+            .from('movimientos_inventario')
+            .select(colsMov)
             .eq('producto_id', productoId)
             .order('created_at', { ascending: true });
+
+        // Degradar si aún no existe movimientos_inventario.criterio_lote (falta sql/2026-09-13)
+        if (error && /criterio_lote|column .* does not exist/i.test(error.message || '')) {
+            ({ data: movimientos, error } = await supabaseClient
+                .from('movimientos_inventario')
+                .select(colsMov.replace('criterio_lote,', ''))
+                .eq('producto_id', productoId)
+                .order('created_at', { ascending: true }));
+        }
 
         if (error) throw error;
 
@@ -285,6 +296,9 @@ window.consultarKardexProducto = async function() {
             const claseCantidad = esEntrada ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold';
             const signo = esEntrada ? '+' : '';
             const numeroLote = m.lotes_inventario?.numero_lote || 'N/D';
+            const chipFefo = m.criterio_lote === 'FEFO'
+                ? ' <span class="text-[9px] bg-amber-900/50 text-amber-300 border border-amber-700 rounded px-1 py-0.5 align-middle" title="Este lote se adelantó por caducidad (conviene a producción)">FEFO</span>'
+                : '';
 
             const colDocId = docId ? `
                 <button onclick="window.abrirDetalleDocumento('${docId}')" class="font-mono text-xs text-indigo-400 hover:text-indigo-300 hover:underline bg-indigo-950/50 hover:bg-indigo-900/50 px-2 py-1 rounded border border-indigo-800/50 transition flex items-center gap-1 w-fit cursor-pointer">
@@ -298,7 +312,7 @@ window.consultarKardexProducto = async function() {
                     <td class="p-3">${colDocId}</td>
                     <td class="p-3 text-xs text-slate-400 font-mono">${fechaHora}</td>
                     <td class="p-3 text-xs uppercase font-semibold text-indigo-300">${m.tipo_movimiento || 'N/D'}</td>
-                    <td class="p-3 text-xs font-mono text-amber-300">${numeroLote}</td>
+                    <td class="p-3 text-xs font-mono text-amber-300">${numeroLote}${chipFefo}</td>
                     <td class="p-3 font-mono text-slate-300">$${Number(m.costo_unitario || 0).toFixed(2)}</td>
                     <td class="p-3 text-center font-mono text-slate-400">${m.stock_anterior_calc ?? 0}</td>
                     <td class="p-3 text-center font-mono ${claseCantidad}">${signo}${cantNum}</td>

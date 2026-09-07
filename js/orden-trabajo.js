@@ -243,6 +243,47 @@ async function pintarOrden() {
 
     const miId = Number(sesion.empleadoId);
 
+    // Componentes a surtir + lotes FIFO (degrada si falta el SQL 2026-09-12)
+    let comps = [];
+    try {
+        const { data: cp } = await supabaseClient
+            .from('v_ot_orden_componentes')
+            .select('producto_id, producto_nombre, unidad, requiere_caducidad, cantidad_requerida, total_disponible, faltante, lote_id, numero_lote, lote_proveedor, fecha_caducidad, tomar_de_lote, criterio')
+            .eq('orden_id', ordenActualId);
+        comps = cp || [];
+    } catch (_) { comps = []; }
+
+    const fnum = (n) => Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 });
+    const grupos = new Map();
+    comps.forEach(r => {
+        if (!grupos.has(r.producto_id)) grupos.set(r.producto_id, { info: r, lotes: [] });
+        if (r.lote_id) grupos.get(r.producto_id).lotes.push(r);
+    });
+    const hayFefo = comps.some(r => r.criterio === 'FEFO');
+    const componentesHtml = grupos.size ? `
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 mb-3">
+            <p class="text-sm font-semibold text-sky-400 mb-1">Componentes a surtir</p>
+            <p class="text-[10px] text-slate-500 mb-1">Toma los lotes en este orden. Regla: primero el que caduca antes; si dos caducan el mismo mes, el más antiguo. Si hay varias órdenes abiertas, confirma con producción.</p>
+            ${hayFefo ? `<p class="text-[10px] text-amber-300 mb-2">La marca <b>FEFO</b> = ese lote se adelanta porque caduca antes — conviene a producción, evita merma.</p>` : '<div class="mb-1"></div>'}
+            ${[...grupos.values()].map(g => {
+                const i = g.info;
+                const falta = Number(i.faltante || 0) > 0;
+                return `
+                <div class="border-t border-slate-800/70 pt-2 mt-2">
+                    <div class="flex justify-between items-baseline gap-2">
+                        <span class="text-sm text-slate-100 font-medium">${i.producto_nombre || 'Componente'}</span>
+                        <span class="text-xs font-mono ${falta ? 'text-rose-400' : 'text-slate-300'} shrink-0">${fnum(i.cantidad_requerida)} ${i.unidad || ''}</span>
+                    </div>
+                    ${falta ? `<p class="text-[11px] text-rose-400">⚠ Faltan ${fnum(i.faltante)} ${i.unidad || ''} — disponible ${fnum(i.total_disponible)}</p>` : ''}
+                    ${g.lotes.map(l => `
+                        <div class="flex justify-between items-baseline text-[11px] mt-0.5 gap-2">
+                            <span class="text-slate-400">↳ Lote <span class="font-mono text-slate-200">${l.numero_lote || l.lote_proveedor || 'S/L'}</span>${l.fecha_caducidad ? ` · <span class="${i.requiere_caducidad ? 'text-amber-400' : 'text-slate-500'}">vence ${l.fecha_caducidad}</span>` : ''}${l.criterio === 'FEFO' ? ' · <span class="text-amber-300 font-semibold">FEFO</span>' : ''}</span>
+                            <span class="font-mono text-emerald-400 shrink-0">tomar ${fnum(l.tomar_de_lote)}</span>
+                        </div>`).join('') || (falta ? '' : '<p class="text-[11px] text-slate-600">Sin lotes con existencia.</p>')}
+                </div>`;
+            }).join('')}
+        </div>` : '';
+
     const procesosHtml = (procesos || []).map(p => {
         const team = equipos.filter(e => e.orden_produccion_proceso_id === p.id);
         const miAsign = team.find(e => Number(e.empleado_id) === miId);
@@ -301,6 +342,7 @@ async function pintarOrden() {
     cont.innerHTML = `
         <p class="font-mono font-bold text-amber-400 text-sm">${orden.folio || ('#' + orden.id)}</p>
         <p class="text-sm text-slate-200 mb-3">${orden.producto_nombre || ''} · ${orden.cantidad_producida} u · Lote ${orden.numero_lote || 'S/L'}</p>
+        ${componentesHtml}
         ${procesosHtml || '<p class="text-slate-500 text-sm">Esta orden no tiene procesos.</p>'}
     `;
 
