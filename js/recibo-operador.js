@@ -45,7 +45,11 @@ function engancharCabecera() {
 }
 
 // ---------- comprimir foto antes de mandarla ----------
-function comprimirImagen(file, maxLado = 1280, calidad = 0.6) {
+// Documento (remito/factura): se reescala a 1100 px de lado mayor y se
+// codifica en WebP con calidad baja — es el formato más pequeño para
+// este tipo de imagen (~30% menos que JPEG a calidad equivalente). Si el
+// navegador no sabe codificar WebP (iOS viejo), cae a JPEG.
+function comprimirImagen(file, maxLado = 1100, calidad = 0.5) {
     return new Promise((resolve, reject) => {
         const rd = new FileReader();
         rd.onerror = () => reject(new Error('No se pudo leer la imagen.'));
@@ -60,8 +64,16 @@ function comprimirImagen(file, maxLado = 1280, calidad = 0.6) {
                 }
                 const c = document.createElement('canvas');
                 c.width = w; c.height = h;
-                c.getContext('2d').drawImage(img, 0, 0, w, h);
-                resolve(c.toDataURL('image/jpeg', calidad));
+                const ctx = c.getContext('2d');
+                ctx.fillStyle = '#ffffff';           // fondo blanco si el origen tiene transparencia
+                ctx.fillRect(0, 0, w, h);
+                ctx.drawImage(img, 0, 0, w, h);
+
+                let durl = c.toDataURL('image/webp', calidad);
+                if (durl.indexOf('data:image/webp') !== 0) {          // navegador sin WebP -> JPEG
+                    durl = c.toDataURL('image/jpeg', Math.min(calidad + 0.1, 0.7));
+                }
+                resolve(durl);
             };
             img.src = rd.result;
         };
