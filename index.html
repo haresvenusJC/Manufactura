@@ -226,7 +226,8 @@
                 Entrar
             </button>
             <p class="text-[11px] text-slate-500 text-center">
-                ¿Eres operario? Usa la <span class="text-slate-300">Orden de Trabajo</span> en tu celular.
+                ¿Eres operario? Usa la <span class="text-slate-300">Orden de Trabajo</span> o el
+                <span class="text-slate-300">Pre-recibo de mercancía</span> en tu celular.
             </p>
         </form>
     </div>
@@ -674,8 +675,15 @@
                     </div>
                 </div>
 
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-                    <p class="text-slate-400 text-sm">Parámetros generales del sistema de control de inventarios Hares de México.</p>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
+                    <h3 class="text-md font-semibold text-slate-200">Herramientas para operadores</h3>
+                    <p class="text-xs text-slate-400">Páginas móviles independientes. Comparte el enlace, o escanéalo desde una tablet / celular y agrégalo a la pantalla de inicio para usarlo como una app.</p>
+                    <div id="enlacesOperador" class="grid gap-3 sm:grid-cols-2"></div>
+                    <div class="text-[11px] text-slate-500 border-t border-slate-800 pt-3 space-y-1">
+                        <p class="font-semibold text-slate-400">Instalar en el dispositivo</p>
+                        <p><b>Android (Chrome):</b> abre el enlace &rarr; menú &#8942; &rarr; &ldquo;Agregar a pantalla principal&rdquo;.</p>
+                        <p><b>iPhone / iPad (Safari):</b> abre el enlace &rarr; botón Compartir &rarr; &ldquo;Agregar a inicio&rdquo;.</p>
+                    </div>
                 </div>
             </section>
         </main>
@@ -715,6 +723,54 @@
                     document.documentElement.setAttribute('data-theme', t);
                     try { localStorage.setItem('hares_tema', t); } catch (e) {}
                     marcar(t);
+                });
+            });
+        })();
+    </script>
+
+    <!-- QR para los enlaces de operador (Configuración > Herramientas) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        (function () {
+            var cont = document.getElementById('enlacesOperador');
+            if (!cont) return;
+            // URL pública fija (GitHub Pages). Si algún día cambia el hosting, ajústala aquí.
+            var base = 'https://haresvenusjc.github.io/Manufactura/';
+            var esLocal = /^(127\.0\.0\.1|localhost|0\.0\.0\.0)$/.test(location.hostname);
+            var baseLocal = esLocal ? (location.origin + location.pathname.replace(/[^/]*$/, '')) : null;
+            var paginas = [
+                { titulo: 'Orden de Trabajo', desc: 'Operarios de producción: registran tiempos por proceso.', archivo: 'orden-trabajo.html' },
+                { titulo: 'Pre-recibo de mercancía', desc: 'Almacén: foto del documento y confirmación al recibir.', archivo: 'recibo-operador.html' }
+            ];
+            cont.innerHTML = paginas.map(function (p, i) {
+                var url = base + p.archivo;
+                return '<div class="bg-slate-950 border border-slate-800 rounded-lg p-3">'
+                    + '<p class="text-sm font-semibold text-slate-200">' + p.titulo + '</p>'
+                    + '<p class="text-[11px] text-slate-500 mb-2">' + p.desc + '</p>'
+                    + '<div id="qr-' + i + '" class="bg-white p-2 rounded w-fit mb-2"></div>'
+                    + '<p class="text-[11px] font-mono text-slate-400 break-all select-all mb-2">' + url + '</p>'
+                    + (baseLocal ? '<p class="text-[10px] font-mono text-slate-600 break-all mb-2">local: ' + baseLocal + p.archivo + '</p>' : '')
+                    + '<div class="flex gap-2">'
+                    + '<button type="button" data-url="' + url + '" class="enlace-copiar text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded cursor-pointer">Copiar enlace</button>'
+                    + '<a href="' + url + '" target="_blank" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-2 py-1 rounded">Abrir &#8599;</a>'
+                    + '</div></div>';
+            }).join('');
+
+            paginas.forEach(function (p, i) {
+                var el = document.getElementById('qr-' + i);
+                if (el && window.QRCode) {
+                    try { new QRCode(el, { text: base + p.archivo, width: 132, height: 132, correctLevel: QRCode.CorrectLevel.M }); }
+                    catch (e) { el.remove(); }
+                } else if (el) { el.remove(); }
+            });
+
+            cont.querySelectorAll('.enlace-copiar').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    var t = b.dataset.url;
+                    var ok = function () { var o = b.textContent; b.textContent = '¡Copiado!'; setTimeout(function () { b.textContent = o; }, 1500); };
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(t).then(ok, function () { window.prompt('Copia el enlace:', t); });
+                    } else { window.prompt('Copia el enlace:', t); }
                 });
             });
         })();

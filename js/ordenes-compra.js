@@ -465,6 +465,8 @@ export async function cargarModuloReciboMercancia() {
 
     cont.innerHTML = `
     <div class="space-y-4">
+      <div id="rmPreRecibos"></div>
+
       <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
         <div class="flex flex-wrap items-end justify-between gap-3">
           <div class="flex-1 min-w-[240px]">
@@ -579,6 +581,7 @@ export async function cargarModuloReciboMercancia() {
     };
 
     await rmRecepciones();
+    await rmPreRecibos();
 
     if (ocRecibirId) {
         selOc.value = String(ocRecibirId);
@@ -586,6 +589,84 @@ export async function cargarModuloReciboMercancia() {
         ocRecibirId = null;
     }
 }
+
+// ---- Pre-recibos capturados por operadores (recibo-operador.html) ----
+async function rmPreRecibos() {
+    const cont = document.getElementById('rmPreRecibos');
+    if (!cont) return;
+
+    let filas;
+    try {
+        const { data, error } = await supabaseClient
+            .from('pre_recibos')
+            .select('id, orden_compra_id, referencia, empleado_nombre, fotos, observaciones, todo_correcto, creado_en, ordenes_compra ( folio, proveedores ( nombre ) )')
+            .eq('estatus', 'pendiente')
+            .order('creado_en', { ascending: true });
+        if (error) throw error;
+        filas = data || [];
+    } catch (err) {
+        const m = err?.message || String(err);
+        cont.innerHTML = /does not exist|schema cache|could not find/i.test(m)
+            ? `<p class="text-[11px] text-slate-600">Pre-recibos de operadores: falta correr <span class="font-mono">sql/2026-09-11_prerecibo_operador.sql</span>.</p>`
+            : `<p class="text-rose-400 text-xs">Error al leer pre-recibos: ${esc(m)}</p>`;
+        return;
+    }
+
+    const linkOperador = `<a href="recibo-operador.html" target="_blank" class="text-[11px] text-sky-400 hover:underline">Abrir pantalla de operador ↗</a>`;
+
+    if (filas.length === 0) {
+        cont.innerHTML = `<div class="bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
+            <span class="text-xs text-slate-500">No hay pre-recibos de operadores por validar.</span>${linkOperador}</div>`;
+        return;
+    }
+
+    cont.innerHTML = `
+      <div class="bg-amber-950/30 border border-amber-800/50 rounded-xl p-3">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-semibold text-amber-300">Pre-recibos por validar (${filas.length})</h3>
+          ${linkOperador}
+        </div>
+        <div class="space-y-2">
+          ${filas.map(pr => {
+            const fotos = Array.isArray(pr.fotos) ? pr.fotos : [];
+            const oc = pr.orden_compra_id
+                ? `OC ${esc(pr.ordenes_compra?.folio || '#' + pr.orden_compra_id)} · ${esc(pr.ordenes_compra?.proveedores?.nombre || 's/proveedor')}`
+                : `Sin OC · ref. ${esc(pr.referencia || '—')}`;
+            return `
+              <div class="bg-slate-950 border border-slate-800 rounded-lg p-3">
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="text-sm text-slate-200 font-semibold">${oc}</p>
+                    <p class="text-[11px] text-slate-500">Operador: ${esc(pr.empleado_nombre || '?')} · ${new Date(pr.creado_en).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</p>
+                    <p class="text-[11px] mt-0.5 ${pr.todo_correcto ? 'text-emerald-400' : 'text-amber-400'}">${pr.todo_correcto ? '✔ El operador confirmó que todo cuadra' : '⚠ El operador NO marcó "todo correcto"'}</p>
+                    ${pr.observaciones ? `<p class="text-[11px] text-slate-400 mt-0.5">“${esc(pr.observaciones)}”</p>` : ''}
+                  </div>
+                  <div class="flex gap-2 shrink-0">
+                    <button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'validar')" class="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg">✔ Validar y recibir</button>
+                    <button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'rechazar')" class="text-xs bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-3 py-1.5 rounded-lg">✕ Rechazar</button>
+                  </div>
+                </div>
+                ${fotos.length ? `<div class="flex gap-2 mt-2 flex-wrap">${fotos.map(f => `<a href="${f}" target="_blank"><img src="${f}" class="w-20 h-20 object-cover rounded border border-slate-700"></a>`).join('')}</div>` : '<p class="text-[11px] text-rose-400 mt-2">Sin fotos.</p>'}
+              </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+}
+
+window.prereciboValidar = async (id, ocId, accion) => {
+    let nota = null;
+    if (accion === 'rechazar') {
+        nota = prompt('Motivo del rechazo (se lo verá el operador con administración):', '');
+        if (nota === null) return;
+    }
+    const { error } = await supabaseClient.rpc('prerecibo_validar', { p_id: Number(id), p_accion: accion, p_nota: nota });
+    if (error) { alert('No se pudo procesar: ' + (error.message || error)); return; }
+    if (accion === 'validar' && ocId) {
+        window.irARecibirOC(ocId);   // recarga el módulo y abre esa OC para capturar la recepción
+    } else {
+        await rmPreRecibos();
+    }
+};
 
 async function rmRecepciones() {
     const cont = document.getElementById('rmRecepciones');
