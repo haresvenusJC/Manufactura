@@ -213,14 +213,18 @@ end $$;
 --    orden_produccion_proceso_empleados). Postgres exige truncar todo
 --    ese grupo junto aunque ya esté vacío por los PASOS 2-6 — es la
 --    sola EXISTENCIA de la constraint la que lo exige, no los datos.
---    Al vaciar : el catálogo queda en cero. Los ids vuelven a arrancar
---               en 1 (restart identity). unidades_medida, monedas,
---               proveedores, cuentas_contables, etc. NO se tocan.
+--    Al vaciar : el catálogo queda en cero. Todos los consecutivos id
+--               vuelven a 1: primero con RESTART IDENTITY y además con
+--               un ALTER SEQUENCE explícito por si la secuencia de
+--               productos.id no está "owned by" la columna (en ese caso
+--               RESTART IDENTITY no la tocaría). unidades_medida,
+--               monedas, proveedores, cuentas_contables, etc. NO se tocan.
 -- ─────────────────────────────────────────────────────────────────────
 do $$
 declare
     t          text;
     n          bigint;
+    v_seq      text;
     existentes text[] := array[]::text[];
     candidatos text[] := array[
         'movimientos_inventario', 'documento_detalles', 'lotes_inventario',
@@ -241,6 +245,25 @@ begin
 
     execute 'truncate table ' || array_to_string(existentes, ', ') || ' restart identity';
     raise notice 'PASO 7  truncado junto (por dependencia de FK): %', array_to_string(existentes, ', ');
+
+    -- Reinicio explícito del consecutivo de cada tabla truncada — cubre
+    -- el caso de una secuencia que no está vinculada a la columna, que
+    -- RESTART IDENTITY ignoraría. En particular: productos.id -> 1.
+    foreach t in array candidatos loop
+        if to_regclass('public.' || t) is null then continue; end if;
+
+        v_seq := pg_get_serial_sequence(format('public.%I', t), 'id');
+        if v_seq is null and to_regclass('public.' || t || '_id_seq') is not null then
+            v_seq := format('public.%I', t || '_id_seq');   -- fallback por nombre convencional
+        end if;
+
+        if v_seq is not null then
+            execute 'alter sequence ' || v_seq || ' restart with 1';
+            raise notice 'PASO 7  secuencia reiniciada a 1: %  (para %.id)', v_seq, t;
+        end if;
+    end loop;
+
+    raise notice 'PASO 7  listo. El próximo producto que insertes tendrá id = 1.';
 end $$;
 
 
@@ -257,6 +280,10 @@ end $$;
 -- union all select 'clientes', count(*) from public.clientes
 -- union all select 'listas_precio (encabezados)', count(*) from public.listas_precio
 -- union all select 'cuentas_contables', count(*) from public.cuentas_contables;
+--
+-- -- ¿en cuánto quedó el consecutivo de productos? (debe decir 1, is_called = false)
+-- select pg_get_serial_sequence('public.productos','id') as secuencia;
+-- select last_value, is_called from public.productos_id_seq;
 
 
 -- =====================================================================
