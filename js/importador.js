@@ -39,6 +39,7 @@ const CAMPOS = [
     { key: 'tiempo_entrega_dias', label: 'Tiempo de entrega (dias)', grupo: 'compras', hints: ['tiempo de entrega', 'lead time', 'leadtime', 'dias entrega', 'plazo de entrega', 'dias de surtido', 'entrega dias', 'lead', 'plazo'] },
     { key: 'cantidad_minima_compra', label: 'Cantidad minima de compra (MOQ)', grupo: 'compras', hints: ['moq', 'minima compra', 'minimo de compra', 'lote minimo', 'pedido minimo', 'compra minima', 'cantidad minima', 'multiplo de compra'] },
     { key: 'activo',         label: 'Activo / vigente',     grupo: 'compras',  hints: ['activo', 'vigente', 'habilitado', 'enabled', 'estatus', 'status', 'estado', 'alta'] },
+    { key: 'requiere_caducidad', label: 'Requiere control de caducidad', grupo: 'compras', hints: ['requiere caducidad', 'control de caducidad', 'caducidad', 'caduca', 'perecedero', 'vencimiento', 'requiere vencimiento', 'controla caducidad', 'fecha de caducidad', 'lote con caducidad', 'con caducidad'] },
 ];
 
 // --------- parsers de los campos nuevos ---------
@@ -133,7 +134,7 @@ export async function cargarModuloImportador() {
                     Plantilla de ejemplo:
                     <a href="ejemplos/plantilla_materias_primas.xlsx" download class="text-sky-400 hover:underline">Excel</a> ·
                     <a href="ejemplos/plantilla_materias_primas.csv" download class="text-sky-400 hover:underline">CSV</a>
-                    <span class="text-slate-600 block mt-1">Encabezados: Nombre · SKU · Tipo · Proveedor · Precio (costo) · Precio de venta · Moneda · Unidad · Tasa IVA · Tasa IEPS · Stock minimo · Tiempo entrega dias · Cantidad minima compra · Activo · Notas</span>
+                    <span class="text-slate-600 block mt-1">Encabezados: Nombre · SKU · Tipo · Proveedor · Precio (costo) · Precio de venta · Moneda · Unidad · Tasa IVA · Tasa IEPS · Stock minimo · Tiempo entrega dias · Cantidad minima compra · Activo · Requiere caducidad (1/0) · Notas</span>
                 </div>
             </div>
         </div>
@@ -694,6 +695,15 @@ function validar() {
                 if (rawA) problemas.push('activo "' + rawA + '" no reconocido (usa si/no)');
             } else {
                 extras.activo = b;
+            }
+        }
+        if (estado.mapeo.requiere_caducidad) {
+            const b = parseBooleano(celda(fila, 'requiere_caducidad'));
+            if (b === undefined) {
+                const rawC = String(celda(fila, 'requiere_caducidad')).trim();
+                if (rawC) problemas.push('requiere caducidad "' + rawC + '" no reconocido (usa 1/0 o si/no)');
+            } else {
+                extras.requiere_caducidad = b;
             }
         }
 

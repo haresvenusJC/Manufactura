@@ -18,7 +18,8 @@ En `ejemplos/`:
 - `LEEME_plantilla.md` — qué va en cada columna.
 
 Encabezados (fila 1): `Nombre` (obligatorio) · `SKU` · `Proveedor` · `Precio` ·
-`Moneda` · `Unidad` · `Notas`. Con esos nombres el importador mapea todo solo.
+`Moneda` · `Unidad` · `Requiere caducidad` (`1`/`0`) · `Notas`. Con esos nombres
+el importador mapea todo solo.
 
 ## Flujo
 

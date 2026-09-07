@@ -52,10 +52,11 @@ Ninguna columna tiene que llamarse exactamente así: el importador detecta el en
 | **Tiempo entrega dias** | Días que tarda el proveedor en surtir (entero). |
 | **Cantidad minima compra** | MOQ: cantidad mínima que vende el proveedor (número). |
 | **Activo** | `si` / `no` (también `1`/`0`, `vigente`, `baja`…). |
+| **Requiere caducidad** | `1` = sí (al recibir cada lote se pide la fecha de vencimiento y ese lote entra a las alertas de caducidad). `0` o vacío = no. También acepta `si` / `no`. Déjalo en `0` para materias primas / insumos que no caducan. |
 
 ## Reglas de importación
 
-- **Ya existe** (por SKU, o por Nombre si no hay SKU) → se **actualiza** con las columnas que hayas mapeado (precio, moneda, unidad, proveedor, notas, tasas, stock mínimo, MOQ, activo… y **tipo** si mapeaste esa columna).
+- **Ya existe** (por SKU, o por Nombre si no hay SKU) → se **actualiza** con las columnas que hayas mapeado (precio, moneda, unidad, proveedor, notas, tasas, stock mínimo, MOQ, activo, requiere caducidad… y **tipo** si mapeaste esa columna).
 - **No existe** → se **crea**. El tipo sale de la columna `Tipo` si la mapeaste; si no, del selector "Tipo para productos nuevos" (ajustable fila por fila en la vista previa).
 - Valores que no se entienden (IVA no numérico, `activo` distinto de si/no, tipo desconocido) se marcan como aviso en la fila y ese campo no se toca; el resto de la fila sí entra.
 - En la vista previa marcas qué filas entran. **Nada se guarda hasta pulsar "Importar".**
