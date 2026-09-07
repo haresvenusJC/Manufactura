@@ -5,8 +5,8 @@ import { siguientePeriodoSugerido, nomAutorizar, nomCancelar, actualizarBannerNo
 // Contabilidad · Tareas — bandeja de pendientes que requieren revisión
 // humana. Dos orígenes:
 //   1. Tareas persistentes de la tabla public.tareas (las genera el
-//      sistema solo: hoy 'inventario_bajo_minimo'). Se pueden marcar
-//      Atendida / No aceptada (posponer) / No aplica (archivar).
+//      sistema solo: 'inventario_bajo_minimo', 'caducidad_proxima').
+//      Se marcan Atendida / No aceptada (posponer) / No aplica (archivar).
 //   2. Señales calculadas al vuelo (nóminas en borrador, recordatorio
 //      del viernes) que no viven en una tabla.
 // Agregar un tipo nuevo = sumar un fetcher, no rediseñar la pantalla.
@@ -18,6 +18,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const TABLA_FALTA = /does not exist|schema cache|could not find|relation .* does not exist/i;
 
 export async function cargarModuloTareas() {
+    cargarConfigCaducidad();   // panel de umbrales de caducidad (independiente)
     cargarHistorialTareas();   // independiente: se ve aunque no haya pendientes
 
     const cont = document.getElementById('contenedorTareas');
@@ -45,7 +46,7 @@ export async function cargarModuloTareas() {
 
         cont.querySelectorAll('.tarea-atender').forEach((b) => b.addEventListener('click', () => resolverTarea(b, 'atender', null, 'Marcada como atendida')));
         cont.querySelectorAll('.tarea-descartar').forEach((b) => b.addEventListener('click', () => {
-            const d = prompt('¿En cuántos días quieres que vuelva a aparecer si sigue bajo el mínimo?', '7');
+            const d = prompt('¿En cuántos días quieres que vuelva a aparecer si sigue aplicando?', '7');
             if (d === null) return;
             resolverTarea(b, 'posponer', Math.max(1, parseInt(d, 10) || 7), 'No aceptada por el usuario');
         }));
@@ -56,6 +57,7 @@ export async function cargarModuloTareas() {
             };
             window.loadView('ordenes-compra');
         }));
+        cont.querySelectorAll('.tarea-ir-lote').forEach((b) => b.addEventListener('click', () => window.loadView('inventario')));
 
         cont.querySelectorAll('.tarea-autorizar').forEach((b) => b.addEventListener('click', async () => {
             await nomAutorizar(Number(b.dataset.id), b);
@@ -114,6 +116,9 @@ function renderTareaSistema(t) {
     const botonOc = t.accion_sugerida === 'crear_orden_compra' && t.entidad_id
         ? `<button type="button" data-prod="${t.entidad_id}" data-sug="${sug}" class="tarea-ir-oc text-xs bg-emerald-700 hover:bg-emerald-600 text-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-600 cursor-pointer">🛒 Crear orden de compra</button>`
         : '';
+    const botonLote = t.accion_sugerida === 'revisar_lote'
+        ? `<button type="button" class="tarea-ir-lote text-xs bg-sky-800 hover:bg-sky-700 text-sky-100 px-3 py-1.5 rounded-lg border border-sky-600 cursor-pointer">📦 Ver en inventario</button>`
+        : '';
     const revivida = t.estatus === 'pospuesta'
         ? `<p class="text-[11px] text-sky-400/80">Reapareció: venció el aplazamiento y sigue bajo el mínimo.</p>` : '';
     return `
@@ -126,6 +131,7 @@ function renderTareaSistema(t) {
                 </div>
                 <div class="flex gap-2 flex-wrap justify-end shrink-0">
                     ${botonOc}
+                    ${botonLote}
                     <button type="button" data-tarea="${t.id}" class="tarea-atender text-xs bg-amber-800 hover:bg-amber-700 text-amber-100 px-3 py-1.5 rounded-lg border border-amber-600 cursor-pointer">✔ Atendida</button>
                     <button type="button" data-tarea="${t.id}" class="tarea-descartar text-xs bg-slate-800 hover:bg-slate-700 text-rose-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">✕ No aceptada</button>
                 </div>
@@ -339,6 +345,108 @@ function pintarCuerpoHistorial() {
             <td class="p-2 text-slate-400">${esc(t.resuelta_por_email) || (t.estatus === 'archivada' ? 'Automático' : '—')}</td>
             <td class="p-2 text-slate-500">${esc(t.nota_resolucion || '')}</td>
         </tr>`).join('');
+}
+
+// =====================================================================
+// Configuración de alertas de CADUCIDAD — umbrales editables
+// (public.alertas_caducidad_umbrales). Al cambiar cualquier cosa se
+// vuelve a correr tareas_sync_caducidad para re-evaluar los lotes.
+// Requiere sql/2026-09-09_tareas_caducidad.sql.
+// =====================================================================
+
+const PRIO_LABEL = { 1: 'Alta', 2: 'Normal', 3: 'Baja' };
+
+async function cargarConfigCaducidad() {
+    const cont = document.getElementById('contenedorConfigCaducidad');
+    if (!cont) return;
+    cont.innerHTML = `<p class="text-slate-500">Cargando configuración de alertas de caducidad...</p>`;
+
+    let umbrales;
+    try {
+        const { data, error } = await supabaseClient
+            .from('alertas_caducidad_umbrales')
+            .select('*')
+            .order('dias', { ascending: false });
+        if (error) throw error;
+        umbrales = data || [];
+    } catch (err) {
+        if (TABLA_FALTA.test(err.message || '')) {
+            cont.innerHTML = `<p class="text-slate-600 text-xs">Las alertas de caducidad aún no están activadas (falta correr sql/2026-09-09_tareas_caducidad.sql).</p>`;
+            return;
+        }
+        cont.innerHTML = `<p class="text-rose-400 text-xs">Error al leer los umbrales: ${esc(err.message || String(err))}</p>`;
+        return;
+    }
+
+    cont.innerHTML = `
+        <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <h3 class="text-sm font-semibold text-slate-300">Alertas de caducidad — umbrales</h3>
+            <span class="text-[11px] text-slate-500">Aviso cuando a un lote le queden ≤ estos días de vida</span>
+        </div>
+        <table class="w-full text-xs mb-3">
+            <thead>
+                <tr class="text-left text-slate-500 border-b border-slate-800">
+                    <th class="p-2">Activo</th><th class="p-2">Días</th><th class="p-2">Etiqueta</th><th class="p-2">Prioridad</th><th class="p-2"></th>
+                </tr>
+            </thead>
+            <tbody id="cadCuerpo">
+                ${umbrales.map((u) => `
+                    <tr class="border-b border-slate-900" data-dias="${u.dias}">
+                        <td class="p-2"><input type="checkbox" class="cad-activo" data-dias="${u.dias}" ${u.activo ? 'checked' : ''}></td>
+                        <td class="p-2 font-mono text-slate-200">${u.dias}</td>
+                        <td class="p-2 text-slate-300">${esc(u.etiqueta)}</td>
+                        <td class="p-2 text-slate-400">${PRIO_LABEL[u.prioridad] || u.prioridad}</td>
+                        <td class="p-2 text-right"><button type="button" class="cad-borrar text-rose-400 hover:text-rose-300 cursor-pointer" data-dias="${u.dias}" title="Quitar umbral">✕</button></td>
+                    </tr>`).join('') || `<tr><td colspan="5" class="p-2 text-slate-500">Sin umbrales. Agrega al menos uno.</td></tr>`}
+            </tbody>
+        </table>
+        <div class="flex flex-wrap items-end gap-2 text-xs">
+            <div><label class="block text-slate-500 mb-1">Días</label>
+                <input type="number" id="cadDias" min="0" step="1" class="w-24 bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-slate-200"></div>
+            <div><label class="block text-slate-500 mb-1">Etiqueta</label>
+                <input type="text" id="cadEtiqueta" placeholder="ej. 15 días de vida" class="w-48 bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-slate-200"></div>
+            <div><label class="block text-slate-500 mb-1">Prioridad</label>
+                <select id="cadPrioridad" class="bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-slate-200">
+                    <option value="1">Alta</option><option value="2" selected>Normal</option><option value="3">Baja</option>
+                </select></div>
+            <button type="button" id="cadAgregar" class="bg-emerald-800 hover:bg-emerald-700 text-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-600 cursor-pointer">Agregar umbral</button>
+        </div>
+        <p id="cadMsg" class="text-[11px] text-slate-500 mt-2"></p>`;
+
+    const msg = document.getElementById('cadMsg');
+    const reevaluar = async () => {
+        msg.textContent = 'Re-evaluando lotes...';
+        const { error } = await supabaseClient.rpc('tareas_sync_caducidad', { p_lote_id: null });
+        if (error) { msg.textContent = 'Umbral guardado, pero falló la re-evaluación: ' + (error.message || error); return; }
+        await cargarModuloTareas();
+    };
+
+    cont.querySelectorAll('.cad-activo').forEach((c) => c.addEventListener('change', async () => {
+        const { error } = await supabaseClient.from('alertas_caducidad_umbrales')
+            .update({ activo: c.checked }).eq('dias', Number(c.dataset.dias));
+        if (error) { alert('No se pudo actualizar: ' + (error.message || error)); c.checked = !c.checked; return; }
+        await reevaluar();
+    }));
+
+    cont.querySelectorAll('.cad-borrar').forEach((b) => b.addEventListener('click', async () => {
+        if (!confirm(`¿Quitar el umbral de ${b.dataset.dias} días?`)) return;
+        const { error } = await supabaseClient.from('alertas_caducidad_umbrales')
+            .delete().eq('dias', Number(b.dataset.dias));
+        if (error) { alert('No se pudo quitar: ' + (error.message || error)); return; }
+        await reevaluar();
+    }));
+
+    document.getElementById('cadAgregar').addEventListener('click', async () => {
+        const dias = parseInt(document.getElementById('cadDias').value, 10);
+        const etiqueta = document.getElementById('cadEtiqueta').value.trim();
+        const prioridad = Number(document.getElementById('cadPrioridad').value) || 2;
+        if (!Number.isInteger(dias) || dias < 0) { msg.textContent = 'Pon un número de días válido (0 o más).'; return; }
+        if (!etiqueta) { msg.textContent = 'Pon una etiqueta.'; return; }
+        const { error } = await supabaseClient.from('alertas_caducidad_umbrales')
+            .upsert({ dias, etiqueta, prioridad, activo: true }, { onConflict: 'dias' });
+        if (error) { msg.textContent = 'No se pudo agregar: ' + (error.message || error); return; }
+        await reevaluar();
+    });
 }
 
 async function fetchHistorialTareas({ estatus, tipo, desde, hasta }) {
