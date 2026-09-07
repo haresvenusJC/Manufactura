@@ -216,7 +216,11 @@ const ESTATUS_BADGE = {
     pospuesta: 'bg-sky-900/50 text-sky-300 border-sky-700',
     archivada: 'bg-slate-800 text-slate-400 border-slate-700',
 };
-const TIPO_LABEL = { inventario_bajo_minimo: 'Inventario bajo mínimo' };
+const TIPO_LABEL = {
+    inventario_bajo_minimo: 'Inventario bajo mínimo',
+    caducidad_proxima: 'Caducidad próxima',
+    caducidad_sin_fecha: 'Falta fecha de caducidad',
+};
 
 let histFilasCache = [];   // último resultado del servidor (ya filtrado por estatus/tipo/fechas)
 

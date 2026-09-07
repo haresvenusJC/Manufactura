@@ -242,6 +242,11 @@ export async function cargarCatalogoInicial() {
                             </div>
                         </div>
 
+                        <label class="flex items-start gap-2 text-xs text-slate-300 bg-slate-900/40 border border-slate-800 rounded-lg px-3 py-2">
+                            <input type="checkbox" id="prodRequiereCaducidad" class="accent-emerald-500 w-4 h-4 mt-0.5 shrink-0">
+                            <span>Requiere control de <strong>caducidad</strong> — al recibir cada lote se pedirá la fecha de vencimiento y ese lote entrará a las alertas de caducidad. Déjalo sin marcar para materias primas / insumos que no caducan.</span>
+                        </label>
+
                         <details class="bg-slate-900/40 border border-slate-800 rounded-lg">
                             <summary class="cursor-pointer select-none text-xs font-semibold text-sky-400 px-3 py-2">Más detalles (opcional)</summary>
                             <div class="p-3 pt-0 space-y-3">
@@ -268,10 +273,6 @@ export async function cargarCatalogoInicial() {
                                     <label class="block text-[11px] text-slate-400 mb-1">Descripción / Notas</label>
                                     <textarea id="prodDesc" placeholder="Especificaciones adicionales" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100" rows="2"></textarea>
                                 </div>
-                                <label class="flex items-center gap-2 text-[11px] text-slate-300">
-                                    <input type="checkbox" id="prodRequiereCaducidad" class="accent-emerald-500 w-3.5 h-3.5">
-                                    Requiere control de caducidad (se pedirá la fecha al recibir cada lote)
-                                </label>
 
                                 <div class="border-t border-slate-800 pt-3 ${cuentasContables.length ? '' : 'hidden'}">
                                     <p class="text-[11px] font-semibold text-sky-400 mb-2">Datos contables</p>
