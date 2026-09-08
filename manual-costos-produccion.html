@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Manual de costos de producción — Hares de México</title>
+<title>Manual de gastos y costos de producción — Hares de México</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
@@ -11,67 +11,60 @@
   :root{
     --paper:#f7f6f3; --ink:#25303b; --mut:#5b6b78; --faint:#8a97a1;
     --rule:#e2dfd8; --rule-soft:#ece9e2; --code-bg:#eeece6; --panel:#fbfaf7;
-    --accent:#0d6a7a; --accent-soft:#e0eff1;
+    --accent:#0d6a7a;
     --warn:#8a5d00; --warn-bg:#f6edd8; --ok:#2f7a4a; --ok-bg:#e2f0e6;
+    --tec:#5a4b86; --tec-bg:#efecf7;
   }
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
       --paper:#141a1f; --ink:#e8ecef; --mut:#9aa8b1; --faint:#6f7d86;
       --rule:#28323a; --rule-soft:#1f272d; --code-bg:#1b232a; --panel:#171e24;
-      --accent:#4bc2d4; --accent-soft:#123037;
+      --accent:#4bc2d4;
       --warn:#e0a53a; --warn-bg:#2a2416; --ok:#5fb884; --ok-bg:#16261d;
+      --tec:#b3a4e0; --tec-bg:#1e1b2e;
     }
   }
   :root[data-theme="dark"]{
     --paper:#141a1f; --ink:#e8ecef; --mut:#9aa8b1; --faint:#6f7d86;
     --rule:#28323a; --rule-soft:#1f272d; --code-bg:#1b232a; --panel:#171e24;
-    --accent:#4bc2d4; --accent-soft:#123037;
+    --accent:#4bc2d4;
     --warn:#e0a53a; --warn-bg:#2a2416; --ok:#5fb884; --ok-bg:#16261d;
+    --tec:#b3a4e0; --tec-bg:#1e1b2e;
   }
   :root[data-theme="light"]{
     --paper:#f7f6f3; --ink:#25303b; --mut:#5b6b78; --faint:#8a97a1;
     --rule:#e2dfd8; --rule-soft:#ece9e2; --code-bg:#eeece6; --panel:#fbfaf7;
-    --accent:#0d6a7a; --accent-soft:#e0eff1;
+    --accent:#0d6a7a;
     --warn:#8a5d00; --warn-bg:#f6edd8; --ok:#2f7a4a; --ok-bg:#e2f0e6;
+    --tec:#5a4b86; --tec-bg:#efecf7;
   }
 
   *{ box-sizing:border-box; }
   body{
     margin:0; background:var(--paper); color:var(--ink);
     font-family:"Spectral", Georgia, "Times New Roman", serif;
-    font-size:18px; line-height:1.68; -webkit-font-smoothing:antialiased;
+    font-size:18px; line-height:1.7;
   }
   img{ max-width:100%; }
   .page{ max-width:44rem; margin:0 auto; padding:clamp(2rem,5vw,4.5rem) clamp(1.15rem,4vw,2rem) 6rem; }
 
-  header.doc{ margin-bottom:2.5rem; }
-  .kicker{
-    font-family:"IBM Plex Mono", monospace; font-size:.72rem; letter-spacing:.2em;
-    text-transform:uppercase; color:var(--accent); margin:0 0 .7rem;
-  }
-  h1{
-    font-weight:700; font-size:clamp(2rem,5vw,2.9rem); line-height:1.1;
-    margin:0 0 .6rem; text-wrap:balance; letter-spacing:-.01em;
-  }
+  header.doc{ margin-bottom:2rem; }
+  .kicker{ font-family:"IBM Plex Mono", monospace; font-size:.72rem; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); margin:0 0 .7rem; }
+  h1{ font-weight:700; font-size:clamp(2rem,5vw,2.9rem); line-height:1.1; margin:0 0 .6rem; text-wrap:balance; letter-spacing:-.01em; }
   .sub{ color:var(--mut); font-size:1.05rem; margin:0; max-width:38rem; }
 
-  .status{
-    display:flex; flex-wrap:wrap; gap:.4rem; margin:1.6rem 0 0;
-    font-family:"IBM Plex Mono", monospace; font-size:.74rem;
-  }
-  .status span{ border:1px solid var(--rule); border-radius:2px; padding:.2rem .5rem; color:var(--mut); }
-  .status span.on{ color:var(--ok); border-color:var(--ok); }
+  nav.toc{ margin:2rem 0 0; border:1px solid var(--rule); border-radius:8px; padding:1rem 1.2rem; background:var(--panel); }
+  nav.toc p{ font-family:"IBM Plex Mono", monospace; font-size:.68rem; letter-spacing:.14em; text-transform:uppercase; color:var(--mut); margin:0 0 .5rem; }
+  nav.toc ol{ margin:0; padding-left:1.3rem; font-size:.95rem; }
+  nav.toc li{ margin:.2rem 0; }
+  nav.toc a{ color:var(--ink); text-decoration:none; }
+  nav.toc a:hover{ color:var(--accent); }
 
   section{ border-top:1px solid var(--rule); margin-top:3rem; padding-top:2.2rem; }
-  h2{
-    font-weight:600; font-size:1.6rem; line-height:1.2; margin:0 0 1rem;
-    text-wrap:balance; letter-spacing:-.005em;
-  }
+  h2{ font-weight:600; font-size:1.6rem; line-height:1.2; margin:0 0 1rem; text-wrap:balance; letter-spacing:-.005em; scroll-margin-top:1rem; }
   h2 .n{ font-family:"IBM Plex Mono", monospace; font-size:1rem; color:var(--accent); margin-right:.6rem; }
-  h3{
-    font-weight:600; font-size:1.12rem; margin:2rem 0 .5rem;
-    font-variant:small-caps; letter-spacing:.03em; color:var(--ink);
-  }
+  h3{ font-weight:600; font-size:1.14rem; margin:2rem 0 .5rem; color:var(--ink); }
+  h4{ font-weight:600; font-size:1rem; margin:1.5rem 0 .4rem; color:var(--ink); font-variant:small-caps; letter-spacing:.03em; }
   p{ margin:0 0 1rem; }
   .lead{ font-size:1.06rem; color:var(--mut); }
   strong{ font-weight:600; }
@@ -79,335 +72,571 @@
   a{ color:var(--accent); text-underline-offset:2px; }
 
   ul,ol{ margin:0 0 1.15rem; padding-left:1.3rem; }
-  li{ margin:.35rem 0; }
+  li{ margin:.4rem 0; }
   li::marker{ color:var(--faint); }
 
-  code, .m{
-    font-family:"IBM Plex Mono", monospace; font-size:.86em;
-    background:var(--code-bg); border-radius:3px; padding:.06em .35em;
-  }
-  .term{ font-weight:600; color:var(--accent); }
+  code, .m{ font-family:"IBM Plex Mono", monospace; font-size:.84em; background:var(--code-bg); border-radius:3px; padding:.06em .35em; }
+  .path{ font-family:"IBM Plex Mono", monospace; font-size:.82em; color:var(--accent); white-space:nowrap; }
 
-  .callout{
-    border-left:3px solid var(--accent); background:var(--panel);
-    padding:.9rem 1.1rem; margin:1.4rem 0; border-radius:0 4px 4px 0;
-  }
+  .callout{ border-left:3px solid var(--accent); background:var(--panel); padding:.9rem 1.1rem; margin:1.4rem 0; border-radius:0 4px 4px 0; }
+  .callout > *{ margin:0; }
+  .callout > * + *{ margin-top:.6rem; }
+  .callout .lbl{ font-family:"IBM Plex Mono", monospace; font-size:.66rem; letter-spacing:.14em; text-transform:uppercase; color:var(--mut); display:block; }
   .callout.warn{ border-left-color:var(--warn); background:var(--warn-bg); }
-  .callout p{ margin:0; }
-  .callout .lbl{
-    font-family:"IBM Plex Mono", monospace; font-size:.68rem; letter-spacing:.14em;
-    text-transform:uppercase; color:var(--mut); display:block; margin-bottom:.3rem;
-  }
   .callout.warn .lbl{ color:var(--warn); }
+  .callout.ok{ border-left-color:var(--ok); background:var(--ok-bg); }
+  .callout.ok .lbl{ color:var(--ok); }
+  .callout.tec{ border-left-color:var(--tec); background:var(--tec-bg); }
+  .callout.tec .lbl{ color:var(--tec); }
 
   .tbl{ overflow-x:auto; margin:1.3rem 0; }
-  table{ border-collapse:collapse; width:100%; font-size:.92rem; }
-  th,td{ text-align:left; padding:.5rem .7rem; border-bottom:1px solid var(--rule-soft); vertical-align:top; }
+  table{ border-collapse:collapse; width:100%; font-size:.9rem; }
+  th,td{ text-align:left; padding:.55rem .7rem; border-bottom:1px solid var(--rule-soft); vertical-align:top; }
   th{ font-weight:600; color:var(--mut); border-bottom:1px solid var(--rule); font-variant:small-caps; letter-spacing:.03em; }
   td.num, th.num{ text-align:right; font-family:"IBM Plex Mono", monospace; font-variant-numeric:tabular-nums; }
   tbody tr:last-child td{ border-bottom:0; }
   .tbl.total tbody tr:last-child td{ border-top:2px solid var(--rule); font-weight:600; }
 
-  .calc{
-    font-family:"IBM Plex Mono", monospace; font-size:.86rem; line-height:1.9;
-    background:var(--code-bg); border-radius:5px; padding:1rem 1.15rem; margin:1.3rem 0;
-    white-space:pre-wrap; overflow-x:auto;
-  }
+  .calc{ font-family:"IBM Plex Mono", monospace; font-size:.84rem; line-height:1.85; background:var(--code-bg); border-radius:5px; padding:1rem 1.15rem; margin:1.3rem 0; white-space:pre-wrap; overflow-x:auto; }
 
-  .steps{ counter-reset:step; list-style:none; padding:0; margin:1.3rem 0; }
-  .steps li{
-    counter-increment:step; position:relative; padding-left:2.4rem; margin:1.1rem 0;
-  }
-  .steps li::before{
-    content:counter(step); position:absolute; left:0; top:.05rem;
-    font-family:"IBM Plex Mono", monospace; font-size:.8rem; font-weight:600;
-    width:1.7rem; height:1.7rem; display:grid; place-items:center;
+  ol.steps{ counter-reset:step; list-style:none; padding:0; margin:1.3rem 0; }
+  ol.steps > li{ counter-increment:step; position:relative; padding-left:2.6rem; margin:1.3rem 0; }
+  ol.steps > li::before{
+    content:counter(step); position:absolute; left:0; top:0;
+    font-family:"IBM Plex Mono", monospace; font-size:.82rem; font-weight:600;
+    width:1.8rem; height:1.8rem; display:grid; place-items:center;
     border:1px solid var(--accent); color:var(--accent); border-radius:50%;
   }
+  ol.steps > li > strong:first-child{ display:block; margin-bottom:.15rem; }
 
-  footer{
-    margin-top:4rem; border-top:1px solid var(--rule); padding-top:1.4rem;
-    font-family:"IBM Plex Mono", monospace; font-size:.74rem; color:var(--faint);
-  }
-  @media (max-width:520px){ body{ font-size:16.5px; } }
+  .fieldguide th:first-child{ width:32%; }
+  .fieldguide code{ white-space:nowrap; }
+
+  footer{ margin-top:4rem; border-top:1px solid var(--rule); padding-top:1.4rem; font-family:"IBM Plex Mono", monospace; font-size:.74rem; color:var(--faint); }
+  @media (max-width:520px){ body{ font-size:16.5px; } .path{ white-space:normal; } }
 </style>
 </head>
 <body>
 <div class="page">
+
   <header class="doc">
     <p class="kicker">ERP Hares de México · Contabilidad de costos</p>
-    <h1>Manual de costos de producción</h1>
-    <p class="sub">Configuración, comprensión y ejecución del costeo de producción: costos directos, gastos indirectos de fabricación (CIF), capacidad normal y prorrateo. Documento vivo — cada fase agrega su bloque.</p>
-    <div class="status">
-      <span class="on">Fase 1 · construida</span>
-      <span class="on">Fase 2 · prorrateo</span>
-      <span class="on">Fase 3 · integración al costo</span>
-      <span>Fase 4 · tasa predeterminada y variación</span>
+    <h1>Manual de gastos y costos de producción</h1>
+    <p class="sub">Guía paso a paso, de principio a fin: dar de alta un proveedor, revisar las cuentas contables, crear un centro de costo, capturar un gasto y clasificarlo, prorratear a fin de mes y ver cómo se refleja en el costo de lo que produces.</p>
+
+    <div class="callout">
+      <span class="lbl">Cómo leer este manual</span>
+      <p>El texto principal está en lenguaje llano — si nunca has llevado contabilidad, con eso te basta para operar. Los recuadros marcados <strong>PARA CONTABILIDAD</strong> tienen el detalle técnico (cuentas, cargos y abonos, normas): un contador los aprovecha; cualquier otra persona puede saltárselos sin perderse.</p>
     </div>
+
+    <nav class="toc">
+      <p>Contenido</p>
+      <ol>
+        <li><a href="#p0">Antes de empezar</a></li>
+        <li><a href="#pal">Palabras que vas a ver</a></li>
+        <li><a href="#p1">Parte 1 — Dar de alta el proveedor</a></li>
+        <li><a href="#p2">Parte 2 — El plan de cuentas</a></li>
+        <li><a href="#p3">Parte 3 — Crear el centro de costo</a></li>
+        <li><a href="#p4">Parte 4 — Capturar un gasto y clasificarlo</a></li>
+        <li><a href="#p5">Parte 5 — Fin de mes: el prorrateo</a></li>
+        <li><a href="#p6">Parte 6 — Dónde se ve el costo y qué significa</a></li>
+        <li><a href="#rut">Rutina: qué se hace y cuándo</a></li>
+        <li><a href="#err">Si algo sale mal</a></li>
+        <li><a href="#ap">Apéndice — El porqué contable</a></li>
+      </ol>
+    </nav>
   </header>
 
-  <section>
-    <h2><span class="n">A</span>Concepto</h2>
-    <p class="lead">El costo de un lote producido tiene tres componentes. El ERP ya calcula dos; esta fase prepara el tercero.</p>
+  <!-- ========================================================= -->
+  <section id="p0">
+    <h2><span class="n">0</span>Antes de empezar</h2>
 
-    <div class="tbl">
-      <table>
-        <thead><tr><th>Componente</th><th>Qué es</th><th>Cómo se obtiene hoy</th></tr></thead>
-        <tbody>
-          <tr><td><strong>Materiales directos</strong></td><td>Materia prima consumida por la receta</td><td>Salida FEFO de lotes al cerrar la orden</td></tr>
-          <tr><td><strong>Mano de obra directa</strong></td><td>Tiempo de los operadores en los procesos de la orden</td><td>Horas de <span class="m">registros_tiempo</span> × sueldo</td></tr>
-          <tr><td><strong>Gastos indirectos de fabricación (CIF)</strong></td><td>Costos de tener y operar la planta que no se atribuyen a un producto en particular</td><td><em>— pendiente: lo resuelven estas fases</em></td></tr>
-        </tbody>
-      </table>
-    </div>
+    <h3>La idea en una frase</h3>
+    <p class="lead">Todo lo que gastas para tener y operar la planta tiene que terminar sumado al costo de lo que fabricas — ni de más (eso infla el precio y esconde problemas), ni de menos (eso hace que creas que ganas más de lo que ganas).</p>
+    <p>Este manual te lleva por las pantallas <strong>en el orden en que se usan</strong>. La primera vez haces las Partes 1, 2 y 3 (configuración, una sola vez). Después, la Parte 4 la haces cada vez que llega una factura de gasto, y la Parte 5 una vez al mes.</p>
 
-    <h3>Directo contra indirecto</h3>
-    <p>Un gasto es <span class="term">directo</span> cuando se puede rastrear a una orden concreta (ej. un molde rentado solo para el lote X, un flete de una materia prima específica). Es <span class="term">indirecto</span> (CIF) cuando beneficia a toda la producción y no a un producto: renta de la nave, energía de planta, mantenimiento, depreciación de equipo, supervisión, insumos indirectos.</p>
-
-    <h3>CIF fijo contra variable</h3>
-    <p>Cada cuenta de CIF (<span class="m">503.xx</span>) se marca:</p>
+    <h3>Qué necesitas listo</h3>
     <ul>
-      <li><span class="term">Fijo</span> — no cambia opere o no opere la planta: renta, depreciación de maquinaria, sueldo base de supervisión, seguros y vigilancia.</li>
-      <li><span class="term">Variable</span> — sube y baja con el volumen: energía eléctrica de planta, insumos y materiales indirectos, mantenimiento por uso, servicios (agua, gas).</li>
+      <li>Que un técnico haya corrido en la base de datos, en este orden, los archivos:
+        <code>2026-08-28_contabilidad_cuentas.sql</code>, <code>2026-08-28_contabilidad_polizas.sql</code>,
+        <code>2026-08-28_contabilidad_gastos.sql</code>, <code>2026-09-14_costos_produccion_fase1.sql</code> y
+        <code>2026-09-15_costos_produccion_fase2y3.sql</code>. Si al abrir una pantalla ves un aviso amarillo de "falta correr el SQL", es esto.</li>
+      <li>Tu usuario y contraseña del ERP. Los operarios de piso <em>no</em> usan estas pantallas; se manejan desde su celular.</li>
     </ul>
 
-    <h3>Capacidad normal y capacidad ociosa</h3>
-    <p>Este es el punto que hace la diferencia. Si la planta trabaja al 40% un mes, <strong>no</strong> se debe cargar toda la renta y la depreciación a los pocos lotes que se hicieron: eso infla el costo unitario y esconde el problema real, que es capacidad sin usar.</p>
-    <p>La norma (<span class="m">NIF C-4</span> / <span class="m">IAS 2</span>) lo resuelve así:</p>
+    <h3>Cómo moverte por el menú</h3>
+    <p>Arriba a la izquierda está el ícono de menú (☰). Todo lo de este manual vive bajo <span class="path">Contabilidad</span>, salvo el proveedor que está en <span class="path">Compras / Proveedores</span>:</p>
     <div class="tbl">
       <table>
-        <thead><tr><th>Pool</th><th>Denominador para la tasa</th><th>A dónde va</th></tr></thead>
+        <thead><tr><th>Pantalla</th><th>Ruta</th><th>¿Cada cuándo?</th></tr></thead>
         <tbody>
-          <tr><td>CIF <strong>variable</strong></td><td>actividad <strong>real</strong> del mes</td><td>todo a las órdenes</td></tr>
-          <tr><td>CIF <strong>fijo</strong></td><td><strong>capacidad normal</strong></td><td>la parte proporcional a la actividad real, a las órdenes…</td></tr>
-          <tr><td></td><td></td><td>…el resto = <strong>capacidad ociosa</strong> → cuenta <span class="m">503.98</span>, gasto del periodo, <strong>nunca al inventario</strong></td></tr>
+          <tr><td>Proveedores</td><td class="path">Compras / Proveedores</td><td>Una vez por proveedor</td></tr>
+          <tr><td>Plan de cuentas</td><td class="path">Contabilidad → Plan de cuentas</td><td>Se revisa una vez; se ajusta rara vez</td></tr>
+          <tr><td>Centros de costo</td><td class="path">Contabilidad → Centros de costo</td><td>Una vez al inicio; la capacidad se revisa 1–2 veces al año</td></tr>
+          <tr><td>Gastos</td><td class="path">Contabilidad → Gastos</td><td>Cada factura de gasto</td></tr>
+          <tr><td>Prorrateo de gastos</td><td class="path">Contabilidad → Prorrateo de gastos</td><td>Una vez al mes, después del cierre</td></tr>
         </tbody>
       </table>
     </div>
-    <p>Un mes al 40%: las órdenes reciben su CIF fijo <em>como si</em> la planta estuviera normal; el 60% ocioso aparece claro como gasto del periodo. Un mes al 120%: se sobreaplica un poco y se ajusta a costo de ventas al cierre del ejercicio.</p>
   </section>
 
-  <section>
-    <h2><span class="n">B</span>Configuración</h2>
-
-    <h3>Centros de costo</h3>
-    <p>Contabilidad → <strong>Centros de costo</strong>. Un centro es un área donde se acumulan y prorratean gastos. Al inicio basta uno: <span class="m">PROD · Producción</span>.</p>
+  <!-- ========================================================= -->
+  <section id="pal">
+    <h2><span class="n">·</span>Palabras que vas a ver</h2>
+    <p>No necesitas dominar contabilidad. Solo reconocer estas ocho palabras:</p>
     <div class="tbl">
       <table>
-        <thead><tr><th>Campo</th><th>Para qué</th></tr></thead>
+        <thead><tr><th>Palabra</th><th>Qué es, en cristiano</th></tr></thead>
         <tbody>
-          <tr><td>Código / Nombre / Tipo</td><td>Identificación. Tipo <span class="m">produccion</span> es el que entra al costeo.</td></tr>
-          <tr><td>Cuenta CIF por defecto</td><td>La <span class="m">503.xx</span> que se sugiere al capturar un gasto de ese centro.</td></tr>
-          <tr><td><strong>Capacidad normal (h/mes)</strong></td><td>Horas de mano de obra que la planta produce en un mes <em>normal</em>. Es el número que usa el prorrateo. Editable.</td></tr>
-          <tr><td>Variables del cálculo sugerido</td><td>Operadores, horas de jornada, días hábiles y tres factores de merma. El sistema calcula un valor sugerido; tú decides si lo adoptas.</td></tr>
-          <tr><td>Método CIF</td><td><span class="m">real</span> (a fin de mes) o <span class="m">predeterminado</span> (tasa por hora, Fase 4).</td></tr>
+          <tr><td><strong>Cuenta contable</strong></td><td>Un cajón con etiqueta donde se acumula un tipo de movimiento de dinero. "Renta" es un cajón, "Banco" es otro, "Inventario de materia prima" es otro. Cada cajón tiene un número (ej. <code>503.05</code>).</td></tr>
+          <tr><td><strong>Plan de cuentas</strong></td><td>La lista completa de todos los cajones. Ya viene armada; casi no se toca.</td></tr>
+          <tr><td><strong>Cargo y abono</strong></td><td>Cada movimiento de dinero entra por un lado y sale por otro. "Cargo" a un cajón, "abono" a otro, y los dos lados suman igual. Es la forma de que nada se pierda.</td></tr>
+          <tr><td><strong>Póliza</strong></td><td>El registro de un movimiento completo: la fecha, el concepto y sus cargos y abonos. El sistema la genera solo cuando guardas un gasto o corres el prorrateo.</td></tr>
+          <tr><td><strong>Proveedor</strong></td><td>A quién le compras o le pagas. Se da de alta una vez con sus datos fiscales.</td></tr>
+          <tr><td><strong>Centro de costo</strong></td><td>Un área de la empresa donde se juntan gastos para repartirlos después. Al inicio basta uno: <code>Producción</code>.</td></tr>
+          <tr><td><strong>CIF</strong> (gastos indirectos de fabricación)</td><td>Lo que cuesta tener la planta funcionando pero no se puede señalar a un producto en particular: renta, luz de planta, mantenimiento, depreciación de máquinas, sueldo del supervisor.</td></tr>
+          <tr><td><strong>Prorratear</strong></td><td>Repartir un gasto grande entre varias cosas de forma justa. La renta de la nave se prorratea entre todo lo que se produjo ese mes.</td></tr>
         </tbody>
       </table>
     </div>
+  </section>
+
+  <!-- ========================================================= -->
+  <section id="p1">
+    <h2><span class="n">1</span>Parte 1 — Dar de alta el proveedor</h2>
+    <p class="lead">Antes de capturar la factura de un gasto, el proveedor que la emitió tiene que existir en el sistema. Si ya lo diste de alta antes (porque le compras materia prima, por ejemplo), sáltate esta parte.</p>
+
+    <ol class="steps">
+      <li><strong>Abre la pantalla</strong>
+        <p>Menú → <span class="path">Compras / Proveedores</span>. Verás un formulario a la izquierda y la lista de proveedores a la derecha.</p></li>
+
+      <li><strong>Llena los datos básicos</strong>
+        <div class="tbl"><table class="fieldguide">
+          <thead><tr><th>Campo</th><th>Qué poner</th><th>Ejemplo</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Nombre</strong> (obligatorio)</td><td>El nombre comercial o razón social. Con este nombre lo vas a buscar después.</td><td>Inmobiliaria del Valle</td></tr>
+            <tr><td><strong>RFC</strong></td><td>El RFC tal cual viene en la factura. Se guarda en mayúsculas. <em>Es importante</em>: cuando cargues la factura XML, el sistema busca al proveedor por su RFC.</td><td>IVA980612ABC</td></tr>
+            <tr><td>Código Postal</td><td>El del domicilio fiscal del proveedor (viene en el XML).</td><td>64000</td></tr>
+            <tr><td>Régimen fiscal</td><td>El que dice la factura. Si no lo sabes, déjalo y pregúntale a tu contador.</td><td>601 — General de Ley Personas Morales</td></tr>
+            <tr><td>Contacto / Teléfono / Email</td><td>Para ubicar a quién llamarle. Opcionales.</td><td>Lic. Ramírez · 81 8000 0000</td></tr>
+            <tr><td>Moneda</td><td>En qué te factura normalmente. Casi siempre <code>MXN</code>.</td><td>MXN</td></tr>
+          </tbody>
+        </table></div>
+      </li>
+
+      <li><strong>Configura cómo le pagas</strong>
+        <div class="tbl"><table class="fieldguide">
+          <thead><tr><th>Campo</th><th>Qué poner</th></tr></thead>
+          <tbody>
+            <tr><td>Condición de pago</td><td><strong>Contado</strong> = le pagas al momento. <strong>Crédito</strong> = te da plazo y queda "por pagar". La mayoría de los gastos de servicios (renta, luz) son a crédito con pocos días.</td></tr>
+            <tr><td>Días de crédito</td><td>Cuántos días de plazo te da. <code>0</code> si es contado.</td></tr>
+            <tr><td>Forma de pago / Método de pago</td><td>Los catálogos del SAT (transferencia, efectivo, PUE/PPD). El que corresponda a cómo le pagas.</td></tr>
+            <tr><td>Uso CFDI</td><td>Para qué usas su factura. Para gastos casi siempre <code>G03 — Gastos en general</code>.</td></tr>
+          </tbody>
+        </table></div>
+      </li>
+
+      <li><strong>Cuenta de gasto por defecto</strong>
+        <p>Este campo dice: "cuando registre un gasto de este proveedor, propón esta cuenta contable". Para el proveedor de la renta, elige la cuenta de renta de planta (<code>503.05</code>). Para el que da mantenimiento, la de mantenimiento (<code>503.03</code>). No es obligatorio, pero te ahorra elegirla cada vez. La puedes cambiar al capturar cada gasto.</p>
+      </li>
+
+      <li><strong>Marca "Activo" y guarda</strong>
+        <p>El proveedor aparece en la lista de la derecha. Si te equivocaste, búscalo, dale "Editar", corrige y guarda de nuevo. Para dejar de usarlo sin borrarlo, desmarca "Activo".</p>
+      </li>
+    </ol>
 
     <div class="callout warn">
-      <span class="lbl">Cuidado</span>
-      <p>Un centro con capacidad normal en <span class="m">0</span> no permite aislar la capacidad ociosa: todo el CIF fijo se prorratearía por actividad real y un mes flojo inflaría el costo. Captúrala antes de correr el prorrateo de la Fase 2.</p>
+      <span class="lbl">Errores comunes</span>
+      <p><strong>RFC mal escrito</strong> → la carga de facturas XML no lo encontrará y creerá que es un proveedor nuevo. Revísalo carácter por carácter contra la factura. <strong>Nombre con acentos o comas raras</strong> → dificulta buscarlo; usa el nombre tal como lo escribes normalmente.</p>
     </div>
-
-    <h3>Cómo estimar la capacidad normal sin histórico</h3>
-    <p>Se construye "de la nómina hacia abajo": de las horas que <em>podrías</em> trabajar, restas las pérdidas normales. No necesitas datos, solo tu plantilla y estimaciones que alta gerencia revisa una o dos veces al año.</p>
-    <div class="calc">Horas teóricas   = operadores × horas de jornada × días hábiles del mes
-− Ausentismo     × (1 − %)   vacaciones, incapacidades, permisos, faltas   →  ~0.90
-− No productivo  × (1 − %)   limpieza, arranque/paro, juntas, esperas       →  ~0.80
-− Paros planeados × (1 − %)  mantenimiento programado, días sin pedidos     →  ~0.96
-= Capacidad normal (h/mes)</div>
-    <p>El factor combinado (~0.69 de utilización efectiva) es un punto de partida sano para una planta chica que no es lean. La pantalla lo calcula solo cuando llenas las seis variables y ofrece <span class="m">Usar sugerido →</span>.</p>
-
-    <div class="callout">
-      <span class="lbl">Se corrige solo</span>
-      <p>A los tres meses, cuando <span class="m">registros_tiempo</span> ya tenga historia, el sistema mostrará el promedio móvil de horas-hombre reales al lado de la capacidad que capturaste, con un aviso (<span class="m">≠</span>) si difieren más de ±15%. Tú decides si ajustas.</p>
-    </div>
-
-    <h3>Cuentas de CIF</h3>
-    <p>La migración de la Fase 1 siembra el bloque <span class="m">503</span> si no existe, con su marca fijo/variable:</p>
-    <div class="tbl">
-      <table>
-        <thead><tr><th>Cuenta</th><th>Nombre</th><th>Tipo</th></tr></thead>
-        <tbody>
-          <tr><td class="m">503.01</td><td>Energía eléctrica de planta</td><td>variable</td></tr>
-          <tr><td class="m">503.02</td><td>Mano de obra indirecta y supervisión</td><td>fijo</td></tr>
-          <tr><td class="m">503.03</td><td>Mantenimiento de planta y equipo</td><td>variable</td></tr>
-          <tr><td class="m">503.04</td><td>Depreciación de maquinaria y equipo</td><td>fijo</td></tr>
-          <tr><td class="m">503.05</td><td>Renta de nave industrial</td><td>fijo</td></tr>
-          <tr><td class="m">503.06</td><td>Materiales e insumos indirectos</td><td>variable</td></tr>
-          <tr><td class="m">503.07</td><td>Servicios de planta (agua, gas)</td><td>variable</td></tr>
-          <tr><td class="m">503.08</td><td>Seguros y vigilancia de planta</td><td>fijo</td></tr>
-          <tr><td class="m">503.98</td><td>Costo de capacidad no utilizada</td><td>— (va a resultados)</td></tr>
-          <tr><td class="m">503.99</td><td>Otros gastos indirectos de fabricación</td><td>variable</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p>En <strong>Plan de cuentas</strong> puedes editar el <span class="m">cif_tipo</span> de cada una y agregar las que te falten. <span class="m">115.03 Producción en proceso</span> ya existía.</p>
-
-    <h3>Gastos</h3>
-    <p>Contabilidad → <strong>Gastos</strong>. El formulario agrega el bloque <em>Costeo de producción</em>:</p>
-    <div class="tbl">
-      <table>
-        <thead><tr><th>Clasificación</th><th>Qué pide</th><th>Efecto</th></tr></thead>
-        <tbody>
-          <tr><td><strong>No producción</strong></td><td>nada extra</td><td>Igual que antes. Admin, venta, financiero.</td></tr>
-          <tr><td><strong>Indirecto de fabricación (CIF)</strong></td><td>Centro de costo + tipo fijo/variable (se hereda de la cuenta)</td><td>Queda en estatus <span class="m">pendiente</span> de prorrateo.</td></tr>
-          <tr><td><strong>Directo a una orden</strong></td><td>La orden de producción</td><td>Se cargará completo a esa orden (Fase 3).</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p>La póliza de Egreso del gasto no cambia en esta fase: sigue cargando la cuenta que elegiste (para un CIF, una <span class="m">503.xx</span>) y abonando banco o proveedores. El movimiento del CIF hacia el inventario lo hará el prorrateo.</p>
   </section>
 
-  <section>
-    <h2><span class="n">C</span>Comprensión y análisis</h2>
-    <ul>
-      <li><strong>Capacidad normal vs sugerida.</strong> La sugerida es aritmética pura sobre tus supuestos; la normal es la que decides usar. Que difieran está bien — significa que ajustaste con criterio. Que difieran <em>mucho</em> sin razón es señal de supuestos flojos.</li>
-      <li><strong>Capacidad normal vs real (a los 3 meses).</strong> Si la real viene sistemáticamente por debajo, o bajas la capacidad normal (aceptas que ese es tu ritmo) o atacas la causa (ausentismo, esperas de material). Bajarla reduce el costo de capacidad ociosa pero sube el CIF fijo por hora aplicado a cada lote.</li>
-      <li><strong>Pool de CIF pendiente.</strong> Es la suma de gastos indirectos del mes aún sin prorratear. Si crece mes con mes sin que se corra el prorrateo, el costo de tus lotes está incompleto.</li>
-      <li><strong>Proporción fijo / variable.</strong> Mucho fijo = eres sensible a la ociosidad (un mes flojo duele). Mucho variable = tu costo escala con el volumen y la ociosidad casi no pega.</li>
-    </ul>
-  </section>
+  <!-- ========================================================= -->
+  <section id="p2">
+    <h2><span class="n">2</span>Parte 2 — El plan de cuentas</h2>
+    <p class="lead">El plan de cuentas ya viene cargado. Aquí solo <strong>revisas</strong> que estén las cuentas de gastos de fabricación y que cada una diga si es un gasto "fijo" o "variable". Esto se hace una vez.</p>
 
-  <section>
-    <h2><span class="n">D</span>Ejecución — Fase 1</h2>
     <ol class="steps">
-      <li>Corre <span class="m">sql/2026-09-14_costos_produccion_fase1.sql</span> en Supabase → SQL Editor.</li>
-      <li>Contabilidad → <strong>Centros de costo</strong>: revisa el centro <span class="m">PROD</span>. Llena las seis variables de capacidad, pulsa <span class="m">Usar sugerido →</span> y ajusta el número final si lo ves alto o bajo. Guarda.</li>
-      <li>Contabilidad → <strong>Plan de cuentas</strong>: verifica el bloque <span class="m">503.xx</span> y su <span class="m">cif_tipo</span>. Cambia lo que tu contador indique.</li>
-      <li>Desde ahora, al registrar cada gasto elige su <strong>clasificación</strong>. Los CIF quedan marcados <span class="m">pendiente</span> para el prorrateo.</li>
+      <li><strong>Abre la pantalla</strong>
+        <p>Menú → <span class="path">Contabilidad → Plan de cuentas</span>. Verás la lista de cuentas agrupada por tipo: Activo, Pasivo, Capital, Ingresos, Costos, Gastos.</p></li>
+
+      <li><strong>Busca el bloque de gastos indirectos de fabricación</strong>
+        <p>Son las cuentas que empiezan con <code>503</code>. La migración de la Fase 1 las crea si no existían. Deberías ver algo así:</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Cuenta</th><th>Nombre</th><th>¿Fijo o variable?</th></tr></thead>
+          <tbody>
+            <tr><td class="m">503.01</td><td>Energía eléctrica de planta</td><td>variable</td></tr>
+            <tr><td class="m">503.02</td><td>Mano de obra indirecta y supervisión</td><td>fijo</td></tr>
+            <tr><td class="m">503.03</td><td>Mantenimiento de planta y equipo</td><td>variable</td></tr>
+            <tr><td class="m">503.04</td><td>Depreciación de maquinaria y equipo</td><td>fijo</td></tr>
+            <tr><td class="m">503.05</td><td>Renta de nave industrial</td><td>fijo</td></tr>
+            <tr><td class="m">503.06</td><td>Materiales e insumos indirectos</td><td>variable</td></tr>
+            <tr><td class="m">503.07</td><td>Servicios de planta (agua, gas)</td><td>variable</td></tr>
+            <tr><td class="m">503.08</td><td>Seguros y vigilancia de planta</td><td>fijo</td></tr>
+            <tr><td class="m">503.98</td><td>Costo de capacidad no utilizada</td><td>— (no se toca)</td></tr>
+            <tr><td class="m">503.99</td><td>Otros gastos indirectos de fabricación</td><td>variable</td></tr>
+          </tbody>
+        </table></div>
+      </li>
+
+      <li><strong>Entiende "fijo" contra "variable"</strong>
+        <p><strong>Fijo</strong> = el monto es más o menos el mismo produzcas mucho, poco o nada. La renta se paga igual. La depreciación de las máquinas corre igual. El sueldo base del supervisor se paga igual.</p>
+        <p><strong>Variable</strong> = sube y baja según cuánto produces. Si trabajas el doble, gastas casi el doble de luz de planta, de guantes y cofias, de refacciones que se desgastan con el uso.</p>
+        <p>Esta marca es la que permite, más adelante, separar lo que <em>sí</em> se debe cargar a los productos de lo que fue <em>capacidad sin usar</em>. Ajústala con tu contador si alguna cuenta te parece mal clasificada; para editarla, dale "Editar" a la cuenta y cambia el campo <code>tipo CIF</code>.</p>
+      </li>
+
+      <li><strong>Agrega las que te falten</strong>
+        <p>¿Tienes un gasto indirecto que no cae en ninguna de las de arriba? Crea una cuenta nueva dentro del grupo <code>503</code> (por ejemplo <code>503.10 — Uniformes y equipo de protección de planta</code>), márcala fijo o variable, y guárdala.</p>
+      </li>
     </ol>
-    <div class="callout">
-      <span class="lbl">Resultado de la fase</span>
-      <p>Los gastos quedan clasificados y con centro de costo; las cuentas de CIF existen y saben si son fijas o variables; cada centro tiene su capacidad normal. Todavía no se toca el costo de las órdenes — eso es la Fase 3.</p>
+
+    <div class="callout warn">
+      <span class="lbl">Qué NO tocar</span>
+      <p>No cambies códigos ni borres cuentas que ya tienen movimientos. Las cuentas <code>115.01</code> (materia prima), <code>115.03</code> (producción en proceso), <code>115.04</code> (producto terminado) y <code>601.01</code> (sueldos) son parte del motor de costos — déjalas como están. <code>503.98</code> es una cuenta especial de "capacidad no utilizada"; el sistema la usa solo, no captures gastos ahí.</p>
+    </div>
+
+    <div class="callout tec">
+      <span class="lbl">Para contabilidad</span>
+      <p>El plan sigue el Código Agrupador del SAT (Anexo 24). El bloque <code>503</code> es de tipo <code>costo</code>, naturaleza deudora. <code>503.98</code> recibe el costo de capacidad no utilizada, que por NIF C-4 / IAS 2 se reconoce como gasto del periodo en resultados y <strong>no</strong> se capitaliza al inventario. La columna <code>cif_tipo</code> (<code>fijo</code>/<code>variable</code>) rige el denominador que usará el prorrateo (ver Apéndice).</p>
     </div>
   </section>
 
-  <section>
-    <h2><span class="n">E</span>Ejemplo numérico</h2>
+  <!-- ========================================================= -->
+  <section id="p3">
+    <h2><span class="n">3</span>Parte 3 — Crear el centro de costo</h2>
+    <p class="lead">Un centro de costo es el "área" que junta los gastos indirectos para repartirlos. Al principio con uno basta: <strong>Producción</strong>. Si más adelante separas Envasado o Almacén, cada uno será su propio centro.</p>
 
-    <h3>Capacidad normal de Producción</h3>
-    <div class="calc">6 operadores × 8 h × 24 días        = 1,152 h teóricas
-× 0.90  (10% ausentismo)             = 1,036.8
-× 0.80  (20% tiempo no productivo)   =   829.4
-× 0.96  (1 día/mes de mtto.)         =   796.2 h/mes  ← capacidad normal</div>
+    <ol class="steps">
+      <li><strong>Abre la pantalla</strong>
+        <p>Menú → <span class="path">Contabilidad → Centros de costo</span>. Si es la primera vez, ya viene creado el centro <code>PROD · Producción</code> con la capacidad en cero — hay que llenarla.</p></li>
 
-    <h3>Un mes de CIF (adelanto de la Fase 2)</h3>
-    <p>Supón que en el mes se capturaron estos gastos indirectos y la planta trabajó <strong>560 h</strong> reales (70% de lo normal):</p>
-    <div class="tbl total">
-      <table>
-        <thead><tr><th>Cuenta</th><th>Concepto</th><th>Tipo</th><th class="num">Monto</th></tr></thead>
-        <tbody>
-          <tr><td class="m">503.05</td><td>Renta nave</td><td>fijo</td><td class="num">40,000</td></tr>
-          <tr><td class="m">503.04</td><td>Depreciación equipo</td><td>fijo</td><td class="num">18,000</td></tr>
-          <tr><td class="m">503.02</td><td>Supervisión</td><td>fijo</td><td class="num">22,000</td></tr>
-          <tr><td class="m">503.01</td><td>Energía de planta</td><td>variable</td><td class="num">15,000</td></tr>
-          <tr><td class="m">503.06</td><td>Insumos indirectos</td><td>variable</td><td class="num">7,000</td></tr>
-          <tr><td></td><td>Total CIF del mes</td><td></td><td class="num">102,000</td></tr>
-        </tbody>
-      </table>
+      <li><strong>Datos de identificación</strong>
+        <div class="tbl"><table class="fieldguide">
+          <thead><tr><th>Campo</th><th>Qué poner</th></tr></thead>
+          <tbody>
+            <tr><td>Código</td><td>Corto y en mayúsculas. <code>PROD</code>, <code>ENV</code>, <code>ALM</code>.</td></tr>
+            <tr><td>Nombre</td><td>Producción, Envasado, Almacén…</td></tr>
+            <tr><td>Tipo</td><td><code>Producción</code> es el único que entra al costo de los lotes. Los de Administración o Ventas sirven solo para control de gasto por área.</td></tr>
+            <tr><td>Cuenta CIF por defecto</td><td>La <code>503.xx</code> que se propondrá al capturar un gasto de este centro. Puedes dejar <code>503.99</code>.</td></tr>
+          </tbody>
+        </table></div>
+      </li>
+
+      <li><strong>La capacidad normal — el número más importante</strong>
+        <p>Es <strong>cuántas horas de trabajo de operarios produce la planta en un mes normal</strong>. Ni el mes récord, ni el mes malo: un mes típico. Este número es el que decide cuánto de la renta y la depreciación se carga a los productos y cuánto se reconoce como "planta parada".</p>
+        <p>Si no tienes ese dato histórico, se estima "de la nómina hacia abajo". Llena las seis casillas y el sistema calcula un sugerido:</p>
+        <div class="calc">operadores × horas de jornada × días hábiles del mes
+× (1 − % de ausentismo)          → 0.90  (10% entre vacaciones, incapacidades, faltas)
+× (1 − % de tiempo no productivo)→ 0.80  (20% en limpieza, arranque/paro, juntas, esperas)
+× (1 − % de paros planeados)     → 0.96  (~1 día/mes de mantenimiento programado)
+= capacidad normal, en horas/mes</div>
+        <p>Ejemplo con 6 operarios:</p>
+        <div class="calc">6 × 8 h × 24 días = 1,152 h teóricas
+× 0.90 = 1,036.8
+× 0.80 =   829.4
+× 0.96 =   796.2 h/mes  ← capacidad normal</div>
+        <p>El botón <code>Usar sugerido →</code> copia ese número al campo de abajo, que es el que realmente se usa. De ahí lo ajustas a mano si conoces tu operación mejor que la fórmula.</p>
+      </li>
+
+      <li><strong>Método CIF</strong>
+        <p>Deja <strong>Real (a fin de mes)</strong>. Significa: el prorrateo se corre una vez al mes con los gastos reales de ese mes. Es lo que usarás. (La opción "Tasa predeterminada por hora" es para una etapa futura y hoy no tiene efecto.)</p>
+      </li>
+
+      <li><strong>Guarda</strong>
+        <p>En la lista, cada centro muestra su capacidad. <strong>Un aviso <span style="color:var(--warn)">⚠</span></strong> junto al número significa que quedó en cero — corrígelo antes de correr el prorrateo. <strong>Un <code>≠</code></strong> significa que la capacidad que capturaste se aleja más de 15% de la que sugiere la fórmula; revísala, quizás tus supuestos cambiaron.</p>
+      </li>
+    </ol>
+
+    <div class="callout warn">
+      <span class="lbl">Si dejas la capacidad en cero</span>
+      <p>El prorrateo no podrá separar la "planta parada". Todo el gasto fijo se repartiría entre lo poco que produjiste ese mes y el costo unitario saldría inflado. Siempre captura una capacidad normal razonable, aunque sea estimada.</p>
     </div>
-    <div class="calc">CIF fijo    = 80,000     CIF variable = 22,000
 
-Tasa fija      = 80,000 / 796.2 h normal   = 100.48 /h
-Aplicado a órdenes (fijo)  = 560 h × 100.48   = 56,269   → a las órdenes
-Capacidad ociosa (fijo)    = 80,000 − 56,269  = 23,731   → 503.98, resultados
-
-CIF variable   = 22,000 / 560 h real = 39.29 /h
-Aplicado a órdenes (variable) = 22,000              → a las órdenes
-
-CIF que entra al costo de los lotes = 56,269 + 22,000 = 78,269
-CIF que se reconoce como gasto del periodo           = 23,731</div>
-    <p>Sin el ajuste por capacidad, los <span class="m">$102,000</span> completos se habrían repartido entre los pocos lotes del mes: <span class="m">$102,000 / 560 h = $182.14/h</span> contra los <span class="m">$139.77/h</span> que resultan al costear a capacidad normal. La diferencia es exactamente la ociosidad que no debe ensuciar el inventario.</p>
+    <div class="callout tec">
+      <span class="lbl">Para contabilidad</span>
+      <p>La capacidad normal es el denominador para prorratear el CIF <strong>fijo</strong> (NIF C-4 §44.3, "producción normal"). El CIF <strong>variable</strong> se aplica sobre actividad real. A los ~3 meses la pantalla mostrará el promedio móvil de horas reales de <code>registros_tiempo</code> junto a la capacidad capturada, para revalidar el supuesto.</p>
+    </div>
   </section>
 
-  <section>
-    <h2><span class="n">F</span>Fase 2 y 3 — Prorrateo del CIF e integración al costo</h2>
-    <p class="lead">La Fase 1 dejó los gastos clasificados. Estas fases los reparten a las órdenes y bajan el resultado al costo del lote. Es un paso <strong>mensual</strong>.</p>
+  <!-- ========================================================= -->
+  <section id="p4">
+    <h2><span class="n">4</span>Parte 4 — Capturar un gasto y clasificarlo</h2>
+    <p class="lead">Esto lo haces cada vez que llega una factura de gasto. Lo nuevo respecto a antes es un bloque llamado <strong>Costeo de producción</strong>, donde dices si ese gasto tiene que ver con fabricar o no.</p>
 
-    <h3>Cómo reparte el motor</h3>
-    <p>Base elegida: <span class="term">horas de mano de obra</span>. Para cada gasto indirecto pendiente del mes:</p>
-    <div class="tbl">
-      <table>
-        <thead><tr><th>Si el CIF es…</th><th>Denominador</th><th>Resultado</th></tr></thead>
-        <tbody>
-          <tr><td><strong>Variable</strong></td><td>horas reales del mes</td><td>todo se reparte entre las órdenes, proporcional a sus horas</td></tr>
-          <tr><td><strong>Fijo</strong></td><td><strong>capacidad normal</strong> del centro</td><td>aplicado <span class="m">= gasto × min(horas reales / capacidad normal, 1)</span> → a las órdenes; el resto → <span class="m">503.98</span></td></tr>
-        </tbody>
-      </table>
+    <h3>Paso a paso</h3>
+    <ol class="steps">
+      <li><strong>Abre la pantalla</strong>
+        <p>Menú → <span class="path">Contabilidad → Gastos</span>. Formulario a la izquierda, lista de gastos a la derecha.</p></li>
+
+      <li><strong>Datos de la factura</strong>
+        <div class="tbl"><table class="fieldguide">
+          <thead><tr><th>Campo</th><th>Qué poner</th></tr></thead>
+          <tbody>
+            <tr><td>Fecha</td><td>La fecha de la factura. <em>Importante</em>: define en qué mes se prorratea.</td></tr>
+            <tr><td>Condición</td><td><code>Contado</code> si ya lo pagaste, <code>Crédito</code> si queda por pagar.</td></tr>
+            <tr><td>Concepto</td><td>Descripción corta y clara. "Renta nave — septiembre", "Mantenimiento correctivo mezcladora".</td></tr>
+            <tr><td>Proveedor</td><td>El que diste de alta en la Parte 1. Empieza a escribir y elígelo de la lista.</td></tr>
+            <tr><td>Cuenta de gasto</td><td>El cajón contable. Si el proveedor tenía una cuenta por defecto, ya viene puesta. Para la renta: <code>503.05</code>. La lista muestra si la cuenta es CIF fijo o variable.</td></tr>
+          </tbody>
+        </table></div>
+      </li>
+
+      <li><strong>Bloque "Costeo de producción" — la clasificación</strong>
+        <p>Aquí eliges una de tres opciones. La guía de decisión está más abajo; en resumen:</p>
+        <ul>
+          <li><strong>No producción</strong> — el gasto no tiene nada que ver con fabricar (oficina, ventas, banco). No pide nada más.</li>
+          <li><strong>Indirecto de fabricación (CIF)</strong> — sirve para la planta en general. Pide el <strong>centro de costo</strong> y si es <strong>fijo o variable</strong> (se hereda de la cuenta, lo puedes cambiar). Queda marcado como <em>pendiente</em> de prorrateo.</li>
+          <li><strong>Directo a una orden</strong> — es para una orden de producción concreta y solo esa. Pide <strong>cuál orden</strong>. Se cargará completo a ella.</li>
+        </ul>
+      </li>
+
+      <li><strong>Montos</strong>
+        <p>Subtotal, IVA (hay un botón <code>16%</code> que lo calcula), IEPS si aplica, retenciones si aplican. El Total se calcula solo. Si es contado, elige de qué caja o banco sale el pago.</p>
+      </li>
+
+      <li><strong>Guardar</strong>
+        <p>El gasto aparece en la lista. El sistema genera su póliza automáticamente. Si te equivocaste de clasificación, la forma más limpia de corregir es <strong>cancelar el gasto</strong> (botón en la lista) y capturarlo de nuevo bien.</p>
+      </li>
+    </ol>
+
+    <h3>Guía de decisión: ¿qué clasificación le toca?</h3>
+    <p>Hazte estas preguntas en orden:</p>
+    <ol>
+      <li><strong>¿Este gasto lo puedo "señalar con el dedo" a una sola orden de producción?</strong> (un molde rentado solo para ese lote, un flete de una materia prima que únicamente va a ese lote, un análisis de laboratorio de ese lote). <br>→ Sí: <strong>Directo a una orden</strong>.</li>
+      <li><strong>¿Sirve para que la planta funcione en general, pero no lo puedo atribuir a un producto?</strong> (renta, luz de planta, mantenimiento, depreciación de máquinas, supervisor, guantes/cofias/limpieza de planta). <br>→ Sí: <strong>Indirecto de fabricación (CIF)</strong>. Y dentro de CIF: ¿el monto es parejo produzcas mucho o poco? → <strong>fijo</strong>. ¿Sube y baja con el volumen? → <strong>variable</strong>.</li>
+      <li><strong>¿Es de oficina, ventas o financiero, sin relación con fabricar?</strong> (papelería, publicidad, comisiones bancarias, renta de la oficina administrativa, honorarios del contador). <br>→ Sí: <strong>No producción</strong>.</li>
+    </ol>
+
+    <div class="tbl"><table>
+      <thead><tr><th>Gasto</th><th>Clasificación</th><th>Detalle</th></tr></thead>
+      <tbody>
+        <tr><td>Renta de la nave de producción</td><td>Indirecto (CIF)</td><td>fijo</td></tr>
+        <tr><td>Recibo de luz de la planta</td><td>Indirecto (CIF)</td><td>variable</td></tr>
+        <tr><td>Depreciación mensual de las mezcladoras</td><td>Indirecto (CIF)</td><td>fijo</td></tr>
+        <tr><td>Sueldo del jefe de producción</td><td>Indirecto (CIF)</td><td>fijo</td></tr>
+        <tr><td>Mantenimiento correctivo de una máquina</td><td>Indirecto (CIF)</td><td>variable</td></tr>
+        <tr><td>Guantes, cofias, cubrebocas, cloro de planta</td><td>Indirecto (CIF)</td><td>variable</td></tr>
+        <tr><td>Molde especial rentado para producir el lote de "Gel 250 ml edición navideña"</td><td>Directo a orden</td><td>a esa orden</td></tr>
+        <tr><td>Flete pagado para traer un pigmento que solo se usa en un lote</td><td>Directo a orden</td><td>a esa orden</td></tr>
+        <tr><td>Papelería y tóner de la oficina</td><td>No producción</td><td>—</td></tr>
+        <tr><td>Publicidad en redes</td><td>No producción</td><td>—</td></tr>
+        <tr><td>Comisión del banco por transferencias</td><td>No producción</td><td>—</td></tr>
+        <tr><td>Renta de la oficina administrativa</td><td>No producción</td><td>—</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Ejemplo completo: la factura de la renta</h3>
+    <p>Llega la factura de <strong>Inmobiliaria del Valle</strong> por la renta de la nave: $40,000 + IVA $6,400, a crédito, con fecha 18 de septiembre.</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
+      <tbody>
+        <tr><td>Fecha</td><td>2026-09-18</td></tr>
+        <tr><td>Condición</td><td>Crédito</td></tr>
+        <tr><td>Concepto</td><td>Renta nave industrial — septiembre</td></tr>
+        <tr><td>Proveedor</td><td>Inmobiliaria del Valle</td></tr>
+        <tr><td>Cuenta de gasto</td><td>503.05 · Renta de nave industrial</td></tr>
+        <tr><td>Clasificación</td><td>Indirecto de fabricación (CIF)</td></tr>
+        <tr><td>Centro de costo</td><td>PROD · Producción</td></tr>
+        <tr><td>Tipo de CIF</td><td>Fijo</td></tr>
+        <tr><td>Subtotal / IVA</td><td>40,000.00 / 6,400.00</td></tr>
+      </tbody>
+    </table></div>
+    <p>Al guardar, el gasto queda <em>pendiente</em> de prorrateo. Todavía no toca el costo de ningún producto — eso pasa a fin de mes (Parte 5).</p>
+
+    <div class="callout tec">
+      <span class="lbl">Para contabilidad — la póliza del gasto</span>
+      <div class="calc">Cargo  503.05  Renta de nave industrial     40,000.00
+Cargo  119.01  IVA acreditable pend. de pago  6,400.00
+  Abono  201.01  Proveedores                        46,400.00</div>
+      <p>El asiento del gasto <strong>no cambió</strong> con el nuevo bloque de costeo: sigue cargando la cuenta elegida y abonando proveedores (o banco si es contado). Lo que se agregó es la marca <code>clasificacion = indirecto_produccion</code>, el <code>centro_costo_id</code> y <code>prorrateo_estatus = pendiente</code>. El traspaso del CIF hacia el inventario lo hace <code>prorrateo_aplicar</code>. Un gasto <strong>directo</strong> también se asienta igual al capturarlo; se traspasa a <code>115.04</code> al cerrar su orden.</p>
     </div>
-    <p>Si un mes no hubo producción (0 horas), todo el CIF de ese mes se reconoce como costo del periodo en <span class="m">503.98</span> — no queda "colgado" esperando órdenes.</p>
+  </section>
 
-    <h3>La póliza que genera <span class="m">prorrateo_aplicar</span></h3>
-    <div class="calc">Cargo  115.03  Produccion en proceso        (CIF aplicado a ordenes)
-Cargo  503.98  Costo de capacidad no utilizada (parte ociosa del fijo)
-  Abono  503.01 / 503.02 / ...               (cada cuenta CIF por su total del mes)
+  <!-- ========================================================= -->
+  <section id="p5">
+    <h2><span class="n">5</span>Parte 5 — Fin de mes: el prorrateo</h2>
+    <p class="lead">Una vez al mes, después de haber capturado todos los gastos y cerrado las órdenes de producción del mes, repartes el CIF entre lo que se produjo. Es un botón, pero primero revisas lo que va a hacer.</p>
+
+    <ol class="steps">
+      <li><strong>Abre la pantalla y elige el mes</strong>
+        <p>Menú → <span class="path">Contabilidad → Prorrateo de gastos</span>. En "Mes a prorratear" pon el mes que vas a cerrar (ej. <code>2026-09</code>). El sistema calcula todo <strong>sin escribir nada</strong> hasta que confirmes.</p></li>
+
+      <li><strong>Lee las tres tarjetas de arriba</strong>
+        <div class="tbl"><table>
+          <thead><tr><th>Tarjeta</th><th>Qué te dice</th></tr></thead>
+          <tbody>
+            <tr><td>CIF pendiente</td><td>La suma de los gastos indirectos del mes que aún no se han prorrateado, separada en <strong>fijo</strong> y <strong>variable</strong>.</td></tr>
+            <tr><td>Horas de mano de obra del mes</td><td>Cuántas horas de operarios se trabajaron ese mes, contra la <strong>capacidad normal</strong>, y el <strong>% de utilización</strong> (horas reales ÷ capacidad).</td></tr>
+            <tr><td>Distribución</td><td>Cuánto CIF se va a repartir a las órdenes y cuánto se queda como <strong>capacidad no utilizada</strong>.</td></tr>
+          </tbody>
+        </table></div>
+      </li>
+
+      <li><strong>Revisa la tabla "Gastos indirectos pendientes"</strong>
+        <p>Es el detalle: cada gasto, su cuenta, si es fijo o variable, su monto. Si notas que falta uno, o que uno está mal clasificado: <strong>no apliques todavía</strong>. Ve a Gastos, corrige, y vuelve.</p>
+      </li>
+
+      <li><strong>Revisa "Distribución propuesta"</strong>
+        <p>Muestra, por orden de producción, cuántas horas tuvo, qué porcentaje del total representa, y cuánto CIF le toca. La última fila es la <strong>capacidad no utilizada</strong> que se irá a resultados (no al inventario).</p>
+      </li>
+
+      <li><strong>Aplica</strong>
+        <p>Botón <strong>Aplicar prorrateo de [mes]</strong>. El sistema:
+        genera <strong>una póliza</strong>, ajusta el costo de las órdenes que ya estaban cerradas, y marca los gastos como <em>prorrateados</em>.</p>
+      </li>
+
+      <li><strong>Si te equivocaste o llegó un gasto tarde</strong>
+        <p>Botón <strong>Cancelar prorrateo del mes</strong>. Revierte la póliza y los gastos vuelven a quedar <em>pendientes</em>. Capturas lo que faltaba y vuelves a aplicar.</p>
+      </li>
+    </ol>
+
+    <div class="callout ok">
+      <span class="lbl">Qué hace bien esta forma de repartir</span>
+      <p>El CIF <strong>variable</strong> (luz, insumos) se reparte entre las horas reales — todo cae a las órdenes. El CIF <strong>fijo</strong> (renta, depreciación) se reparte contra la <strong>capacidad normal</strong>: si trabajaste al 70% de lo normal, las órdenes reciben el 70% del fijo y el 30% restante se reconoce como "planta parada", separado y visible. Así un mes flojo no infla el costo de lo poco que produjiste.</p>
+    </div>
+
+    <h3>Ejemplo: septiembre</h3>
+    <p>Capacidad normal 796 h. Se trabajaron 560 h reales (70%), en dos órdenes: OP-000051 con 360 h y OP-000052 con 200 h. Gastos indirectos del mes:</p>
+    <div class="tbl total"><table>
+      <thead><tr><th>Concepto</th><th>Tipo</th><th class="num">Monto</th></tr></thead>
+      <tbody>
+        <tr><td>Renta nave</td><td>fijo</td><td class="num">40,000</td></tr>
+        <tr><td>Depreciación equipo</td><td>fijo</td><td class="num">18,000</td></tr>
+        <tr><td>Supervisión</td><td>fijo</td><td class="num">22,000</td></tr>
+        <tr><td>Energía de planta</td><td>variable</td><td class="num">15,000</td></tr>
+        <tr><td>Insumos indirectos</td><td>variable</td><td class="num">7,000</td></tr>
+        <tr><td>Total</td><td></td><td class="num">102,000</td></tr>
+      </tbody>
+    </table></div>
+    <div class="calc">CIF fijo (80,000):    aplicado = 80,000 × (560 / 796) = 56,269 → a las órdenes
+                      ocioso   = 80,000 − 56,269       = 23,731 → capacidad no utilizada
+CIF variable (22,000): todo (22,000)                          → a las órdenes
+
+Reparto a las órdenes (78,269 total) por horas:
+  OP-000051  360 h  →  64.3%  →  50,316
+  OP-000052  200 h  →  35.7%  →  27,953</div>
+
+    <div class="callout tec">
+      <span class="lbl">Para contabilidad — la póliza del prorrateo</span>
+      <div class="calc">Cargo  115.03  Produccion en proceso           78,269   (CIF aplicado a ordenes)
+Cargo  503.98  Costo de capacidad no utilizada  23,731   (parte ociosa del fijo)
+  Abono  503.01 / 503.02 / 503.04 / 503.05 / 503.06     102,000  (cada cuenta CIF por su total)
 
 + por cada orden YA CERRADA del mes:
 Cargo  115.04  Producto terminado
-  Abono  115.03  Produccion en proceso       (mueve su CIF de proceso a terminado)</div>
-    <p>Para las órdenes cerradas también se recalcula <span class="m">costo_unitario_final</span> y se actualiza el costo del lote y del producto. Las órdenes <em>abiertas</em> dejan su CIF en <span class="m">115.03</span>; entra al costo cuando la orden se cierra.</p>
-
-    <h3>El cierre de la orden ya incorpora el CIF</h3>
-    <p><span class="m">contabilizar_produccion</span> (al cerrar) ahora suma tres cosas además de materiales y mano de obra:</p>
-    <ul>
-      <li>El <strong>CIF ya prorrateado</strong> a esa orden que todavía está en <span class="m">115.03</span> (si el prorrateo del mes corrió antes del cierre).</li>
-      <li>Los <strong>gastos directos</strong> capturados contra esa orden (<span class="m">clasificación = directo_produccion</span>), que pasan de su cuenta de gasto a producto terminado.</li>
-    </ul>
-    <p>Si el prorrateo corre <em>después</em> del cierre, es <span class="m">prorrateo_aplicar</span> quien hace el ajuste a la orden cerrada. En ambos casos el costo termina completo; solo cambia quién lo asienta.</p>
-
-    <div class="callout warn">
-      <span class="lbl">Límite conocido de esta versión</span>
-      <p>Si al correr el prorrateo una orden ya cerrada tiene su producto terminado <strong>parcialmente vendido</strong>, el ajuste de CIF entra completo a <span class="m">115.04</span> (inventario) en vez de mandar la parte vendida a costo de ventas. Para un cierre mensual y rotación normal la diferencia es menor; si vendes muy rápido, tu contador puede reclasificar la porción vendida a mano. La Fase 4 lo automatiza.</p>
+  Abono  115.03  Produccion en proceso                (traspasa su CIF a terminado)</div>
+      <p>Origen <code>prorrateo</code>, tipo Diario, fechada el último día del mes. Cuadre: <code>115.03 + 503.98 = Σ abonos 503.xx</code>. Para las órdenes cerradas también se recalcula <code>costo_unitario_final</code> y se actualiza el costo del lote y de <code>productos.costo_unitario</code>. El CIF de las órdenes abiertas queda en <code>115.03</code> y fluye a terminado al cerrarlas, vía <code>contabilizar_produccion</code>.</p>
     </div>
-
-    <h3>Configuración adicional (Fase 2)</h3>
-    <ul>
-      <li><span class="m">gastos.base_prorrateo</span> — normalmente <span class="m">horas_mano_obra</span>. <span class="m">porcentaje_centros</span> usa una tabla de % por centro de costo (<span class="m">gasto_prorrateo_reglas</span>); útil solo cuando tengas más de un centro de producción.</li>
-      <li><span class="m">ordenes_produccion.centro_costo_id</span> — si es nulo, la orden se asigna al centro de producción por defecto.</li>
-    </ul>
-
-    <h3>Ejecución — cada fin de mes</h3>
-    <ol class="steps">
-      <li>Corre <span class="m">sql/2026-09-15_costos_produccion_fase2y3.sql</span> (una sola vez, no cada mes).</li>
-      <li>Captura durante el mes todos los gastos indirectos, clasificados como <strong>Indirecto de fabricación</strong>.</li>
-      <li>Contabilidad → <strong>Prorrateo de gastos</strong>. Elige el mes. Revisa: el pool de CIF (fijo/variable), las horas de mano de obra contra la capacidad normal, el % de utilización, y la <strong>distribución propuesta</strong> por orden más la línea de capacidad no utilizada.</li>
-      <li>Si cuadra, <strong>Aplicar prorrateo del mes</strong>. Genera la póliza y ajusta las órdenes cerradas.</li>
-      <li>¿Te equivocaste o llegó un gasto tarde? <strong>Cancelar prorrateo del mes</strong>, captura lo que falte, y vuelve a aplicar.</li>
-    </ol>
-
-    <h3>Análisis</h3>
-    <ul>
-      <li><strong>Utilización.</strong> Horas reales / capacidad normal. 100% = trabajaste justo lo esperado. Muy abajo un mes tras otro = o la capacidad normal está alta, o hay un problema de planta que la ociosidad te está señalando en pesos.</li>
-      <li><strong>Capacidad no utilizada creciente.</strong> Es dinero real que sale del resultado sin producto que lo respalde. Es la métrica que justifica decisiones: turnos, plantilla, subcontratar, o bajar la capacidad normal.</li>
-      <li><strong>CIF por hora resultante.</strong> <span class="m">aplicado / horas reales</span>. Compáralo mes a mes; un salto sin cambio de gastos suele ser caída de horas.</li>
-    </ul>
-
-    <h3>Ejemplo — continuación</h3>
-    <p>Retomando el mes del ejemplo de la sección E (capacidad normal 796 h, se trabajaron 560 h reales repartidas en dos órdenes):</p>
-    <div class="tbl total">
-      <table>
-        <thead><tr><th>Orden</th><th class="num">Horas MO</th><th class="num">Factor</th><th class="num">CIF asignado</th></tr></thead>
-        <tbody>
-          <tr><td>OP-000051</td><td class="num">360</td><td class="num">64.3%</td><td class="num">50,316</td></tr>
-          <tr><td>OP-000052</td><td class="num">200</td><td class="num">35.7%</td><td class="num">27,953</td></tr>
-          <tr><td>Capacidad no utilizada → 503.98</td><td class="num">—</td><td class="num">—</td><td class="num">23,731</td></tr>
-          <tr><td>Total CIF del mes</td><td class="num">560</td><td class="num"></td><td class="num">102,000</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <p>Si OP-000051 ya estaba cerrada al correr el prorrateo, sus <span class="m">$50,316</span> pasan de <span class="m">115.03</span> a <span class="m">115.04</span> en la misma póliza y su costo unitario sube. Si estaba abierta, el CIF espera en <span class="m">115.03</span> y entra al costo el día que se cierre.</p>
   </section>
 
-  <section>
-    <h2><span class="n">G</span>Fase 4 — pendiente de decisión</h2>
-    <p>La <span class="term">tasa predeterminada</span> aplica un CIF estimado por hora al cerrar cada orden (sin esperar a fin de mes), y a fin de mes concilia contra el CIF real: la diferencia es <em>sobreaplicado</em> o <em>subaplicado</em> y se lleva a resultados o se prorratea al inventario. Es el estándar de un ERP grande y sirve cuando necesitas el costo del lote el mismo día que se produce.</p>
-    <p>El campo <span class="m">centros_costo.metodo_cif = 'predeterminado'</span> y <span class="m">tasa_cif_hora</span> ya existen desde la Fase 1, sin efecto todavía. Construir la Fase 4 implica: aplicar la tasa en <span class="m">contabilizar_produccion</span>, una pantalla de conciliación mensual, y el manejo contable de la variación. Se hace solo si lo confirmas.</p>
+  <!-- ========================================================= -->
+  <section id="p6">
+    <h2><span class="n">6</span>Parte 6 — Dónde se ve el costo y qué significa</h2>
+
+    <h3>El costo unitario de la orden</h3>
+    <p>En <span class="path">Producción → Órdenes en proceso</span> (o al cerrar una orden), el <strong>costo unitario</strong> del lote ahora suma cuatro cosas:</p>
+    <div class="calc">costo unitario = ( materiales + mano de obra + CIF prorrateado + gastos directos ) ÷ unidades producidas</div>
+    <p>Antes solo sumaba materiales y mano de obra. Con el módulo de costos, ya trae la parte de renta, luz, mantenimiento y supervisión que le correspondió, y cualquier gasto directo que hayas capturado contra esa orden.</p>
+
+    <h3>El Kardex</h3>
+    <p>En <span class="path">Inventario → Kardex</span> de un producto verás el movimiento de entrada por producción con su costo ya completo. Si el prorrateo ajustó el costo de una orden cerrada, ese ajuste se refleja aquí.</p>
+
+    <h3>Los reportes contables</h3>
+    <p>En <span class="path">Contabilidad → Reportes contables</span>:</p>
+    <ul>
+      <li><strong>Cuenta <code>503.98</code> — Costo de capacidad no utilizada</strong>: cuánto dinero se fue a resultados por planta parada. Si crece mes con mes, es una señal fuerte: tienes capacidad que estás pagando y no usas.</li>
+      <li><strong>Cuenta <code>115.03</code> — Producción en proceso</strong>: debería quedar cerca de cero después del prorrateo y de cerrar las órdenes. Si acumula saldo, hay CIF "colgado" de órdenes que no se han cerrado.</li>
+    </ul>
+
+    <div class="callout">
+      <span class="lbl">Cómo leerlo como administrador</span>
+      <p>El costo unitario del lote es tu piso para poner precio. Si sube de un mes a otro <em>sin</em> que hayan subido tus proveedores, casi siempre es porque produjiste menos y el CIF fijo se repartió entre menos unidades — y la cuenta <code>503.98</code> te lo confirma. La decisión no es "subir el precio", es "por qué produje menos".</p>
+    </div>
+  </section>
+
+  <!-- ========================================================= -->
+  <section id="rut">
+    <h2><span class="n">·</span>Rutina: qué se hace y cuándo</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>Cuándo</th><th>Qué</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Una sola vez</strong></td><td>Partes 1–3: proveedores, revisar plan de cuentas, crear el centro de costo y capturar su capacidad normal.</td></tr>
+        <tr><td><strong>Cada vez que llega una factura de gasto</strong></td><td>Parte 4: capturar el gasto, elegir proveedor y cuenta, y <strong>clasificarlo</strong> (no producción / indirecto CIF / directo a orden).</td></tr>
+        <tr><td><strong>1–2 veces al año</strong></td><td>Revisar la capacidad normal del centro contra la realidad y ajustarla si cambió tu operación.</td></tr>
+        <tr><td><strong>Fin de mes, después de cerrar producción</strong></td><td>Parte 5: entrar a Prorrateo de gastos, revisar la distribución, <strong>Aplicar</strong>. Revisar los reportes (Parte 6).</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ========================================================= -->
+  <section id="err">
+    <h2><span class="n">·</span>Si algo sale mal</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>Síntoma</th><th>Qué hacer</th></tr></thead>
+      <tbody>
+        <tr><td>Aviso amarillo "falta correr el SQL" al abrir una pantalla</td><td>Faltan las migraciones. Pásale a tu técnico la lista de la sección 0.</td></tr>
+        <tr><td>Clasifiqué mal un gasto</td><td>En la lista de Gastos, cancela ese gasto y captúralo de nuevo con la clasificación correcta. (Si ya se prorrateó, primero cancela el prorrateo del mes.)</td></tr>
+        <tr><td>Olvidé un gasto antes de aplicar el prorrateo</td><td>Cancela el prorrateo del mes, captura el gasto que faltaba, y vuelve a aplicar.</td></tr>
+        <tr><td>La capacidad del centro quedó en 0 (aviso ⚠)</td><td>Edita el centro, llena las seis variables, usa el sugerido, guarda. Vuelve a correr el prorrateo.</td></tr>
+        <tr><td>El prorrateo dice "no hay gastos indirectos pendientes"</td><td>Ningún gasto del mes está clasificado como <em>indirecto de fabricación</em>, o ya se prorratearon todos. Revisa la fecha de los gastos y su clasificación.</td></tr>
+        <tr><td>La cuenta 115.03 no baja a cero después del prorrateo</td><td>Es normal si hay órdenes del mes todavía abiertas: su CIF entra al costo al cerrarlas. Si están todas cerradas y sigue con saldo, avísale a tu contador.</td></tr>
+        <tr><td>El costo unitario de un lote subió mucho</td><td>Revisa el % de utilización del mes en la pantalla de Prorrateo. Si fue bajo, el CIF fijo se repartió entre pocas unidades: es correcto, y la cuenta 503.98 muestra la parte ociosa.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <!-- ========================================================= -->
+  <section id="ap">
+    <h2><span class="n">·</span>Apéndice — El porqué contable</h2>
+    <p class="lead">Esta sección es para el contador y para quien quiera el fundamento. No hace falta leerla para operar.</p>
+
+    <h4>Los tres componentes del costo</h4>
+    <p>Costo de producción = materiales directos + mano de obra directa + gastos indirectos de fabricación (CIF). El ERP ya calculaba los dos primeros (consumo FEFO de lotes y horas de <code>registros_tiempo</code> × sueldo). El módulo de costos agrega el tercero.</p>
+
+    <h4>Capacidad normal y capacidad ociosa (NIF C-4 §44 / IAS 2 §13)</h4>
+    <p>La norma exige que los <strong>costos fijos indirectos</strong> se asignen a la producción sobre la base de la <strong>capacidad normal</strong> de la planta — la producción media esperada en circunstancias normales, considerando mantenimiento planeado. El monto de costos fijos no asignados por operar por debajo de la capacidad normal se reconoce como <strong>gasto del periodo</strong> en que se incurre, y <strong>no</strong> se capitaliza al inventario. Cuando la producción es anormalmente alta, la tasa por unidad se reduce para no valuar el inventario por encima del costo.</p>
+    <p>En el ERP: <code>503.98</code> recibe esa porción no asignada; el prorrateo la calcula como <code>CIF_fijo × (1 − min(horas_reales / capacidad_normal, 1))</code>.</p>
+
+    <h4>Regla de asignación implementada</h4>
+    <div class="calc">Base de prorrateo: horas de mano de obra directa.
+
+CIF variable:  tasa = CIF_variable / horas_reales_del_mes      → 100% a las órdenes
+CIF fijo:      tasa = CIF_fijo     / capacidad_normal
+               aplicado a órdenes = CIF_fijo × min(horas_reales / capacidad_normal, 1)
+               capacidad ociosa   = CIF_fijo − aplicado           → 503.98 (resultados)
+
+Reparto entre órdenes: proporcional a las horas de cada orden en el mes.
+Si el mes no tuvo producción (0 h): todo el CIF del mes → 503.98.</div>
+
+    <h4>Flujo de cuentas</h4>
+    <div class="calc">Al capturar el gasto CIF:   Cargo 503.xx        / Abono 201.01 o banco
+Al aplicar el prorrateo:    Cargo 115.03 (aplic) / Cargo 503.98 (ocioso) / Abono 503.xx
+Orden cerrada en el mes:    Cargo 115.04         / Abono 115.03            (en la misma póliza)
+Orden abierta:              el CIF queda en 115.03; entra a 115.04 al cerrarla
+Gasto directo:              Cargo 503.xx al capturar; Cargo 115.04 / Abono 503.xx al cerrar la orden</div>
+
+    <h4>Límite conocido de esta versión</h4>
+    <p>Si al correr el prorrateo una orden ya cerrada tiene su producto terminado <strong>parcialmente vendido</strong>, el ajuste de CIF entra completo a <code>115.04</code> (inventario) en vez de mandar la porción vendida a <code>501.01</code> (costo de ventas). Para cierre mensual y rotación normal el efecto es menor; con rotación muy rápida, reclasificar la porción vendida a mano. La etapa de <em>tasa predeterminada</em> (Fase 4, aún no construida) automatiza esto y permite costear el lote el mismo día que se produce, conciliando la variación sobre/subaplicado a fin de mes.</p>
+
+    <h4>Objetos de base de datos</h4>
+    <div class="tbl"><table>
+      <thead><tr><th>Objeto</th><th>Rol</th></tr></thead>
+      <tbody>
+        <tr><td class="m">centros_costo</td><td>Catálogo de áreas + capacidad normal + método CIF.</td></tr>
+        <tr><td class="m">cuentas_contables.cif_tipo</td><td>fijo / variable por cuenta 503.xx.</td></tr>
+        <tr><td class="m">gastos.clasificacion, .centro_costo_id, .cif_tipo, .orden_produccion_id, .prorrateo_estatus, .base_prorrateo</td><td>Marca de costeo por gasto.</td></tr>
+        <tr><td class="m">gasto_aplicaciones</td><td>Resultado del prorrateo: monto de CIF por orden y por capacidad ociosa, por periodo.</td></tr>
+        <tr><td class="m">prorrateo_corridas</td><td>Una fila por mes aplicado, con su póliza y estatus.</td></tr>
+        <tr><td class="m">prorrateo_calcular / _aplicar / _cancelar</td><td>Preview, aplicación (con la póliza y el ajuste a órdenes cerradas) y reversa.</td></tr>
+        <tr><td class="m">contabilizar_produccion</td><td>Al cerrar la orden, incorpora el CIF ya prorrateado y los gastos directos.</td></tr>
+        <tr><td class="m">ordenes_produccion.costo_total_indirecto, .costo_indirecto_contabilizado, .costo_total_gasto_directo, .costo_gasto_directo_contabilizado</td><td>Acumuladores de costo por orden.</td></tr>
+      </tbody>
+    </table></div>
   </section>
 
   <footer>
-    Manual de costos de producción · ERP Hares de México · Fases 1–3 construidas · Fase 4 pendiente · documento vivo.
+    Manual de gastos y costos de producción · ERP Hares de México · Fases 1–3 · Fase 4 pendiente · documento vivo.
+    Ver también la <a href="guia-costos-produccion.html">guía interactiva</a>.
   </footer>
 </div>
 </body>
