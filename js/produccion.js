@@ -668,7 +668,7 @@ export async function cerrarOrdenDeProduccion(ordenId) {
         try {
             const { data: cc, error: errCC } = await supabaseClient.rpc('contabilizar_produccion', {
                 p_documento_id: documentoId,
-                p_datos: { costo_materiales: costoTotalMateriales, costo_mano_obra: costoTotalManoObra }
+                p_datos: { costo_materiales: costoTotalMateriales, costo_mano_obra: costoTotalManoObra, orden_produccion_id: ordenId }
             });
             if (errCC) throw errCC;
             msgContab = ` Póliza de producción #${cc.poliza_id} generada.`;

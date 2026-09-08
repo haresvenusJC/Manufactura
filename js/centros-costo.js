@@ -15,7 +15,8 @@ const fnum = (n) => Number(n || 0).toLocaleString('es-MX', { maximumFractionDigi
 const TABLA_FALTA = /does not exist|schema cache|could not find|relation .* does not exist/i;
 
 const TIPO_LABEL = { produccion: 'Producción', servicio: 'Servicio', administracion: 'Administración', ventas: 'Ventas' };
-const MANUAL_URL = 'https://claude.ai/code/artifact/faf9c11b-1a1c-491d-8624-6b082bfa6c55';
+const MANUAL_URL = 'manual-costos-produccion.html';
+const GUIA_URL = 'guia-costos-produccion.html';
 
 let ccCuentasCif = [];
 let ccEditId = null;
@@ -46,7 +47,10 @@ export async function cargarModuloCentrosCosto() {
     cont.innerHTML = `
     <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
       <p class="text-xs text-slate-400 max-w-xl">Áreas para acumular y prorratear gastos. La <span class="text-slate-300">capacidad normal</span> (horas de mano de obra al mes) aísla la capacidad ociosa para que no ensucie el costo de los lotes.</p>
-      <a href="${MANUAL_URL}" target="_blank" rel="noopener" class="shrink-0 text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg whitespace-nowrap">📖 Manual de costos de producción ↗</a>
+      <div class="shrink-0 flex gap-2">
+        <a href="${GUIA_URL}" target="_blank" rel="noopener" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg whitespace-nowrap">▶ Guía interactiva</a>
+        <a href="${MANUAL_URL}" target="_blank" rel="noopener" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg whitespace-nowrap">📖 Manual</a>
+      </div>
     </div>
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
       <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-3">

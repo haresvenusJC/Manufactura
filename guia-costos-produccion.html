@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guía del flujo de costos de producción — Hares de México</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --desk:#0a0f1c; --guide:#0d1524; --frame:#020617; --panel:#0f172a; --panel-2:#1e293b;
+    --line:#1e293b; --line-soft:#131c31;
+    --tx0:#f1f5f9; --tx1:#e2e8f0; --tx2:#cbd5e1; --tx3:#94a3b8; --tx4:#64748b; --tx5:#475569;
+    --accent:#38bdf8; --accent-2:#7dd3fc; --ok:#34d399; --ok-btn:#059669;
+    --warn:#fcd34d; --warn-line:#b45309; --warn-panel:rgba(120,53,15,.30);
+    --bad:#fb7185;
+    --meta:#93a4c2; --meta-strong:#dce4f2; --meta-rule:#1c2942;
+    --spot:#38bdf8; --shadow:0 30px 70px -30px rgba(0,0,0,.7);
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --desk:#d9e0ea; --guide:#eef2f7; --frame:#eff3f8; --panel:#e5eaf1; --panel-2:#d7dfea;
+      --line:#d0d9e4; --line-soft:#e2e8f1;
+      --tx0:#1e293b; --tx1:#293548; --tx2:#3f4c60; --tx3:#5f6b7e; --tx4:#8391a3; --tx5:#9fabbb;
+      --accent:#0369a1; --accent-2:#0284c7; --ok:#047857; --ok-btn:#047857;
+      --warn:#a16207; --warn-line:#d4a24a; --warn-panel:rgba(180,120,30,.14);
+      --bad:#be123c;
+      --meta:#4b5a70; --meta-strong:#1e293b; --meta-rule:#c7d0dd;
+      --spot:#0369a1; --shadow:0 30px 70px -34px rgba(30,41,59,.32);
+    }
+  }
+  :root[data-theme="light"]{
+    --desk:#d9e0ea; --guide:#eef2f7; --frame:#eff3f8; --panel:#e5eaf1; --panel-2:#d7dfea;
+    --line:#d0d9e4; --line-soft:#e2e8f1;
+    --tx0:#1e293b; --tx1:#293548; --tx2:#3f4c60; --tx3:#5f6b7e; --tx4:#8391a3; --tx5:#9fabbb;
+    --accent:#0369a1; --accent-2:#0284c7; --ok:#047857; --ok-btn:#047857;
+    --warn:#a16207; --warn-line:#d4a24a; --warn-panel:rgba(180,120,30,.14);
+    --bad:#be123c; --meta:#4b5a70; --meta-strong:#1e293b; --meta-rule:#c7d0dd;
+    --spot:#0369a1; --shadow:0 30px 70px -34px rgba(30,41,59,.32);
+  }
+  :root[data-theme="dark"]{
+    --desk:#0a0f1c; --guide:#0d1524; --frame:#020617; --panel:#0f172a; --panel-2:#1e293b;
+    --line:#1e293b; --line-soft:#131c31;
+    --tx0:#f1f5f9; --tx1:#e2e8f0; --tx2:#cbd5e1; --tx3:#94a3b8; --tx4:#64748b; --tx5:#475569;
+    --accent:#38bdf8; --accent-2:#7dd3fc; --ok:#34d399; --ok-btn:#059669;
+    --warn:#fcd34d; --warn-line:#b45309; --warn-panel:rgba(120,53,15,.30);
+    --bad:#fb7185; --meta:#93a4c2; --meta-strong:#dce4f2; --meta-rule:#1c2942;
+    --spot:#38bdf8; --shadow:0 30px 70px -30px rgba(0,0,0,.7);
+  }
+
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--desk); color:var(--meta);
+    font-family:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height:1.6;
+  }
+  .wrap{ max-width:1180px; margin:0 auto; padding:clamp(1rem,3vw,2.5rem); }
+
+  header.top{ margin-bottom:1.4rem; }
+  .eyebrow{ font-family:"IBM Plex Mono", monospace; font-size:.7rem; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); margin:0 0 .5rem; }
+  h1{ font-weight:700; font-size:clamp(1.4rem,3.5vw,2rem); margin:0 0 .3rem; color:var(--meta-strong); letter-spacing:-.01em; }
+  .top p{ margin:0; font-size:.95rem; max-width:60ch; }
+
+  .layout{ display:grid; grid-template-columns:22rem 1fr; gap:1.5rem; align-items:start; }
+  @media (max-width:900px){ .layout{ grid-template-columns:1fr; } }
+
+  /* ------- panel de pasos ------- */
+  .steps{
+    position:sticky; top:1rem; background:var(--guide); border:1px solid var(--meta-rule);
+    border-radius:14px; padding:1.1rem 1.15rem; box-shadow:var(--shadow);
+  }
+  @media (max-width:900px){ .steps{ position:static; } }
+  .chips{ display:flex; gap:.35rem; margin-bottom:.9rem; flex-wrap:wrap; }
+  .chip{
+    font-family:"IBM Plex Mono", monospace; font-size:.66rem; letter-spacing:.05em;
+    border:1px solid var(--meta-rule); color:var(--meta); border-radius:20px;
+    padding:.25rem .6rem; cursor:pointer; background:transparent;
+  }
+  .chip.on{ color:var(--accent); border-color:var(--accent); }
+  .stepno{ font-family:"IBM Plex Mono", monospace; font-size:.72rem; color:var(--tx4); letter-spacing:.08em; }
+  .steps h2{ font-size:1.12rem; font-weight:600; color:var(--meta-strong); margin:.3rem 0 .55rem; line-height:1.3; text-wrap:balance; }
+  .steps .body{ font-size:.9rem; color:var(--meta); }
+  .steps .body p{ margin:0 0 .7rem; }
+  .steps .body strong{ color:var(--meta-strong); font-weight:600; }
+  .steps .body code, .m{
+    font-family:"IBM Plex Mono", monospace; font-size:.84em;
+    background:var(--panel-2); border-radius:3px; padding:.05em .32em; color:var(--tx1);
+  }
+  .steps .body .num{
+    display:block; font-family:"IBM Plex Mono", monospace; font-size:.8rem; line-height:1.75;
+    background:var(--panel); border:1px solid var(--line); border-radius:6px;
+    padding:.6rem .7rem; margin:.6rem 0; white-space:pre-wrap; color:var(--tx2);
+  }
+
+  .prog{ height:3px; background:var(--meta-rule); border-radius:2px; margin:1rem 0 .7rem; overflow:hidden; }
+  .prog i{ display:block; height:100%; background:var(--accent); transition:width .3s ease; }
+  .nav{ display:flex; gap:.5rem; align-items:center; }
+  .nav button{
+    font-family:"IBM Plex Sans", sans-serif; font-size:.82rem; font-weight:500;
+    border:1px solid var(--line); background:var(--panel-2); color:var(--tx1);
+    border-radius:8px; padding:.5rem .8rem; cursor:pointer;
+  }
+  .nav button:disabled{ opacity:.4; cursor:not-allowed; }
+  .nav button.primary{ background:var(--ok-btn); color:#fff; border-color:transparent; }
+  .nav button.play{ margin-left:auto; color:var(--accent-2); }
+  .nav .cnt{ font-family:"IBM Plex Mono", monospace; font-size:.72rem; color:var(--tx4); }
+
+  /* ------- escenario / pantallas ERP ------- */
+  .stage{ min-width:0; }
+  .win{ border-radius:12px; overflow:hidden; border:1px solid var(--line); background:var(--frame); box-shadow:var(--shadow); }
+  .win-bar{ display:flex; align-items:center; gap:.55rem; padding:.55rem .85rem; background:var(--panel); border-bottom:1px solid var(--line); }
+  .win-bar .dot{ width:.55rem; height:.55rem; border-radius:50%; background:var(--line); }
+  .win-bar .title{ font-family:"IBM Plex Mono", monospace; font-size:.72rem; color:var(--tx3); margin-left:.35rem; }
+  .win-body{
+    padding:1.1rem; background:var(--frame); max-height:74vh; overflow-y:auto;
+    font-family:system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color:var(--tx1); font-size:14px; line-height:1.5;
+  }
+  [hidden]{ display:none !important; }
+
+  .h-accent{ color:var(--accent); font-weight:600; font-size:15px; margin:0 0 .1rem; }
+  .mut{ color:var(--tx3); } .mut2{ color:var(--tx4); }
+  .xs{ font-size:11px; } .xxs{ font-size:10px; }
+  .mono{ font-family:ui-monospace,"SF Mono",Menlo,monospace; font-variant-numeric:tabular-nums; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:.55rem; }
+  .row3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:.5rem; }
+  .fld{ margin-bottom:.6rem; }
+  .fld > label{ display:block; font-size:11px; color:var(--tx3); margin-bottom:.22rem; }
+  .inp, .sel{
+    width:100%; background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:.5rem .55rem; font-size:12.5px; color:var(--tx1); font-family:inherit;
+  }
+  .sel{ appearance:none; background-image:linear-gradient(45deg,transparent 50%,var(--tx4) 50%),linear-gradient(135deg,var(--tx4) 50%,transparent 50%);
+        background-position:calc(100% - 16px) 55%, calc(100% - 11px) 55%; background-size:5px 5px,5px 5px; background-repeat:no-repeat; }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:.75rem; margin-bottom:.75rem; }
+  .card > .lbl{ font-size:11px; font-weight:600; color:var(--accent); display:block; margin-bottom:.4rem; }
+  .btn{ display:inline-flex; align-items:center; gap:.3rem; font-size:12px; font-weight:500; padding:.55rem .85rem; border-radius:8px; border:1px solid transparent; }
+  .btn.ok{ background:var(--ok-btn); color:#fff; }
+  .btn.sec{ background:var(--panel-2); color:var(--accent-2); border-color:var(--line); }
+  .btn.block{ display:flex; width:100%; justify-content:center; }
+  .tag{ display:inline-block; font-size:10px; border:1px solid; border-radius:4px; padding:.06rem .35rem; }
+  .tag.warn{ color:var(--warn); border-color:var(--warn-line); background:var(--warn-panel); }
+  .tag.ok{ color:var(--ok); border-color:var(--ok); }
+
+  table.erp{ width:100%; border-collapse:collapse; font-size:11.5px; }
+  table.erp th{ text-align:left; color:var(--tx4); font-weight:500; padding:.4rem .5rem; border-bottom:1px solid var(--line); }
+  table.erp td{ padding:.45rem .5rem; border-bottom:1px solid var(--line-soft); }
+  table.erp td.n, table.erp th.n{ text-align:right; font-family:ui-monospace,monospace; }
+  .kpi{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:.7rem; }
+  .kpi p{ margin:0; } .kpi .k{ font-size:10.5px; color:var(--tx4); } .kpi .v{ font-size:17px; font-family:ui-monospace,monospace; color:var(--tx1); }
+  .grid3{ display:grid; grid-template-columns:repeat(3,1fr); gap:.6rem; margin-bottom:.8rem; }
+  @media (max-width:560px){ .grid3{ grid-template-columns:1fr; } .row3{ grid-template-columns:1fr 1fr; } }
+
+  /* ------- spotlight ------- */
+  .spot{
+    position:relative; border-radius:10px;
+    outline:2px solid var(--spot); outline-offset:3px;
+    box-shadow:0 0 0 6px color-mix(in srgb, var(--spot) 22%, transparent);
+  }
+  @media (prefers-reduced-motion:no-preference){
+    .spot{ animation:pulse 1.8s ease-in-out infinite; }
+    @keyframes pulse{ 0%,100%{ box-shadow:0 0 0 6px color-mix(in srgb,var(--spot) 22%,transparent); } 50%{ box-shadow:0 0 0 10px color-mix(in srgb,var(--spot) 10%,transparent); } }
+  }
+
+  footer{ margin-top:1.5rem; font-family:"IBM Plex Mono", monospace; font-size:.72rem; color:var(--tx4); }
+  footer a{ color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <p class="eyebrow">ERP Hares de México · Guía interactiva</p>
+    <h1>El flujo de costos de producción, paso a paso</h1>
+    <p>Recorre las tres pantallas — Centros de costo, Gastos y Prorrateo — con un caso de ejemplo. Usa Siguiente / Anterior, las flechas del teclado, o Reproducir. Los datos son de ejemplo.</p>
+  </header>
+
+  <div class="layout">
+    <!-- PANEL DE PASOS -->
+    <aside class="steps">
+      <div class="chips" id="chips">
+        <button class="chip" data-cap="Centros de costo">1 · Centros de costo</button>
+        <button class="chip" data-cap="Gastos">2 · Gastos</button>
+        <button class="chip" data-cap="Prorrateo">3 · Prorrateo</button>
+      </div>
+      <span class="stepno" id="stepno">Paso 1</span>
+      <h2 id="pTitulo">—</h2>
+      <div class="body" id="pCuerpo">—</div>
+      <div class="prog"><i id="pFill"></i></div>
+      <div class="nav">
+        <button id="bPrev">‹ Anterior</button>
+        <button id="bNext" class="primary">Siguiente ›</button>
+        <button id="bPlay" class="play">▶ Reproducir</button>
+      </div>
+      <p class="cnt" id="pCnt" style="margin:.5rem 0 0;font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:var(--tx4)"></p>
+    </aside>
+
+    <!-- ESCENARIO -->
+    <main class="stage">
+      <div class="win">
+        <div class="win-bar">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          <span class="title" id="winTitle">Hares de México</span>
+        </div>
+        <div class="win-body">
+
+          <!-- ===== PANTALLA 1: CENTROS DE COSTO ===== -->
+          <section class="pantalla" data-screen="centros">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:.8rem" id="s-cc-intro">
+              <p class="xs mut" style="margin:0;max-width:34rem">Áreas para acumular y prorratear gastos. La <span style="color:var(--tx2)">capacidad normal</span> aísla la capacidad ociosa para que no ensucie el costo de los lotes.</p>
+              <span class="btn sec xs" style="white-space:nowrap">Manual (referencia) ↗</span>
+            </div>
+
+            <div class="card">
+              <span class="lbl">Nuevo centro de costo</span>
+              <div class="row2">
+                <div class="fld" id="s-cc-codigo"><label>Código *</label><input class="inp mono" value="PROD"></div>
+                <div class="fld" id="s-cc-tipo"><label>Tipo</label><select class="sel"><option>Producción</option><option>Servicio</option><option>Administración</option><option>Ventas</option></select></div>
+              </div>
+              <div class="fld"><label>Nombre *</label><input class="inp" value="Producción"></div>
+              <div class="fld" id="s-cc-cuenta"><label>Cuenta CIF por defecto</label>
+                <select class="sel"><option>503.99 · Otros gastos indirectos de fabricación</option><option>503.05 · Renta de nave industrial · fijo</option><option>503.01 · Energía eléctrica de planta · variable</option></select></div>
+
+              <div class="card" id="s-cc-capblock" style="background:var(--panel-2);border-color:var(--line)">
+                <span class="lbl">Capacidad normal — horas de mano de obra al mes</span>
+                <p class="xxs mut2" style="margin:0 0 .5rem">Cálculo sugerido "de la nómina hacia abajo". Llena las variables y usa el sugerido, o captura el número directo abajo.</p>
+                <div class="row3" id="s-cc-vars">
+                  <div class="fld"><label>Operadores</label><input id="gOper" class="inp mono" type="number" value="6" style="text-align:right"></div>
+                  <div class="fld"><label>Horas jornada</label><input id="gJorn" class="inp mono" type="number" value="8" style="text-align:right"></div>
+                  <div class="fld"><label>Días hábiles/mes</label><input id="gDias" class="inp mono" type="number" value="24" style="text-align:right"></div>
+                  <div class="fld"><label>Factor ausentismo</label><input id="gFAus" class="inp mono" type="number" step="0.01" value="0.90" style="text-align:right"></div>
+                  <div class="fld"><label>Factor no productivo</label><input id="gFNP" class="inp mono" type="number" step="0.01" value="0.80" style="text-align:right"></div>
+                  <div class="fld"><label>Factor paros planeados</label><input id="gFPP" class="inp mono" type="number" step="0.01" value="0.96" style="text-align:right"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:.5rem .6rem" id="s-cc-sug">
+                  <span class="mut">Sugerido: <span id="gSug" class="mono" style="color:var(--ok)">0</span> h/mes</span>
+                  <span class="btn sec xs">Usar sugerido →</span>
+                </div>
+                <div class="fld" id="s-cc-capnorm" style="margin-top:.6rem"><label>Capacidad normal que se usa (h/mes) *</label>
+                  <input id="gCapNorm" class="inp mono" type="number" value="796" style="text-align:right;color:var(--ok)"></div>
+              </div>
+
+              <div class="row2">
+                <div class="fld" id="s-cc-metodo"><label>Método CIF</label><select class="sel"><option>Real (a fin de mes)</option><option>Tasa predeterminada por hora</option></select></div>
+                <div class="fld"><label>&nbsp;</label><span class="btn ok block" id="s-cc-guardar">Guardar centro de costo</span></div>
+              </div>
+            </div>
+
+            <div class="card" id="s-cc-lista">
+              <table class="erp">
+                <thead><tr><th>Código</th><th>Nombre</th><th class="n">Cap. normal</th><th class="n">Sugerido</th><th>Método</th><th>Estado</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono" style="color:var(--tx1)">PROD</td><td>Producción</td><td class="n" style="color:var(--ok)">796.00</td><td class="n mut">829.44</td><td class="mut">Real</td><td style="color:var(--ok)">activo</td></tr>
+                  <tr><td class="mono" style="color:var(--tx1)">ENV</td><td>Envasado</td><td class="n" style="color:var(--warn)">0 ⚠</td><td class="n mut">0</td><td class="mut">Real</td><td style="color:var(--ok)">activo</td></tr>
+                </tbody>
+              </table>
+              <p class="xxs mut2" style="margin:.5rem 0 0">⚠ capacidad en 0 = el prorrateo no podrá aislar la capacidad ociosa.</p>
+            </div>
+          </section>
+
+          <!-- ===== PANTALLA 2: GASTOS ===== -->
+          <section class="pantalla" data-screen="gastos" hidden>
+            <div class="card">
+              <span class="lbl">Registrar gasto</span>
+              <div class="row2">
+                <div class="fld"><label>Fecha</label><input class="inp" value="2026-09-18"></div>
+                <div class="fld"><label>Condición</label><select class="sel"><option>Contado</option><option selected>Crédito (por pagar)</option></select></div>
+              </div>
+              <div class="fld"><label>Concepto *</label><input class="inp" value="Renta nave industrial — septiembre"></div>
+              <div class="fld"><label>Proveedor</label><select class="sel"><option>INMOBILIARIA DEL VALLE</option></select></div>
+              <div class="fld" id="s-ga-cuenta"><label>Cuenta de gasto *</label>
+                <select class="sel"><option>503.05 · Renta de nave industrial · CIF fijo</option></select></div>
+
+              <div class="card" id="s-ga-block" style="background:var(--panel-2);border-color:var(--line)">
+                <span class="lbl">Costeo de producción</span>
+                <div class="fld" id="s-ga-clasif"><label>Clasificación</label>
+                  <select class="sel" id="gClasif">
+                    <option value="no_produccion">No producción (admin / venta / financiero)</option>
+                    <option value="indirecto_produccion" selected>Indirecto de fabricación (CIF) — se prorratea</option>
+                    <option value="directo_produccion">Directo a una orden de producción</option>
+                  </select></div>
+                <div class="fld gaDep" id="s-ga-centro"><label>Centro de costo</label><select class="sel"><option>PROD · Producción</option></select></div>
+                <div class="fld gaDep" id="s-ga-tipo"><label>Tipo de CIF</label>
+                  <select class="sel"><option>— (según la cuenta) —</option><option selected>Fijo (renta, depreciación, supervisión)</option><option>Variable (energía, insumos indirectos, mtto. por uso)</option></select></div>
+                <div class="fld gaDep" id="s-ga-orden" hidden><label>Orden de producción</label><select class="sel"><option>OP-000051 · Gel lubricante 60 ml · en_proceso</option></select></div>
+              </div>
+
+              <div class="row2">
+                <div class="fld"><label>Subtotal</label><input class="inp mono" value="40000.00" style="text-align:right"></div>
+                <div class="fld"><label>IVA</label><input class="inp mono" value="6400.00" style="text-align:right"></div>
+              </div>
+              <div class="fld" id="s-ga-guardar"><span class="btn ok block">Guardar gasto</span></div>
+              <p class="xxs mut2" id="s-ga-poliza" style="margin:0">Al guardar: póliza de Egreso — Cargo <span class="mono">503.05</span> $40,000 · Cargo <span class="mono">119.01</span> IVA $6,400 · Abono <span class="mono">201.01</span> Proveedores $46,400. El gasto queda <span class="tag warn">pendiente</span> de prorrateo.</p>
+            </div>
+          </section>
+
+          <!-- ===== PANTALLA 3: PRORRATEO ===== -->
+          <section class="pantalla" data-screen="prorrateo" hidden>
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:1rem;margin-bottom:.9rem">
+              <div class="fld" id="s-pr-mes" style="margin:0"><label>Mes a prorratear</label><input class="inp" value="2026-09" style="width:9rem"></div>
+              <span class="btn sec xs">Manual ↗</span>
+            </div>
+
+            <div class="grid3">
+              <div class="kpi" id="s-pr-pool"><p class="k">CIF pendiente</p><p class="v">$102,000.00</p><p class="k">fijo $80,000 · variable $22,000</p></div>
+              <div class="kpi" id="s-pr-horas"><p class="k">Horas de mano de obra del mes</p><p class="v">560.0 h</p><p class="k">capacidad normal 796 h · utilización 70%</p></div>
+              <div class="kpi" id="s-pr-dist"><p class="k">Distribución</p><p class="v" style="color:var(--ok)">$78,269.00</p><p class="k">a órdenes · capacidad no utilizada <span style="color:var(--warn)">$23,731.00</span></p></div>
+            </div>
+
+            <div class="card" id="s-pr-pendientes">
+              <span class="lbl">Gastos indirectos pendientes — 2026-09</span>
+              <table class="erp">
+                <thead><tr><th>Cuenta</th><th>Concepto</th><th>Tipo</th><th class="n">Monto</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono mut">503.05</td><td>Renta nave industrial</td><td style="color:var(--warn)">fijo</td><td class="n">$40,000.00</td></tr>
+                  <tr><td class="mono mut">503.04</td><td>Depreciación equipo</td><td style="color:var(--warn)">fijo</td><td class="n">$18,000.00</td></tr>
+                  <tr><td class="mono mut">503.02</td><td>Supervisión de planta</td><td style="color:var(--warn)">fijo</td><td class="n">$22,000.00</td></tr>
+                  <tr><td class="mono mut">503.01</td><td>Energía eléctrica de planta</td><td class="mut">variable</td><td class="n">$15,000.00</td></tr>
+                  <tr><td class="mono mut">503.06</td><td>Insumos indirectos</td><td class="mut">variable</td><td class="n">$7,000.00</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="card" id="s-pr-dist-tabla">
+              <span class="lbl">Distribución propuesta</span>
+              <table class="erp">
+                <thead><tr><th>Destino</th><th class="n">Horas MO</th><th class="n">Factor</th><th class="n">CIF asignado</th></tr></thead>
+                <tbody>
+                  <tr><td style="color:var(--tx1)">Orden OP-000051</td><td class="n mut">360.0</td><td class="n mut2">64.3%</td><td class="n" style="color:var(--ok)">$50,316.00</td></tr>
+                  <tr><td style="color:var(--tx1)">Orden OP-000052</td><td class="n mut">200.0</td><td class="n mut2">35.7%</td><td class="n" style="color:var(--ok)">$27,953.00</td></tr>
+                  <tr><td style="color:var(--warn)">Capacidad no utilizada → 503.98 (resultados)</td><td class="n"></td><td class="n"></td><td class="n" style="color:var(--warn)">$23,731.00</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="fld" id="s-pr-aplicar"><span class="btn ok block">Aplicar prorrateo de 2026-09</span></div>
+          </section>
+
+        </div>
+      </div>
+      <footer>Guía interactiva · datos de ejemplo · el detalle contable está en el <a href="manual-costos-produccion.html">manual</a>.</footer>
+    </main>
+  </div>
+</div>
+
+<script>
+(function(){
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- calculadora de capacidad (real) ----------
+  function calcSug(){
+    var g = function(id){ return parseFloat(document.getElementById(id).value) || 0; };
+    var s = g('gOper')*g('gJorn')*g('gDias')*g('gFAus')*g('gFNP')*g('gFPP');
+    document.getElementById('gSug').textContent = (Math.round(s*100)/100).toLocaleString('es-MX',{maximumFractionDigits:2});
+  }
+  ['gOper','gJorn','gDias','gFAus','gFNP','gFPP'].forEach(function(id){
+    document.getElementById(id).addEventListener('input', calcSug);
+  });
+  calcSug();
+
+  // clasificación de gastos: mostrar campos dependientes
+  var gClasif = document.getElementById('gClasif');
+  function aplicarClasif(){
+    var v = gClasif.value;
+    document.getElementById('s-ga-centro').hidden = v !== 'indirecto_produccion';
+    document.getElementById('s-ga-tipo').hidden   = v !== 'indirecto_produccion';
+    document.getElementById('s-ga-orden').hidden  = v !== 'directo_produccion';
+  }
+  gClasif.addEventListener('change', aplicarClasif);
+  aplicarClasif();
+
+  // ---------- pasos ----------
+  var PASOS = [
+    { cap:'Centros de costo', screen:'centros', spot:'#s-cc-intro', winTitle:'Hares de México — Contabilidad → Centros de costo',
+      t:'¿Qué es un centro de costo?',
+      h:'<p>Un <strong>centro de costo</strong> es un área donde se acumulan gastos para después repartirlos (prorratearlos) a lo que produce. Al inicio basta uno: <code>PROD · Producción</code>. Cuando separes Envasado o Almacén, cada uno será su propio centro.</p>' },
+
+    { cap:'Centros de costo', screen:'centros', spot:'#s-cc-codigo',
+      t:'Identificación',
+      h:'<p>Código corto, nombre y <strong>tipo</strong>. Solo los de tipo <code>Producción</code> entran al costeo de los lotes; los de Administración o Ventas sirven para control de gasto por área.</p>' },
+
+    { cap:'Centros de costo', screen:'centros', spot:'#s-cc-cuenta',
+      t:'Cuenta CIF por defecto',
+      h:'<p>La cuenta contable <code>503.xx</code> que se propondrá al capturar un gasto indirecto de este centro. Cada <code>503.xx</code> ya viene marcada como <strong>fijo</strong> o <strong>variable</strong> en el Plan de cuentas.</p>' },
+
+    { cap:'Centros de costo', screen:'centros', spot:'#s-cc-capblock',
+      t:'Capacidad normal — el número clave',
+      h:'<p>Horas de mano de obra que la planta produce en un mes <strong>normal</strong> — ni la máxima, ni la de un mes malo. Es el denominador con el que se reparte el CIF <strong>fijo</strong>. Si trabajas menos que esto, la diferencia es <strong>capacidad ociosa</strong> y va a resultados, no al inventario.</p>' },
+
+    { cap:'Centros de costo', screen:'centros', spot:'#s-cc-vars',
+      t:'Estímala "de la nómina hacia abajo"',
+      h:'<p>No necesitas histórico. Parte de las horas que <em>podrías</em> trabajar y resta las pérdidas normales. <strong>Cambia los valores aquí</strong> y mira cómo se mueve el sugerido.</p><span class="num">operadores × jornada × días hábiles\n× (1 − ausentismo)      ~0.90\n× (1 − no productivo)   ~0.80\n× (1 − paros planeados) ~0.96</span>' },
+
+    { cap:'Centros de costo', screen:'centros', spot:'#s-cc-sug',
+      t:'Sugerido y "Usar sugerido"',
+      h:'<p>El factor combinado (~0.69 de utilización efectiva) es un punto de partida sano para una planta chica. El botón copia el sugerido al campo de abajo; de ahí lo ajustas a mano.</p>' },
+
+    { cap:'Centros de costo', screen:'centros', spot:'#s-cc-capnorm',
+      t:'La capacidad que se usa',
+      h:'<p>Este es el número que realmente entra al prorrateo. Puede ser el sugerido o el que tú decidas. Alta gerencia lo revisa una o dos veces al año.</p>' },
+
+    { cap:'Centros de costo', screen:'centros', spot:'#s-cc-metodo',
+      t:'Método CIF',
+      h:'<p><strong>Real</strong> — el prorrateo corre a fin de mes con el gasto real (lo que usarás ahora). <strong>Predeterminado</strong> — una tasa por hora aplicada al cerrar cada orden, con conciliación mensual (Fase 4, aún sin efecto).</p>' },
+
+    { cap:'Centros de costo', screen:'centros', spot:'#s-cc-lista',
+      t:'Guardar y revisar',
+      h:'<p>La lista avisa: <span class="tag warn">⚠</span> si la capacidad quedó en 0, y <code>≠</code> si la sugerida se aleja más de 15% de la que usas. En el ejemplo, <code>ENV</code> todavía no tiene capacidad capturada.</p>' },
+
+    // ----- Gastos -----
+    { cap:'Gastos', screen:'gastos', spot:'#s-ga-cuenta', winTitle:'Hares de México — Contabilidad → Gastos', onEnter:function(){ gClasif.value='indirecto_produccion'; aplicarClasif(); },
+      t:'Capturar un gasto',
+      h:'<p>Cada factura de gasto sin inventario entra aquí. Para un gasto indirecto de fabricación eliges una cuenta <code>503.xx</code> — en el ejemplo, la renta de la nave (<code>503.05</code>, fijo).</p>' },
+
+    { cap:'Gastos', screen:'gastos', spot:'#s-ga-clasif',
+      t:'Clasificación — el bloque nuevo',
+      h:'<p>Tres opciones:</p><p><strong>No producción</strong> — admin, venta, financiero. Sin efecto en el costo de los lotes.<br><strong>Indirecto de fabricación (CIF)</strong> — se prorratea a fin de mes.<br><strong>Directo a una orden</strong> — se carga completo a una orden concreta.</p>' },
+
+    { cap:'Gastos', screen:'gastos', spot:'#s-ga-centro', onEnter:function(){ gClasif.value='indirecto_produccion'; aplicarClasif(); },
+      t:'CIF → centro de costo y fijo/variable',
+      h:'<p>Al elegir <strong>Indirecto</strong> aparecen dos campos: el <strong>centro de costo</strong> que lo acumula y si es <strong>fijo</strong> o <strong>variable</strong> (se hereda de la cuenta, lo puedes cambiar). El gasto queda en estatus <span class="tag warn">pendiente</span>.</p>' },
+
+    { cap:'Gastos', screen:'gastos', spot:'#s-ga-orden', onEnter:function(){ gClasif.value='directo_produccion'; aplicarClasif(); },
+      t:'Directo → una orden',
+      h:'<p>Si en vez de indirecto eliges <strong>Directo a una orden</strong>, aparece el selector de orden de producción. Ese gasto se cargará íntegro al costo de esa orden — sin prorrateo — cuando se cierre.</p>' },
+
+    { cap:'Gastos', screen:'gastos', spot:'#s-ga-poliza', onEnter:function(){ gClasif.value='indirecto_produccion'; aplicarClasif(); },
+      t:'La póliza al guardar',
+      h:'<p>El asiento del gasto <strong>no cambia</strong>: carga la <code>503.05</code> y abona proveedores o banco. El CIF todavía no toca el inventario — eso lo hace el prorrateo de fin de mes.</p>' },
+
+    // ----- Prorrateo -----
+    { cap:'Prorrateo', screen:'prorrateo', spot:'#s-pr-mes', winTitle:'Hares de México — Contabilidad → Prorrateo de gastos',
+      t:'Fin de mes: elige el periodo',
+      h:'<p>Una vez capturados todos los gastos indirectos del mes, entras aquí y eliges el mes. El sistema calcula la distribución <strong>sin escribir nada</strong> hasta que confirmes.</p>' },
+
+    { cap:'Prorrateo', screen:'prorrateo', spot:'#s-pr-pool',
+      t:'El pool de CIF',
+      h:'<p>La suma de los gastos indirectos pendientes, separada en <strong>fijo</strong> ($80,000) y <strong>variable</strong> ($22,000). Esta separación es la que permite aislar la capacidad ociosa.</p>' },
+
+    { cap:'Prorrateo', screen:'prorrateo', spot:'#s-pr-horas',
+      t:'Horas reales contra capacidad normal',
+      h:'<p>Se trabajaron <strong>560 h</strong> de mano de obra contra una capacidad normal de <strong>796 h</strong>: <strong>70% de utilización</strong>. Ese 30% sin usar es lo que se separará como capacidad ociosa.</p>' },
+
+    { cap:'Prorrateo', screen:'prorrateo', spot:'#s-pr-pendientes',
+      t:'Cómo reparte cada gasto',
+      h:'<p><strong>Variable</strong> → se divide entre las horas <em>reales</em>: todo va a las órdenes.<br><strong>Fijo</strong> → se divide entre la <em>capacidad normal</em>. Aplicado = <code>gasto × min(560/796, 1)</code> = 70% a las órdenes; el 30% restante ($23,731) → <code>503.98</code>.</p>' },
+
+    { cap:'Prorrateo', screen:'prorrateo', spot:'#s-pr-dist-tabla',
+      t:'Distribución propuesta',
+      h:'<p>El CIF aplicado se reparte entre las órdenes que tuvieron horas ese mes, proporcional a sus horas. La última fila es la <strong>capacidad no utilizada</strong> que irá a resultados del periodo.</p><span class="num">OP-000051  360 h  64.3%  $50,316\nOP-000052  200 h  35.7%  $27,953\ncapacidad ociosa       $23,731\n────────────────────────────────\ntotal CIF del mes      $102,000</span>' },
+
+    { cap:'Prorrateo', screen:'prorrateo', spot:'#s-pr-aplicar',
+      t:'Aplicar — la póliza',
+      h:'<p>Al confirmar se genera <strong>una póliza Diario</strong> y se ajusta el costo de las órdenes ya cerradas.</p><span class="num">Cargo  115.03  Produccion en proceso   78,269\nCargo  503.98  Capacidad no utilizada  23,731\n  Abono  503.01 / 503.02 / ...       102,000\n\n+ por cada orden YA CERRADA del mes:\nCargo  115.04  Producto terminado\n  Abono  115.03  Produccion en proceso</span><p style="margin:.6rem 0 0">¿Llegó un gasto tarde? <strong>Cancelar prorrateo del mes</strong>, capturas lo que falte y vuelves a aplicar.</p>' },
+
+    { cap:'Prorrateo', screen:'prorrateo', spot:null,
+      t:'Qué pasó con el costo del lote',
+      h:'<p>El CIF de una orden <strong>cerrada</strong> pasa de <code>115.03</code> a <code>115.04</code> y su costo unitario sube. El de una orden <strong>abierta</strong> espera en <code>115.03</code> y entra al costo el día que se cierre. Los gastos directos se suman al cierre de su orden.</p><p>El detalle contable completo, en el <a href="manual-costos-produccion.html">manual</a>.</p>' },
+  ];
+
+  var i = 0, playing = false, timer = null;
+  var elNo = document.getElementById('stepno'), elT = document.getElementById('pTitulo'),
+      elC = document.getElementById('pCuerpo'), elFill = document.getElementById('pFill'),
+      elCnt = document.getElementById('pCnt'), elWin = document.getElementById('winTitle'),
+      bPrev = document.getElementById('bPrev'), bNext = document.getElementById('bNext'),
+      bPlay = document.getElementById('bPlay'), chips = document.getElementById('chips');
+
+  function render(){
+    var p = PASOS[i];
+    document.querySelectorAll('.pantalla').forEach(function(s){ s.hidden = s.dataset.screen !== p.screen; });
+    document.querySelectorAll('.spot').forEach(function(e){ e.classList.remove('spot'); });
+    if (p.onEnter) p.onEnter();
+    if (p.spot){
+      var el = document.querySelector(p.spot);
+      if (el){ el.classList.add('spot'); el.scrollIntoView({ block:'center', behavior: reduce ? 'auto' : 'smooth' }); }
+    } else {
+      document.querySelector('.win-body').scrollTo({ top: 1e6, behavior: reduce ? 'auto' : 'smooth' });
+    }
+    elWin.textContent = p.winTitle || elWin.textContent;
+    elNo.textContent = 'Paso ' + (i + 1);
+    elT.textContent = p.t;
+    elC.innerHTML = p.h;
+    elFill.style.width = ((i + 1) / PASOS.length * 100) + '%';
+    elCnt.textContent = (i + 1) + ' / ' + PASOS.length;
+    bPrev.disabled = i === 0;
+    bNext.disabled = i === PASOS.length - 1;
+    [].forEach.call(chips.children, function(c){ c.classList.toggle('on', c.dataset.cap === p.cap); });
+  }
+  function ir(n){ i = Math.max(0, Math.min(PASOS.length - 1, n)); render(); }
+  function play(){
+    playing = !playing;
+    bPlay.textContent = playing ? '⏸ Pausa' : '▶ Reproducir';
+    clearInterval(timer);
+    if (playing) timer = setInterval(function(){ if (i >= PASOS.length - 1){ play(); return; } ir(i + 1); }, 7500);
+  }
+  bPrev.onclick = function(){ if (playing) play(); ir(i - 1); };
+  bNext.onclick = function(){ if (playing) play(); ir(i + 1); };
+  bPlay.onclick = play;
+  [].forEach.call(chips.children, function(c){
+    c.onclick = function(){
+      if (playing) play();
+      var idx = PASOS.findIndex(function(p){ return p.cap === c.dataset.cap; });
+      if (idx >= 0) ir(idx);
+    };
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'ArrowRight'){ if (playing) play(); ir(i + 1); }
+    if (e.key === 'ArrowLeft'){ if (playing) play(); ir(i - 1); }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

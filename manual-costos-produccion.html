@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manual de costos de producción — Hares de México</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --paper:#f7f6f3; --ink:#25303b; --mut:#5b6b78; --faint:#8a97a1;
+    --rule:#e2dfd8; --rule-soft:#ece9e2; --code-bg:#eeece6; --panel:#fbfaf7;
+    --accent:#0d6a7a; --accent-soft:#e0eff1;
+    --warn:#8a5d00; --warn-bg:#f6edd8; --ok:#2f7a4a; --ok-bg:#e2f0e6;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#141a1f; --ink:#e8ecef; --mut:#9aa8b1; --faint:#6f7d86;
+      --rule:#28323a; --rule-soft:#1f272d; --code-bg:#1b232a; --panel:#171e24;
+      --accent:#4bc2d4; --accent-soft:#123037;
+      --warn:#e0a53a; --warn-bg:#2a2416; --ok:#5fb884; --ok-bg:#16261d;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#141a1f; --ink:#e8ecef; --mut:#9aa8b1; --faint:#6f7d86;
+    --rule:#28323a; --rule-soft:#1f272d; --code-bg:#1b232a; --panel:#171e24;
+    --accent:#4bc2d4; --accent-soft:#123037;
+    --warn:#e0a53a; --warn-bg:#2a2416; --ok:#5fb884; --ok-bg:#16261d;
+  }
+  :root[data-theme="light"]{
+    --paper:#f7f6f3; --ink:#25303b; --mut:#5b6b78; --faint:#8a97a1;
+    --rule:#e2dfd8; --rule-soft:#ece9e2; --code-bg:#eeece6; --panel:#fbfaf7;
+    --accent:#0d6a7a; --accent-soft:#e0eff1;
+    --warn:#8a5d00; --warn-bg:#f6edd8; --ok:#2f7a4a; --ok-bg:#e2f0e6;
+  }
+
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:"Spectral", Georgia, "Times New Roman", serif;
+    font-size:18px; line-height:1.68; -webkit-font-smoothing:antialiased;
+  }
+  img{ max-width:100%; }
+  .page{ max-width:44rem; margin:0 auto; padding:clamp(2rem,5vw,4.5rem) clamp(1.15rem,4vw,2rem) 6rem; }
+
+  header.doc{ margin-bottom:2.5rem; }
+  .kicker{
+    font-family:"IBM Plex Mono", monospace; font-size:.72rem; letter-spacing:.2em;
+    text-transform:uppercase; color:var(--accent); margin:0 0 .7rem;
+  }
+  h1{
+    font-weight:700; font-size:clamp(2rem,5vw,2.9rem); line-height:1.1;
+    margin:0 0 .6rem; text-wrap:balance; letter-spacing:-.01em;
+  }
+  .sub{ color:var(--mut); font-size:1.05rem; margin:0; max-width:38rem; }
+
+  .status{
+    display:flex; flex-wrap:wrap; gap:.4rem; margin:1.6rem 0 0;
+    font-family:"IBM Plex Mono", monospace; font-size:.74rem;
+  }
+  .status span{ border:1px solid var(--rule); border-radius:2px; padding:.2rem .5rem; color:var(--mut); }
+  .status span.on{ color:var(--ok); border-color:var(--ok); }
+
+  section{ border-top:1px solid var(--rule); margin-top:3rem; padding-top:2.2rem; }
+  h2{
+    font-weight:600; font-size:1.6rem; line-height:1.2; margin:0 0 1rem;
+    text-wrap:balance; letter-spacing:-.005em;
+  }
+  h2 .n{ font-family:"IBM Plex Mono", monospace; font-size:1rem; color:var(--accent); margin-right:.6rem; }
+  h3{
+    font-weight:600; font-size:1.12rem; margin:2rem 0 .5rem;
+    font-variant:small-caps; letter-spacing:.03em; color:var(--ink);
+  }
+  p{ margin:0 0 1rem; }
+  .lead{ font-size:1.06rem; color:var(--mut); }
+  strong{ font-weight:600; }
+  em{ color:var(--mut); }
+  a{ color:var(--accent); text-underline-offset:2px; }
+
+  ul,ol{ margin:0 0 1.15rem; padding-left:1.3rem; }
+  li{ margin:.35rem 0; }
+  li::marker{ color:var(--faint); }
+
+  code, .m{
+    font-family:"IBM Plex Mono", monospace; font-size:.86em;
+    background:var(--code-bg); border-radius:3px; padding:.06em .35em;
+  }
+  .term{ font-weight:600; color:var(--accent); }
+
+  .callout{
+    border-left:3px solid var(--accent); background:var(--panel);
+    padding:.9rem 1.1rem; margin:1.4rem 0; border-radius:0 4px 4px 0;
+  }
+  .callout.warn{ border-left-color:var(--warn); background:var(--warn-bg); }
+  .callout p{ margin:0; }
+  .callout .lbl{
+    font-family:"IBM Plex Mono", monospace; font-size:.68rem; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--mut); display:block; margin-bottom:.3rem;
+  }
+  .callout.warn .lbl{ color:var(--warn); }
+
+  .tbl{ overflow-x:auto; margin:1.3rem 0; }
+  table{ border-collapse:collapse; width:100%; font-size:.92rem; }
+  th,td{ text-align:left; padding:.5rem .7rem; border-bottom:1px solid var(--rule-soft); vertical-align:top; }
+  th{ font-weight:600; color:var(--mut); border-bottom:1px solid var(--rule); font-variant:small-caps; letter-spacing:.03em; }
+  td.num, th.num{ text-align:right; font-family:"IBM Plex Mono", monospace; font-variant-numeric:tabular-nums; }
+  tbody tr:last-child td{ border-bottom:0; }
+  .tbl.total tbody tr:last-child td{ border-top:2px solid var(--rule); font-weight:600; }
+
+  .calc{
+    font-family:"IBM Plex Mono", monospace; font-size:.86rem; line-height:1.9;
+    background:var(--code-bg); border-radius:5px; padding:1rem 1.15rem; margin:1.3rem 0;
+    white-space:pre-wrap; overflow-x:auto;
+  }
+
+  .steps{ counter-reset:step; list-style:none; padding:0; margin:1.3rem 0; }
+  .steps li{
+    counter-increment:step; position:relative; padding-left:2.4rem; margin:1.1rem 0;
+  }
+  .steps li::before{
+    content:counter(step); position:absolute; left:0; top:.05rem;
+    font-family:"IBM Plex Mono", monospace; font-size:.8rem; font-weight:600;
+    width:1.7rem; height:1.7rem; display:grid; place-items:center;
+    border:1px solid var(--accent); color:var(--accent); border-radius:50%;
+  }
+
+  footer{
+    margin-top:4rem; border-top:1px solid var(--rule); padding-top:1.4rem;
+    font-family:"IBM Plex Mono", monospace; font-size:.74rem; color:var(--faint);
+  }
+  @media (max-width:520px){ body{ font-size:16.5px; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="doc">
+    <p class="kicker">ERP Hares de México · Contabilidad de costos</p>
+    <h1>Manual de costos de producción</h1>
+    <p class="sub">Configuración, comprensión y ejecución del costeo de producción: costos directos, gastos indirectos de fabricación (CIF), capacidad normal y prorrateo. Documento vivo — cada fase agrega su bloque.</p>
+    <div class="status">
+      <span class="on">Fase 1 · construida</span>
+      <span class="on">Fase 2 · prorrateo</span>
+      <span class="on">Fase 3 · integración al costo</span>
+      <span>Fase 4 · tasa predeterminada y variación</span>
+    </div>
+  </header>
+
+  <section>
+    <h2><span class="n">A</span>Concepto</h2>
+    <p class="lead">El costo de un lote producido tiene tres componentes. El ERP ya calcula dos; esta fase prepara el tercero.</p>
+
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Componente</th><th>Qué es</th><th>Cómo se obtiene hoy</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Materiales directos</strong></td><td>Materia prima consumida por la receta</td><td>Salida FEFO de lotes al cerrar la orden</td></tr>
+          <tr><td><strong>Mano de obra directa</strong></td><td>Tiempo de los operadores en los procesos de la orden</td><td>Horas de <span class="m">registros_tiempo</span> × sueldo</td></tr>
+          <tr><td><strong>Gastos indirectos de fabricación (CIF)</strong></td><td>Costos de tener y operar la planta que no se atribuyen a un producto en particular</td><td><em>— pendiente: lo resuelven estas fases</em></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Directo contra indirecto</h3>
+    <p>Un gasto es <span class="term">directo</span> cuando se puede rastrear a una orden concreta (ej. un molde rentado solo para el lote X, un flete de una materia prima específica). Es <span class="term">indirecto</span> (CIF) cuando beneficia a toda la producción y no a un producto: renta de la nave, energía de planta, mantenimiento, depreciación de equipo, supervisión, insumos indirectos.</p>
+
+    <h3>CIF fijo contra variable</h3>
+    <p>Cada cuenta de CIF (<span class="m">503.xx</span>) se marca:</p>
+    <ul>
+      <li><span class="term">Fijo</span> — no cambia opere o no opere la planta: renta, depreciación de maquinaria, sueldo base de supervisión, seguros y vigilancia.</li>
+      <li><span class="term">Variable</span> — sube y baja con el volumen: energía eléctrica de planta, insumos y materiales indirectos, mantenimiento por uso, servicios (agua, gas).</li>
+    </ul>
+
+    <h3>Capacidad normal y capacidad ociosa</h3>
+    <p>Este es el punto que hace la diferencia. Si la planta trabaja al 40% un mes, <strong>no</strong> se debe cargar toda la renta y la depreciación a los pocos lotes que se hicieron: eso infla el costo unitario y esconde el problema real, que es capacidad sin usar.</p>
+    <p>La norma (<span class="m">NIF C-4</span> / <span class="m">IAS 2</span>) lo resuelve así:</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Pool</th><th>Denominador para la tasa</th><th>A dónde va</th></tr></thead>
+        <tbody>
+          <tr><td>CIF <strong>variable</strong></td><td>actividad <strong>real</strong> del mes</td><td>todo a las órdenes</td></tr>
+          <tr><td>CIF <strong>fijo</strong></td><td><strong>capacidad normal</strong></td><td>la parte proporcional a la actividad real, a las órdenes…</td></tr>
+          <tr><td></td><td></td><td>…el resto = <strong>capacidad ociosa</strong> → cuenta <span class="m">503.98</span>, gasto del periodo, <strong>nunca al inventario</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Un mes al 40%: las órdenes reciben su CIF fijo <em>como si</em> la planta estuviera normal; el 60% ocioso aparece claro como gasto del periodo. Un mes al 120%: se sobreaplica un poco y se ajusta a costo de ventas al cierre del ejercicio.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">B</span>Configuración</h2>
+
+    <h3>Centros de costo</h3>
+    <p>Contabilidad → <strong>Centros de costo</strong>. Un centro es un área donde se acumulan y prorratean gastos. Al inicio basta uno: <span class="m">PROD · Producción</span>.</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Campo</th><th>Para qué</th></tr></thead>
+        <tbody>
+          <tr><td>Código / Nombre / Tipo</td><td>Identificación. Tipo <span class="m">produccion</span> es el que entra al costeo.</td></tr>
+          <tr><td>Cuenta CIF por defecto</td><td>La <span class="m">503.xx</span> que se sugiere al capturar un gasto de ese centro.</td></tr>
+          <tr><td><strong>Capacidad normal (h/mes)</strong></td><td>Horas de mano de obra que la planta produce en un mes <em>normal</em>. Es el número que usa el prorrateo. Editable.</td></tr>
+          <tr><td>Variables del cálculo sugerido</td><td>Operadores, horas de jornada, días hábiles y tres factores de merma. El sistema calcula un valor sugerido; tú decides si lo adoptas.</td></tr>
+          <tr><td>Método CIF</td><td><span class="m">real</span> (a fin de mes) o <span class="m">predeterminado</span> (tasa por hora, Fase 4).</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout warn">
+      <span class="lbl">Cuidado</span>
+      <p>Un centro con capacidad normal en <span class="m">0</span> no permite aislar la capacidad ociosa: todo el CIF fijo se prorratearía por actividad real y un mes flojo inflaría el costo. Captúrala antes de correr el prorrateo de la Fase 2.</p>
+    </div>
+
+    <h3>Cómo estimar la capacidad normal sin histórico</h3>
+    <p>Se construye "de la nómina hacia abajo": de las horas que <em>podrías</em> trabajar, restas las pérdidas normales. No necesitas datos, solo tu plantilla y estimaciones que alta gerencia revisa una o dos veces al año.</p>
+    <div class="calc">Horas teóricas   = operadores × horas de jornada × días hábiles del mes
+− Ausentismo     × (1 − %)   vacaciones, incapacidades, permisos, faltas   →  ~0.90
+− No productivo  × (1 − %)   limpieza, arranque/paro, juntas, esperas       →  ~0.80
+− Paros planeados × (1 − %)  mantenimiento programado, días sin pedidos     →  ~0.96
+= Capacidad normal (h/mes)</div>
+    <p>El factor combinado (~0.69 de utilización efectiva) es un punto de partida sano para una planta chica que no es lean. La pantalla lo calcula solo cuando llenas las seis variables y ofrece <span class="m">Usar sugerido →</span>.</p>
+
+    <div class="callout">
+      <span class="lbl">Se corrige solo</span>
+      <p>A los tres meses, cuando <span class="m">registros_tiempo</span> ya tenga historia, el sistema mostrará el promedio móvil de horas-hombre reales al lado de la capacidad que capturaste, con un aviso (<span class="m">≠</span>) si difieren más de ±15%. Tú decides si ajustas.</p>
+    </div>
+
+    <h3>Cuentas de CIF</h3>
+    <p>La migración de la Fase 1 siembra el bloque <span class="m">503</span> si no existe, con su marca fijo/variable:</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Cuenta</th><th>Nombre</th><th>Tipo</th></tr></thead>
+        <tbody>
+          <tr><td class="m">503.01</td><td>Energía eléctrica de planta</td><td>variable</td></tr>
+          <tr><td class="m">503.02</td><td>Mano de obra indirecta y supervisión</td><td>fijo</td></tr>
+          <tr><td class="m">503.03</td><td>Mantenimiento de planta y equipo</td><td>variable</td></tr>
+          <tr><td class="m">503.04</td><td>Depreciación de maquinaria y equipo</td><td>fijo</td></tr>
+          <tr><td class="m">503.05</td><td>Renta de nave industrial</td><td>fijo</td></tr>
+          <tr><td class="m">503.06</td><td>Materiales e insumos indirectos</td><td>variable</td></tr>
+          <tr><td class="m">503.07</td><td>Servicios de planta (agua, gas)</td><td>variable</td></tr>
+          <tr><td class="m">503.08</td><td>Seguros y vigilancia de planta</td><td>fijo</td></tr>
+          <tr><td class="m">503.98</td><td>Costo de capacidad no utilizada</td><td>— (va a resultados)</td></tr>
+          <tr><td class="m">503.99</td><td>Otros gastos indirectos de fabricación</td><td>variable</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>En <strong>Plan de cuentas</strong> puedes editar el <span class="m">cif_tipo</span> de cada una y agregar las que te falten. <span class="m">115.03 Producción en proceso</span> ya existía.</p>
+
+    <h3>Gastos</h3>
+    <p>Contabilidad → <strong>Gastos</strong>. El formulario agrega el bloque <em>Costeo de producción</em>:</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Clasificación</th><th>Qué pide</th><th>Efecto</th></tr></thead>
+        <tbody>
+          <tr><td><strong>No producción</strong></td><td>nada extra</td><td>Igual que antes. Admin, venta, financiero.</td></tr>
+          <tr><td><strong>Indirecto de fabricación (CIF)</strong></td><td>Centro de costo + tipo fijo/variable (se hereda de la cuenta)</td><td>Queda en estatus <span class="m">pendiente</span> de prorrateo.</td></tr>
+          <tr><td><strong>Directo a una orden</strong></td><td>La orden de producción</td><td>Se cargará completo a esa orden (Fase 3).</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>La póliza de Egreso del gasto no cambia en esta fase: sigue cargando la cuenta que elegiste (para un CIF, una <span class="m">503.xx</span>) y abonando banco o proveedores. El movimiento del CIF hacia el inventario lo hará el prorrateo.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">C</span>Comprensión y análisis</h2>
+    <ul>
+      <li><strong>Capacidad normal vs sugerida.</strong> La sugerida es aritmética pura sobre tus supuestos; la normal es la que decides usar. Que difieran está bien — significa que ajustaste con criterio. Que difieran <em>mucho</em> sin razón es señal de supuestos flojos.</li>
+      <li><strong>Capacidad normal vs real (a los 3 meses).</strong> Si la real viene sistemáticamente por debajo, o bajas la capacidad normal (aceptas que ese es tu ritmo) o atacas la causa (ausentismo, esperas de material). Bajarla reduce el costo de capacidad ociosa pero sube el CIF fijo por hora aplicado a cada lote.</li>
+      <li><strong>Pool de CIF pendiente.</strong> Es la suma de gastos indirectos del mes aún sin prorratear. Si crece mes con mes sin que se corra el prorrateo, el costo de tus lotes está incompleto.</li>
+      <li><strong>Proporción fijo / variable.</strong> Mucho fijo = eres sensible a la ociosidad (un mes flojo duele). Mucho variable = tu costo escala con el volumen y la ociosidad casi no pega.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="n">D</span>Ejecución — Fase 1</h2>
+    <ol class="steps">
+      <li>Corre <span class="m">sql/2026-09-14_costos_produccion_fase1.sql</span> en Supabase → SQL Editor.</li>
+      <li>Contabilidad → <strong>Centros de costo</strong>: revisa el centro <span class="m">PROD</span>. Llena las seis variables de capacidad, pulsa <span class="m">Usar sugerido →</span> y ajusta el número final si lo ves alto o bajo. Guarda.</li>
+      <li>Contabilidad → <strong>Plan de cuentas</strong>: verifica el bloque <span class="m">503.xx</span> y su <span class="m">cif_tipo</span>. Cambia lo que tu contador indique.</li>
+      <li>Desde ahora, al registrar cada gasto elige su <strong>clasificación</strong>. Los CIF quedan marcados <span class="m">pendiente</span> para el prorrateo.</li>
+    </ol>
+    <div class="callout">
+      <span class="lbl">Resultado de la fase</span>
+      <p>Los gastos quedan clasificados y con centro de costo; las cuentas de CIF existen y saben si son fijas o variables; cada centro tiene su capacidad normal. Todavía no se toca el costo de las órdenes — eso es la Fase 3.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">E</span>Ejemplo numérico</h2>
+
+    <h3>Capacidad normal de Producción</h3>
+    <div class="calc">6 operadores × 8 h × 24 días        = 1,152 h teóricas
+× 0.90  (10% ausentismo)             = 1,036.8
+× 0.80  (20% tiempo no productivo)   =   829.4
+× 0.96  (1 día/mes de mtto.)         =   796.2 h/mes  ← capacidad normal</div>
+
+    <h3>Un mes de CIF (adelanto de la Fase 2)</h3>
+    <p>Supón que en el mes se capturaron estos gastos indirectos y la planta trabajó <strong>560 h</strong> reales (70% de lo normal):</p>
+    <div class="tbl total">
+      <table>
+        <thead><tr><th>Cuenta</th><th>Concepto</th><th>Tipo</th><th class="num">Monto</th></tr></thead>
+        <tbody>
+          <tr><td class="m">503.05</td><td>Renta nave</td><td>fijo</td><td class="num">40,000</td></tr>
+          <tr><td class="m">503.04</td><td>Depreciación equipo</td><td>fijo</td><td class="num">18,000</td></tr>
+          <tr><td class="m">503.02</td><td>Supervisión</td><td>fijo</td><td class="num">22,000</td></tr>
+          <tr><td class="m">503.01</td><td>Energía de planta</td><td>variable</td><td class="num">15,000</td></tr>
+          <tr><td class="m">503.06</td><td>Insumos indirectos</td><td>variable</td><td class="num">7,000</td></tr>
+          <tr><td></td><td>Total CIF del mes</td><td></td><td class="num">102,000</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="calc">CIF fijo    = 80,000     CIF variable = 22,000
+
+Tasa fija      = 80,000 / 796.2 h normal   = 100.48 /h
+Aplicado a órdenes (fijo)  = 560 h × 100.48   = 56,269   → a las órdenes
+Capacidad ociosa (fijo)    = 80,000 − 56,269  = 23,731   → 503.98, resultados
+
+CIF variable   = 22,000 / 560 h real = 39.29 /h
+Aplicado a órdenes (variable) = 22,000              → a las órdenes
+
+CIF que entra al costo de los lotes = 56,269 + 22,000 = 78,269
+CIF que se reconoce como gasto del periodo           = 23,731</div>
+    <p>Sin el ajuste por capacidad, los <span class="m">$102,000</span> completos se habrían repartido entre los pocos lotes del mes: <span class="m">$102,000 / 560 h = $182.14/h</span> contra los <span class="m">$139.77/h</span> que resultan al costear a capacidad normal. La diferencia es exactamente la ociosidad que no debe ensuciar el inventario.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">F</span>Fase 2 y 3 — Prorrateo del CIF e integración al costo</h2>
+    <p class="lead">La Fase 1 dejó los gastos clasificados. Estas fases los reparten a las órdenes y bajan el resultado al costo del lote. Es un paso <strong>mensual</strong>.</p>
+
+    <h3>Cómo reparte el motor</h3>
+    <p>Base elegida: <span class="term">horas de mano de obra</span>. Para cada gasto indirecto pendiente del mes:</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Si el CIF es…</th><th>Denominador</th><th>Resultado</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Variable</strong></td><td>horas reales del mes</td><td>todo se reparte entre las órdenes, proporcional a sus horas</td></tr>
+          <tr><td><strong>Fijo</strong></td><td><strong>capacidad normal</strong> del centro</td><td>aplicado <span class="m">= gasto × min(horas reales / capacidad normal, 1)</span> → a las órdenes; el resto → <span class="m">503.98</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Si un mes no hubo producción (0 horas), todo el CIF de ese mes se reconoce como costo del periodo en <span class="m">503.98</span> — no queda "colgado" esperando órdenes.</p>
+
+    <h3>La póliza que genera <span class="m">prorrateo_aplicar</span></h3>
+    <div class="calc">Cargo  115.03  Produccion en proceso        (CIF aplicado a ordenes)
+Cargo  503.98  Costo de capacidad no utilizada (parte ociosa del fijo)
+  Abono  503.01 / 503.02 / ...               (cada cuenta CIF por su total del mes)
+
++ por cada orden YA CERRADA del mes:
+Cargo  115.04  Producto terminado
+  Abono  115.03  Produccion en proceso       (mueve su CIF de proceso a terminado)</div>
+    <p>Para las órdenes cerradas también se recalcula <span class="m">costo_unitario_final</span> y se actualiza el costo del lote y del producto. Las órdenes <em>abiertas</em> dejan su CIF en <span class="m">115.03</span>; entra al costo cuando la orden se cierra.</p>
+
+    <h3>El cierre de la orden ya incorpora el CIF</h3>
+    <p><span class="m">contabilizar_produccion</span> (al cerrar) ahora suma tres cosas además de materiales y mano de obra:</p>
+    <ul>
+      <li>El <strong>CIF ya prorrateado</strong> a esa orden que todavía está en <span class="m">115.03</span> (si el prorrateo del mes corrió antes del cierre).</li>
+      <li>Los <strong>gastos directos</strong> capturados contra esa orden (<span class="m">clasificación = directo_produccion</span>), que pasan de su cuenta de gasto a producto terminado.</li>
+    </ul>
+    <p>Si el prorrateo corre <em>después</em> del cierre, es <span class="m">prorrateo_aplicar</span> quien hace el ajuste a la orden cerrada. En ambos casos el costo termina completo; solo cambia quién lo asienta.</p>
+
+    <div class="callout warn">
+      <span class="lbl">Límite conocido de esta versión</span>
+      <p>Si al correr el prorrateo una orden ya cerrada tiene su producto terminado <strong>parcialmente vendido</strong>, el ajuste de CIF entra completo a <span class="m">115.04</span> (inventario) en vez de mandar la parte vendida a costo de ventas. Para un cierre mensual y rotación normal la diferencia es menor; si vendes muy rápido, tu contador puede reclasificar la porción vendida a mano. La Fase 4 lo automatiza.</p>
+    </div>
+
+    <h3>Configuración adicional (Fase 2)</h3>
+    <ul>
+      <li><span class="m">gastos.base_prorrateo</span> — normalmente <span class="m">horas_mano_obra</span>. <span class="m">porcentaje_centros</span> usa una tabla de % por centro de costo (<span class="m">gasto_prorrateo_reglas</span>); útil solo cuando tengas más de un centro de producción.</li>
+      <li><span class="m">ordenes_produccion.centro_costo_id</span> — si es nulo, la orden se asigna al centro de producción por defecto.</li>
+    </ul>
+
+    <h3>Ejecución — cada fin de mes</h3>
+    <ol class="steps">
+      <li>Corre <span class="m">sql/2026-09-15_costos_produccion_fase2y3.sql</span> (una sola vez, no cada mes).</li>
+      <li>Captura durante el mes todos los gastos indirectos, clasificados como <strong>Indirecto de fabricación</strong>.</li>
+      <li>Contabilidad → <strong>Prorrateo de gastos</strong>. Elige el mes. Revisa: el pool de CIF (fijo/variable), las horas de mano de obra contra la capacidad normal, el % de utilización, y la <strong>distribución propuesta</strong> por orden más la línea de capacidad no utilizada.</li>
+      <li>Si cuadra, <strong>Aplicar prorrateo del mes</strong>. Genera la póliza y ajusta las órdenes cerradas.</li>
+      <li>¿Te equivocaste o llegó un gasto tarde? <strong>Cancelar prorrateo del mes</strong>, captura lo que falte, y vuelve a aplicar.</li>
+    </ol>
+
+    <h3>Análisis</h3>
+    <ul>
+      <li><strong>Utilización.</strong> Horas reales / capacidad normal. 100% = trabajaste justo lo esperado. Muy abajo un mes tras otro = o la capacidad normal está alta, o hay un problema de planta que la ociosidad te está señalando en pesos.</li>
+      <li><strong>Capacidad no utilizada creciente.</strong> Es dinero real que sale del resultado sin producto que lo respalde. Es la métrica que justifica decisiones: turnos, plantilla, subcontratar, o bajar la capacidad normal.</li>
+      <li><strong>CIF por hora resultante.</strong> <span class="m">aplicado / horas reales</span>. Compáralo mes a mes; un salto sin cambio de gastos suele ser caída de horas.</li>
+    </ul>
+
+    <h3>Ejemplo — continuación</h3>
+    <p>Retomando el mes del ejemplo de la sección E (capacidad normal 796 h, se trabajaron 560 h reales repartidas en dos órdenes):</p>
+    <div class="tbl total">
+      <table>
+        <thead><tr><th>Orden</th><th class="num">Horas MO</th><th class="num">Factor</th><th class="num">CIF asignado</th></tr></thead>
+        <tbody>
+          <tr><td>OP-000051</td><td class="num">360</td><td class="num">64.3%</td><td class="num">50,316</td></tr>
+          <tr><td>OP-000052</td><td class="num">200</td><td class="num">35.7%</td><td class="num">27,953</td></tr>
+          <tr><td>Capacidad no utilizada → 503.98</td><td class="num">—</td><td class="num">—</td><td class="num">23,731</td></tr>
+          <tr><td>Total CIF del mes</td><td class="num">560</td><td class="num"></td><td class="num">102,000</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Si OP-000051 ya estaba cerrada al correr el prorrateo, sus <span class="m">$50,316</span> pasan de <span class="m">115.03</span> a <span class="m">115.04</span> en la misma póliza y su costo unitario sube. Si estaba abierta, el CIF espera en <span class="m">115.03</span> y entra al costo el día que se cierre.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">G</span>Fase 4 — pendiente de decisión</h2>
+    <p>La <span class="term">tasa predeterminada</span> aplica un CIF estimado por hora al cerrar cada orden (sin esperar a fin de mes), y a fin de mes concilia contra el CIF real: la diferencia es <em>sobreaplicado</em> o <em>subaplicado</em> y se lleva a resultados o se prorratea al inventario. Es el estándar de un ERP grande y sirve cuando necesitas el costo del lote el mismo día que se produce.</p>
+    <p>El campo <span class="m">centros_costo.metodo_cif = 'predeterminado'</span> y <span class="m">tasa_cif_hora</span> ya existen desde la Fase 1, sin efecto todavía. Construir la Fase 4 implica: aplicar la tasa en <span class="m">contabilizar_produccion</span>, una pantalla de conciliación mensual, y el manejo contable de la variación. Se hace solo si lo confirmas.</p>
+  </section>
+
+  <footer>
+    Manual de costos de producción · ERP Hares de México · Fases 1–3 construidas · Fase 4 pendiente · documento vivo.
+  </footer>
+</div>
+</body>
+</html>
