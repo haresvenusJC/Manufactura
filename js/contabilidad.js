@@ -662,8 +662,10 @@ async function cancelarPoliza(id) {
 // =====================================================================
 
 let gaProveedores = [];
-let gaCtasGasto = [];   // cuentas tipo gasto/costo, afectables
+let gaCtasGasto = [];   // cuentas tipo gasto/costo, afectables (con cif_tipo)
 let gaCtasPago = [];    // cuentas de caja/banco (101x / 102x)
+let gaCentros = [];     // centros de costo activos (Fase 1 costos de producción)
+let gaOrdenes = [];     // órdenes de producción para gasto directo
 
 export async function cargarModuloGastos() {
     const cont = document.getElementById('contenedorGastos');
@@ -689,6 +691,26 @@ export async function cargarModuloGastos() {
                     <select id="gaProveedor" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">(sin proveedor)</option></select></div>
                 <div><label class="block text-[11px] text-slate-400 mb-1">Cuenta de gasto <span class="text-rose-400">*</span></label>
                     <select id="gaCuentaGasto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required></select></div>
+
+                <div class="border border-slate-800 rounded-lg p-3 bg-slate-900/40 space-y-2">
+                    <p class="text-[11px] font-semibold text-sky-400">Costeo de producción</p>
+                    <div><label class="block text-[11px] text-slate-400 mb-1">Clasificación</label>
+                        <select id="gaClasif" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                            <option value="no_produccion">No producción (admin / venta / financiero)</option>
+                            <option value="indirecto_produccion">Indirecto de fabricación (CIF) — se prorratea</option>
+                            <option value="directo_produccion">Directo a una orden de producción</option>
+                        </select></div>
+                    <div id="gaCentroWrap" class="hidden"><label class="block text-[11px] text-slate-400 mb-1">Centro de costo</label>
+                        <select id="gaCentro" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select></div>
+                    <div id="gaCifTipoWrap" class="hidden"><label class="block text-[11px] text-slate-400 mb-1">Tipo de CIF</label>
+                        <select id="gaCifTipo" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                            <option value="">— (según la cuenta) —</option>
+                            <option value="fijo">Fijo (renta, depreciación, supervisión)</option>
+                            <option value="variable">Variable (energía, insumos indirectos, mtto. por uso)</option>
+                        </select></div>
+                    <div id="gaOrdenWrap" class="hidden"><label class="block text-[11px] text-slate-400 mb-1">Orden de producción</label>
+                        <select id="gaOrden" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select></div>
+                </div>
 
                 <div class="grid grid-cols-2 gap-2">
                     <div><label class="block text-[11px] text-slate-400 mb-1">Subtotal</label>
@@ -762,8 +784,23 @@ function gaCablear() {
     $('gaCondicion').addEventListener('change', () => {
         $('gaPagoWrap').style.display = $('gaCondicion').value === 'contado' ? '' : 'none';
     });
+    $('gaClasif').addEventListener('change', gaAplicarClasif);
+    $('gaCuentaGasto').addEventListener('change', () => {
+        // pista de fijo/variable desde la cuenta elegida
+        const c = gaCtasGasto.find((x) => x.id === Number($('gaCuentaGasto').value));
+        if (c && c.cif_tipo && $('gaCifTipo') && !$('gaCifTipo').value) $('gaCifTipo').value = c.cif_tipo;
+    });
     $('gaForm').addEventListener('submit', gaGuardar);
     $('gaBuscar').addEventListener('click', gaBuscar);
+    gaAplicarClasif();
+}
+
+function gaAplicarClasif() {
+    const v = document.getElementById('gaClasif')?.value || 'no_produccion';
+    const show = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !on); };
+    show('gaCentroWrap', v === 'indirecto_produccion');
+    show('gaCifTipoWrap', v === 'indirecto_produccion');
+    show('gaOrdenWrap', v === 'directo_produccion');
 }
 
 function gaCalcTotal() {
@@ -774,14 +811,24 @@ function gaCalcTotal() {
 
 async function gaCargarCatalogos() {
     try {
-        const [prov, ctas] = await Promise.all([
+        // cuentas: se pide cif_tipo aparte para degradar si falta la columna (Fase 1)
+        let ctasSel = 'id, codigo, nombre, tipo, afectable, activa, cif_tipo';
+        let ctas = await supabaseClient.from('cuentas_contables').select(ctasSel).eq('afectable', true).eq('activa', true).order('codigo');
+        if (ctas.error && /cif_tipo|column .* does not exist/i.test(ctas.error.message || '')) {
+            ctasSel = 'id, codigo, nombre, tipo, afectable, activa';
+            ctas = await supabaseClient.from('cuentas_contables').select(ctasSel).eq('afectable', true).eq('activa', true).order('codigo');
+        }
+        const [prov, centros, ordenes] = await Promise.all([
             supabaseClient.from('proveedores').select('id, nombre').order('nombre'),
-            supabaseClient.from('cuentas_contables').select('id, codigo, nombre, tipo, afectable, activa').eq('afectable', true).eq('activa', true).order('codigo'),
+            supabaseClient.from('centros_costo').select('id, codigo, nombre').eq('activo', true).order('codigo'),
+            supabaseClient.from('ordenes_produccion').select('id, folio, numero_lote, estado, productos(nombre)').in('estado', ['en_proceso', 'cerrada']).order('id', { ascending: false }).limit(60),
         ]);
         if (prov.error) throw prov.error;
         if (ctas.error) throw ctas.error;
 
         gaProveedores = prov.data || [];
+        gaCentros = (centros.error ? [] : centros.data) || [];
+        gaOrdenes = (ordenes.error ? [] : ordenes.data) || [];
         const todas = ctas.data || [];
         gaCtasGasto = todas.filter((c) => c.tipo === 'gasto' || c.tipo === 'costo');
         gaCtasPago = todas.filter((c) => c.tipo === 'activo' && /^(101|102)/.test(c.codigo));
@@ -789,9 +836,16 @@ async function gaCargarCatalogos() {
         document.getElementById('gaProveedor').innerHTML = `<option value="">(sin proveedor)</option>` +
             gaProveedores.map((p) => `<option value="${p.id}">${p.nombre}</option>`).join('');
         document.getElementById('gaCuentaGasto').innerHTML = `<option value="">— cuenta de gasto —</option>` +
-            gaCtasGasto.map((c) => `<option value="${c.id}">${c.codigo} · ${c.nombre}</option>`).join('');
+            gaCtasGasto.map((c) => `<option value="${c.id}">${c.codigo} · ${c.nombre}${c.cif_tipo ? ' · CIF ' + c.cif_tipo : ''}</option>`).join('');
         document.getElementById('gaCuentaPago').innerHTML = `<option value="">— caja / banco —</option>` +
             gaCtasPago.map((c) => `<option value="${c.id}">${c.codigo} · ${c.nombre}</option>`).join('');
+
+        const selC = document.getElementById('gaCentro');
+        if (selC) selC.innerHTML = `<option value="">— centro de costo —</option>` +
+            gaCentros.map((c) => `<option value="${c.id}">${c.codigo} · ${c.nombre}</option>`).join('');
+        const selO = document.getElementById('gaOrden');
+        if (selO) selO.innerHTML = `<option value="">— orden —</option>` +
+            gaOrdenes.map((o) => `<option value="${o.id}">${o.folio || ('#' + o.id)} · ${o.productos?.nombre || 'producto'} · ${o.estado}</option>`).join('');
     } catch (err) {
         console.error('Error al cargar catalogos de gastos:', err);
         document.getElementById('gaLista').innerHTML =
@@ -823,9 +877,19 @@ async function gaGuardar(e) {
         folio_factura: $('gaFolio').value.trim() || null,
         uuid_cfdi: $('gaUuid').value.trim() || null,
         rfc_emisor: $('gaRfc').value.trim() || null,
+        clasificacion: $('gaClasif').value,
+        centro_costo_id: $('gaClasif').value === 'indirecto_produccion' && $('gaCentro').value ? Number($('gaCentro').value) : null,
+        cif_tipo: $('gaClasif').value === 'indirecto_produccion' ? ($('gaCifTipo').value || null) : null,
+        orden_produccion_id: $('gaClasif').value === 'directo_produccion' && $('gaOrden').value ? Number($('gaOrden').value) : null,
     };
     if (!p_datos.concepto || !p_datos.cuenta_gasto_id || p_datos.subtotal <= 0) {
         msg.textContent = 'Faltan concepto, cuenta de gasto o subtotal.'; msg.className = 'text-xs text-rose-400'; return;
+    }
+    if (p_datos.clasificacion === 'indirecto_produccion' && !p_datos.centro_costo_id) {
+        msg.textContent = 'Un gasto indirecto de fabricación necesita un centro de costo.'; msg.className = 'text-xs text-rose-400'; return;
+    }
+    if (p_datos.clasificacion === 'directo_produccion' && !p_datos.orden_produccion_id) {
+        msg.textContent = 'Un gasto directo necesita la orden de producción.'; msg.className = 'text-xs text-rose-400'; return;
     }
 
     try {
@@ -838,6 +902,7 @@ async function gaGuardar(e) {
         $('gaFecha').value = hoyISO();
         $('gaCondicion').value = condicion;
         $('gaPagoWrap').style.display = condicion === 'contado' ? '' : 'none';
+        gaAplicarClasif();
         gaCalcTotal();
         await gaBuscar();
     } catch (err) {

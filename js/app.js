@@ -17,6 +17,7 @@ import { cargarModuloClientes } from './clientes.js';
 import { cargarModuloContabilidad, cargarModuloPolizas, cargarModuloGastos, cargarModuloReportesContables } from './contabilidad.js';
 import { cargarModuloNomina, actualizarBannerNominaPendiente } from './nomina.js';
 import { cargarModuloTareas } from './tareas.js';
+import { cargarModuloCentrosCosto } from './centros-costo.js';
 import { cargarModuloIsr } from './isr.js';
 import { cargarModuloReportes } from './reportes.js';
 import { montarLogin, cerrarSesion } from './auth.js';
@@ -223,6 +224,9 @@ window.loadView = function(viewName) {
             break;
         case 'plan-cuentas':
             cargarModuloContabilidad();
+            break;
+        case 'centros-costo':
+            cargarModuloCentrosCosto();
             break;
         case 'polizas':
             cargarModuloPolizas();
