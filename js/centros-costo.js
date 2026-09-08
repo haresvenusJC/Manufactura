@@ -18,6 +18,9 @@ const TIPO_LABEL = { produccion: 'Producción', servicio: 'Servicio', administra
 const MANUAL_URL = 'manual-costos-produccion.html';
 const GUIA_URL = 'guia-costos-produccion.html';
 
+// globo de ayuda: <label>Campo ${hint('texto que aparece al pasar por encima')}</label>
+const hint = (t) => `<span class="hint" tabindex="0" role="note" aria-label="${esc(t)}" data-tip="${esc(t)}">?</span>`;
+
 let ccCuentasCif = [];
 let ccEditId = null;
 
@@ -60,59 +63,59 @@ export async function cargarModuloCentrosCosto() {
         </div>
         <form id="ccForm" class="space-y-3">
           <div class="grid grid-cols-2 gap-2">
-            <div><label class="block text-[11px] text-slate-400 mb-1">Código <span class="text-rose-400">*</span></label>
+            <div><label class="block text-[11px] text-slate-400 mb-1">Código <span class="text-rose-400">*</span>${hint('Corto y en mayúsculas. Ej. PROD, ENV, ALM. Con este código se identifica el centro.')}</label>
               <input type="text" id="ccCodigo" placeholder="PROD" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono uppercase" required></div>
-            <div><label class="block text-[11px] text-slate-400 mb-1">Tipo</label>
+            <div><label class="block text-[11px] text-slate-400 mb-1">Tipo${hint('Solo el tipo Producción entra al costo de los lotes. Servicio, Administración y Ventas sirven para control de gasto por área.')}</label>
               <select id="ccTipo" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                 ${Object.entries(TIPO_LABEL).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
               </select></div>
           </div>
-          <div><label class="block text-[11px] text-slate-400 mb-1">Nombre <span class="text-rose-400">*</span></label>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Nombre <span class="text-rose-400">*</span>${hint('Ej. Producción, Envasado, Almacén. Es el nombre que verás en los reportes.')}</label>
             <input type="text" id="ccNombre" placeholder="Producción" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required></div>
-          <div><label class="block text-[11px] text-slate-400 mb-1">Cuenta CIF por defecto</label>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Cuenta CIF por defecto${hint('La cuenta 503.xx que se propondrá al capturar un gasto indirecto de este centro. Puedes dejar 503.99 (Otros gastos indirectos).')}</label>
             <select id="ccCuenta" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
               <option value="">— (ninguna) —</option>
               ${ccCuentasCif.filter(c => !/^503$/.test(c.codigo)).map(c => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}${c.cif_tipo ? ' · ' + c.cif_tipo : ''}</option>`).join('')}
             </select></div>
 
           <div class="border border-slate-800 rounded-lg p-3 bg-slate-900/40 space-y-2">
-            <p class="text-[11px] font-semibold text-sky-400">Capacidad normal — horas de mano de obra al mes</p>
+            <p class="text-[11px] font-semibold text-sky-400">Capacidad normal — horas de mano de obra al mes${hint('Cuántas horas de operarios produce la planta en un mes NORMAL — ni el récord, ni el peor. Es el número que decide cuánto CIF fijo se carga a los productos y cuánto es planta parada.')}</p>
             <p class="text-[10px] text-slate-500">Cálculo sugerido "de la nómina hacia abajo". Llena las variables y usa el sugerido, o captura el número directo abajo.</p>
             <div class="grid grid-cols-3 gap-2">
-              <div><label class="block text-[10px] text-slate-400 mb-1">Operadores</label>
+              <div><label class="block text-[10px] text-slate-400 mb-1">Operadores${hint('Cuántos operarios de producción tienes en total. Ej. 6.')}</label>
                 <input type="number" min="0" step="1" id="ccOper" value="0" class="cc-cap w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 text-right font-mono"></div>
-              <div><label class="block text-[10px] text-slate-400 mb-1">Horas jornada</label>
+              <div><label class="block text-[10px] text-slate-400 mb-1">Horas jornada${hint('Horas que trabaja un turno. Normalmente 8.')}</label>
                 <input type="number" min="1" step="0.5" id="ccJorn" value="8" class="cc-cap w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 text-right font-mono"></div>
-              <div><label class="block text-[10px] text-slate-400 mb-1">Días hábiles/mes</label>
+              <div><label class="block text-[10px] text-slate-400 mb-1">Días hábiles/mes${hint('Días que se produce al mes. Normalmente 22–24.')}</label>
                 <input type="number" min="1" max="31" step="1" id="ccDias" value="24" class="cc-cap w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 text-right font-mono"></div>
-              <div><label class="block text-[10px] text-slate-400 mb-1" title="1 − % de ausentismo. 0.90 = 10% de faltas/vacaciones/incapacidades">Factor ausentismo</label>
+              <div><label class="block text-[10px] text-slate-400 mb-1">Factor ausentismo${hint('1 menos el % de faltas, vacaciones e incapacidades. 0.90 = 10% de ausentismo. Manufactura MX típico: 8–12%.')}</label>
                 <input type="number" min="0" max="1" step="0.01" id="ccFAus" value="0.90" class="cc-cap w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 text-right font-mono"></div>
-              <div><label class="block text-[10px] text-slate-400 mb-1" title="1 − % de tiempo no productivo dentro de la jornada. 0.80 = 20% en limpieza, arranque/paro, juntas, esperas">Factor no productivo</label>
+              <div><label class="block text-[10px] text-slate-400 mb-1">Factor no productivo${hint('1 menos el % de la jornada que no produce: limpieza, arranque/paro, juntas, esperas de material. 0.80 = 20%. Planta no lean: 15–25%.')}</label>
                 <input type="number" min="0" max="1" step="0.01" id="ccFNP" value="0.80" class="cc-cap w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 text-right font-mono"></div>
-              <div><label class="block text-[10px] text-slate-400 mb-1" title="1 − % de paros planeados de planta. 0.96 ≈ 1 día/mes de mantenimiento programado">Factor paros planeados</label>
+              <div><label class="block text-[10px] text-slate-400 mb-1">Factor paros planeados${hint('1 menos el % por mantenimiento programado o días sin pedidos ya conocidos. 0.96 ≈ 1 día/mes.')}</label>
                 <input type="number" min="0" max="1" step="0.01" id="ccFPP" value="0.96" class="cc-cap w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 text-right font-mono"></div>
             </div>
             <div class="flex items-center justify-between text-xs bg-slate-900 border border-slate-800 rounded-lg p-2">
               <span class="text-slate-400">Sugerido: <span id="ccSugerido" class="font-mono text-emerald-400">0</span> h/mes</span>
               <button type="button" id="ccUsarSugerido" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded">Usar sugerido →</button>
             </div>
-            <div><label class="block text-[10px] text-slate-400 mb-1">Capacidad normal que se usa (h/mes) <span class="text-rose-400">*</span></label>
+            <div><label class="block text-[10px] text-slate-400 mb-1">Capacidad normal que se usa (h/mes) <span class="text-rose-400">*</span>${hint('El número final que usa el prorrateo. Toma el sugerido, o ajústalo si conoces tu operación mejor que la fórmula. Alta gerencia lo revisa 1–2 veces al año.')}</label>
               <input type="number" min="0" step="0.01" id="ccCapNorm" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-emerald-300 text-right font-mono"></div>
           </div>
 
           <div class="grid grid-cols-2 gap-2">
-            <div><label class="block text-[11px] text-slate-400 mb-1">Método CIF</label>
+            <div><label class="block text-[11px] text-slate-400 mb-1">Método CIF${hint('Deja "Real": el prorrateo corre a fin de mes con el gasto real. "Tasa predeterminada" es para una etapa futura y hoy no tiene efecto.')}</label>
               <select id="ccMetodo" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                 <option value="real">Real (a fin de mes)</option>
                 <option value="predeterminado">Tasa predeterminada por hora</option>
               </select></div>
-            <div id="ccTasaWrap" class="hidden"><label class="block text-[11px] text-slate-400 mb-1">Tasa CIF por hora ($)</label>
+            <div id="ccTasaWrap" class="hidden"><label class="block text-[11px] text-slate-400 mb-1">Tasa CIF por hora ($)${hint('Solo si el método es predeterminado. CIF estimado por hora de mano de obra. Aún sin efecto en esta versión.')}</label>
               <input type="number" min="0" step="0.0001" id="ccTasa" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
           </div>
-          <div><label class="block text-[11px] text-slate-400 mb-1">Notas</label>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Notas${hint('Texto libre. Ej. supuestos de la capacidad, quién la autorizó, fecha de última revisión.')}</label>
             <input type="text" id="ccNotas" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
           <label class="flex items-center gap-2 text-[11px] text-slate-300">
-            <input type="checkbox" id="ccActivo" checked class="accent-emerald-500 w-3.5 h-3.5"> Activo
+            <input type="checkbox" id="ccActivo" checked class="accent-emerald-500 w-3.5 h-3.5"> Activo${hint('Desmárcalo para dejar de usar el centro sin borrarlo. No aparecerá al capturar gastos.')}
           </label>
 
           <button type="submit" id="ccGuardar" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg text-sm cursor-pointer">Guardar centro de costo</button>

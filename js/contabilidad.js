@@ -667,6 +667,9 @@ let gaCtasPago = [];    // cuentas de caja/banco (101x / 102x)
 let gaCentros = [];     // centros de costo activos (Fase 1 costos de producción)
 let gaOrdenes = [];     // órdenes de producción para gasto directo
 
+// globo de ayuda al pasar por encima. Los textos son literales controlados (sin < > " &).
+const gHint = (t) => `<span class="hint" tabindex="0" role="note" aria-label="${t}" data-tip="${t}">?</span>`;
+
 export async function cargarModuloGastos() {
     const cont = document.getElementById('contenedorGastos');
     if (!cont) return;
@@ -678,71 +681,71 @@ export async function cargarModuloGastos() {
             <h3 class="text-md font-semibold text-sky-400">Registrar gasto</h3>
             <form id="gaForm" class="space-y-3">
                 <div class="grid grid-cols-2 gap-2">
-                    <div><label class="block text-[11px] text-slate-400 mb-1">Fecha</label>
+                    <div><label class="block text-[11px] text-slate-400 mb-1">Fecha${gHint('La fecha de la factura. Define en qué mes se prorratea el gasto.')}</label>
                         <input type="date" id="gaFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-                    <div><label class="block text-[11px] text-slate-400 mb-1">Condicion</label>
+                    <div><label class="block text-[11px] text-slate-400 mb-1">Condicion${gHint('Contado = ya lo pagaste. Crédito = queda por pagar (aparece en Cuentas por pagar).')}</label>
                         <select id="gaCondicion" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                             <option value="contado">Contado</option><option value="credito">Credito (por pagar)</option>
                         </select></div>
                 </div>
-                <div><label class="block text-[11px] text-slate-400 mb-1">Concepto <span class="text-rose-400">*</span></label>
+                <div><label class="block text-[11px] text-slate-400 mb-1">Concepto <span class="text-rose-400">*</span>${gHint('Descripción corta y clara. Ej. Renta nave — septiembre, Mantenimiento correctivo mezcladora.')}</label>
                     <input type="text" id="gaConcepto" placeholder="Renta local agosto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required></div>
-                <div><label class="block text-[11px] text-slate-400 mb-1">Proveedor</label>
+                <div><label class="block text-[11px] text-slate-400 mb-1">Proveedor${gHint('El que diste de alta en Compras → Proveedores. Escribe y elígelo de la lista. Si tiene cuenta de gasto por defecto, se pone sola abajo.')}</label>
                     <select id="gaProveedor" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">(sin proveedor)</option></select></div>
-                <div><label class="block text-[11px] text-slate-400 mb-1">Cuenta de gasto <span class="text-rose-400">*</span></label>
+                <div><label class="block text-[11px] text-slate-400 mb-1">Cuenta de gasto <span class="text-rose-400">*</span>${gHint('El cajón contable donde cae este gasto. Para la renta de planta: 503.05. La lista indica si la cuenta es CIF fijo o variable.')}</label>
                     <select id="gaCuentaGasto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required></select></div>
 
                 <div class="border border-slate-800 rounded-lg p-3 bg-slate-900/40 space-y-2">
-                    <p class="text-[11px] font-semibold text-sky-400">Costeo de producción</p>
-                    <div><label class="block text-[11px] text-slate-400 mb-1">Clasificación</label>
+                    <p class="text-[11px] font-semibold text-sky-400">Costeo de producción${gHint('Dice si este gasto entra al costo de lo que fabricas y cómo. Si no sabes cuál elegir, mira el globo de Clasificación.')}</p>
+                    <div><label class="block text-[11px] text-slate-400 mb-1">Clasificación${gHint('¿Sirve a UNA sola orden y lo puedes señalar con el dedo? → Directo a una orden. ¿Sirve a la planta en general (renta, luz, mtto., supervisión)? → Indirecto (CIF). ¿Oficina, ventas o banco? → No producción.')}</label>
                         <select id="gaClasif" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                             <option value="no_produccion">No producción (admin / venta / financiero)</option>
                             <option value="indirecto_produccion">Indirecto de fabricación (CIF) — se prorratea</option>
                             <option value="directo_produccion">Directo a una orden de producción</option>
                         </select></div>
-                    <div id="gaCentroWrap" class="hidden"><label class="block text-[11px] text-slate-400 mb-1">Centro de costo</label>
+                    <div id="gaCentroWrap" class="hidden"><label class="block text-[11px] text-slate-400 mb-1">Centro de costo${gHint('El área que acumula este gasto indirecto. Al inicio siempre PROD · Producción.')}</label>
                         <select id="gaCentro" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select></div>
-                    <div id="gaCifTipoWrap" class="hidden"><label class="block text-[11px] text-slate-400 mb-1">Tipo de CIF</label>
+                    <div id="gaCifTipoWrap" class="hidden"><label class="block text-[11px] text-slate-400 mb-1">Tipo de CIF${gHint('Fijo = el monto es parejo produzcas mucho o poco (renta, depreciación, supervisión). Variable = sube y baja con el volumen (energía, insumos indirectos, mtto. por uso). Se hereda de la cuenta; cámbialo si aplica.')}</label>
                         <select id="gaCifTipo" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                             <option value="">— (según la cuenta) —</option>
                             <option value="fijo">Fijo (renta, depreciación, supervisión)</option>
                             <option value="variable">Variable (energía, insumos indirectos, mtto. por uso)</option>
                         </select></div>
-                    <div id="gaOrdenWrap" class="hidden"><label class="block text-[11px] text-slate-400 mb-1">Orden de producción</label>
+                    <div id="gaOrdenWrap" class="hidden"><label class="block text-[11px] text-slate-400 mb-1">Orden de producción${gHint('La orden concreta a la que se carga este gasto directo. Se sumará a su costo cuando la orden se cierre.')}</label>
                         <select id="gaOrden" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select></div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-2">
-                    <div><label class="block text-[11px] text-slate-400 mb-1">Subtotal</label>
+                    <div><label class="block text-[11px] text-slate-400 mb-1">Subtotal${gHint('El importe antes de impuestos, tal como viene en la factura.')}</label>
                         <input type="number" step="0.01" min="0" id="gaSubtotal" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
-                    <div><label class="block text-[11px] text-slate-400 mb-1">IVA <button type="button" id="gaIva16" class="text-[10px] text-sky-400 hover:underline">16%</button></label>
+                    <div><label class="block text-[11px] text-slate-400 mb-1">IVA <button type="button" id="gaIva16" class="text-[10px] text-sky-400 hover:underline">16%</button>${gHint('El IVA de la factura. El botón 16% lo calcula sobre el subtotal.')}</label>
                         <input type="number" step="0.01" min="0" id="gaIva" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
-                    <div><label class="block text-[11px] text-slate-400 mb-1">IEPS</label>
+                    <div><label class="block text-[11px] text-slate-400 mb-1">IEPS${gHint('Solo si la factura lo trae (bebidas, combustibles, etc.). Normalmente 0.')}</label>
                         <input type="number" step="0.01" min="0" id="gaIeps" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
-                    <div><label class="block text-[11px] text-slate-400 mb-1">Ret. IVA</label>
+                    <div><label class="block text-[11px] text-slate-400 mb-1">Ret. IVA${gHint('Retención de IVA, solo si la factura la trae (fletes, servicios de personas físicas).')}</label>
                         <input type="number" step="0.01" min="0" id="gaRetIva" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
-                    <div><label class="block text-[11px] text-slate-400 mb-1">Ret. ISR</label>
+                    <div><label class="block text-[11px] text-slate-400 mb-1">Ret. ISR${gHint('Retención de ISR, solo si la factura la trae (honorarios, fletes, arrendamiento a persona física).')}</label>
                         <input type="number" step="0.01" min="0" id="gaRetIsr" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
-                    <div><label class="block text-[11px] text-slate-400 mb-1">Total</label>
+                    <div><label class="block text-[11px] text-slate-400 mb-1">Total${gHint('Se calcula solo: subtotal + IVA + IEPS − retenciones. Debe cuadrar con el total de la factura.')}</label>
                         <input type="text" id="gaTotal" readonly class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-emerald-400 text-right font-mono" value="$0.00"></div>
                 </div>
 
                 <div id="gaPagoWrap">
-                    <label class="block text-[11px] text-slate-400 mb-1">Pagado desde (caja / banco)</label>
+                    <label class="block text-[11px] text-slate-400 mb-1">Pagado desde (caja / banco)${gHint('La cuenta de caja o banco de donde salió el pago. Solo aplica si la condición es Contado.')}</label>
                     <select id="gaCuentaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
-                    <div><label class="block text-[11px] text-slate-400 mb-1">Forma de pago</label>
+                    <div><label class="block text-[11px] text-slate-400 mb-1">Forma de pago${gHint('Cómo se pagó o se pagará: efectivo, transferencia, tarjeta, cheque.')}</label>
                         <select id="gaFormaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                             <option value="">—</option><option>efectivo</option><option>transferencia</option><option>tarjeta</option><option>cheque</option>
                         </select></div>
-                    <div><label class="block text-[11px] text-slate-400 mb-1">Folio factura</label>
+                    <div><label class="block text-[11px] text-slate-400 mb-1">Folio factura${gHint('El folio o serie-folio que muestra la factura. Opcional, ayuda a rastrearla.')}</label>
                         <input type="text" id="gaFolio" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono"></div>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
-                    <div><label class="block text-[11px] text-slate-400 mb-1">UUID CFDI</label>
+                    <div><label class="block text-[11px] text-slate-400 mb-1">UUID CFDI${gHint('El folio fiscal (UUID) del CFDI. Da trazabilidad fiscal al gasto y su póliza.')}</label>
                         <input type="text" id="gaUuid" placeholder="folio fiscal" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono"></div>
-                    <div><label class="block text-[11px] text-slate-400 mb-1">RFC emisor</label>
+                    <div><label class="block text-[11px] text-slate-400 mb-1">RFC emisor${gHint('El RFC de quien emitió la factura. Debe coincidir con el del proveedor que elegiste.')}</label>
                         <input type="text" id="gaRfc" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono"></div>
                 </div>
                 <button type="submit" id="gaGuardar" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg text-sm transition cursor-pointer">Guardar gasto</button>

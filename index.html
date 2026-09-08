@@ -10,6 +10,37 @@
         summary { list-style: none; }
         summary::-webkit-details-marker { display: none; }
 
+        /* ===== Globos de ayuda en formularios (?) ===== */
+        .hint {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 14px; height: 14px; margin-left: .3rem; border-radius: 50%;
+            border: 1px solid var(--tx-4, #64748b); color: var(--tx-3, #94a3b8);
+            font-size: 9px; font-weight: 700; line-height: 1; cursor: help;
+            position: relative; vertical-align: middle; flex: none; user-select: none;
+        }
+        .hint:hover, .hint:focus { color: var(--acc, #38bdf8); border-color: var(--acc, #38bdf8); outline: none; }
+        .hint::after {
+            content: attr(data-tip);
+            position: absolute; left: 0; top: calc(100% + 7px);
+            width: 17rem; max-width: 64vw;
+            background: var(--bg-2, #1e293b); color: var(--tx-1, #e2e8f0);
+            border: 1px solid var(--bd-2, #334155); border-radius: 8px; padding: .5rem .65rem;
+            font-size: 11px; font-weight: 400; line-height: 1.45; text-align: left; white-space: normal;
+            box-shadow: 0 14px 34px -12px rgba(0, 0, 0, .55);
+            opacity: 0; visibility: hidden; transition: opacity .12s ease; pointer-events: none; z-index: 70;
+        }
+        .hint::before {
+            content: ""; position: absolute; left: 5px; top: calc(100% + 2px);
+            border: 5px solid transparent; border-bottom-color: var(--bd-2, #334155);
+            opacity: 0; visibility: hidden; transition: opacity .12s ease; z-index: 70;
+        }
+        .hint:hover::after, .hint:focus::after,
+        .hint:hover::before, .hint:focus::before { opacity: 1; visibility: visible; }
+        @media (max-width: 640px) {
+            .hint::after { left: auto; right: 0; }
+            .hint::before { left: auto; right: 5px; }
+        }
+
         /* Form "Registro General de Artículos" — compacto (menos alto) */
         #detRegistroProducto .space-y-6 > * + * { margin-top: .55rem !important; }
         #detRegistroProducto .space-y-4 > * + * { margin-top: .28rem !important; }
@@ -377,15 +408,21 @@
                             <span id="flecha-contabilidad" class="text-xs">▼</span>
                         </button>
                         <ul id="submenu-contabilidad" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
-                            <li><button onclick="window.loadView('tareas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Tareas</button></li>
-                            <li><button onclick="window.loadView('plan-cuentas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Plan de cuentas</button></li>
-                            <li><button onclick="window.loadView('centros-costo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Centros de costo</button></li>
+                            <!-- Agrupado por actividad; de mayor a menor uso (lo que menos se toca, abajo). -->
+                            <li class="px-3 pt-1 pb-0.5 text-[10px] uppercase tracking-wider text-slate-600 font-semibold pointer-events-none select-none">Operación diaria</li>
                             <li><button onclick="window.loadView('gastos')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Gastos</button></li>
-                            <li><button onclick="window.loadView('prorrateo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Prorrateo de gastos</button></li>
                             <li><button onclick="window.loadView('pagos-proveedor')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Cuentas por pagar</button></li>
+                            <li><button onclick="window.loadView('tareas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Tareas</button></li>
+
+                            <li class="px-3 pt-2.5 pb-0.5 text-[10px] uppercase tracking-wider text-slate-600 font-semibold pointer-events-none select-none">Nómina y cierre de mes</li>
+                            <li><button onclick="window.loadView('nomina')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Nómina</button></li>
+                            <li><button onclick="window.loadView('prorrateo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Prorrateo de gastos</button></li>
                             <li><button onclick="window.loadView('polizas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Pólizas</button></li>
                             <li><button onclick="window.loadView('reportes-contables')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Reportes contables</button></li>
-                            <li><button onclick="window.loadView('nomina')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Nómina</button></li>
+
+                            <li class="px-3 pt-2.5 pb-0.5 text-[10px] uppercase tracking-wider text-slate-600 font-semibold pointer-events-none select-none">Configuración</li>
+                            <li><button onclick="window.loadView('plan-cuentas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Plan de cuentas</button></li>
+                            <li><button onclick="window.loadView('centros-costo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Centros de costo</button></li>
                             <li><button onclick="window.loadView('isr')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Tabla ISR</button></li>
                         </ul>
                     </li>
