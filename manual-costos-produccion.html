@@ -137,7 +137,9 @@
         <li><a href="#p1">Parte 1 — Dar de alta el proveedor</a></li>
         <li><a href="#p2">Parte 2 — El plan de cuentas</a></li>
         <li><a href="#p3">Parte 3 — Ajustar los centros de costo</a></li>
-        <li><a href="#p4">Parte 4 — Capturar un gasto y clasificarlo</a></li>
+        <li><a href="#p3b">Parte 3B — Áreas y bases de prorrateo</a></li>
+        <li><a href="#p3c">Parte 3C — Plantillas de reparto</a></li>
+        <li><a href="#p4">Parte 4 — Capturar un gasto (asistente + XML)</a></li>
         <li><a href="#p5">Parte 5 — Fin de mes: el prorrateo</a></li>
         <li><a href="#p6">Parte 6 — Dónde se ve el costo y qué significa</a></li>
         <li><a href="#rut">Rutina: qué se hace y cuándo</a></li>
@@ -160,21 +162,24 @@
       <li>Que un técnico haya corrido en la base de datos, en este orden, los archivos:
         <code>2026-08-28_contabilidad_cuentas.sql</code>, <code>2026-08-28_contabilidad_polizas.sql</code>,
         <code>2026-08-28_contabilidad_gastos.sql</code>, <code>2026-09-14_costos_produccion_fase1.sql</code>,
-        <code>2026-09-15_costos_produccion_fase2y3.sql</code> y
-        <code>2026-09-16_costos_centros_por_proceso.sql</code>. Si al abrir una pantalla ves un aviso amarillo de "falta correr el SQL", es esto.</li>
+        <code>2026-09-15_costos_produccion_fase2y3.sql</code>, <code>2026-09-16_costos_centros_por_proceso.sql</code>,
+        <code>2026-09-17_areas_bases_prorrateo.sql</code> y <code>2026-09-18_gastos_reparto_wizard.sql</code>.
+        Si al abrir una pantalla ves un aviso amarillo de "falta correr el SQL", es esto.</li>
       <li>Tu usuario y contraseña del ERP. Los operarios de piso <em>no</em> usan estas pantallas; se manejan desde su celular.</li>
     </ul>
 
     <h3>Cómo moverte por el menú</h3>
-    <p>Arriba a la izquierda está el ícono de menú (☰). Todo lo de este manual vive bajo <span class="path">Contabilidad</span>, salvo el proveedor que está en <span class="path">Compras / Proveedores</span>:</p>
+    <p>Arriba a la izquierda está el ícono de menú (☰). El primer botón, <span class="path">🧭 Índice</span>, te lleva a un mapa con acceso directo a todas las pantallas — las de configuración salen marcadas en ámbar. Todo lo de este manual vive bajo <span class="path">Contabilidad</span>, salvo el proveedor que está en <span class="path">Compras / Proveedores</span>:</p>
     <div class="tbl">
       <table>
         <thead><tr><th>Pantalla</th><th>Ruta</th><th>¿Cada cuándo?</th></tr></thead>
         <tbody>
-          <tr><td>Proveedores</td><td class="path">Compras / Proveedores</td><td>Una vez por proveedor</td></tr>
+          <tr><td>Proveedores</td><td class="path">Compras / Proveedores</td><td>Una vez por proveedor (o alta rápida desde el XML al capturar el gasto)</td></tr>
           <tr><td>Plan de cuentas</td><td class="path">Contabilidad → Plan de cuentas</td><td>Se revisa una vez; se ajusta rara vez</td></tr>
           <tr><td>Centros de costo</td><td class="path">Contabilidad → Centros de costo</td><td>Ya vienen creados los 3; solo ajustas su capacidad al inicio y la revisas 1–2 veces al año</td></tr>
-          <tr><td>Gastos</td><td class="path">Contabilidad → Gastos</td><td>Cada factura de gasto</td></tr>
+          <tr><td>Áreas y bases de prorrateo</td><td class="path">Contabilidad → Áreas y bases de prorrateo</td><td>Una vez al inicio: m², kW y personas por área. Se actualiza si cambia la planta</td></tr>
+          <tr><td>Reparto de gastos compartidos</td><td class="path">Contabilidad → Reparto de gastos compartidos</td><td>Una vez: define cómo se parte cada gasto compartido (renta, luz…)</td></tr>
+          <tr><td>Gastos</td><td class="path">Contabilidad → Gastos</td><td>Cada factura de gasto (con lector de XML y asistente)</td></tr>
           <tr><td>Prorrateo de gastos</td><td class="path">Contabilidad → Prorrateo de gastos</td><td>Una vez al mes, después del cierre</td></tr>
         </tbody>
       </table>
@@ -184,7 +189,7 @@
   <!-- ========================================================= -->
   <section id="pal">
     <h2><span class="n">·</span>Palabras que vas a ver</h2>
-    <p>No necesitas dominar contabilidad. Solo reconocer estas ocho palabras:</p>
+    <p>No necesitas dominar contabilidad. Solo reconocer estas palabras:</p>
     <div class="tbl">
       <table>
         <thead><tr><th>Palabra</th><th>Qué es, en cristiano</th></tr></thead>
@@ -197,6 +202,10 @@
           <tr><td><strong>Centro de costo</strong></td><td>Un área de la planta donde se juntan gastos para repartirlos después. Aquí hay tres, uno por etapa de fabricación: <code>Surtido de MP</code>, <code>Mezclado</code> y <code>Envasado</code>. Cada proceso de una orden de producción apunta al suyo.</td></tr>
           <tr><td><strong>CIF</strong> (gastos indirectos de fabricación)</td><td>Lo que cuesta tener la planta funcionando pero no se puede señalar a un producto en particular: renta, luz de planta, mantenimiento, depreciación de máquinas, sueldo del supervisor.</td></tr>
           <tr><td><strong>Prorratear</strong></td><td>Repartir un gasto grande entre varias cosas de forma justa. La renta de la nave se prorratea entre todo lo que se produjo ese mes.</td></tr>
+          <tr><td><strong>Área física</strong></td><td>Un espacio real de la planta con sus m² y sus equipos: Surtido MP, Cosméticos, Envasado… y también la Oficina. Se declaran una vez para calcular los repartos.</td></tr>
+          <tr><td><strong>Base de prorrateo</strong></td><td>El criterio con el que se reparte un gasto compartido: por <em>m²</em> (renta), por <em>kW</em> (luz), por <em>personas</em> (internet). El sistema saca los % de las áreas.</td></tr>
+          <tr><td><strong>Nivel 1 / Nivel 2</strong></td><td>Nivel 1 = cuánto del gasto es de fábrica y cuánto de oficina. Nivel 2 = la parte de fábrica, cómo se divide entre las tres etapas.</td></tr>
+          <tr><td><strong>Plantilla de reparto</strong></td><td>La regla guardada para un gasto compartido: qué base usar y a qué cuenta de oficina va su parte de no producción.</td></tr>
         </tbody>
       </table>
     </div>
@@ -395,51 +404,136 @@ ENV    2 operadores → 265.42 h/mes</div>
   </section>
 
   <!-- ========================================================= -->
-  <section id="p4">
-    <h2><span class="n">4</span>Parte 4 — Capturar un gasto y clasificarlo</h2>
-    <p class="lead">Esto lo haces cada vez que llega una factura de gasto. Lo nuevo respecto a antes es un bloque llamado <strong>Costeo de producción</strong>, donde dices si ese gasto tiene que ver con fabricar o no.</p>
+  <section id="p3b">
+    <h2><span class="n">3B</span>Parte 3B — Áreas y bases de prorrateo</h2>
+    <p class="lead">Los gastos compartidos (renta, luz, agua) no se reparten a ojo: los porcentajes <strong>se calculan</strong> a partir de una foto física de la planta que capturas una sola vez aquí.</p>
 
-    <h3>Paso a paso</h3>
+    <h3>La idea</h3>
+    <p>Un recibo de CFE o la renta del predio sirven a <em>varias</em> áreas a la vez, y algunas de esas áreas ni siquiera son de producción (la oficina también gasta luz). Para repartir con justicia necesitas dos datos por área: cuántos <strong>m²</strong> ocupa y cuánta <strong>energía</strong> consume. Con eso el sistema saca los % solo.</p>
+
     <ol class="steps">
       <li><strong>Abre la pantalla</strong>
-        <p>Menú → <span class="path">Contabilidad → Gastos</span>. Formulario a la izquierda, lista de gastos a la derecha.</p></li>
+        <p>Menú → <span class="path">Contabilidad → Áreas y bases de prorrateo</span>. Ya vienen sembradas las áreas de la planta (Almacén Insumos, Surtido MP, Cosméticos, Lotificación, Envasado, Acondicionamiento) más <strong>Oficina</strong>, y los equipos conocidos con un kW <em>placeholder</em>.</p></li>
 
-      <li><strong>Datos de la factura</strong>
+      <li><strong>Cada área tiene un rol</strong>
+        <div class="tbl"><table class="fieldguide">
+          <thead><tr><th>Rol</th><th>Qué significa</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Producción</strong></td><td>Apunta a su etapa (SURT / MEZ / ENV). Su parte del gasto entra al costo de los lotes.</td></tr>
+            <tr><td><strong>No producción</strong></td><td>Oficina, ventas. Su parte del gasto se va a resultados (cuentas <code>601.xx</code>) y <strong>nunca</strong> al inventario.</td></tr>
+          </tbody>
+        </table></div>
+        <p>Varias áreas pueden apuntar al mismo centro: Lotificación y Acondicionamiento van a <code>ENV</code>; Almacén Insumos y Surtido MP van a <code>SURT</code>.</p>
+      </li>
+
+      <li><strong>Captura los m²</strong>
+        <p>La superficie que ocupa cada área, medida del plano. Es la base para renta, predial, vigilancia y limpieza. <strong>No olvides la Oficina</strong>: si la dejas en 0, todo el gasto compartido caería en producción y nada en resultados.</p>
+      </li>
+
+      <li><strong>Captura la carga eléctrica (kW)</strong>
+        <p>En el panel <strong>Cargas eléctricas por área</strong> agrega cada equipo con su <strong>kW de placa</strong>, la <strong>cantidad</strong> y un <strong>factor de uso</strong> (fracción del tiempo que de verdad trabaja: un túnel de vapor que enciende 3 h de un turno de 10 → 0.30). La suma es el kW instalado del área.</p>
+        <p>Si un área tiene submedidor, pon el <strong>kWh medido al mes</strong> en el área y ese dato manda sobre el cálculo de las cargas.</p>
+      </li>
+
+      <li><strong>Revisa el tablero</strong>
+        <p>Abajo se ve, por cada base (m² / kW / personas), el % que le toca a cada área y la fila <strong>Nivel 1</strong>: producción vs no producción. Ese es el reparto que se aplicará.</p>
+      </li>
+    </ol>
+
+    <div class="callout warn">
+      <span class="lbl">Los kW vienen con valores placeholder</span>
+      <p>La migración sembró un kW aproximado de cada equipo para que el módulo arranque, pero <strong>revísalos contra la placa real</strong>. Y agrega la carga de la <strong>Oficina</strong> (equipos de cómputo, iluminación, minisplit): sin ella, un recibo de luz repartido por kW dejaría el 100% en producción.</p>
+    </div>
+
+    <div class="callout tec">
+      <span class="lbl">Para contabilidad</span>
+      <p>Tablas <code>areas_fisicas</code> y <code>areas_fisicas_cargas</code>. La vista <code>v_bases_prorrateo</code> devuelve, por base, la fracción de cada área: <code>m² del área / Σ m²</code>, <code>kW efectivo / Σ kW</code> (<code>kW efectivo = kw_unitario × cantidad × factor_uso</code>, o el <code>kwh_mensual</code> si hay submedidor), y lo mismo para personas.</p>
+    </div>
+  </section>
+
+  <!-- ========================================================= -->
+  <section id="p3c">
+    <h2><span class="n">3C</span>Parte 3C — Plantillas de reparto</h2>
+    <p class="lead">Una plantilla dice, para un tipo de gasto compartido: <strong>qué base usar</strong> (m² / kW / personas) y <strong>a qué cuenta de oficina</strong> va la parte de no producción. Se define una vez por cuenta (o por proveedor) y se aplica sola.</p>
+
+    <ol class="steps">
+      <li><strong>Abre la pantalla</strong>
+        <p>Menú → <span class="path">Contabilidad → Reparto de gastos compartidos</span>. Ya vienen sembradas 5 plantillas típicas: renta (m²), energía (kW), agua (m²), vigilancia (m²), internet/teléfono (personas).</p></li>
+
+      <li><strong>Qué lleva cada plantilla</strong>
         <div class="tbl"><table class="fieldguide">
           <thead><tr><th>Campo</th><th>Qué poner</th></tr></thead>
           <tbody>
-            <tr><td>Fecha</td><td>La fecha de la factura. <em>Importante</em>: define en qué mes se prorratea.</td></tr>
-            <tr><td>Condición</td><td><code>Contado</code> si ya lo pagaste, <code>Crédito</code> si queda por pagar.</td></tr>
-            <tr><td>Concepto</td><td>Descripción corta y clara. "Renta nave — septiembre", "Mantenimiento correctivo mezcladora".</td></tr>
-            <tr><td>Proveedor</td><td>El que diste de alta en la Parte 1. Empieza a escribir y elígelo de la lista.</td></tr>
-            <tr><td>Cuenta de gasto</td><td>El cajón contable. Si el proveedor tenía una cuenta por defecto, ya viene puesta. Para la renta: <code>503.05</code>. La lista muestra si la cuenta es CIF fijo o variable.</td></tr>
+            <tr><td>Nombre</td><td>Cómo la reconoces. "Renta compartida (m²)".</td></tr>
+            <tr><td>Cuenta de gasto</td><td>La cuenta con la que capturas ese gasto (ej. <code>503.05</code> renta). Al elegir esa cuenta en Gastos, el asistente propone esta plantilla. Déjala vacía para una plantilla genérica.</td></tr>
+            <tr><td>Proveedor</td><td>Opcional. Una plantilla con proveedor gana sobre la de la cuenta.</td></tr>
+            <tr><td>Base</td><td><strong>m²</strong> para renta, predial, vigilancia, limpieza. <strong>kW</strong> para energía. <strong>Personas</strong> para internet y teléfono. <strong>Partes iguales</strong> reparte solo entre SURT/MEZ/ENV. <strong>Manual</strong> = tú fijas los %.</td></tr>
+            <tr><td>Cuenta de la parte de oficina</td><td>La <code>601.xx</code> donde cae la parte de no producción. Renta → <code>601.24</code>; energía → <code>601.17</code>; agua → <code>601.19</code>; internet → <code>601.18</code>.</td></tr>
           </tbody>
         </table></div>
       </li>
 
-      <li><strong>Bloque "Costeo de producción" — la clasificación</strong>
-        <p>Aquí eliges una de tres opciones. La guía de decisión está más abajo; en resumen:</p>
-        <ul>
-          <li><strong>No producción</strong> — el gasto no tiene nada que ver con fabricar (oficina, ventas, banco). No pide nada más.</li>
-          <li><strong>Indirecto de fabricación (CIF)</strong> — sirve para la planta en general. Pide el <strong>centro de costo</strong> y si es <strong>fijo o variable</strong> (se hereda de la cuenta, lo puedes cambiar). Queda marcado como <em>pendiente</em> de prorrateo.
-            <ul>
-              <li>Si el gasto es claramente de <strong>una etapa</strong> (mantenimiento de la llenadora → <code>ENV</code>, refacción del reactor → <code>MEZ</code>), ponle ese centro.</li>
-              <li>Si es <strong>compartido y grande</strong> (renta, luz general, supervisión de las tres etapas), elige base <strong>"% por centros"</strong> y reparte el gasto entre <code>SURT</code>, <code>MEZ</code> y <code>ENV</code> con los porcentajes que correspondan (ej. por superficie que ocupa cada área).</li>
-              <li>Si es <strong>compartido y chico</strong>, déjalo en el centro de más peso (normalmente <code>MEZ</code> o <code>ENV</code>); dividirlo no cambia el costo de forma perceptible.</li>
-            </ul>
-          </li>
-          <li><strong>Directo a una orden</strong> — es para una orden de producción concreta y solo esa. Pide <strong>cuál orden</strong>. Se cargará completo a ella.</li>
-        </ul>
-      </li>
-
-      <li><strong>Montos</strong>
-        <p>Subtotal, IVA (hay un botón <code>16%</code> que lo calcula), IEPS si aplica, retenciones si aplican. El Total se calcula solo. Si es contado, elige de qué caja o banco sale el pago.</p>
-      </li>
-
-      <li><strong>Guardar</strong>
-        <p>El gasto aparece en la lista. El sistema genera su póliza automáticamente. Si te equivocaste de clasificación, la forma más limpia de corregir es <strong>cancelar el gasto</strong> (botón en la lista) y capturarlo de nuevo bien.</p>
+      <li><strong>Mira la vista previa</strong>
+        <p>La pantalla muestra cómo quedaría repartido un gasto de $10,000 con esa base: cuánto a cada etapa y cuánto a oficina. Si sale <span style="color:var(--warn)">"faltan datos"</span>, es que no capturaste m²/kW en la Parte 3B.</p>
       </li>
     </ol>
+
+    <div class="callout tec">
+      <span class="lbl">Para contabilidad — los dos niveles</span>
+      <p><strong>Nivel 1</strong> (fábrica vs oficina): la suma de fracciones de las áreas de producción va a <code>503.xx</code> y queda pendiente de prorrateo; la suma de las áreas de no producción se carga de una vez a la <code>601.xx</code> de la plantilla y se queda en resultados. <strong>Nivel 2</strong> (entre etapas): la parte de fábrica se reparte entre SURT/MEZ/ENV según la fracción de cada centro. Todo se <strong>congela</strong> en <code>gasto_prorrateo_reglas</code> y <code>gasto_reparto_no_produccion</code> al guardar el gasto: si cambias los m² después, los gastos ya capturados no se mueven.</p>
+    </div>
+  </section>
+
+  <!-- ========================================================= -->
+  <section id="p4">
+    <h2><span class="n">4</span>Parte 4 — Capturar un gasto (asistente + XML)</h2>
+    <p class="lead">Esto lo haces cada vez que llega una factura de gasto. Tienes tres ayudas: el <strong>lector de XML</strong> (llena los montos), el <strong>asistente</strong> (te dice qué clasificación poner) y el panel de <strong>impacto</strong> (te muestra a dónde va cada peso antes de guardar).</p>
+
+    <h3>Importar el XML del CFDI</h3>
+    <ol class="steps">
+      <li><strong>Botón "📄 Importar XML del CFDI"</strong>
+        <p>Arriba del formulario. Elige el archivo <code>.xml</code> de la factura. Llena solo: <strong>fecha, subtotal, IVA, IEPS, retenciones, folio, UUID, RFC del emisor</strong>, y recalcula el total. La condición se pone según el método de pago (PPD → crédito, PUE → contado).</p></li>
+      <li><strong>Proveedor por RFC</strong>
+        <p>Lo busca por el RFC del emisor y lo selecciona. Si no está dado de alta, aparece <strong>"+ dar de alta el proveedor"</strong>: abre una ventana con los datos del XML ya cargados (nombre, RFC, C.P., régimen, uso CFDI, forma y método de pago, moneda). "Guardar y usar" lo crea y lo deja puesto.</p></li>
+      <li><strong>Avisos</strong>
+        <p>La línea del CFDI avisa si el comprobante no es de tipo Ingreso, si la moneda no es peso, o si el total no cuadra con el desglose.</p></li>
+    </ol>
+    <p><em>Nota:</em> un gasto es una sola línea contable. El XML llena los totales e impuestos y resume los conceptos; no crea renglones por partida como en Compras. Si una factura debe ir a varias cuentas de gasto, se capturan varios gastos.</p>
+
+    <h3>El asistente de captura</h3>
+    <p>En el bloque <strong>"Asistente — Captura de gastos"</strong> respondes unas preguntas y él deja puestos: la <strong>clasificación</strong>, el <strong>modo de reparto</strong>, una <strong>cuenta de gasto</strong> propuesta según el concepto (y el nombre del emisor del XML) y la <strong>plantilla</strong> que mejor calza. Todo queda para que lo revises, no para dar por bueno a ciegas.</p>
+    <div class="calc">1 · ¿Es compra de inventario (materia prima, empaque)?  → Sí: va en Compras
+2 · ¿Con qué tiene que ver?  Fabricar · Oficina · Vender · Bancos · Mixto
+3 · (Fabricar) ¿Es para UNA orden concreta?   Sí → Directo a esa orden
+                                              No ↓
+4 · ¿De un solo lugar de la planta o de toda?
+       Un solo lugar (mtto. de la llenadora, refacción del reactor)  → un centro
+       Toda la planta / varias zonas (renta, luz, vigilancia)        → una plantilla
+    (Oficina / Vender / Bancos) → No producción (cuenta 601.xx / 701.xx)
+    (Mixto: fábrica Y oficina)  → una plantilla</div>
+    <p>Puedes saltarte el asistente y elegir a mano en el bloque <strong>Costeo de producción</strong>.</p>
+
+    <h3>El bloque "Costeo de producción"</h3>
+    <ul>
+      <li><strong>No producción</strong> — oficina, ventas, banco. Solo eliges la cuenta de gasto (grupo <code>601</code> para admin/venta, <code>701</code> para financiero). No entra al costo de los lotes.</li>
+      <li><strong>Indirecto de fabricación (CIF)</strong> — sirve a la planta. Aparece <strong>"¿Cómo se reparte?"</strong>:
+        <ul>
+          <li><strong>Todo a un centro</strong> — el gasto es de una sola etapa. Eliges <code>SURT</code> / <code>MEZ</code> / <code>ENV</code> y si es fijo o variable.</li>
+          <li><strong>Repartir con una plantilla</strong> — gasto compartido. Eliges la plantilla (Parte 3C). Ella separa fábrica/oficina y reparte entre etapas.</li>
+        </ul>
+      </li>
+      <li><strong>Directo a una orden</strong> — para una orden concreta y solo esa. Se carga completo a su costo al cerrarla.</li>
+    </ul>
+    <p>El panel <strong>Impacto</strong> muestra el resultado: "Fábrica $X (SURT $a · MEZ $b · ENV $c) → CIF pendiente // Oficina $Y → resultados", con aviso si el monto es menor al umbral de materialidad.</p>
+
+    <div class="callout warn">
+      <span class="lbl">Si aún no configuraste las áreas (Parte 3B)</span>
+      <p>La plantilla necesita m²/kW para calcular el reparto. Mientras no los tengas, para capturar un gasto compartido (ej. CFE) tienes salidas: <strong>(a)</strong> ponlo <em>todo a un centro</em> variable (el de más peso, normalmente <code>MEZ</code> o <code>ENV</code>); <strong>(b)</strong> ponlo como <em>No producción</em> a <code>601.17</code> y lo reclasificas el mes que viene; o <strong>(c)</strong> captura primero los m²/kW (bastan 10 minutos) y luego el gasto. Recuerda: el reparto se <strong>congela al guardar</strong>, así que un gasto capturado con datos placeholder conserva ese reparto.</p>
+    </div>
+
+
+    <h3>Montos y guardar</h3>
+    <p>Si no importaste XML, captura a mano: <strong>fecha</strong> (define el mes del prorrateo), <strong>concepto</strong>, <strong>proveedor</strong>, <strong>cuenta de gasto</strong> (para la renta <code>503.05</code>), <strong>subtotal / IVA</strong> (botón <code>16%</code>), IEPS y retenciones si aplican. Si es contado, elige de qué caja o banco sale el pago. Al <strong>Guardar</strong>, el sistema genera la póliza. ¿Te equivocaste de clasificación? <strong>Cancela el gasto</strong> en la lista y captúralo de nuevo.</p>
 
     <h3>Guía de decisión: ¿qué clasificación le toca?</h3>
     <p>Hazte estas preguntas en orden:</p>
@@ -467,31 +561,30 @@ ENV    2 operadores → 265.42 h/mes</div>
       </tbody>
     </table></div>
 
-    <h3>Ejemplo completo: la factura de la renta</h3>
-    <p>Llega la factura de <strong>Inmobiliaria del Valle</strong> por la renta de la nave: $40,000 + IVA $6,400, a crédito, con fecha 18 de septiembre.</p>
+    <h3>Ejemplo completo: la factura de la renta del predio</h3>
+    <p>Llega la factura de <strong>Inmobiliaria del Valle</strong> por la renta del predio completo (nave + oficina): $40,000 + IVA $6,400, a crédito, 18 de septiembre. La declaración de áreas (Parte 3B) tiene, por m²: 74% producción (repartido SURT/MEZ/ENV) y 26% oficina.</p>
     <div class="tbl"><table>
       <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
       <tbody>
-        <tr><td>Fecha</td><td>2026-09-18</td></tr>
+        <tr><td>Fecha / Concepto</td><td>2026-09-18 · Renta predio — septiembre</td></tr>
         <tr><td>Condición</td><td>Crédito</td></tr>
-        <tr><td>Concepto</td><td>Renta nave industrial — septiembre</td></tr>
         <tr><td>Proveedor</td><td>Inmobiliaria del Valle</td></tr>
         <tr><td>Cuenta de gasto</td><td>503.05 · Renta de nave industrial</td></tr>
-        <tr><td>Clasificación</td><td>Indirecto de fabricación (CIF)</td></tr>
+        <tr><td>Asistente</td><td>Fabricar → planta en general → "de toda la planta o varias zonas" → <strong>Repartir con una plantilla</strong></td></tr>
+        <tr><td>Plantilla</td><td>"Renta compartida (m²)" — base m², parte de oficina a <code>601.24</code></td></tr>
         <tr><td>Tipo de CIF</td><td>Fijo</td></tr>
-        <tr><td>Base de prorrateo</td><td>% por centros</td></tr>
-        <tr><td>Reparto entre centros</td><td>SURT 20% · MEZ 35% · ENV 45% (según la superficie que ocupa cada área en la nave)</td></tr>
         <tr><td>Subtotal / IVA</td><td>40,000.00 / 6,400.00</td></tr>
       </tbody>
     </table></div>
-    <p>Al guardar, el gasto queda <em>pendiente</em> de prorrateo. Todavía no toca el costo de ningún producto — eso pasa a fin de mes (Parte 5), y ahí los $40,000 se separan: $8,000 se prorratean contra la capacidad de <code>SURT</code>, $14,000 contra la de <code>MEZ</code> y $18,000 contra la de <code>ENV</code>.</p>
+    <p>El panel Impacto muestra: <strong>Fábrica $29,600</strong> (SURT ~$4,800 · MEZ ~$8,700 · ENV ~$16,100) → CIF pendiente de prorrateo · <strong>Oficina $10,400</strong> → resultados. Al guardar, la parte de fábrica queda pendiente; la de oficina ya está en resultados.</p>
 
     <div class="callout tec">
       <span class="lbl">Para contabilidad — la póliza del gasto</span>
-      <div class="calc">Cargo  503.05  Renta de nave industrial     40,000.00
-Cargo  119.01  IVA acreditable pend. de pago  6,400.00
-  Abono  201.01  Proveedores                        46,400.00</div>
-      <p>El asiento del gasto <strong>no cambió</strong> con el nuevo bloque de costeo: sigue cargando la cuenta elegida y abonando proveedores (o banco si es contado). Lo que se agregó es la marca <code>clasificacion = indirecto_produccion</code>, el <code>centro_costo_id</code> y <code>prorrateo_estatus = pendiente</code>. El traspaso del CIF hacia el inventario lo hace <code>prorrateo_aplicar</code>. Un gasto <strong>directo</strong> también se asienta igual al capturarlo; se traspasa a <code>115.04</code> al cerrar su orden.</p>
+      <div class="calc">Cargo  503.05  Renta de nave industrial (parte fábrica)   29,600.00
+Cargo  601.24  Arrendamiento (parte oficina)              10,400.00
+Cargo  119.01  IVA acreditable pend. de pago               6,400.00
+  Abono  201.01  Proveedores                                    46,400.00</div>
+      <p>El asiento carga la <code>503.xx</code> solo por la parte de fábrica (<code>monto_prorrateable</code>) y la <code>601.xx</code> por la de oficina (una fila en <code>gasto_reparto_no_produccion</code>). Suma = subtotal. Los % por centro quedan congelados en <code>gasto_prorrateo_reglas</code> con <code>base_prorrateo = porcentaje_centros</code> y <code>prorrateo_estatus = pendiente</code>. El traspaso al inventario lo hace <code>prorrateo_aplicar</code>. Si el gasto fuera "todo a un centro", se carga la <code>503.xx</code> completa y se prorratea vía ese centro; si fuera <strong>directo</strong>, la <code>503.xx</code> completa y se traspasa a <code>115.04</code> al cerrar la orden.</p>
     </div>
   </section>
 
@@ -644,9 +737,9 @@ costo total de la orden   117,398.00
     <div class="tbl"><table>
       <thead><tr><th>Cuándo</th><th>Qué</th></tr></thead>
       <tbody>
-        <tr><td><strong>Una sola vez</strong></td><td>Partes 1–3: proveedores, revisar plan de cuentas, y ajustar la capacidad normal de los 3 centros (SURT / MEZ / ENV) a tu plantilla real.</td></tr>
-        <tr><td><strong>Cada vez que llega una factura de gasto</strong></td><td>Parte 4: capturar el gasto, elegir proveedor y cuenta, y <strong>clasificarlo</strong> (no producción / indirecto CIF / directo a orden).</td></tr>
-        <tr><td><strong>1–2 veces al año</strong></td><td>Revisar la capacidad normal del centro contra la realidad y ajustarla si cambió tu operación.</td></tr>
+        <tr><td><strong>Una sola vez</strong></td><td>Partes 1–3C: proveedores · revisar plan de cuentas · ajustar la capacidad de los 3 centros · capturar m²/kW/personas de las áreas (3B) · revisar las plantillas de reparto (3C).</td></tr>
+        <tr><td><strong>Cada vez que llega una factura de gasto</strong></td><td>Parte 4: importar el XML, dejar que el asistente clasifique, revisar el panel Impacto y guardar.</td></tr>
+        <tr><td><strong>1–2 veces al año</strong></td><td>Revisar la capacidad normal de los centros y los m²/kW de las áreas contra la realidad.</td></tr>
         <tr><td><strong>Fin de mes, después de cerrar producción</strong></td><td>Parte 5: entrar a Prorrateo de gastos, revisar la distribución, <strong>Aplicar</strong>. Revisar los reportes (Parte 6).</td></tr>
       </tbody>
     </table></div>
@@ -665,6 +758,9 @@ costo total de la orden   117,398.00
         <tr><td>El prorrateo dice "no hay gastos indirectos pendientes"</td><td>Ningún gasto del mes está clasificado como <em>indirecto de fabricación</em>, o ya se prorratearon todos. Revisa la fecha de los gastos y su clasificación.</td></tr>
         <tr><td>La cuenta 115.03 no baja a cero después del prorrateo</td><td>Es normal si hay órdenes del mes todavía abiertas: su CIF entra al costo al cerrarlas. Si están todas cerradas y sigue con saldo, avísale a tu contador.</td></tr>
         <tr><td>El costo unitario de un lote subió mucho</td><td>Revisa el % de utilización del mes en la pantalla de Prorrateo. Si fue bajo, el CIF fijo se repartió entre pocas unidades: es correcto, y la cuenta 503.98 muestra la parte ociosa.</td></tr>
+        <tr><td>Al capturar un gasto con plantilla: "no produjo ninguna línea"</td><td>La base de esa plantilla (m² / kW) no tiene datos en <span class="path">Áreas y bases de prorrateo</span>. Captúralos, o usa "todo a un centro" mientras tanto.</td></tr>
+        <tr><td>El XML no encontró al proveedor</td><td>El RFC del emisor no está en Proveedores. Usa "+ dar de alta el proveedor" en la línea del CFDI: abre la ventana con los datos ya cargados.</td></tr>
+        <tr><td>Un gasto compartido quedó 100% en producción y nada en oficina</td><td>El área de Oficina tiene m² (o kW) en 0. Corrígelo en Áreas y bases; los gastos ya capturados conservan su reparto (cancélalos y recaptúralos si hace falta).</td></tr>
       </tbody>
     </table></div>
   </section>
@@ -695,7 +791,8 @@ Reparto entre órdenes: proporcional a las horas de cada orden EN ESE CENTRO en 
 Si el centro no tuvo producción (0 h): toda su tajada → 503.98.</div>
 
     <h4>Flujo de cuentas</h4>
-    <div class="calc">Al capturar el gasto CIF:   Cargo 503.xx        / Abono 201.01 o banco
+    <div class="calc">Gasto CIF de un centro:     Cargo 503.xx (total)              / Abono 201.01 o banco
+Gasto CIF compartido:       Cargo 503.xx (parte fábrica) + Cargo 601.xx (parte oficina) / Abono 201.01
 Al aplicar el prorrateo:    Cargo 115.03 (aplic) / Cargo 503.98 (ocioso) / Abono 503.xx
 Orden cerrada en el mes:    Cargo 115.04         / Abono 115.03            (en la misma póliza)
 Orden abierta:              el CIF queda en 115.03; entra a 115.04 al cerrarla
@@ -712,7 +809,14 @@ Gasto directo:              Cargo 503.xx al capturar; Cargo 115.04 / Abono 503.x
         <tr><td class="m">procesos_produccion.centro_costo_id</td><td>Mapa canónico nombre de proceso → centro. Lo "aprende" la pantalla de Nueva orden.</td></tr>
         <tr><td class="m">orden_produccion_procesos.centro_costo_id</td><td>Foto del centro al crear la orden (trigger <code>trg_opp_hereda_centro</code>).</td></tr>
         <tr><td class="m">_horas_mo_periodo</td><td>Agrupa las horas de <code>registros_tiempo</code> por (orden, centro del proceso) en el mes.</td></tr>
-        <tr><td class="m">gasto_prorrateo_reglas</td><td>% por centro cuando <code>base_prorrateo = porcentaje_centros</code>.</td></tr>
+        <tr><td class="m">gasto_prorrateo_reglas</td><td>% (de fábrica) por centro, congelado al capturar cuando <code>base_prorrateo = porcentaje_centros</code>.</td></tr>
+        <tr><td class="m">areas_fisicas, areas_fisicas_cargas</td><td>Declaración física: m², kW (por cargas con factor de uso), personas y rol (producción / no producción) por área.</td></tr>
+        <tr><td class="m">v_areas_carga, v_bases_prorrateo</td><td>kW efectivo por área; y la fracción de cada área por base (m² / kW / personas).</td></tr>
+        <tr><td class="m">reparto_plantillas, reparto_plantilla_lineas</td><td>Por cuenta o proveedor: qué base usar y a qué cuenta 601.xx va la parte de oficina.</td></tr>
+        <tr><td class="m">_reparto_resolver(plantilla, subtotal)</td><td>Resuelve una plantilla contra v_bases_prorrateo → filas de producción (una por centro) + de no producción (una por cuenta).</td></tr>
+        <tr><td class="m">gasto_reparto_no_produccion</td><td>Desglose de la parte de oficina de cada gasto (cuenta 601.xx, monto).</td></tr>
+        <tr><td class="m">gastos.monto_prorrateable, .reparto_base, .reparto_plantilla_id</td><td>Trazabilidad del reparto Nivel 1: cuánto del subtotal entró al prorrateo.</td></tr>
+        <tr><td class="m">costos_config</td><td>Parámetros: <code>umbral_materialidad_mxn</code>.</td></tr>
         <tr><td class="m">cuentas_contables.cif_tipo</td><td>fijo / variable por cuenta 503.xx.</td></tr>
         <tr><td class="m">gastos.clasificacion, .centro_costo_id, .cif_tipo, .orden_produccion_id, .prorrateo_estatus, .base_prorrateo</td><td>Marca de costeo por gasto.</td></tr>
         <tr><td class="m">gasto_aplicaciones</td><td>Resultado del prorrateo: monto de CIF por orden y por capacidad ociosa, por periodo.</td></tr>
@@ -725,7 +829,7 @@ Gasto directo:              Cargo 503.xx al capturar; Cargo 115.04 / Abono 503.x
   </section>
 
   <footer>
-    Manual de gastos y costos de producción · ERP Hares de México · Fases 1–3 + 2b (centro por proceso) · Fase 4 pendiente · documento vivo.
+    Manual de gastos y costos de producción · ERP Hares de México · Fases 1–3 + 2b (centro por proceso) + reparto en 2 niveles + asistente y lector de XML · Fase 4 pendiente · documento vivo.
     Ver también la <a href="guia-costos-produccion.html">guía interactiva</a>.
   </footer>
 </div>

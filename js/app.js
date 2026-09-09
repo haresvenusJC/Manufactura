@@ -21,6 +21,7 @@ import { cargarModuloCentrosCosto } from './centros-costo.js';
 import { cargarModuloProrrateo } from './prorrateo.js';
 import { cargarModuloAreasProrrateo } from './areas-prorrateo.js';
 import { cargarModuloRepartoPlantillas } from './reparto-plantillas.js';
+import { cargarModuloIndice } from './indice.js';
 import { cargarModuloIsr } from './isr.js';
 import { cargarModuloReportes } from './reportes.js';
 import { montarLogin, cerrarSesion } from './auth.js';
@@ -182,6 +183,9 @@ window.loadView = function(viewName) {
     window.cerrarSidebar();
 
     switch (viewName) {
+        case 'indice':
+            cargarModuloIndice();
+            break;
         case 'compras': // <-- Conectado correctamente al menú "Compras / Proveedores"
             configurarFormularioCompras();
             break;

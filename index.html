@@ -342,7 +342,9 @@
                 </div>
                 <hr class="border-slate-800">
                 <ul class="space-y-1" style="list-style: none; padding: 0;">
-                    
+
+                    <li><button onclick="window.loadView('indice')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-sky-300 transition text-sm font-semibold flex items-center gap-2" style="cursor: pointer;"><span>🧭 Índice</span></button></li>
+
                     <!-- Menú Catálogos -->
                     <li>
                         <button onclick="window.toggleSubmenu('submenu-catalogos')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
@@ -452,6 +454,14 @@
                 <span id="bannerNominaPendienteTexto"></span>
                 <button type="button" onclick="window.loadView('tareas')" class="shrink-0 text-xs bg-amber-800 hover:bg-amber-700 text-amber-100 px-3 py-1.5 rounded-lg border border-amber-600 cursor-pointer">Revisar y autorizar</button>
             </div>
+
+            <!-- Vista: Índice del ERP -->
+            <section id="view-indice" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-sky-400">Índice del ERP</h2>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div id="contenedorIndice">Cargando...</div>
+                </div>
+            </section>
 
             <!-- Vista: Catálogo y BOM -->
             <section id="view-catalogo" class="vista-seccion space-y-4">

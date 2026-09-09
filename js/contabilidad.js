@@ -1,6 +1,8 @@
 import { supabaseClient } from './supabase.js';
 import { imprimirConPlantilla } from './impresion.js';
 import { montarGuia, crearPanelAsistente } from './asistente-contable.js';
+import { parsearCfdi, formaPagoSimple } from './cfdi.js';
+import { REGIMENES } from './proveedores.js';
 
 // =====================================================================
 //  Contabilidad - FASE 1: Plan de cuentas
@@ -338,6 +340,7 @@ async function eliminar(id) {
 
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const hoyISO = () => new Date().toISOString().slice(0, 10);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const primerDiaMesISO = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); };
 
 let polCuentas = [];            // cuentas afectables (para los selects)
@@ -672,6 +675,8 @@ let gaOrdenes = [];     // órdenes de producción para gasto directo
 let gaPlantillas = [];  // plantillas de reparto (Tanda 2)
 let gaBases = [];       // v_bases_prorrateo, para la vista previa del reparto
 let gaUmbral = 0;       // umbral de materialidad (costos_config)
+let gaCfdiActual = null; // último CFDI importado (para que el asistente sugiera cuenta)
+let gaWizGrupo = null;   // grupo del asistente ('prod'|'admin'|'venta'|'fin') para re-sugerir tras importar XML
 
 // globo de ayuda al pasar por encima. Los textos son literales controlados (sin < > " &).
 const gHint = (t) => `<span class="hint" tabindex="0" role="note" aria-label="${t}" data-tip="${t}">?</span>`;
@@ -684,8 +689,16 @@ export async function cargarModuloGastos() {
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <!-- Formulario -->
         <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-3">
-            <h3 class="text-md font-semibold text-sky-400">Registrar gasto</h3>
+            <div class="flex items-center justify-between gap-2">
+                <h3 class="text-md font-semibold text-sky-400">Registrar gasto</h3>
+                <button type="button" id="gaManualBtn" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+            </div>
             <form id="gaForm" class="space-y-3">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <input type="file" id="gaXmlFile" accept=".xml,text/xml,application/xml" class="hidden">
+                    <button type="button" id="gaBtnXml" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-2 rounded-lg cursor-pointer">📄 Importar XML del CFDI</button>
+                    <span id="gaCfdiInfo" class="text-[11px] text-slate-400"></span>
+                </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div><label class="block text-[11px] text-slate-400 mb-1">Fecha${gHint('La fecha de la factura. Define en qué mes se prorratea el gasto.')}</label>
                         <input type="date" id="gaFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
@@ -810,16 +823,74 @@ function gaMontarAsistente() {
 
 function gaWizIr(paso) { gaWizPaso = paso; gaWizRender(); }
 
-function gaWizAplicar(clasif, modo, tip) {
+function gaWizAplicar(clasif, modo, tip, grupo) {
     const $ = (id) => document.getElementById(id);
     if ($('gaClasif')) $('gaClasif').value = clasif;
     if (modo && $('gaReparto')) $('gaReparto').value = modo;
     gaAplicarClasif();
-    if (modo === 'plantilla') gaSugerirPlantilla();
+    gaWizGrupo = grupo || null;
+    if (grupo) gaSugerirCuenta(grupo);
+    if (modo === 'plantilla') gaSugerirPlantilla(true);
     gaResumen();
     gaWizPaso = 'done';
     gaWizRender(tip);
     document.getElementById('gaForm')?.scrollIntoView({ block: 'nearest' });
+}
+
+// Reglas concepto/proveedor -> cuenta. Se aplican solo si la cuenta está vacía.
+const GA_CUENTA_REGLAS = {
+    prod: [
+        [/energ[ií]a|\bluz\b|electric|\bcfe\b|comisi[oó]n federal de electric/i, '503.01'],
+        [/renta|arrend|predio|\bnave\b|inmobil|\blocal\b/i, '503.05'],
+        [/\bagua\b|drenaje|potable|\bgas\b/i, '503.07'],
+        [/manten|refacc|reparac|servicio t[eé]cnico|conservaci/i, '503.03'],
+        [/deprecia|amortiz/i, '503.04'],
+        [/supervis|jefe de produc|mano de obra indirect|coordinador de planta/i, '503.02'],
+        [/guante|cofia|cubrebocas|cloro|sanitiz|insumo indirect|limpieza/i, '503.06'],
+        [/vigilanc|seguridad|guardia|alarma/i, '503.08'],
+    ],
+    admin: [
+        [/papel|t[oó]ner|tinta|art[ií]culos de oficina/i, '601.50'],
+        [/honorari|contad|legal|abogad|notari|audit/i, '601.06'],
+        [/sueldo|n[oó]mina|salari|imss|infonavit|prestacion/i, '601.01'],
+        [/internet|tel[eé]fon|celular|datos m[oó]viles/i, '601.18'],
+        [/renta|arrend/i, '601.24'],
+        [/energ[ií]a|\bluz\b|electric|\bcfe\b/i, '601.17'],
+        [/\bagua\b/i, '601.19'],
+        [/manten|limpieza|conservaci/i, '601.52'],
+        [/publicid|propagand|marketing/i, '601.83'],
+    ],
+    venta: [
+        [/publicid|propagand|\bredes\b|marketing|anunci|promoci/i, '601.83'],
+        [/flete|paqueter|env[ií]o|mensajer[ií]a|acarreo|transporte de/i, '601.14'],
+        [/comisi[oó]n.*(vent|agente)/i, '601.99'],
+    ],
+    fin: [
+        [/comisi[oó]n.*(banc|transfer)|gasto.*banc|manejo de cuenta|anualidad tarjeta/i, '701.01'],
+        [/cambiar[io]|tipo de cambio|cambiari|diferencia cambiaria|p[eé]rdida cambiaria/i, '701.04'],
+        [/inter[eé]s|financiamiento|factoraje/i, '701.01'],
+    ],
+};
+const GA_CUENTA_FALLBACK = { prod: '503.99', admin: '601.99', venta: '601.99', fin: '701.01' };
+
+function gaSugerirCuenta(grupo) {
+    const sel = document.getElementById('gaCuentaGasto');
+    if (!sel || sel.value) return;   // no piso una cuenta ya elegida
+    const prov = gaProveedores.find((p) => p.id === Number(document.getElementById('gaProveedor').value));
+    const txt = [
+        document.getElementById('gaConcepto').value,
+        prov && prov.nombre,
+        gaCfdiActual && gaCfdiActual.nombreEmisor,
+    ].filter(Boolean).join(' ');
+    if (!txt.trim()) return;
+    let codigo = null;
+    for (const [re, cod] of (GA_CUENTA_REGLAS[grupo] || [])) { if (re.test(txt)) { codigo = cod; break; } }
+    if (!codigo) codigo = GA_CUENTA_FALLBACK[grupo];
+    const cta = gaCtasGasto.find((c) => c.codigo === codigo);
+    if (!cta) return;
+    sel.value = String(cta.id);
+    const ct = document.getElementById('gaCifTipo');
+    if (cta.cif_tipo && ct && !ct.value) ct.value = cta.cif_tipo;
 }
 
 function gaWizRender(tipFinal) {
@@ -829,6 +900,7 @@ function gaWizRender(tipFinal) {
     const atras = (act) => `<button type="button" data-act="${act}" class="text-[11px] text-sky-400 hover:underline mt-1">← Atrás</button>`;
     let html = '';
     if (P === 'q1') {
+        gaWizGrupo = null;
         html = `<p class="text-slate-100 font-semibold">1 · ¿Es una compra de inventario? (materia prima, material de empaque)</p>
           <div class="grid gap-2 mt-1">${opt('inv', 'Sí, es inventario')}${opt('q2', 'No')}</div>`;
     } else if (P === 'inv') {
@@ -848,9 +920,9 @@ function gaWizRender(tipFinal) {
           <p class="text-slate-400">Ej: un molde rentado solo para ese lote, el análisis de laboratorio de ese lote.</p>
           <div class="grid gap-2 mt-1">${opt('directo', 'Sí, una orden')}${opt('q3b', 'No, sirve a la planta en general')}</div>${atras('q2')}`;
     } else if (P === 'q3b') {
-        html = `<p class="text-slate-100 font-semibold">4 · ¿El gasto es de UNA sola etapa?</p>
-          <p class="text-slate-400">Surtido, mezclado o envasado — no de varias a la vez.</p>
-          <div class="grid gap-2 mt-1">${opt('centro', 'Sí, una etapa')}${opt('plantilla', 'No, es compartido entre etapas')}</div>${atras('q3a')}`;
+        html = `<p class="text-slate-100 font-semibold">4 · ¿De qué parte de la planta es el gasto?</p>
+          <p class="text-slate-400">¿Sale de un solo lugar (una máquina o una zona) o sirve a toda la planta?</p>
+          <div class="grid gap-2 mt-1">${opt('centro', 'De un solo lugar — ej: mantenimiento de la llenadora, refacción del reactor, una báscula')}${opt('plantilla', 'De toda la planta o de varias zonas — ej: renta, luz general, vigilancia, limpieza')}</div>${atras('q3a')}`;
     } else if (P === 'done') {
         html = `<p class="text-emerald-400 font-semibold">Listo — campos configurados.</p>
           <p>${tipFinal || ''}</p>
@@ -864,13 +936,13 @@ function gaWizAccion(act) {
     switch (act) {
         case 'q1': case 'q2': case 'q3a': case 'q3b': case 'inv': gaWizIr(act); break;
         case 'fab': gaWizIr('q3a'); break;
-        case 'ofi': gaWizAplicar('no_produccion', null, 'Elige arriba la <b>cuenta de gasto de administración</b> (grupo 601.xx: 601.01 sueldos, 601.50 papelería, 601.06 honorarios…).'); break;
-        case 'ven': gaWizAplicar('no_produccion', null, 'Elige arriba la <b>cuenta de gasto de venta</b> (601.83 publicidad, 601.14 fletes y acarreos, comisiones…).'); break;
-        case 'ban': gaWizAplicar('no_produccion', null, 'Elige arriba la cuenta <b>701.xx</b> (gastos financieros: 701.01 comisiones bancarias, 701.04 pérdida cambiaria).'); break;
-        case 'directo': gaWizAplicar('directo_produccion', null, 'Abajo, en <b>Orden de producción</b>, elige la orden a la que se carga. Se suma a su costo al cerrarla.'); break;
-        case 'centro': gaWizAplicar('indirecto_produccion', 'centro_unico', 'Abajo elige el <b>Centro de costo</b> (SURT / MEZ / ENV) y si es <b>fijo o variable</b>.'); break;
-        case 'plantilla': gaWizAplicar('indirecto_produccion', 'plantilla', 'Abajo elige la <b>plantilla de reparto</b>. Si no hay una adecuada, créala en Configuración → Reparto de gastos compartidos.'); break;
-        case 'mix': gaWizAplicar('indirecto_produccion', 'plantilla', 'Gasto mixto: elige la <b>plantilla</b> con base m²/kW/personas — separa la parte de fábrica (a las etapas) de la de oficina (a resultados).'); break;
+        case 'ofi': gaWizAplicar('no_produccion', null, 'Propuse una <b>cuenta 601.xx de administración</b> según el concepto — revísala y cámbiala si no es la correcta.', 'admin'); break;
+        case 'ven': gaWizAplicar('no_produccion', null, 'Propuse una <b>cuenta 601.xx de venta</b> según el concepto — revísala.', 'venta'); break;
+        case 'ban': gaWizAplicar('no_produccion', null, 'Propuse una cuenta <b>701.xx</b> (gastos financieros) según el concepto — revísala.', 'fin'); break;
+        case 'directo': gaWizAplicar('directo_produccion', null, 'Abajo, en <b>Orden de producción</b>, elige la orden. Propuse la <b>cuenta de gasto</b> — revísala. Se suma al costo de la orden al cerrarla.', 'prod'); break;
+        case 'centro': gaWizAplicar('indirecto_produccion', 'centro_unico', 'Propuse la <b>cuenta 503.xx</b> según el concepto. Abajo elige el <b>lugar</b> (SURT / MEZ / ENV) y revisa el <b>fijo/variable</b>.', 'prod'); break;
+        case 'plantilla': gaWizAplicar('indirecto_produccion', 'plantilla', 'Propuse la <b>cuenta 503.xx</b> y la <b>plantilla</b> que mejor calza — revisa ambas y el panel de impacto. Si no hay plantilla adecuada, créala en Configuración → Reparto de gastos compartidos.', 'prod'); break;
+        case 'mix': gaWizAplicar('indirecto_produccion', 'plantilla', 'Gasto mixto: propuse la <b>cuenta</b> y una <b>plantilla</b> con base m²/kW/personas que separa la parte de fábrica (a las etapas) de la de oficina (a resultados). Revísalas.', 'prod'); break;
     }
 }
 
@@ -900,7 +972,203 @@ function gaCablear() {
     $('gaProveedor').addEventListener('change', () => { gaSugerirPlantilla(); gaResumen(); });
     $('gaForm').addEventListener('submit', gaGuardar);
     $('gaBuscar').addEventListener('click', gaBuscar);
+    const xmlIn = $('gaXmlFile');
+    $('gaBtnXml').addEventListener('click', () => xmlIn.click());
+    $('gaManualBtn').addEventListener('click', () => gaAbrirManual('#p4'));
+    xmlIn.addEventListener('change', () => {
+        const f = xmlIn.files && xmlIn.files[0];
+        if (!f) return;
+        const r = new FileReader();
+        r.onload = () => { gaImportarCfdi(String(r.result || '')); xmlIn.value = ''; };
+        r.readAsText(f);
+    });
     gaAplicarClasif();
+}
+
+// --- Importar XML del CFDI: prellena los campos fiscales del gasto ---
+async function gaImportarCfdi(text) {
+    const info = document.getElementById('gaCfdiInfo');
+    const $ = (id) => document.getElementById(id);
+    const c = parsearCfdi(text);
+    if (c.error) { info.textContent = c.error; info.className = 'text-[11px] text-rose-400'; return; }
+    gaCfdiActual = c;
+
+    const setV = (id, v) => { if ($(id)) $(id).value = Number(v || 0).toFixed(2); };
+    if (c.fecha) $('gaFecha').value = c.fecha;
+    setV('gaSubtotal', Math.max(0, (c.subtotal || 0) - (c.descuento || 0)));
+    setV('gaIva', c.iva); setV('gaIeps', c.ieps); setV('gaRetIva', c.retIva); setV('gaRetIsr', c.retIsr);
+    if (c.folio) $('gaFolio').value = c.folio;
+    if (c.uuid) $('gaUuid').value = c.uuid;
+    if (c.rfcEmisor) $('gaRfc').value = c.rfcEmisor;
+
+    $('gaCondicion').value = c.metodoPago === 'PPD' ? 'credito' : 'contado';
+    $('gaPagoWrap').style.display = $('gaCondicion').value === 'contado' ? '' : 'none';
+    const fp = formaPagoSimple(c.formaPago);
+    if (fp && $('gaFormaPago')) $('gaFormaPago').value = fp;
+
+    if (!$('gaConcepto').value.trim() && c.conceptos.length) {
+        const d = (c.conceptos[0].descripcion || '').trim();
+        $('gaConcepto').value = c.conceptos.length > 1 ? `${d} (+${c.conceptos.length - 1} conceptos)` : d;
+    }
+    gaCalcTotal();
+
+    let provTxt = '', provFound = false;
+    if (c.rfcEmisor) {
+        try {
+            const { data } = await supabaseClient.from('proveedores').select('id, nombre').ilike('rfc', c.rfcEmisor).limit(1).maybeSingle();
+            if (data) {
+                $('gaProveedor').value = String(data.id);
+                provFound = true;
+                provTxt = ` &middot; Proveedor: <b>${esc(data.nombre)}</b>`;
+                gaSugerirPlantilla();
+            } else {
+                provTxt = ` &middot; <span class="text-amber-400">RFC ${esc(c.rfcEmisor)} no está en Proveedores</span>`;
+            }
+        } catch (_) { /* proveedores sin columna rfc */ }
+    }
+
+    const calc = (c.subtotal - (c.descuento || 0)) + c.iva + c.ieps - c.retIva - c.retIsr;
+    const warns = [];
+    if (c.tipoComprobante && c.tipoComprobante !== 'I') warns.push(`el CFDI es tipo "${esc(c.tipoComprobante)}", no de Ingreso (I)`);
+    if (c.moneda && c.moneda !== 'MXN') warns.push(`moneda ${esc(c.moneda)}: captura los montos en pesos`);
+    if (Math.abs(calc - c.total) > 0.05) warns.push(`el total del CFDI ($${c.total.toFixed(2)}) no cuadra con el desglose ($${calc.toFixed(2)})`);
+    const warnTxt = warns.length ? ` &middot; <span class="text-amber-400">&#9888; ${warns.join(' &middot; ')}</span>` : '';
+    const altaBtn = (!provFound && c.rfcEmisor) ? ` &middot; <button type="button" id="gaAltaProv" class="text-sky-400 hover:underline">+ dar de alta el proveedor</button>` : '';
+
+    info.className = 'text-[11px] text-emerald-400';
+    info.innerHTML = `📄 CFDI de <b>${esc(c.nombreEmisor || c.rfcEmisor || '—')}</b> &middot; Folio ${esc(c.folio || '—')} &middot; Total $${c.total.toFixed(2)}${provTxt}${warnTxt}${altaBtn}`;
+    if (!provFound && c.rfcEmisor) {
+        const b = document.getElementById('gaAltaProv');
+        if (b) b.onclick = () => gaAbrirAltaProveedor(c);
+    }
+
+    // Si el asistente ya se corrió, ahora que el XML puso concepto/proveedor, vuelve a sugerir la cuenta y la plantilla.
+    if (gaWizGrupo) {
+        gaSugerirCuenta(gaWizGrupo);
+        if ($('gaReparto') && $('gaReparto').value === 'plantilla') gaSugerirPlantilla(true);
+    }
+    gaResumen();
+}
+
+// --- Manual en subventana (iframe desplazable), no en pestaña nueva ---
+function gaAbrirManual(hash) {
+    if (document.getElementById('gaManualModal')) return;
+    const ov = document.createElement('div');
+    ov.id = 'gaManualModal';
+    ov.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-6';
+    ov.innerHTML = `
+      <div class="bg-slate-950 border border-slate-700 rounded-xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+        <div class="flex items-center justify-between gap-2 px-4 py-2 border-b border-slate-800 bg-slate-900">
+          <span class="text-sm font-semibold text-sky-400">📖 Manual — Capturar un gasto</span>
+          <span class="flex items-center gap-2">
+            <a href="manual-costos-produccion.html${hash || ''}" target="_blank" rel="noopener" class="text-[11px] text-slate-400 hover:text-sky-300">abrir en pestaña ↗</a>
+            <button type="button" id="gaManX" class="text-slate-400 hover:text-slate-100 text-xl leading-none">&times;</button>
+          </span>
+        </div>
+        <iframe src="manual-costos-produccion.html${hash || ''}" class="flex-1 w-full border-0" style="background:#f7f6f3"></iframe>
+      </div>`;
+    document.body.appendChild(ov);
+    const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    document.getElementById('gaManX').onclick = close;
+    document.addEventListener('keydown', onKey);
+}
+
+// --- Alta rápida de proveedor desde el CFDI (subventana modal) ---
+function gaAbrirAltaProveedor(c) {
+    if (document.getElementById('gaAltaModal')) return;
+    const cond = c.metodoPago === 'PPD' ? 'credito' : 'contado';
+    const optReg = '<option value="">— régimen —</option>' + REGIMENES.map(([k, v]) =>
+        `<option value="${esc(k)}"${k === (c.regimenEmisor || '') ? ' selected' : ''}>${esc(k)} · ${esc(v)}</option>`).join('');
+    const ov = document.createElement('div');
+    ov.id = 'gaAltaModal';
+    ov.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4';
+    ov.innerHTML = `
+      <div class="bg-slate-950 border border-slate-700 rounded-xl w-full max-w-md p-4 space-y-3 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-sky-400">Alta rápida de proveedor</h3>
+          <button type="button" id="gaApX" class="text-slate-500 hover:text-slate-200 text-xl leading-none">&times;</button>
+        </div>
+        <p class="text-[11px] text-amber-300">Datos leídos del CFDI — revisa y ajusta si hace falta.</p>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="col-span-2"><label class="block text-[10px] text-slate-400 mb-0.5">Nombre / Razón social <span class="text-rose-400">*</span></label>
+            <input id="gaApNombre" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-100" value="${esc(c.nombreEmisor || '')}"></div>
+          <div><label class="block text-[10px] text-slate-400 mb-0.5">RFC</label>
+            <input id="gaApRfc" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-100 font-mono uppercase" value="${esc(c.rfcEmisor || '')}"></div>
+          <div><label class="block text-[10px] text-slate-400 mb-0.5">C.P.</label>
+            <input id="gaApCp" maxlength="5" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-100 font-mono" value="${esc(c.lugarExpedicion || '')}"></div>
+          <div class="col-span-2"><label class="block text-[10px] text-slate-400 mb-0.5">Régimen fiscal</label>
+            <select id="gaApRegimen" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-100">${optReg}</select></div>
+          <div><label class="block text-[10px] text-slate-400 mb-0.5">Uso CFDI</label>
+            <input id="gaApUso" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-100 font-mono uppercase" value="${esc(c.usoCfdi || 'G03')}"></div>
+          <div><label class="block text-[10px] text-slate-400 mb-0.5">Condición de pago</label>
+            <select id="gaApCond" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-100">
+              <option value="contado"${cond === 'contado' ? ' selected' : ''}>Contado</option>
+              <option value="credito"${cond === 'credito' ? ' selected' : ''}>Crédito</option>
+            </select></div>
+          <div><label class="block text-[10px] text-slate-400 mb-0.5">Forma de pago (clave SAT)</label>
+            <input id="gaApForma" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-100 font-mono" value="${esc(c.formaPago || '')}"></div>
+          <div><label class="block text-[10px] text-slate-400 mb-0.5">Método de pago</label>
+            <input id="gaApMetodo" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-100 font-mono" value="${esc(c.metodoPago || '')}"></div>
+          <div><label class="block text-[10px] text-slate-400 mb-0.5">Moneda</label>
+            <input id="gaApMoneda" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-xs text-slate-100 font-mono uppercase" value="${esc(c.moneda || 'MXN')}"></div>
+        </div>
+        <div class="flex gap-2 pt-1">
+          <button type="button" id="gaApGuardar" class="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded cursor-pointer">Guardar y usar</button>
+          <button type="button" id="gaApCancel" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded cursor-pointer">Cancelar</button>
+        </div>
+        <p id="gaApMsg" class="text-[11px] min-h-[1rem]"></p>
+      </div>`;
+    document.body.appendChild(ov);
+    const close = () => ov.remove();
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    document.getElementById('gaApX').onclick = close;
+    document.getElementById('gaApCancel').onclick = close;
+    document.getElementById('gaApGuardar').onclick = () => gaGuardarProveedorNuevo(c, close);
+}
+
+async function gaGuardarProveedorNuevo(c, close) {
+    const $ = (id) => document.getElementById(id);
+    const msg = $('gaApMsg');
+    const nombre = $('gaApNombre').value.trim();
+    if (!nombre) { msg.textContent = 'El nombre es obligatorio.'; msg.className = 'text-[11px] text-rose-400'; return; }
+    const payload = {
+        nombre, razon_social: nombre,
+        rfc: $('gaApRfc').value.trim().toUpperCase() || null,
+        regimen_fiscal: $('gaApRegimen').value.trim() || null,
+        uso_cfdi: $('gaApUso').value.trim().toUpperCase() || null,
+        condicion_pago: $('gaApCond').value || 'contado',
+        dias_credito: 0,
+        forma_pago: $('gaApForma').value.trim() || null,
+        metodo_pago: $('gaApMetodo').value.trim() || null,
+        moneda: $('gaApMoneda').value.trim().toUpperCase() || 'MXN',
+        cp: $('gaApCp').value.trim() || null,
+        activo: true,
+    };
+    $('gaApGuardar').disabled = true;
+    try {
+        const { data, error } = await supabaseClient.from('proveedores').insert([payload]).select('id, nombre').single();
+        if (error) throw error;
+        gaProveedores.push({ id: data.id, nombre: data.nombre });
+        gaProveedores.sort((a, b) => String(a.nombre).localeCompare(String(b.nombre)));
+        const sel = document.getElementById('gaProveedor');
+        sel.innerHTML = `<option value="">(sin proveedor)</option>` +
+            gaProveedores.map((p) => `<option value="${p.id}">${esc(p.nombre)}</option>`).join('');
+        sel.value = String(data.id);
+        const info = document.getElementById('gaCfdiInfo');
+        if (info) {
+            info.className = 'text-[11px] text-emerald-400';
+            info.innerHTML = `📄 CFDI de <b>${esc(c.nombreEmisor || c.rfcEmisor || '—')}</b> &middot; Folio ${esc(c.folio || '—')} &middot; Total $${c.total.toFixed(2)} &middot; <span class="text-emerald-400">✔ Proveedor ${esc(data.nombre)} dado de alta</span>`;
+        }
+        gaSugerirPlantilla();
+        gaResumen();
+        close();
+    } catch (err) {
+        msg.textContent = 'No se pudo guardar: ' + (err.message || err);
+        msg.className = 'text-[11px] text-rose-400';
+        $('gaApGuardar').disabled = false;
+    }
 }
 
 function gaAplicarClasif() {
@@ -918,15 +1186,21 @@ function gaAplicarClasif() {
 }
 
 // elige automáticamente la plantilla más específica (proveedor > cuenta > genérica)
-function gaSugerirPlantilla() {
+function gaSugerirPlantilla(force) {
     const sel = document.getElementById('gaPlantilla');
     if (!sel || !gaPlantillas.length) return;
     const cta = Number(document.getElementById('gaCuentaGasto').value) || null;
     const prov = Number(document.getElementById('gaProveedor').value) || null;
     const cand = gaPlantillas.filter((p) => p.activo &&
         (!p.cuenta_id || p.cuenta_id === cta) && (!p.proveedor_id || p.proveedor_id === prov));
-    cand.sort((a, b) => (b.proveedor_id ? 2 : 0) + (b.cuenta_id ? 1 : 0) - ((a.proveedor_id ? 2 : 0) + (a.cuenta_id ? 1 : 0)));
-    if (cand.length && !sel.value) sel.value = String(cand[0].id);
+    cand.sort((a, b) => ((b.proveedor_id ? 2 : 0) + (b.cuenta_id ? 1 : 0)) - ((a.proveedor_id ? 2 : 0) + (a.cuenta_id ? 1 : 0)));
+    if (!cand.length) return;
+    // sin cuenta ni proveedor no hay con qué acertar: no clavamos una plantilla genérica al azar
+    if (!sel.value && !cta && !prov) return;
+    // fuerza la selección si no hay ninguna, o si la actual es genérica y ahora hay una más específica
+    const actual = gaPlantillas.find((p) => p.id === Number(sel.value));
+    const puedeMejorar = force && actual && !actual.cuenta_id && !actual.proveedor_id && (cand[0].cuenta_id || cand[0].proveedor_id);
+    if (!sel.value || puedeMejorar) sel.value = String(cand[0].id);
 }
 
 // vista previa del impacto del gasto
@@ -1131,6 +1405,8 @@ async function gaGuardar(e) {
         $('gaFecha').value = hoyISO();
         $('gaCondicion').value = condicion;
         $('gaPagoWrap').style.display = condicion === 'contado' ? '' : 'none';
+        const infoCfdi = $('gaCfdiInfo'); if (infoCfdi) infoCfdi.textContent = '';
+        gaCfdiActual = null; gaWizGrupo = null;
         gaAplicarClasif();
         gaCalcTotal();
         await gaBuscar();
