@@ -136,7 +136,7 @@
         <li><a href="#pal">Palabras que vas a ver</a></li>
         <li><a href="#p1">Parte 1 — Dar de alta el proveedor</a></li>
         <li><a href="#p2">Parte 2 — El plan de cuentas</a></li>
-        <li><a href="#p3">Parte 3 — Crear el centro de costo</a></li>
+        <li><a href="#p3">Parte 3 — Ajustar los centros de costo</a></li>
         <li><a href="#p4">Parte 4 — Capturar un gasto y clasificarlo</a></li>
         <li><a href="#p5">Parte 5 — Fin de mes: el prorrateo</a></li>
         <li><a href="#p6">Parte 6 — Dónde se ve el costo y qué significa</a></li>
@@ -159,8 +159,9 @@
     <ul>
       <li>Que un técnico haya corrido en la base de datos, en este orden, los archivos:
         <code>2026-08-28_contabilidad_cuentas.sql</code>, <code>2026-08-28_contabilidad_polizas.sql</code>,
-        <code>2026-08-28_contabilidad_gastos.sql</code>, <code>2026-09-14_costos_produccion_fase1.sql</code> y
-        <code>2026-09-15_costos_produccion_fase2y3.sql</code>. Si al abrir una pantalla ves un aviso amarillo de "falta correr el SQL", es esto.</li>
+        <code>2026-08-28_contabilidad_gastos.sql</code>, <code>2026-09-14_costos_produccion_fase1.sql</code>,
+        <code>2026-09-15_costos_produccion_fase2y3.sql</code> y
+        <code>2026-09-16_costos_centros_por_proceso.sql</code>. Si al abrir una pantalla ves un aviso amarillo de "falta correr el SQL", es esto.</li>
       <li>Tu usuario y contraseña del ERP. Los operarios de piso <em>no</em> usan estas pantallas; se manejan desde su celular.</li>
     </ul>
 
@@ -172,7 +173,7 @@
         <tbody>
           <tr><td>Proveedores</td><td class="path">Compras / Proveedores</td><td>Una vez por proveedor</td></tr>
           <tr><td>Plan de cuentas</td><td class="path">Contabilidad → Plan de cuentas</td><td>Se revisa una vez; se ajusta rara vez</td></tr>
-          <tr><td>Centros de costo</td><td class="path">Contabilidad → Centros de costo</td><td>Una vez al inicio; la capacidad se revisa 1–2 veces al año</td></tr>
+          <tr><td>Centros de costo</td><td class="path">Contabilidad → Centros de costo</td><td>Ya vienen creados los 3; solo ajustas su capacidad al inicio y la revisas 1–2 veces al año</td></tr>
           <tr><td>Gastos</td><td class="path">Contabilidad → Gastos</td><td>Cada factura de gasto</td></tr>
           <tr><td>Prorrateo de gastos</td><td class="path">Contabilidad → Prorrateo de gastos</td><td>Una vez al mes, después del cierre</td></tr>
         </tbody>
@@ -193,7 +194,7 @@
           <tr><td><strong>Cargo y abono</strong></td><td>Cada movimiento de dinero entra por un lado y sale por otro. "Cargo" a un cajón, "abono" a otro, y los dos lados suman igual. Es la forma de que nada se pierda.</td></tr>
           <tr><td><strong>Póliza</strong></td><td>El registro de un movimiento completo: la fecha, el concepto y sus cargos y abonos. El sistema la genera solo cuando guardas un gasto o corres el prorrateo.</td></tr>
           <tr><td><strong>Proveedor</strong></td><td>A quién le compras o le pagas. Se da de alta una vez con sus datos fiscales.</td></tr>
-          <tr><td><strong>Centro de costo</strong></td><td>Un área de la empresa donde se juntan gastos para repartirlos después. Al inicio basta uno: <code>Producción</code>.</td></tr>
+          <tr><td><strong>Centro de costo</strong></td><td>Un área de la planta donde se juntan gastos para repartirlos después. Aquí hay tres, uno por etapa de fabricación: <code>Surtido de MP</code>, <code>Mezclado</code> y <code>Envasado</code>. Cada proceso de una orden de producción apunta al suyo.</td></tr>
           <tr><td><strong>CIF</strong> (gastos indirectos de fabricación)</td><td>Lo que cuesta tener la planta funcionando pero no se puede señalar a un producto en particular: renta, luz de planta, mantenimiento, depreciación de máquinas, sueldo del supervisor.</td></tr>
           <tr><td><strong>Prorratear</strong></td><td>Repartir un gasto grande entre varias cosas de forma justa. La renta de la nave se prorratea entre todo lo que se produjo ese mes.</td></tr>
         </tbody>
@@ -303,39 +304,59 @@
 
   <!-- ========================================================= -->
   <section id="p3">
-    <h2><span class="n">3</span>Parte 3 — Crear el centro de costo</h2>
-    <p class="lead">Un centro de costo es el "área" que junta los gastos indirectos para repartirlos. Al principio con uno basta: <strong>Producción</strong>. Si más adelante separas Envasado o Almacén, cada uno será su propio centro.</p>
+    <h2><span class="n">3</span>Parte 3 — Ajustar los centros de costo</h2>
+    <p class="lead">Un centro de costo es el "área" que junta los gastos indirectos para repartirlos. Aquí hay <strong>tres</strong>, uno por etapa de fabricación, y <strong>ya vienen creados</strong> por la migración. Tu trabajo en esta parte es una sola cosa: revisar y ajustar su <strong>capacidad normal</strong>.</p>
+
+    <div class="tbl"><table>
+      <thead><tr><th>Código</th><th>Etapa</th><th>Capacidad sugerida de fábrica</th><th>Supuesto</th></tr></thead>
+      <tbody>
+        <tr><td class="m">SURT</td><td>Surtido de MP — pesar y preparar materia prima por fórmula</td><td class="num">~265 h/mes</td><td>2 operadores</td></tr>
+        <tr><td class="m">MEZ</td><td>Mezclado — fabricar el granel (reactor, homogeneizado, pH/viscosidad)</td><td class="num">~265 h/mes</td><td>2 operadores</td></tr>
+        <tr><td class="m">ENV</td><td>Envasado — llenar, tapar, etiquetar, encajar</td><td class="num">~265 h/mes</td><td>2 operadores</td></tr>
+      </tbody>
+    </table></div>
+    <p>La migración también deja un cuarto centro, <code>PROD · Producción</code>, que funciona solo como comodín: si algún proceso de una orden no quedó asignado a ninguna de las tres etapas, sus horas caen ahí. En operación normal no lo tocas.</p>
+
+    <div class="callout">
+      <span class="lbl">Por qué tres y no uno</span>
+      <p>Pesar materia prima, fabricar el granel y envasar consumen cantidades muy distintas de mano de obra por litro producido. Si todo el CIF cayera en un solo saco, un producto que se envasa a mano cargaría lo mismo que uno que sale de la llenadora automática. Con un centro por etapa, la renta, la luz y la depreciación aterrizan donde de verdad se usó la planta.</p>
+    </div>
 
     <ol class="steps">
       <li><strong>Abre la pantalla</strong>
-        <p>Menú → <span class="path">Contabilidad → Centros de costo</span>. Si es la primera vez, ya viene creado el centro <code>PROD · Producción</code> con la capacidad en cero — hay que llenarla.</p></li>
+        <p>Menú → <span class="path">Contabilidad → Centros de costo</span>. Verás los tres centros (más <code>PROD</code>) ya en la lista. Dale <strong>Editar</strong> a cada uno de los tres para ajustar su capacidad.</p></li>
 
-      <li><strong>Datos de identificación</strong>
+      <li><strong>Datos de identificación (ya vienen llenos)</strong>
         <div class="tbl"><table class="fieldguide">
-          <thead><tr><th>Campo</th><th>Qué poner</th></tr></thead>
+          <thead><tr><th>Campo</th><th>Qué dice</th></tr></thead>
           <tbody>
-            <tr><td>Código</td><td>Corto y en mayúsculas. <code>PROD</code>, <code>ENV</code>, <code>ALM</code>.</td></tr>
-            <tr><td>Nombre</td><td>Producción, Envasado, Almacén…</td></tr>
-            <tr><td>Tipo</td><td><code>Producción</code> es el único que entra al costo de los lotes. Los de Administración o Ventas sirven solo para control de gasto por área.</td></tr>
-            <tr><td>Cuenta CIF por defecto</td><td>La <code>503.xx</code> que se propondrá al capturar un gasto de este centro. Puedes dejar <code>503.99</code>.</td></tr>
+            <tr><td>Código / Nombre</td><td><code>SURT</code> / Surtido de MP, <code>MEZ</code> / Mezclado, <code>ENV</code> / Envasado. No los cambies: el nombre del proceso de la orden se empareja con ellos.</td></tr>
+            <tr><td>Tipo</td><td><code>Producción</code> — es el único tipo que entra al costo de los lotes. (Los de Administración o Ventas, si algún día creas uno, sirven solo para control de gasto por área.)</td></tr>
+            <tr><td>Cuenta CIF por defecto</td><td>La <code>503.xx</code> que se propondrá al capturar un gasto de ese centro. Viene <code>503.99</code>; puedes afinarla (ej. <code>503.01</code> Energía para <code>MEZ</code>).</td></tr>
           </tbody>
         </table></div>
       </li>
 
       <li><strong>La capacidad normal — el número más importante</strong>
-        <p>Es <strong>cuántas horas de trabajo de operarios produce la planta en un mes normal</strong>. Ni el mes récord, ni el mes malo: un mes típico. Este número es el que decide cuánto de la renta y la depreciación se carga a los productos y cuánto se reconoce como "planta parada".</p>
-        <p>Si no tienes ese dato histórico, se estima "de la nómina hacia abajo". Llena las seis casillas y el sistema calcula un sugerido:</p>
-        <div class="calc">operadores × horas de jornada × días hábiles del mes
+        <p>Es <strong>cuántas horas de trabajo de operarios produce esa etapa en un mes normal</strong>. Ni el mes récord, ni el mes malo: un mes típico. Este número decide cuánto de la renta y la depreciación se carga a los productos que pasan por esa etapa y cuánto se reconoce como "planta parada".</p>
+        <p>Si no tienes histórico, se estima "de la nómina hacia abajo". Llena las seis casillas y el sistema calcula un sugerido:</p>
+        <div class="calc">operadores de la etapa × horas de jornada × días hábiles del mes
 × (1 − % de ausentismo)          → 0.90  (10% entre vacaciones, incapacidades, faltas)
 × (1 − % de tiempo no productivo)→ 0.80  (20% en limpieza, arranque/paro, juntas, esperas)
 × (1 − % de paros planeados)     → 0.96  (~1 día/mes de mantenimiento programado)
-= capacidad normal, en horas/mes</div>
-        <p>Ejemplo con 6 operarios:</p>
-        <div class="calc">6 × 8 h × 24 días = 1,152 h teóricas
-× 0.90 = 1,036.8
-× 0.80 =   829.4
-× 0.96 =   796.2 h/mes  ← capacidad normal</div>
-        <p>El botón <code>Usar sugerido →</code> copia ese número al campo de abajo, que es el que realmente se usa. De ahí lo ajustas a mano si conoces tu operación mejor que la fórmula.</p>
+= capacidad normal de la etapa, en horas/mes</div>
+        <p>Lo único que cambias entre un centro y otro es <strong>operadores</strong>. Los valores de fábrica asumen <strong>2 operadores en cada etapa</strong>, que es como opera hoy la planta:</p>
+        <div class="calc">2 operadores × 8 h × 24 días × 0.90 × 0.80 × 0.96 = 265.42 h/mes
+
+SURT   2 operadores → 265.42 h/mes
+MEZ    2 operadores → 265.42 h/mes
+ENV    2 operadores → 265.42 h/mes</div>
+        <p>Si en alguna etapa cambia el número de operadores, edita ese centro, ajusta <code>operadores</code> y pulsa <code>Usar sugerido →</code> — copia el cálculo al campo que de verdad se usa. De ahí lo ajustas a mano si conoces tu operación mejor que la fórmula.</p>
+
+        <div class="callout">
+          <span class="lbl">Si tu gente rota entre etapas</span>
+          <p>Cuando los mismos operarios pasan del surtido al mezclado al envasado según haga falta, no hay "operadores dedicados" por etapa. Entonces: calcula la capacidad de <em>toda</em> la planta con la fórmula (ej. 6 operarios → ~796 h/mes) y repártela entre los tres centros según cómo se distribuye normalmente el trabajo — por ejemplo 15% surtido / 25% mezclado / 60% envasado → 119 / 199 / 478 h. La pantalla de Prorrateo te mostrará cada mes el reparto <strong>real</strong> de horas; tu capacidad normal es tu estimación de ese reparto en un mes típico.</p>
+        </div>
       </li>
 
       <li><strong>Método CIF</strong>
@@ -354,7 +375,22 @@
 
     <div class="callout tec">
       <span class="lbl">Para contabilidad</span>
-      <p>La capacidad normal es el denominador para prorratear el CIF <strong>fijo</strong> (NIF C-4 §44.3, "producción normal"). El CIF <strong>variable</strong> se aplica sobre actividad real. A los ~3 meses la pantalla mostrará el promedio móvil de horas reales de <code>registros_tiempo</code> junto a la capacidad capturada, para revalidar el supuesto.</p>
+      <p>La capacidad normal es el denominador para prorratear el CIF <strong>fijo</strong> (NIF C-4 §44.3, "producción normal"), <strong>por centro</strong>. El CIF <strong>variable</strong> se aplica sobre actividad real del centro. A los ~3 meses la pantalla mostrará el promedio móvil de horas reales de <code>registros_tiempo</code> junto a la capacidad capturada, para revalidar el supuesto.</p>
+    </div>
+
+    <h3>Cómo cada proceso llega a su centro</h3>
+    <p>No tienes que asignar nada a mano en cada orden. La cadena es automática:</p>
+    <ol>
+      <li>La migración deja un <strong>catálogo de procesos</strong> (<code>Surtido de MP</code>, <code>Mezclado</code>, <code>Envasado</code>) donde cada nombre ya apunta a su centro (<code>SURT</code>, <code>MEZ</code>, <code>ENV</code>).</li>
+      <li>Al crear una orden de producción en <span class="path">Producción → Nueva orden</span>, cada proceso que agregas hereda el centro del catálogo. En la tarjeta del proceso aparece un selector <strong>Centro de costo</strong> ya relleno; puedes cambiarlo para esa orden si hiciera falta.</li>
+      <li>Cuando eliges un centro distinto para un proceso, el catálogo lo <strong>aprende</strong> para las próximas órdenes.</li>
+      <li>Si agregas un proceso con un nombre nuevo ("+ Otro proceso…"), elígele el centro a mano esa primera vez; a partir de ahí queda mapeado.</li>
+    </ol>
+    <p>Las horas que los operarios registran desde el celular en cada proceso se suman a <em>ese</em> centro, y así es como el prorrateo (Parte 5) sabe cuánta capacidad se usó en surtido, cuánta en mezclado y cuánta en envasado.</p>
+
+    <div class="callout tec">
+      <span class="lbl">Para contabilidad</span>
+      <p>El centro vive en <code>procesos_produccion.centro_costo_id</code> (mapa canónico) y se copia a <code>orden_produccion_procesos.centro_costo_id</code> al crear la orden (trigger <code>trg_opp_hereda_centro</code>). <code>_horas_mo_periodo</code> agrupa las horas de <code>registros_tiempo</code> por <code>coalesce(</code>centro del proceso de la orden <code>→</code> centro del catálogo por nombre <code>→</code> centro de la orden <code>→</code> centro de producción por defecto<code>)</code>. Una misma orden puede repartir su CIF entre varios centros; <code>prorrateo_aplicar</code> los suma para el costo total de la orden.</p>
     </div>
   </section>
 
@@ -385,7 +421,13 @@
         <p>Aquí eliges una de tres opciones. La guía de decisión está más abajo; en resumen:</p>
         <ul>
           <li><strong>No producción</strong> — el gasto no tiene nada que ver con fabricar (oficina, ventas, banco). No pide nada más.</li>
-          <li><strong>Indirecto de fabricación (CIF)</strong> — sirve para la planta en general. Pide el <strong>centro de costo</strong> y si es <strong>fijo o variable</strong> (se hereda de la cuenta, lo puedes cambiar). Queda marcado como <em>pendiente</em> de prorrateo.</li>
+          <li><strong>Indirecto de fabricación (CIF)</strong> — sirve para la planta en general. Pide el <strong>centro de costo</strong> y si es <strong>fijo o variable</strong> (se hereda de la cuenta, lo puedes cambiar). Queda marcado como <em>pendiente</em> de prorrateo.
+            <ul>
+              <li>Si el gasto es claramente de <strong>una etapa</strong> (mantenimiento de la llenadora → <code>ENV</code>, refacción del reactor → <code>MEZ</code>), ponle ese centro.</li>
+              <li>Si es <strong>compartido y grande</strong> (renta, luz general, supervisión de las tres etapas), elige base <strong>"% por centros"</strong> y reparte el gasto entre <code>SURT</code>, <code>MEZ</code> y <code>ENV</code> con los porcentajes que correspondan (ej. por superficie que ocupa cada área).</li>
+              <li>Si es <strong>compartido y chico</strong>, déjalo en el centro de más peso (normalmente <code>MEZ</code> o <code>ENV</code>); dividirlo no cambia el costo de forma perceptible.</li>
+            </ul>
+          </li>
           <li><strong>Directo a una orden</strong> — es para una orden de producción concreta y solo esa. Pide <strong>cuál orden</strong>. Se cargará completo a ella.</li>
         </ul>
       </li>
@@ -436,12 +478,13 @@
         <tr><td>Proveedor</td><td>Inmobiliaria del Valle</td></tr>
         <tr><td>Cuenta de gasto</td><td>503.05 · Renta de nave industrial</td></tr>
         <tr><td>Clasificación</td><td>Indirecto de fabricación (CIF)</td></tr>
-        <tr><td>Centro de costo</td><td>PROD · Producción</td></tr>
         <tr><td>Tipo de CIF</td><td>Fijo</td></tr>
+        <tr><td>Base de prorrateo</td><td>% por centros</td></tr>
+        <tr><td>Reparto entre centros</td><td>SURT 20% · MEZ 35% · ENV 45% (según la superficie que ocupa cada área en la nave)</td></tr>
         <tr><td>Subtotal / IVA</td><td>40,000.00 / 6,400.00</td></tr>
       </tbody>
     </table></div>
-    <p>Al guardar, el gasto queda <em>pendiente</em> de prorrateo. Todavía no toca el costo de ningún producto — eso pasa a fin de mes (Parte 5).</p>
+    <p>Al guardar, el gasto queda <em>pendiente</em> de prorrateo. Todavía no toca el costo de ningún producto — eso pasa a fin de mes (Parte 5), y ahí los $40,000 se separan: $8,000 se prorratean contra la capacidad de <code>SURT</code>, $14,000 contra la de <code>MEZ</code> y $18,000 contra la de <code>ENV</code>.</p>
 
     <div class="callout tec">
       <span class="lbl">Para contabilidad — la póliza del gasto</span>
@@ -496,7 +539,8 @@ Cargo  119.01  IVA acreditable pend. de pago  6,400.00
     </div>
 
     <h3>Ejemplo: septiembre</h3>
-    <p>Capacidad normal 796 h. Se trabajaron 560 h reales (70%), en dos órdenes: OP-000051 con 360 h y OP-000052 con 200 h. Gastos indirectos del mes:</p>
+    <p>El motor hace este cálculo <strong>por centro</strong>. Para no llenar la página, aquí se sigue solo el centro <strong><code>ENV</code> · Envasado</strong>; SURT y MEZ se resuelven igual con sus propios números.</p>
+    <p>Capacidad normal de ENV: 796 h. Se trabajaron 560 h reales de envasado (70%), en dos órdenes: OP-000051 con 360 h y OP-000052 con 200 h. Parte del CIF del mes que quedó asignada a ENV (su cuenta directa + su tajada de los gastos repartidos por %):</p>
     <div class="tbl total"><table>
       <thead><tr><th>Concepto</th><th>Tipo</th><th class="num">Monto</th></tr></thead>
       <tbody>
@@ -538,6 +582,46 @@ Cargo  115.04  Producto terminado
     <div class="calc">costo unitario = ( materiales + mano de obra + CIF prorrateado + gastos directos ) ÷ unidades producidas</div>
     <p>Antes solo sumaba materiales y mano de obra. Con el módulo de costos, ya trae la parte de renta, luz, mantenimiento y supervisión que le correspondió, y cualquier gasto directo que hayas capturado contra esa orden.</p>
 
+    <h3>Cómo se arma ese costo, centro por centro</h3>
+    <p>Una orden de fabricación normalmente pasa por <strong>varias etapas</strong> — surtido, mezclado, envasado — y cada una es un centro de costo distinto. El costo de la orden se construye así:</p>
+    <ol>
+      <li><strong>Materiales.</strong> Lo que se consumió de cada lote de materia prima, a su costo (salida FEFO con tolerancia mensual). Se acumula en <code>costo_total_materiales</code> de la orden.</li>
+      <li><strong>Mano de obra directa.</strong> Por cada proceso: las <strong>horas que los operarios registraron desde el celular</strong> × su sueldo por hora (congelado al abrir la orden). La suma de todos los procesos es <code>costo_total_mano_obra</code>.</li>
+      <li><strong>CIF prorrateado — una rebanada por cada centro que tocó la orden.</strong> A fin de mes, el prorrateo (Parte 5) corre <em>por centro</em>. Para cada centro toma su CIF del mes ya aplicado (sin la parte ociosa) y lo reparte entre las órdenes que tuvieron horas <em>en ese centro</em>, en proporción a esas horas. Una orden que pasó por las tres etapas recibe <strong>tres rebanadas</strong>, cada una calculada con la capacidad y la utilización de <em>su</em> centro.</li>
+      <li><strong>Gastos directos.</strong> Las facturas que clasificaste como "directo a esta orden" (Parte 4), completas.</li>
+    </ol>
+    <div class="calc">costo unitario final = ( materiales + mano de obra + Σ CIF de cada centro + gastos directos ) ÷ piezas producidas</div>
+
+    <h4>Ejemplo: la orden OP-000051</h4>
+    <p>Gel lubricante 60 ml, <strong>5,000 piezas</strong>, producidas en septiembre. Pasó por las tres etapas. Horas registradas: 40 h en surtido, 70 h en mezclado, 120 h en envasado (230 h en total).</p>
+    <p>El prorrateo de septiembre ya corrió en cada centro. Lo que le tocó a esta orden:</p>
+    <div class="tbl total"><table>
+      <thead><tr><th>Etapa (centro)</th><th class="num">Horas de la orden</th><th class="num">Horas del centro en el mes</th><th class="num">CIF aplicado del centro</th><th class="num">% de la orden</th><th class="num">CIF a la orden</th></tr></thead>
+      <tbody>
+        <tr><td>Surtido de MP (<code>SURT</code>)</td><td class="num">40</td><td class="num">150</td><td class="num">13,057</td><td class="num">26.7%</td><td class="num">3,482</td></tr>
+        <tr><td>Mezclado (<code>MEZ</code>)</td><td class="num">70</td><td class="num">190</td><td class="num">28,075</td><td class="num">36.8%</td><td class="num">10,343</td></tr>
+        <tr><td>Envasado (<code>ENV</code>)</td><td class="num">120</td><td class="num">185</td><td class="num">48,906</td><td class="num">64.9%</td><td class="num">31,723</td></tr>
+        <tr><td>CIF total a la orden</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">45,548</td></tr>
+      </tbody>
+    </table></div>
+    <div class="calc">materiales (FEFO)          58,000.00
+mano de obra directa       12,650.00   (230 h registradas × sueldo/hora)
+CIF prorrateado            45,548.00   (suma de las tres etapas, arriba)
+gastos directos             1,200.00   (análisis de laboratorio del lote)
+────────────────────────────────────
+costo total de la orden   117,398.00
+÷ 5,000 piezas producidas
+= costo unitario final         23.48</div>
+    <p>Fíjate en que cada etapa se calcula con su propia utilización: envasado trabajó al 70% de su capacidad, mezclado al 72%, surtido al 57%. Si envasado hubiera estado casi parado, su rebanada de CIF fijo habría sido chica y el resto se habría reconocido como capacidad ociosa en <code>503.98</code> — sin inflar el costo de este gel.</p>
+
+    <div class="callout tec">
+      <span class="lbl">Para contabilidad — cuándo entra cada cosa</span>
+      <p><strong>Mientras la orden está abierta:</strong> los materiales y la mano de obra se van acumulando en la orden; el CIF de cada prorrateo mensual cae en <code>115.03</code> etiquetado a la orden y suma en <code>costo_total_indirecto</code>. Nada baja todavía a producto terminado.</p>
+      <p><strong>Al cerrar la orden</strong> (<code>contabilizar_produccion</code>): se traspasa <code>materiales + mano de obra + CIF ya aplicado + gastos directos</code> de <code>115.03</code>/orígenes a <code>115.04</code>, se calcula <code>costo_unitario_final</code> y se actualiza el costo del lote y de <code>productos.costo_unitario</code>.</p>
+      <p><strong>Si un prorrateo posterior toca una orden ya cerrada:</strong> <code>prorrateo_aplicar</code> añade esa rebanada de CIF y recalcula <code>costo_unitario_final</code> en la misma póliza (Cargo <code>115.04</code> / Abono <code>115.03</code>).</p>
+      <p><strong>Campos:</strong> <code>orden_produccion_procesos.centro_costo_id</code>, <code>.segundos_transcurridos</code>, <code>.costo_calculado</code> por proceso; <code>ordenes_produccion.costo_total_materiales</code>, <code>.costo_total_mano_obra</code>, <code>.costo_total_indirecto</code>, <code>.costo_indirecto_contabilizado</code>, <code>.costo_total_gasto_directo</code>, <code>.costo_gasto_directo_contabilizado</code>, <code>.costo_unitario_final</code>. El motor <code>_horas_mo_periodo</code> agrupa las horas por (orden, centro) y <code>prorrateo_calcular</code> recorre centro → órdenes.</p>
+    </div>
+
     <h3>El Kardex</h3>
     <p>En <span class="path">Inventario → Kardex</span> de un producto verás el movimiento de entrada por producción con su costo ya completo. Si el prorrateo ajustó el costo de una orden cerrada, ese ajuste se refleja aquí.</p>
 
@@ -560,7 +644,7 @@ Cargo  115.04  Producto terminado
     <div class="tbl"><table>
       <thead><tr><th>Cuándo</th><th>Qué</th></tr></thead>
       <tbody>
-        <tr><td><strong>Una sola vez</strong></td><td>Partes 1–3: proveedores, revisar plan de cuentas, crear el centro de costo y capturar su capacidad normal.</td></tr>
+        <tr><td><strong>Una sola vez</strong></td><td>Partes 1–3: proveedores, revisar plan de cuentas, y ajustar la capacidad normal de los 3 centros (SURT / MEZ / ENV) a tu plantilla real.</td></tr>
         <tr><td><strong>Cada vez que llega una factura de gasto</strong></td><td>Parte 4: capturar el gasto, elegir proveedor y cuenta, y <strong>clasificarlo</strong> (no producción / indirecto CIF / directo a orden).</td></tr>
         <tr><td><strong>1–2 veces al año</strong></td><td>Revisar la capacidad normal del centro contra la realidad y ajustarla si cambió tu operación.</td></tr>
         <tr><td><strong>Fin de mes, después de cerrar producción</strong></td><td>Parte 5: entrar a Prorrateo de gastos, revisar la distribución, <strong>Aplicar</strong>. Revisar los reportes (Parte 6).</td></tr>
@@ -598,15 +682,17 @@ Cargo  115.04  Producto terminado
     <p>En el ERP: <code>503.98</code> recibe esa porción no asignada; el prorrateo la calcula como <code>CIF_fijo × (1 − min(horas_reales / capacidad_normal, 1))</code>.</p>
 
     <h4>Regla de asignación implementada</h4>
-    <div class="calc">Base de prorrateo: horas de mano de obra directa.
+    <div class="calc">Base de prorrateo: horas de mano de obra directa. TODO el cálculo es POR CENTRO.
+El gasto se reparte primero entre centros (100% a su centro, o % por centros),
+y cada tajada se prorratea con las horas y la capacidad DE ESE CENTRO:
 
-CIF variable:  tasa = CIF_variable / horas_reales_del_mes      → 100% a las órdenes
-CIF fijo:      tasa = CIF_fijo     / capacidad_normal
-               aplicado a órdenes = CIF_fijo × min(horas_reales / capacidad_normal, 1)
-               capacidad ociosa   = CIF_fijo − aplicado           → 503.98 (resultados)
+CIF variable:  tasa = tajada_variable / horas_reales_del_centro   → 100% a las órdenes
+CIF fijo:      tasa = tajada_fija      / capacidad_normal_centro
+               aplicado a órdenes = tajada_fija × min(horas_reales_centro / capacidad_normal_centro, 1)
+               capacidad ociosa   = tajada_fija − aplicado          → 503.98 (resultados)
 
-Reparto entre órdenes: proporcional a las horas de cada orden en el mes.
-Si el mes no tuvo producción (0 h): todo el CIF del mes → 503.98.</div>
+Reparto entre órdenes: proporcional a las horas de cada orden EN ESE CENTRO en el mes.
+Si el centro no tuvo producción (0 h): toda su tajada → 503.98.</div>
 
     <h4>Flujo de cuentas</h4>
     <div class="calc">Al capturar el gasto CIF:   Cargo 503.xx        / Abono 201.01 o banco
@@ -622,7 +708,11 @@ Gasto directo:              Cargo 503.xx al capturar; Cargo 115.04 / Abono 503.x
     <div class="tbl"><table>
       <thead><tr><th>Objeto</th><th>Rol</th></tr></thead>
       <tbody>
-        <tr><td class="m">centros_costo</td><td>Catálogo de áreas + capacidad normal + método CIF.</td></tr>
+        <tr><td class="m">centros_costo</td><td>Catálogo de áreas + capacidad normal + método CIF. Sembrados: SURT, MEZ, ENV (+ PROD comodín).</td></tr>
+        <tr><td class="m">procesos_produccion.centro_costo_id</td><td>Mapa canónico nombre de proceso → centro. Lo "aprende" la pantalla de Nueva orden.</td></tr>
+        <tr><td class="m">orden_produccion_procesos.centro_costo_id</td><td>Foto del centro al crear la orden (trigger <code>trg_opp_hereda_centro</code>).</td></tr>
+        <tr><td class="m">_horas_mo_periodo</td><td>Agrupa las horas de <code>registros_tiempo</code> por (orden, centro del proceso) en el mes.</td></tr>
+        <tr><td class="m">gasto_prorrateo_reglas</td><td>% por centro cuando <code>base_prorrateo = porcentaje_centros</code>.</td></tr>
         <tr><td class="m">cuentas_contables.cif_tipo</td><td>fijo / variable por cuenta 503.xx.</td></tr>
         <tr><td class="m">gastos.clasificacion, .centro_costo_id, .cif_tipo, .orden_produccion_id, .prorrateo_estatus, .base_prorrateo</td><td>Marca de costeo por gasto.</td></tr>
         <tr><td class="m">gasto_aplicaciones</td><td>Resultado del prorrateo: monto de CIF por orden y por capacidad ociosa, por periodo.</td></tr>
@@ -635,7 +725,7 @@ Gasto directo:              Cargo 503.xx al capturar; Cargo 115.04 / Abono 503.x
   </section>
 
   <footer>
-    Manual de gastos y costos de producción · ERP Hares de México · Fases 1–3 · Fase 4 pendiente · documento vivo.
+    Manual de gastos y costos de producción · ERP Hares de México · Fases 1–3 + 2b (centro por proceso) · Fase 4 pendiente · documento vivo.
     Ver también la <a href="guia-costos-produccion.html">guía interactiva</a>.
   </footer>
 </div>

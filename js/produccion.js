@@ -269,13 +269,42 @@ export async function cargarModuloProduccion() {
             .eq('activo', true)
             .order('nombre', { ascending: true });
 
-        const { data: procesosCatalogo } = await supabaseClient
-            .from('procesos_produccion')
-            .select('nombre')
-            .order('nombre', { ascending: true });
+        let procesosCatalogo = null;
+        {
+            const r = await supabaseClient
+                .from('procesos_produccion')
+                .select('nombre, centro_costo_id')
+                .order('nombre', { ascending: true });
+            if (r.error) {
+                const r2 = await supabaseClient
+                    .from('procesos_produccion')
+                    .select('nombre')
+                    .order('nombre', { ascending: true });
+                procesosCatalogo = r2.data;
+            } else {
+                procesosCatalogo = r.data;
+            }
+        }
+
+        // Centros de costo de producción (para asignar cada proceso al suyo).
+        let centrosCosto = [];
+        {
+            const r = await supabaseClient
+                .from('v_centros_costo')
+                .select('id, codigo, nombre, tipo, activo')
+                .eq('tipo', 'produccion')
+                .eq('activo', true)
+                .order('codigo', { ascending: true });
+            if (!r.error) centrosCosto = r.data || [];
+        }
 
         const listaEmpleados = empleadosCatalogo || [];
         const listaProcesos = procesosCatalogo || [];
+        const centroPorProceso = new Map(
+            listaProcesos
+                .filter(p => p.centro_costo_id != null)
+                .map(p => [p.nombre, Number(p.centro_costo_id)])
+        );
         let procesoContador = 0;
 
         function crearTarjetaProceso() {
@@ -287,6 +316,7 @@ export async function cargarModuloProduccion() {
             const uid = `proc-${procesoContador}`;
 
             const opcionesProcesos = listaProcesos.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('');
+            const opcionesCentros = centrosCosto.map(c => `<option value="${c.id}">${c.codigo} · ${c.nombre}</option>`).join('');
             const casillasEmpleados = listaEmpleados.map(e => `
                 <label class="flex items-center gap-2 text-xs text-slate-200 px-1.5 py-1 rounded hover:bg-slate-800 cursor-pointer">
                     <input type="checkbox" class="chkEmpleado accent-amber-500 w-3.5 h-3.5" value="${e.id}" data-costo-hora="${e.costo_hora}" data-nombre="${(e.nombre || '').replace(/"/g, '&quot;')}">
@@ -305,6 +335,13 @@ export async function cargarModuloProduccion() {
                     <input type="text" class="inputProcesoNuevoNombre hidden flex-1 bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100" placeholder="Nombre del proceso nuevo">
                     <button type="button" class="btnQuitarProceso text-rose-400 hover:text-rose-300 text-xs px-1" title="Quitar proceso">✕</button>
                 </div>
+                <div class="${opcionesCentros ? '' : 'hidden'}">
+                    <label class="text-[10px] text-slate-500 block mb-1">CENTRO DE COSTO (dónde se acumula la mano de obra y el CIF de este proceso)</label>
+                    <select class="selectProcesoCentro w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100">
+                        <option value="">— sin asignar (usa el de producción por defecto) —</option>
+                        ${opcionesCentros}
+                    </select>
+                </div>
                 <div>
                     <label class="text-[10px] text-slate-500 block mb-1">EQUIPO DE TRABAJO (marca a quienes participan)</label>
                     <div class="equipoEmpleados max-h-28 overflow-y-auto bg-slate-900 border border-slate-800 rounded-lg p-1 space-y-0.5">
@@ -316,9 +353,14 @@ export async function cargarModuloProduccion() {
 
             const selectProcesoNombre = div.querySelector('.selectProcesoNombre');
             const inputNuevoNombre = div.querySelector('.inputProcesoNuevoNombre');
+            const selectProcesoCentro = div.querySelector('.selectProcesoCentro');
             selectProcesoNombre.onchange = () => {
                 inputNuevoNombre.classList.toggle('hidden', selectProcesoNombre.value !== '__otro__');
+                if (selectProcesoCentro && selectProcesoNombre.value !== '__otro__' && centroPorProceso.has(selectProcesoNombre.value)) {
+                    selectProcesoCentro.value = String(centroPorProceso.get(selectProcesoNombre.value));
+                }
             };
+            selectProcesoNombre.onchange();
 
             const contadorEquipo = div.querySelector('.equipoCount');
             div.querySelectorAll('.chkEmpleado').forEach(chk => {
@@ -351,7 +393,9 @@ export async function cargarModuloProduccion() {
                     id: Number(chk.value),
                     costoHora: Number(chk.dataset.costoHora || 0)
                 }));
-                procesos.push({ nombre, empleados });
+                const centroSel = div.querySelector('.selectProcesoCentro');
+                const centroCostoId = centroSel && centroSel.value ? Number(centroSel.value) : null;
+                procesos.push({ nombre, empleados, centroCostoId });
             });
             return procesos;
         }
@@ -453,11 +497,24 @@ export async function generarOrdenDeProduccion(datos) {
         await supabaseClient.from('ordenes_produccion').update({ folio }).eq('id', ordenId);
 
         for (const proc of procesos) {
-            const { data: procIns, error: errProc } = await supabaseClient
+            const centroCostoId = proc.centroCostoId ? Number(proc.centroCostoId) : null;
+            const filaProceso = { orden_produccion_id: ordenId, proceso_nombre: proc.nombre };
+            if (centroCostoId) filaProceso.centro_costo_id = centroCostoId;
+
+            let procIns, errProc;
+            ({ data: procIns, error: errProc } = await supabaseClient
                 .from('orden_produccion_procesos')
-                .insert([{ orden_produccion_id: ordenId, proceso_nombre: proc.nombre }])
+                .insert([filaProceso])
                 .select('id')
-                .single();
+                .single());
+
+            if (errProc && /centro_costo_id|column .* does not exist/i.test(errProc.message || '')) {
+                ({ data: procIns, error: errProc } = await supabaseClient
+                    .from('orden_produccion_procesos')
+                    .insert([{ orden_produccion_id: ordenId, proceso_nombre: proc.nombre }])
+                    .select('id')
+                    .single());
+            }
 
             if (errProc) throw new Error(`No se pudo crear el proceso "${proc.nombre}": ${errProc.message}`);
 
@@ -470,6 +527,15 @@ export async function generarOrdenDeProduccion(datos) {
             if (errEmp) throw new Error(`No se pudo asignar el equipo del proceso "${proc.nombre}": ${errEmp.message}`);
 
             await supabaseClient.from('procesos_produccion').upsert([{ nombre: proc.nombre }], { onConflict: 'nombre', ignoreDuplicates: true });
+
+            // El catálogo "aprende" el centro elegido para este proceso.
+            if (centroCostoId) {
+                try {
+                    await supabaseClient.from('procesos_produccion')
+                        .update({ centro_costo_id: centroCostoId })
+                        .eq('nombre', proc.nombre);
+                } catch (_) { /* la columna aún no existe: se ignora */ }
+            }
         }
 
         return { success: true, ordenId, folio };
