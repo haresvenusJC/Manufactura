@@ -796,7 +796,14 @@ Gasto CIF compartido:       Cargo 503.xx (parte fábrica) + Cargo 601.xx (parte 
 Al aplicar el prorrateo:    Cargo 115.03 (aplic) / Cargo 503.98 (ocioso) / Abono 503.xx
 Orden cerrada en el mes:    Cargo 115.04         / Abono 115.03            (en la misma póliza)
 Orden abierta:              el CIF queda en 115.03; entra a 115.04 al cerrarla
-Gasto directo:              Cargo 503.xx al capturar; Cargo 115.04 / Abono 503.xx al cerrar la orden</div>
+Gasto directo:              Cargo 503.xx al capturar; Cargo 115.04 / Abono 503.xx al cerrar la orden
+
+Cierre de orden (consumo):  Cargo cuenta del producto (115.04 / 115.02 si es granel)
+                            Abono cuenta de inventario de CADA componente:
+                              materia prima -> 115.01
+                              granel / semiterminado -> 115.02
+                            Abono 601.01 (mano de obra) + Abono 115.03 (CIF aplicado)</div>
+    <p>El granel es un <strong>semiterminado</strong>: al producirlo carga <code>115.02</code>; al consumirlo en la orden del producto terminado, se abona <code>115.02</code> por lo que se usó de granel y <code>115.01</code> por el material de empaque. Requiere poner <code>115.02</code> como "Cuenta de inventario" de cada producto a granel en el Catálogo.</p>
 
     <h4>Límite conocido de esta versión</h4>
     <p>Si al correr el prorrateo una orden ya cerrada tiene su producto terminado <strong>parcialmente vendido</strong>, el ajuste de CIF entra completo a <code>115.04</code> (inventario) en vez de mandar la porción vendida a <code>501.01</code> (costo de ventas). Para cierre mensual y rotación normal el efecto es menor; con rotación muy rápida, reclasificar la porción vendida a mano. La etapa de <em>tasa predeterminada</em> (Fase 4, aún no construida) automatiza esto y permite costear el lote el mismo día que se produce, conciliando la variación sobre/subaplicado a fin de mes.</p>
@@ -822,7 +829,8 @@ Gasto directo:              Cargo 503.xx al capturar; Cargo 115.04 / Abono 503.x
         <tr><td class="m">gasto_aplicaciones</td><td>Resultado del prorrateo: monto de CIF por orden y por capacidad ociosa, por periodo.</td></tr>
         <tr><td class="m">prorrateo_corridas</td><td>Una fila por mes aplicado, con su póliza y estatus.</td></tr>
         <tr><td class="m">prorrateo_calcular / _aplicar / _cancelar</td><td>Preview, aplicación (con la póliza y el ajuste a órdenes cerradas) y reversa.</td></tr>
-        <tr><td class="m">contabilizar_produccion</td><td>Al cerrar la orden, incorpora el CIF ya prorrateado y los gastos directos.</td></tr>
+        <tr><td class="m">contabilizar_produccion</td><td>Al cerrar la orden, incorpora el CIF ya prorrateado y los gastos directos. Abona la MP consumida a la cuenta de inventario de cada componente (115.01 MP / 115.02 granel), leyendo el desglose de <code>movimientos_inventario</code> del documento de salida.</td></tr>
+        <tr><td class="m">productos.cuenta_inventario_id</td><td>Cuenta donde vive el inventario de ese producto: 115.01 MP, 115.02 granel/semiterminado, 115.04 terminado. Se usa al producirlo y al consumirlo.</td></tr>
         <tr><td class="m">ordenes_produccion.costo_total_indirecto, .costo_indirecto_contabilizado, .costo_total_gasto_directo, .costo_gasto_directo_contabilizado</td><td>Acumuladores de costo por orden.</td></tr>
       </tbody>
     </table></div>
