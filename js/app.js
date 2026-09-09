@@ -19,6 +19,8 @@ import { cargarModuloNomina, actualizarBannerNominaPendiente } from './nomina.js
 import { cargarModuloTareas } from './tareas.js';
 import { cargarModuloCentrosCosto } from './centros-costo.js';
 import { cargarModuloProrrateo } from './prorrateo.js';
+import { cargarModuloAreasProrrateo } from './areas-prorrateo.js';
+import { cargarModuloRepartoPlantillas } from './reparto-plantillas.js';
 import { cargarModuloIsr } from './isr.js';
 import { cargarModuloReportes } from './reportes.js';
 import { montarLogin, cerrarSesion } from './auth.js';
@@ -228,6 +230,12 @@ window.loadView = function(viewName) {
             break;
         case 'centros-costo':
             cargarModuloCentrosCosto();
+            break;
+        case 'areas-prorrateo':
+            cargarModuloAreasProrrateo();
+            break;
+        case 'reparto-plantillas':
+            cargarModuloRepartoPlantillas();
             break;
         case 'prorrateo':
             cargarModuloProrrateo();

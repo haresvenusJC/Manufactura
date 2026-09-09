@@ -1,5 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { imprimirConPlantilla } from './impresion.js';
+import { montarGuia } from './asistente-contable.js';
 
 // =====================================================================
 // Contabilidad · Nómina — arma y postea la póliza de sueldos y salarios
@@ -199,6 +200,7 @@ export async function cargarModuloNomina() {
     nomCablear();
     await nomCargarCatalogos();
     await nomBuscar();
+    montarGuia(cont, 'nomina');
 }
 
 function nomCablear() {

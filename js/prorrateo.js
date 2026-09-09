@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { montarGuia } from './asistente-contable.js';
 
 // =====================================================================
 // Contabilidad · Prorrateo de gastos indirectos de fabricación (CIF)
@@ -37,6 +38,7 @@ export async function cargarModuloProrrateo() {
 
     document.getElementById('prMes').addEventListener('change', prCargar);
     await prCargar();
+    montarGuia(cont, 'prorrateo');
 }
 
 async function prCargar() {

@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { montarGuia } from './asistente-contable.js';
 
 // =====================================================================
 // Contabilidad · Centros de costo (Costos de producción — Fase 1)
@@ -131,6 +132,7 @@ export async function cargarModuloCentrosCosto() {
     ccCablear();
     await ccListar();
     ccCalcSugerido();
+    montarGuia(cont, 'centros-costo');
 }
 
 function ccCablear() {

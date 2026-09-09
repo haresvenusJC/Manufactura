@@ -1,5 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { siguientePeriodoSugerido, nomAutorizar, nomCancelar, actualizarBannerNominaPendiente } from './nomina.js';
+import { montarGuia } from './asistente-contable.js';
 
 // =====================================================================
 // Contabilidad · Tareas — bandeja de pendientes que requieren revisión
@@ -70,6 +71,8 @@ export async function cargarModuloTareas() {
         cont.querySelectorAll('.tarea-ir-nomina').forEach((b) => b.addEventListener('click', () => window.loadView('nomina')));
     } catch (err) {
         cont.innerHTML = `<p class="text-rose-400 text-xs">Error al consultar tareas: ${err.message || err}</p>`;
+    } finally {
+        montarGuia(cont, 'tareas');
     }
 }
 

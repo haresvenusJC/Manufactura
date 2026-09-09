@@ -423,6 +423,8 @@
                             <li class="px-3 pt-2.5 pb-0.5 text-[10px] uppercase tracking-wider text-slate-600 font-semibold pointer-events-none select-none">Configuración</li>
                             <li><button onclick="window.loadView('plan-cuentas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Plan de cuentas</button></li>
                             <li><button onclick="window.loadView('centros-costo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Centros de costo</button></li>
+                            <li><button onclick="window.loadView('areas-prorrateo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Áreas y bases de prorrateo</button></li>
+                            <li><button onclick="window.loadView('reparto-plantillas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Reparto de gastos compartidos</button></li>
                             <li><button onclick="window.loadView('isr')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Tabla ISR</button></li>
                         </ul>
                     </li>
@@ -618,6 +620,22 @@
                 <h2 class="text-xl font-bold text-sky-400">Contabilidad · Centros de costo</h2>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorCentrosCosto">Cargando...</div>
+                </div>
+            </section>
+
+            <!-- Vista: Contabilidad - Áreas y bases de prorrateo -->
+            <section id="view-areas-prorrateo" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-sky-400">Contabilidad · Áreas y bases de prorrateo</h2>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div id="contenedorAreasProrrateo">Cargando...</div>
+                </div>
+            </section>
+
+            <!-- Vista: Contabilidad - Reparto de gastos compartidos -->
+            <section id="view-reparto-plantillas" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-sky-400">Contabilidad · Reparto de gastos compartidos</h2>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div id="contenedorRepartoPlantillas">Cargando...</div>
                 </div>
             </section>
 

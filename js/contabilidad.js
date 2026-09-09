@@ -1,5 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { imprimirConPlantilla } from './impresion.js';
+import { montarGuia, crearPanelAsistente } from './asistente-contable.js';
 
 // =====================================================================
 //  Contabilidad - FASE 1: Plan de cuentas
@@ -100,6 +101,7 @@ export async function cargarModuloContabilidad() {
     cablear();
     await recargar();
     await cargarMapeoUsoCfdi();
+    montarGuia(cont, 'plan-cuentas');
 }
 
 async function cargarMapeoUsoCfdi() {
@@ -410,6 +412,7 @@ export async function cargarModuloPolizas() {
     polCablear();
     await polCargarCuentas();
     await polBuscar();
+    montarGuia(document.getElementById('contenedorPolizas'), 'polizas');
 }
 
 function polCablear() {
@@ -666,6 +669,9 @@ let gaCtasGasto = [];   // cuentas tipo gasto/costo, afectables (con cif_tipo)
 let gaCtasPago = [];    // cuentas de caja/banco (101x / 102x)
 let gaCentros = [];     // centros de costo activos (Fase 1 costos de producción)
 let gaOrdenes = [];     // órdenes de producción para gasto directo
+let gaPlantillas = [];  // plantillas de reparto (Tanda 2)
+let gaBases = [];       // v_bases_prorrateo, para la vista previa del reparto
+let gaUmbral = 0;       // umbral de materialidad (costos_config)
 
 // globo de ayuda al pasar por encima. Los textos son literales controlados (sin < > " &).
 const gHint = (t) => `<span class="hint" tabindex="0" role="note" aria-label="${t}" data-tip="${t}">?</span>`;
@@ -703,8 +709,15 @@ export async function cargarModuloGastos() {
                             <option value="indirecto_produccion">Indirecto de fabricación (CIF) — se prorratea</option>
                             <option value="directo_produccion">Directo a una orden de producción</option>
                         </select></div>
-                    <div id="gaCentroWrap" class="hidden"><label class="block text-[11px] text-slate-400 mb-1">Centro de costo${gHint('El área que acumula este gasto indirecto. Al inicio siempre PROD · Producción.')}</label>
+                    <div id="gaRepartoWrap" class="hidden"><label class="block text-[11px] text-slate-400 mb-1">¿Cómo se reparte?${gHint('Todo a un centro: el gasto es de una sola etapa (mtto. de la llenadora → ENV). Repartir con plantilla: gasto compartido (renta, luz, servicios) que se divide entre SURT/MEZ/ENV y, si aplica, entre fábrica y oficina, según las áreas.')}</label>
+                        <select id="gaReparto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                            <option value="centro_unico">Todo a un centro</option>
+                            <option value="plantilla">Repartir con una plantilla</option>
+                        </select></div>
+                    <div id="gaCentroWrap" class="hidden"><label class="block text-[11px] text-slate-400 mb-1">Centro de costo${gHint('La etapa que acumula este gasto: SURT (surtido), MEZ (mezclado) o ENV (envasado).')}</label>
                         <select id="gaCentro" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select></div>
+                    <div id="gaPlantillaWrap" class="hidden"><label class="block text-[11px] text-slate-400 mb-1">Plantilla de reparto${gHint('Define la base (m² / kW / personas) y a qué cuenta de oficina va la parte de no producción. Se administran en Configuración → Reparto de gastos compartidos.')}</label>
+                        <select id="gaPlantilla" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select></div>
                     <div id="gaCifTipoWrap" class="hidden"><label class="block text-[11px] text-slate-400 mb-1">Tipo de CIF${gHint('Fijo = el monto es parejo produzcas mucho o poco (renta, depreciación, supervisión). Variable = sube y baja con el volumen (energía, insumos indirectos, mtto. por uso). Se hereda de la cuenta; cámbialo si aplica.')}</label>
                         <select id="gaCifTipo" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                             <option value="">— (según la cuenta) —</option>
@@ -713,6 +726,7 @@ export async function cargarModuloGastos() {
                         </select></div>
                     <div id="gaOrdenWrap" class="hidden"><label class="block text-[11px] text-slate-400 mb-1">Orden de producción${gHint('La orden concreta a la que se carga este gasto directo. Se sumará a su costo cuando la orden se cierre.')}</label>
                         <select id="gaOrden" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select></div>
+                    <div id="gaResumenWrap" class="hidden text-[11px] bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-400"></div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-2">
@@ -774,6 +788,90 @@ export async function cargarModuloGastos() {
     gaCablear();
     await gaCargarCatalogos();
     await gaBuscar();
+    gaMontarAsistente();
+}
+
+// --- Asistente de captura de Gastos (árbol de preguntas que llena los campos) ---
+let gaAsistBody = null;
+let gaWizPaso = 'q1';
+
+function gaMontarAsistente() {
+    const cont = document.getElementById('contenedorGastos');
+    if (!cont || cont.querySelector(':scope > .asist-panel')) return;
+    const { wrap, body } = crearPanelAsistente({
+        clave: 'gastos-wizard', titulo: 'Captura de gastos',
+        subtitulo: 'te dice qué campos poner', abiertoPorDefecto: true,
+    });
+    gaAsistBody = body;
+    cont.prepend(wrap);
+    gaWizPaso = 'q1';
+    gaWizRender();
+}
+
+function gaWizIr(paso) { gaWizPaso = paso; gaWizRender(); }
+
+function gaWizAplicar(clasif, modo, tip) {
+    const $ = (id) => document.getElementById(id);
+    if ($('gaClasif')) $('gaClasif').value = clasif;
+    if (modo && $('gaReparto')) $('gaReparto').value = modo;
+    gaAplicarClasif();
+    if (modo === 'plantilla') gaSugerirPlantilla();
+    gaResumen();
+    gaWizPaso = 'done';
+    gaWizRender(tip);
+    document.getElementById('gaForm')?.scrollIntoView({ block: 'nearest' });
+}
+
+function gaWizRender(tipFinal) {
+    if (!gaAsistBody) return;
+    const P = gaWizPaso;
+    const opt = (act, label) => `<button type="button" data-act="${act}" class="text-left text-xs bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg px-3 py-2">${label}</button>`;
+    const atras = (act) => `<button type="button" data-act="${act}" class="text-[11px] text-sky-400 hover:underline mt-1">← Atrás</button>`;
+    let html = '';
+    if (P === 'q1') {
+        html = `<p class="text-slate-100 font-semibold">1 · ¿Es una compra de inventario? (materia prima, material de empaque)</p>
+          <div class="grid gap-2 mt-1">${opt('inv', 'Sí, es inventario')}${opt('q2', 'No')}</div>`;
+    } else if (P === 'inv') {
+        html = `<p>Eso NO se captura aquí. Va en <b>Compras → Órdenes de compra</b> y luego <b>Recibo de mercancía</b>, para que entre al inventario con su lote y su costo.</p>
+          ${atras('q1')}`;
+    } else if (P === 'q2') {
+        html = `<p class="text-slate-100 font-semibold">2 · ¿Con qué tiene que ver el gasto?</p>
+          <div class="grid gap-2 mt-1">
+            ${opt('fab', '🏭 Fabricar un producto / operar la planta')}
+            ${opt('ofi', '🗂️ Oficina, administración, contabilidad, legal')}
+            ${opt('ven', '📣 Vender: publicidad, fletes a clientes, comisiones')}
+            ${opt('ban', '🏦 Bancos: intereses, comisiones, tipo de cambio')}
+            ${opt('mix', '⚡ Mixto: fábrica Y oficina (la luz, la renta del predio completo)')}
+          </div>${atras('q1')}`;
+    } else if (P === 'q3a') {
+        html = `<p class="text-slate-100 font-semibold">3 · ¿Es para UNA orden de producción concreta y solo esa?</p>
+          <p class="text-slate-400">Ej: un molde rentado solo para ese lote, el análisis de laboratorio de ese lote.</p>
+          <div class="grid gap-2 mt-1">${opt('directo', 'Sí, una orden')}${opt('q3b', 'No, sirve a la planta en general')}</div>${atras('q2')}`;
+    } else if (P === 'q3b') {
+        html = `<p class="text-slate-100 font-semibold">4 · ¿El gasto es de UNA sola etapa?</p>
+          <p class="text-slate-400">Surtido, mezclado o envasado — no de varias a la vez.</p>
+          <div class="grid gap-2 mt-1">${opt('centro', 'Sí, una etapa')}${opt('plantilla', 'No, es compartido entre etapas')}</div>${atras('q3a')}`;
+    } else if (P === 'done') {
+        html = `<p class="text-emerald-400 font-semibold">Listo — campos configurados.</p>
+          <p>${tipFinal || ''}</p>
+          <button type="button" data-act="q1" class="text-[11px] text-sky-400 hover:underline mt-1">Volver a empezar</button>`;
+    }
+    gaAsistBody.innerHTML = html;
+    gaAsistBody.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => gaWizAccion(b.dataset.act)));
+}
+
+function gaWizAccion(act) {
+    switch (act) {
+        case 'q1': case 'q2': case 'q3a': case 'q3b': case 'inv': gaWizIr(act); break;
+        case 'fab': gaWizIr('q3a'); break;
+        case 'ofi': gaWizAplicar('no_produccion', null, 'Elige arriba la <b>cuenta de gasto de administración</b> (grupo 601.xx: 601.01 sueldos, 601.50 papelería, 601.06 honorarios…).'); break;
+        case 'ven': gaWizAplicar('no_produccion', null, 'Elige arriba la <b>cuenta de gasto de venta</b> (601.83 publicidad, 601.14 fletes y acarreos, comisiones…).'); break;
+        case 'ban': gaWizAplicar('no_produccion', null, 'Elige arriba la cuenta <b>701.xx</b> (gastos financieros: 701.01 comisiones bancarias, 701.04 pérdida cambiaria).'); break;
+        case 'directo': gaWizAplicar('directo_produccion', null, 'Abajo, en <b>Orden de producción</b>, elige la orden a la que se carga. Se suma a su costo al cerrarla.'); break;
+        case 'centro': gaWizAplicar('indirecto_produccion', 'centro_unico', 'Abajo elige el <b>Centro de costo</b> (SURT / MEZ / ENV) y si es <b>fijo o variable</b>.'); break;
+        case 'plantilla': gaWizAplicar('indirecto_produccion', 'plantilla', 'Abajo elige la <b>plantilla de reparto</b>. Si no hay una adecuada, créala en Configuración → Reparto de gastos compartidos.'); break;
+        case 'mix': gaWizAplicar('indirecto_produccion', 'plantilla', 'Gasto mixto: elige la <b>plantilla</b> con base m²/kW/personas — separa la parte de fábrica (a las etapas) de la de oficina (a resultados).'); break;
+    }
 }
 
 function gaCablear() {
@@ -788,11 +886,18 @@ function gaCablear() {
         $('gaPagoWrap').style.display = $('gaCondicion').value === 'contado' ? '' : 'none';
     });
     $('gaClasif').addEventListener('change', gaAplicarClasif);
+    $('gaReparto').addEventListener('change', gaAplicarClasif);
+    $('gaPlantilla').addEventListener('change', gaResumen);
+    ['gaSubtotal', 'gaCentro'].forEach((id) => $(id) && $(id).addEventListener('input', gaResumen));
     $('gaCuentaGasto').addEventListener('change', () => {
         // pista de fijo/variable desde la cuenta elegida
         const c = gaCtasGasto.find((x) => x.id === Number($('gaCuentaGasto').value));
         if (c && c.cif_tipo && $('gaCifTipo') && !$('gaCifTipo').value) $('gaCifTipo').value = c.cif_tipo;
+        // proponer la plantilla ligada a esa cuenta / proveedor
+        gaSugerirPlantilla();
+        gaResumen();
     });
+    $('gaProveedor').addEventListener('change', () => { gaSugerirPlantilla(); gaResumen(); });
     $('gaForm').addEventListener('submit', gaGuardar);
     $('gaBuscar').addEventListener('click', gaBuscar);
     gaAplicarClasif();
@@ -800,10 +905,95 @@ function gaCablear() {
 
 function gaAplicarClasif() {
     const v = document.getElementById('gaClasif')?.value || 'no_produccion';
+    const modo = document.getElementById('gaReparto')?.value || 'centro_unico';
     const show = (id, on) => { const el = document.getElementById(id); if (el) el.classList.toggle('hidden', !on); };
-    show('gaCentroWrap', v === 'indirecto_produccion');
-    show('gaCifTipoWrap', v === 'indirecto_produccion');
+    const esIndirecto = v === 'indirecto_produccion';
+    const hayPlantillas = gaPlantillas.length > 0;
+    show('gaRepartoWrap', esIndirecto && hayPlantillas);
+    show('gaCentroWrap', esIndirecto && (!hayPlantillas || modo === 'centro_unico'));
+    show('gaPlantillaWrap', esIndirecto && hayPlantillas && modo === 'plantilla');
+    show('gaCifTipoWrap', esIndirecto);
     show('gaOrdenWrap', v === 'directo_produccion');
+    gaResumen();
+}
+
+// elige automáticamente la plantilla más específica (proveedor > cuenta > genérica)
+function gaSugerirPlantilla() {
+    const sel = document.getElementById('gaPlantilla');
+    if (!sel || !gaPlantillas.length) return;
+    const cta = Number(document.getElementById('gaCuentaGasto').value) || null;
+    const prov = Number(document.getElementById('gaProveedor').value) || null;
+    const cand = gaPlantillas.filter((p) => p.activo &&
+        (!p.cuenta_id || p.cuenta_id === cta) && (!p.proveedor_id || p.proveedor_id === prov));
+    cand.sort((a, b) => (b.proveedor_id ? 2 : 0) + (b.cuenta_id ? 1 : 0) - ((a.proveedor_id ? 2 : 0) + (a.cuenta_id ? 1 : 0)));
+    if (cand.length && !sel.value) sel.value = String(cand[0].id);
+}
+
+// vista previa del impacto del gasto
+function gaResumen() {
+    const wrap = document.getElementById('gaResumenWrap');
+    if (!wrap) return;
+    const clasif = document.getElementById('gaClasif').value;
+    const modo = document.getElementById('gaReparto')?.value || 'centro_unico';
+    const st = parseFloat(document.getElementById('gaSubtotal').value) || 0;
+    if (st <= 0) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+    const ctaSel = gaCtasGasto.find((x) => x.id === Number(document.getElementById('gaCuentaGasto').value));
+    const ctaTxt = ctaSel ? `${ctaSel.codigo}` : 'la cuenta de gasto';
+
+    if (clasif === 'no_produccion') {
+        wrap.classList.remove('hidden');
+        wrap.innerHTML = `Impacto: <b>${money(st)}</b> a <b>${ctaTxt}</b> — resultados del periodo. No entra al costo de los lotes.`;
+        return;
+    }
+    if (clasif === 'directo_produccion') {
+        wrap.classList.remove('hidden');
+        wrap.innerHTML = `Impacto: <b>${money(st)}</b> completo a la orden elegida. Se suma a su costo al cerrarla.`;
+        return;
+    }
+    // indirecto
+    if (modo === 'centro_unico' || !gaPlantillas.length) {
+        const c = gaCentros.find((x) => x.id === Number(document.getElementById('gaCentro').value));
+        wrap.classList.remove('hidden');
+        wrap.innerHTML = `Impacto: <b>${money(st)}</b> como CIF de <b>${c ? c.codigo : 'un centro'}</b>, pendiente de prorrateo a fin de mes.`;
+        return;
+    }
+    // plantilla
+    const pl = gaPlantillas.find((x) => x.id === Number(document.getElementById('gaPlantilla').value));
+    if (!pl) { wrap.classList.remove('hidden'); wrap.innerHTML = 'Elige una plantilla de reparto.'; return; }
+    const r = gaResolverBase(pl.base);
+    let html = '';
+    if (pl.base === 'manual') {
+        html = `Plantilla <b>manual</b>: el reparto sale de sus líneas fijas.`;
+    } else if (pl.base === 'partes_iguales') {
+        const n = gaCentros.length || 1;
+        html = `${money(st)} ÷ ${n} centros = <b>${money(st / n)}</b> a cada uno. Sin parte de oficina.`;
+    } else if (!r.hay) {
+        html = `<span class="text-amber-400">Faltan datos de ${pl.base} en las áreas.</span> Captúralos en "Áreas y bases de prorrateo".`;
+    } else {
+        const prod = 1 - r.noProd;
+        const partes = Object.entries(r.porCentro).map(([id, f]) => {
+            const c = gaCentros.find((x) => x.id === Number(id));
+            return `${c ? c.codigo : id} ${money(st * f)}`;
+        }).join(' · ');
+        html = `Fábrica <b>${money(st * prod)}</b> (${partes}) → CIF pendiente de prorrateo`;
+        if (r.noProd > 0) html += `<br>Oficina <b>${money(st * r.noProd)}</b> → resultados`;
+    }
+    if (gaUmbral > 0 && st > 0 && st < gaUmbral && pl.base !== 'partes_iguales') {
+        html += `<br><span class="text-amber-400">Monto menor al umbral de materialidad (${money(gaUmbral)}). Considera asignarlo completo a un centro para simplificar.</span>`;
+    }
+    wrap.classList.remove('hidden');
+    wrap.innerHTML = html;
+}
+
+function gaResolverBase(base) {
+    const rows = gaBases.filter((x) => x.base === base);
+    const porCentro = {};
+    let noProd = 0;
+    rows.forEach((x) => {
+        if (x.rol === 'produccion' && x.centro_costo_id) porCentro[x.centro_costo_id] = (porCentro[x.centro_costo_id] || 0) + Number(x.fraccion || 0);
+        else if (x.rol === 'no_produccion') noProd += Number(x.fraccion || 0);
+    });
+    return { porCentro, noProd, hay: rows.some((x) => Number(x.valor || 0) > 0) };
 }
 
 function gaCalcTotal() {
@@ -821,10 +1011,13 @@ async function gaCargarCatalogos() {
             ctasSel = 'id, codigo, nombre, tipo, afectable, activa';
             ctas = await supabaseClient.from('cuentas_contables').select(ctasSel).eq('afectable', true).eq('activa', true).order('codigo');
         }
-        const [prov, centros, ordenes] = await Promise.all([
+        const [prov, centros, ordenes, plant, bases, cfg] = await Promise.all([
             supabaseClient.from('proveedores').select('id, nombre').order('nombre'),
             supabaseClient.from('centros_costo').select('id, codigo, nombre').eq('activo', true).order('codigo'),
             supabaseClient.from('ordenes_produccion').select('id, folio, numero_lote, estado, productos(nombre)').in('estado', ['en_proceso', 'cerrada']).order('id', { ascending: false }).limit(60),
+            supabaseClient.from('reparto_plantillas').select('*').eq('activo', true).order('id'),
+            supabaseClient.from('v_bases_prorrateo').select('base, rol, centro_costo_id, valor, fraccion'),
+            supabaseClient.from('costos_config').select('clave, valor').eq('clave', 'umbral_materialidad_mxn').maybeSingle(),
         ]);
         if (prov.error) throw prov.error;
         if (ctas.error) throw ctas.error;
@@ -832,6 +1025,9 @@ async function gaCargarCatalogos() {
         gaProveedores = prov.data || [];
         gaCentros = (centros.error ? [] : centros.data) || [];
         gaOrdenes = (ordenes.error ? [] : ordenes.data) || [];
+        gaPlantillas = (plant.error ? [] : plant.data) || [];
+        gaBases = (bases.error ? [] : bases.data) || [];
+        gaUmbral = cfg.error || !cfg.data ? 0 : (parseFloat(cfg.data.valor) || 0);
         const todas = ctas.data || [];
         gaCtasGasto = todas.filter((c) => c.tipo === 'gasto' || c.tipo === 'costo');
         gaCtasPago = todas.filter((c) => c.tipo === 'activo' && /^(101|102)/.test(c.codigo));
@@ -849,6 +1045,10 @@ async function gaCargarCatalogos() {
         const selO = document.getElementById('gaOrden');
         if (selO) selO.innerHTML = `<option value="">— orden —</option>` +
             gaOrdenes.map((o) => `<option value="${o.id}">${o.folio || ('#' + o.id)} · ${o.productos?.nombre || 'producto'} · ${o.estado}</option>`).join('');
+        const selP = document.getElementById('gaPlantilla');
+        if (selP) selP.innerHTML = `<option value="">— plantilla —</option>` +
+            gaPlantillas.map((p) => `<option value="${p.id}">${p.nombre}</option>`).join('');
+        gaAplicarClasif();
     } catch (err) {
         console.error('Error al cargar catalogos de gastos:', err);
         document.getElementById('gaLista').innerHTML =
@@ -881,17 +1081,43 @@ async function gaGuardar(e) {
         uuid_cfdi: $('gaUuid').value.trim() || null,
         rfc_emisor: $('gaRfc').value.trim() || null,
         clasificacion: $('gaClasif').value,
-        centro_costo_id: $('gaClasif').value === 'indirecto_produccion' && $('gaCentro').value ? Number($('gaCentro').value) : null,
-        cif_tipo: $('gaClasif').value === 'indirecto_produccion' ? ($('gaCifTipo').value || null) : null,
-        orden_produccion_id: $('gaClasif').value === 'directo_produccion' && $('gaOrden').value ? Number($('gaOrden').value) : null,
     };
+
+    // --- reparto (Tanda 2): modo directo / centro_unico / plantilla / ninguno ---
+    const clasif = $('gaClasif').value;
+    const modoReparto = $('gaReparto').value;
+    const usaPlantilla = clasif === 'indirecto_produccion' && gaPlantillas.length && modoReparto === 'plantilla';
+    if (clasif === 'directo_produccion') {
+        p_datos.reparto = {
+            modo: 'directo',
+            orden_produccion_id: $('gaOrden').value ? Number($('gaOrden').value) : null,
+        };
+    } else if (clasif === 'indirecto_produccion' && usaPlantilla) {
+        p_datos.reparto = {
+            modo: 'plantilla',
+            plantilla_id: $('gaPlantilla').value ? Number($('gaPlantilla').value) : null,
+            cif_tipo: $('gaCifTipo').value || null,
+        };
+    } else if (clasif === 'indirecto_produccion') {
+        p_datos.reparto = {
+            modo: 'centro_unico',
+            centro_costo_id: $('gaCentro').value ? Number($('gaCentro').value) : null,
+            cif_tipo: $('gaCifTipo').value || null,
+        };
+    } else {
+        p_datos.reparto = { modo: 'ninguno' };
+    }
+
     if (!p_datos.concepto || !p_datos.cuenta_gasto_id || p_datos.subtotal <= 0) {
         msg.textContent = 'Faltan concepto, cuenta de gasto o subtotal.'; msg.className = 'text-xs text-rose-400'; return;
     }
-    if (p_datos.clasificacion === 'indirecto_produccion' && !p_datos.centro_costo_id) {
+    if (p_datos.reparto.modo === 'centro_unico' && !p_datos.reparto.centro_costo_id) {
         msg.textContent = 'Un gasto indirecto de fabricación necesita un centro de costo.'; msg.className = 'text-xs text-rose-400'; return;
     }
-    if (p_datos.clasificacion === 'directo_produccion' && !p_datos.orden_produccion_id) {
+    if (p_datos.reparto.modo === 'plantilla' && !p_datos.reparto.plantilla_id) {
+        msg.textContent = 'Elige la plantilla de reparto.'; msg.className = 'text-xs text-rose-400'; return;
+    }
+    if (p_datos.reparto.modo === 'directo' && !p_datos.reparto.orden_produccion_id) {
         msg.textContent = 'Un gasto directo necesita la orden de producción.'; msg.className = 'text-xs text-rose-400'; return;
     }
 
@@ -1105,6 +1331,7 @@ export async function cargarModuloReportesContables() {
     });
 
     await rcGenerar(true);
+    montarGuia(document.getElementById('contenedorReportesContables'), 'reportes-contables');
 }
 
 function rcRenderTabs() {

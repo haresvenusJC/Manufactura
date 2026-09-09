@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { montarGuia } from './asistente-contable.js';
 
 // =====================================================================
 //  Cuentas por pagar / Pagos a proveedores
@@ -133,6 +134,7 @@ export async function cargarModuloPagosProveedor() {
     }
 
     await cxpHistorial();
+    montarGuia(cont, 'pagos-proveedor');
 }
 
 async function registrarPago() {

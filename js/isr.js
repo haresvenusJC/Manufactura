@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { montarGuia } from './asistente-contable.js';
 
 // =====================================================================
 // Contabilidad · Tabla ISR — catálogo versionado de tarifas de retención
@@ -107,6 +108,7 @@ export async function cargarModuloIsr() {
     document.getElementById('isrExtraer').addEventListener('click', isrExtraerDeArchivo);
 
     await isrBuscar();
+    montarGuia(cont, 'isr');
 }
 
 function renderTramos() {
