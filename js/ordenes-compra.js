@@ -351,6 +351,7 @@ let rmCuentasPago = [];
 let rmOcActual = null;   // OC seleccionada en Recibo (para conciliar el XML)
 let rmModo = null;       // 'oc' | 'xml'
 let rmXmlMeta = null;    // { proveedorId, rfc, uuid, folio } cuando el recibo viene de un XML sin OC
+let rmCargosXml = [];    // [{concepto, monto}] flete/seguro/etc. detectados en el XML (no se reciben como producto)
 let rmCatUso = [];       // c_uso_cfdi
 let rmCatForma = [];     // c_forma_pago
 let rmCatMetodo = [];    // c_metodo_pago
@@ -364,7 +365,7 @@ export async function cargarModuloReciboMercancia() {
     const cont = document.getElementById('contenedorReciboMercancia');
     if (!cont) return;
     cont.innerHTML = '<p class="text-slate-500 text-sm">Cargando...</p>';
-    rmModo = null; rmXmlMeta = null; rmOcActual = null;
+    rmModo = null; rmXmlMeta = null; rmOcActual = null; rmCargosXml = [];
     rmRecPagina = 1; rmRecFiltro = { desde: '', hasta: '', proveedorId: '' };
     try { await ocCargarCatalogos(); }
     catch (e) { cont.innerHTML = `<p class="text-rose-400 text-xs">Error: ${e.message || e}</p>`; return; }
@@ -504,6 +505,7 @@ export async function cargarModuloReciboMercancia() {
         </table>
         <button type="button" id="rmExtraAdd" class="mt-2 text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded">+ Cargo</button>
         <p class="text-[10px] text-slate-500 mt-2">"Al inventario" desmarcado = el cargo va a gasto (601.14 fletes), no al costo del producto. El IVA de estos cargos va en el campo IVA de arriba.</p>
+        <p id="rmExtrasAviso" class="text-[10px] text-amber-400 mt-1"></p>
       </div>
 
       <button type="button" id="rmConfirmar" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-3 rounded-lg text-sm hidden">✅ Confirmar recepción</button>
@@ -803,10 +805,16 @@ function rmRenderDetalle(oc) {
           <td class="p-2 text-right font-mono text-slate-400">${d.cantidad_recibida}</td>
           <td class="p-2 text-right font-mono">${pend}</td>
           <td class="p-2"><input type="number" step="any" min="0" class="rm-cant w-20 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${pend}"></td>
-          <td class="p-2"><input type="number" step="any" min="0" class="rm-costo w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${Number(d.costo_unitario_estimado || 0)}"></td>
+          <td class="p-2">
+            <div class="flex items-center gap-1">
+              <input type="number" step="any" min="0" class="rm-costo w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${Number(d.costo_unitario_estimado || 0)}">
+              <button type="button" class="rm-conv-toggle text-[10px] text-sky-400 hover:text-sky-300 whitespace-nowrap" title="Convertir desde la presentación de la factura (millar, gruesa, docena...)">🔁 convertir</button>
+            </div>
+          </td>
           <td class="p-2"><input type="text" class="rm-lote w-28 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" placeholder="lote del proveedor"></td>
           <td class="p-2"><input type="date" class="rm-cad w-32 bg-slate-900 border ${reqCad ? 'border-amber-600' : 'border-slate-800'} rounded px-2 py-1 text-xs text-slate-100 font-mono"></td>
-        </tr>`;
+        </tr>
+        ${rmFilaConversion()}`;
     }).join('');
 
     cont.innerHTML = `
@@ -826,11 +834,13 @@ function rmRenderDetalle(oc) {
 
     btn.classList.remove('hidden');
     rmInitExtras();
+    rmWireConversiones(cont);
 
     const recalc = () => {
         let st = 0;
         cont.querySelectorAll('#rmDetBody tr').forEach(tr => {
-            if (!tr.querySelector('.rm-chk').checked) return;
+            const chk = tr.querySelector('.rm-chk');
+            if (!chk || !chk.checked) return;
             st += (parseFloat(tr.querySelector('.rm-cant').value) || 0) * (parseFloat(tr.querySelector('.rm-costo').value) || 0);
         });
         const elSt = document.getElementById('rmSubtotal');
@@ -855,6 +865,33 @@ function rmTcActual() {
 
 // ---- Landed cost: flete / seguro / etc. de la factura ----
 const RM_EXTRA_CONCEPTOS = ['Flete', 'Seguro', 'Maniobras', 'Aduana / pedimento', 'Otro'];
+
+// Detecta, por la descripción del concepto del CFDI, si es un cargo de flete/seguro/etc.
+// en vez de mercancía — para NO recibirlo como producto y mandarlo al panel de landed cost.
+const RM_CARGO_PATTERNS = [
+    [/env[ií]o|flete|fletes|transporte|paqueter[ií]a|mensajer[ií]a|acarreo/i, 'Flete'],
+    [/seguro/i, 'Seguro'],
+    [/maniobra/i, 'Maniobras'],
+    [/aduana|pedimento|agente aduanal|arancel/i, 'Aduana / pedimento'],
+];
+
+function rmEsConceptoCargo(descripcion) {
+    const txt = String(descripcion || '');
+    for (const [re, label] of RM_CARGO_PATTERNS) { if (re.test(txt)) return label; }
+    return null;
+}
+
+// Separa los conceptos del CFDI en {productos, cargos}. cargos: [{concepto, monto}]
+// listos para precargar el panel de Costos adicionales, sin crear producto ni lote.
+function rmClasificarConceptos(conceptos) {
+    const productos = [], cargos = [];
+    (conceptos || []).forEach((c) => {
+        const label = rmEsConceptoCargo(c.descripcion);
+        if (label) cargos.push({ concepto: label, monto: Number(c.importe || (c.cantidad * c.valorUnitario) || 0) });
+        else productos.push(c);
+    });
+    return { productos, cargos };
+}
 
 function rmExtraFila(concepto, monto, cap) {
     const opts = RM_EXTRA_CONCEPTOS.map(c => `<option${c === concepto ? ' selected' : ''}>${c}</option>`).join('');
@@ -885,15 +922,24 @@ function rmExtrasWire() {
     rmExtrasRecalc();
 }
 
-function rmInitExtras() {
+// seed: [{concepto, monto}] detectados del CFDI (ver rmClasificarConceptos). Si no
+// hay, arranca con Flete/Seguro en blanco como antes.
+function rmInitExtras(seed) {
     const wrap = document.getElementById('rmExtrasWrap');
     if (!wrap) return;
     wrap.classList.remove('hidden');
     const body = document.getElementById('rmExtrasBody');
-    if (body && !body.children.length) body.innerHTML = rmExtraFila('Flete', '', true) + rmExtraFila('Seguro', '', true);
+    if (body && !body.children.length) {
+        const filas = (seed && seed.length) ? seed : [{ concepto: 'Flete', monto: '' }, { concepto: 'Seguro', monto: '' }];
+        body.innerHTML = filas.map((f) => rmExtraFila(f.concepto, f.monto || '', true)).join('');
+    }
     const add = document.getElementById('rmExtraAdd');
     if (add) add.onclick = () => { body.insertAdjacentHTML('beforeend', rmExtraFila('Otro', '', true)); rmExtrasWire(); };
     rmExtrasWire();
+    if (seed && seed.length) {
+        const aviso = document.getElementById('rmExtrasAviso');
+        if (aviso) aviso.textContent = `Detectados en el CFDI y precargados aquí (no se recibieron como producto): ${seed.map((s) => s.concepto).join(', ')}.`;
+    }
 }
 
 function rmLeerExtras() {
@@ -902,6 +948,77 @@ function rmLeerExtras() {
         monto: parseFloat(tr.querySelector('.rmx-monto').value) || 0,
         capitaliza: tr.querySelector('.rmx-cap').checked,
     })).filter(e => e.monto > 0);
+}
+
+// ---- Conversión de presentación por partida (millar, gruesa, docena...) ----
+// Evita el error de teclear la cantidad ya convertida (ej. 40,000 piezas) pero
+// dejar el costo tal cual venía en la factura (ej. $241.38 por MILLAR, no por pieza).
+function rmFilaConversion() {
+    return `<tr class="rm-conv-row hidden bg-slate-900/60">
+      <td colspan="12" class="p-2">
+        <div class="flex flex-wrap items-end gap-2 text-[11px]">
+          <span class="text-slate-400">Convertir desde la presentación de la factura:</span>
+          <div><label class="block text-slate-500 mb-0.5">Cant. en factura</label>
+            <input type="number" step="any" min="0" class="rm-conv-cant w-20 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-100 text-right font-mono"></div>
+          <div><label class="block text-slate-500 mb-0.5">Presentación</label>
+            <select class="rm-conv-preset bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-100">
+              <option value="">Preset…</option>
+              <optgroup label="Piezas">
+                <option value="1000">Millar (×1000 piezas)</option>
+                <option value="144">Gruesa (×144 piezas)</option>
+                <option value="12">Docena (×12 piezas)</option>
+              </optgroup>
+              <optgroup label="Volumen / peso a granel">
+                <option value="200">Tambo 200 L (×200 L)</option>
+                <option value="208">Tambo 208 L (×208 L)</option>
+                <option value="1000">Kilo a gramos (×1000 g)</option>
+                <option value="1000">Litro a mililitros (×1000 mL)</option>
+                <option value="25">Saco 25 kg (×25 kg)</option>
+                <option value="50">Saco 50 kg (×50 kg)</option>
+              </optgroup>
+            </select></div>
+          <div><label class="block text-slate-500 mb-0.5">Factor</label>
+            <input type="number" step="any" min="0.0001" value="1" class="rm-conv-factor w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-100 text-right font-mono"></div>
+          <div><label class="block text-slate-500 mb-0.5">Precio en factura (por esa presentación)</label>
+            <input type="number" step="any" min="0" class="rm-conv-precio w-24 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-100 text-right font-mono"></div>
+          <button type="button" class="rm-conv-aplicar bg-sky-700 hover:bg-sky-600 text-white px-2.5 py-1.5 rounded">Aplicar →</button>
+          <span class="rm-conv-resultado text-emerald-400 font-mono"></span>
+        </div>
+      </td>
+    </tr>`;
+}
+
+function rmWireConversiones(root) {
+    if (!root) return;
+    root.querySelectorAll('.rm-conv-toggle').forEach((btn) => {
+        btn.onclick = () => {
+            const row = btn.closest('tr').nextElementSibling;
+            if (row && row.classList.contains('rm-conv-row')) row.classList.toggle('hidden');
+        };
+    });
+    root.querySelectorAll('.rm-conv-preset').forEach((sel) => {
+        sel.onchange = () => {
+            if (sel.value) sel.closest('tr').querySelector('.rm-conv-factor').value = sel.value;
+        };
+    });
+    root.querySelectorAll('.rm-conv-aplicar').forEach((btn) => {
+        btn.onclick = () => {
+            const convRow = btn.closest('tr');
+            const mainRow = convRow.previousElementSibling;
+            const cantF = parseFloat(convRow.querySelector('.rm-conv-cant').value) || 0;
+            const factor = parseFloat(convRow.querySelector('.rm-conv-factor').value) || 0;
+            const precioF = parseFloat(convRow.querySelector('.rm-conv-precio').value) || 0;
+            if (cantF <= 0 || factor <= 0) { alert('Captura la cantidad de la factura y un factor válido.'); return; }
+            const cantFinal = cantF * factor;
+            const costoFinal = Math.round((precioF / factor) * 1e6) / 1e6;
+            const inpCant = mainRow.querySelector('.rm-cant');
+            const inpCosto = mainRow.querySelector('.rm-costo');
+            if (inpCant) { inpCant.value = cantFinal; inpCant.dispatchEvent(new Event('input', { bubbles: true })); }
+            if (inpCosto) { inpCosto.value = costoFinal; inpCosto.dispatchEvent(new Event('input', { bubbles: true })); }
+            const res = convRow.querySelector('.rm-conv-resultado');
+            if (res) res.textContent = `= ${cantFinal.toLocaleString('es-MX')} × $${costoFinal} c/u`;
+        };
+    });
 }
 
 // Convierte los extras a MXN, reparte por valor y anota landedUnit / adicUnit en cada línea.
@@ -1017,7 +1134,8 @@ async function rmConfirmar(ocs) {
     const lineas = [];
     const errores = [];
     document.querySelectorAll('#rmDetBody tr').forEach(tr => {
-        if (!tr.querySelector('.rm-chk').checked) return;
+        const chk = tr.querySelector('.rm-chk');
+        if (!chk || !chk.checked) return;
         const cant = parseFloat(tr.querySelector('.rm-cant').value) || 0;
         if (cant <= 0) return;
         const det = (oc.ordenes_compra_detalle || []).find(d => d.id === Number(tr.dataset.detid));
@@ -1149,10 +1267,16 @@ function rmRenderDetalleXml(conceptos, meta) {
           </td>
           <td class="p-2 font-mono text-slate-500 text-[10px]">${esc(cp.claveSat || '')}${cp.noId ? `<br>${esc(cp.noId)}` : ''}</td>
           <td class="p-2"><input type="number" step="any" min="0" class="rm-cant w-20 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${cp.cantidad || 0}"></td>
-          <td class="p-2"><input type="number" step="any" min="0" class="rm-costo w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${Number(cp.valorUnitario || 0).toFixed(4)}"></td>
+          <td class="p-2">
+            <div class="flex items-center gap-1">
+              <input type="number" step="any" min="0" class="rm-costo w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${Number(cp.valorUnitario || 0).toFixed(4)}">
+              <button type="button" class="rm-conv-toggle text-[10px] text-sky-400 hover:text-sky-300 whitespace-nowrap" title="Convertir desde la presentación de la factura (millar, gruesa, docena...)">🔁 convertir</button>
+            </div>
+          </td>
           <td class="p-2"><input type="text" class="rm-lote w-28 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" placeholder="lote del proveedor"></td>
           <td class="p-2"><input type="date" class="rm-cad w-32 bg-slate-900 border ${reqCad ? 'border-amber-600' : 'border-slate-800'} rounded px-2 py-1 text-xs text-slate-100 font-mono"></td>
-        </tr>`;
+        </tr>
+        ${rmFilaConversion()}`;
     }).join('');
 
     cont.innerHTML = `
@@ -1169,7 +1293,8 @@ function rmRenderDetalleXml(conceptos, meta) {
         </div>
       </div>`;
     btn.classList.remove('hidden');
-    rmInitExtras();
+    rmInitExtras(rmCargosXml);
+    rmWireConversiones(cont);
 
     cont.querySelectorAll('.rm-prod-select').forEach(sel => {
         const tr = sel.closest('tr');
@@ -1205,7 +1330,8 @@ async function rmConfirmarXml() {
     const lineas = [];
     const errores = [];
     document.querySelectorAll('#rmDetBody tr').forEach(tr => {
-        if (!tr.querySelector('.rm-chk').checked) return;
+        const chk = tr.querySelector('.rm-chk');
+        if (!chk || !chk.checked) return;
         const cant = parseFloat(tr.querySelector('.rm-cant').value) || 0;
         if (cant <= 0) return;
         const desc = tr.dataset.desc || 'Producto CFDI';
@@ -1386,6 +1512,7 @@ async function rmProcesarXml(text) {
 
     let conc = 0;
     const sinMatch = [];
+    const cargosOc = [];
     if (rmOcActual) {
         let claves = [];
         try {
@@ -1405,6 +1532,11 @@ async function rmProcesarXml(text) {
         const nombreDet = (d) => normTxt(d.producto_id ? (ocProductos.find(p => p.id === d.producto_id)?.nombre || '') : (d.descripcion || ''));
 
         for (const cp of conceptos) {
+            const cargoLabel = rmEsConceptoCargo(cp.descripcion);
+            if (cargoLabel) {
+                cargosOc.push({ concepto: cargoLabel, monto: cp.cantidad * cp.valorUnitario, texto: cp.descripcion });
+                continue;   // flete/seguro/etc.: no se intenta emparejar contra partidas de la OC
+            }
             let prodId = null;
             if (cp.noId && porClave.has(normTxt(cp.noId))) prodId = porClave.get(normTxt(cp.noId));
             if (!prodId && cp.claveSat && porSat.has(cp.claveSat)) prodId = porSat.get(cp.claveSat);
@@ -1449,7 +1581,11 @@ async function rmProcesarXml(text) {
                 });
             } catch (_) { /* tabla de claves aún no existe */ }
         }
-        rmRenderDetalleXml(conceptos, {
+        // Flete / seguro / maniobras / aduana: NO se reciben como producto —
+        // se precargan en el panel de Costos adicionales (landed cost).
+        const { productos: conceptosProducto, cargos } = rmClasificarConceptos(conceptos);
+        rmCargosXml = cargos;
+        rmRenderDetalleXml(conceptosProducto, {
             proveedorId: provId, rfc: rfcEmisor, nombreEmisor, uuid, folio, claves: clavesMap, clavesSat: clavesSatMap,
             regimenFiscal: regimenEmisor, usoCfdi, formaPago, metodoPago, moneda, cp: cpEmisor,
         });
@@ -1475,6 +1611,9 @@ async function rmProcesarXml(text) {
                 : ` · <span class="text-emerald-400">recepción directa (sin orden)</span>${sinProveedor ? ' · <span class="text-amber-400">proveedor no identificado por RFC</span>' : ''}`);
         if (sinMatch.length) {
             info.innerHTML += `<br><span class="text-[10px] text-amber-400">Sin coincidencia: ${sinMatch.slice(0, 8).map(esc).join(' · ')}${sinMatch.length > 8 ? '…' : ''}. Ajusta a mano o agrega la clave del proveedor en Catálogos → Productos.</span>`;
+        }
+        if (cargosOc.length) {
+            info.innerHTML += `<br><span class="text-[10px] text-amber-400">⚠ Detecté ${cargosOc.map((c) => `${esc(c.concepto)} ${money(c.monto)}`).join(', ')} en el XML — NO se recibieron como producto. Captúralos a mano en "Costos adicionales (landed cost)" abajo.</span>`;
         }
         if (sinProveedor && nombreEmisor) {
             info.innerHTML += `<br><button type="button" id="rmBtnAltaProveedor" class="mt-1 text-[11px] bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2.5 py-1 rounded">➕ Dar de alta a "${esc(nombreEmisor)}" y vincularlo</button><div id="rmAltaProvForm"></div>`;
