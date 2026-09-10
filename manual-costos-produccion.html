@@ -595,47 +595,75 @@ Cargo  119.01  IVA acreditable pend. de pago               6,400.00
     <h2><span class="n">5</span>Parte 5 — Fin de mes: el prorrateo</h2>
     <p class="lead">Una vez al mes, después de haber capturado todos los gastos y cerrado las órdenes de producción del mes, repartes el CIF entre lo que se produjo. Es un botón, pero primero revisas lo que va a hacer.</p>
 
-    <ol class="steps">
-      <li><strong>Abre la pantalla y elige el mes</strong>
-        <p>Menú → <span class="path">Contabilidad → Prorrateo de gastos</span>. En "Mes a prorratear" pon el mes que vas a cerrar (ej. <code>2026-09</code>). El sistema calcula todo <strong>sin escribir nada</strong> hasta que confirmes.</p></li>
+    <p>El motor hace este cálculo <strong>por centro de costo</strong>. Para explicar cada dato con números reales, todo lo de abajo sigue un solo ejemplo continuo: el mes <strong><code>2026-09</code></strong>, centro <strong><code>ENV</code> · Envasado</strong> (capacidad normal 796 h, se trabajaron 560 h reales = 70% de utilización, en dos órdenes: <code>OP-000051</code> con 360 h y <code>OP-000052</code> con 200 h). <code>SURT</code> y <code>MEZ</code> se calculan igual, cada uno con sus propios números.</p>
 
-      <li><strong>Lee las tres tarjetas de arriba</strong>
-        <div class="tbl"><table>
-          <thead><tr><th>Tarjeta</th><th>Qué te dice</th></tr></thead>
-          <tbody>
-            <tr><td>CIF pendiente</td><td>La suma de los gastos indirectos del mes que aún no se han prorrateado, separada en <strong>fijo</strong> y <strong>variable</strong>.</td></tr>
-            <tr><td>Horas de mano de obra del mes</td><td>Cuántas horas de operarios se trabajaron ese mes, contra la <strong>capacidad normal</strong>, y el <strong>% de utilización</strong> (horas reales ÷ capacidad).</td></tr>
-            <tr><td>Distribución</td><td>Cuánto CIF se va a repartir a las órdenes y cuánto se queda como <strong>capacidad no utilizada</strong>.</td></tr>
-          </tbody>
-        </table></div>
-      </li>
+    <h3>1. El único campo que llenas: "Mes a prorratear"</h3>
+    <p>Es lo único que escribes en toda la pantalla — un selector de mes, ej. <strong><code>2026-09</code></strong>. En cuanto lo cambias, el sistema recalcula <strong>todo, en el acto, sin guardar nada</strong>: es una vista previa. No pasa nada irreversible hasta que aprietes el botón "Aplicar prorrateo de [mes]" (paso 5).</p>
 
-      <li><strong>Revisa la tabla "Gastos indirectos pendientes"</strong>
-        <p>Es el detalle: cada gasto, su cuenta, si es fijo o variable, su monto. Si notas que falta uno, o que uno está mal clasificado: <strong>no apliques todavía</strong>. Ve a Gastos, corrige, y vuelve.</p>
-      </li>
+    <h3>2. Las tres tarjetas de arriba, dato por dato</h3>
+    <p>Con <code>2026-09</code> puesto, así se leen para el centro <code>ENV</code> del ejemplo:</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Tarjeta</th><th>Dato en pantalla</th><th>Qué significa</th><th>En el ejemplo</th></tr></thead>
+      <tbody>
+        <tr><td rowspan="2">CIF pendiente</td><td>El número grande</td><td>La suma de <em>todos</em> los gastos que clasificaste como "Indirecto de fabricación" (Parte 4) en ese mes y que aún no se han prorrateado.</td><td><code>$102,000.00</code></td></tr>
+        <tr><td>"fijo … · variable …"</td><td>El mismo total, partido en las dos cajas que importan para el cálculo: <strong>fijo</strong> (no cambia si produces más o menos: renta, depreciación, sueldo de supervisión) y <strong>variable</strong> (sí cambia con el volumen: luz, insumos indirectos).</td><td>fijo <code>$80,000</code> · variable <code>$22,000</code></td></tr>
+        <tr><td rowspan="2">Horas de mano de obra del mes</td><td>El número grande</td><td>Cuántas horas registraron los operarios ese mes <em>en este centro</em> (la pantalla arma esta tarjeta una vez por cada centro).</td><td><code>560.0 h</code></td></tr>
+        <tr><td>"capacidad normal … · utilización …"</td><td>Contra cuántas horas <em>debería</em> haber trabajado el centro en un mes normal (la capacidad normal que fijaste en la Parte 3), y qué porcentaje de esa capacidad realmente usaste.</td><td>capacidad normal <code>796 h</code> · utilización <code>70%</code></td></tr>
+        <tr><td rowspan="2">Distribución</td><td>El número grande</td><td>Cuánto CIF de este centro sí se va a repartir entre las órdenes que trabajaron en él, si aplicas el prorrateo ahora.</td><td><code>$78,269.00</code></td></tr>
+        <tr><td>"capacidad no utilizada"</td><td>La parte del CIF fijo que NO se reparte a ninguna orden, porque el centro no trabajó a toda su capacidad normal — se reconoce directo como gasto del mes (cuenta <code>503.98</code>), no se mete al costo de lo que sí produjiste.</td><td><code>$23,731.00</code></td></tr>
+      </tbody>
+    </table></div>
 
-      <li><strong>Revisa "Distribución propuesta"</strong>
-        <p>Muestra, por orden de producción, cuántas horas tuvo, qué porcentaje del total representa, y cuánto CIF le toca. La última fila es la <strong>capacidad no utilizada</strong> que se irá a resultados (no al inventario).</p>
-      </li>
+    <h3>3. Tabla "Gastos indirectos pendientes" (o "incluidos", si ya aplicaste)</h3>
+    <p>Es el detalle de todo lo que suma la tarjeta "CIF pendiente". Cuatro columnas:</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Columna</th><th>Qué muestra</th><th>Ejemplo de fila</th></tr></thead>
+      <tbody>
+        <tr><td>Cuenta</td><td>El código contable del gasto (grupo <code>503.xx</code>).</td><td><code>503.01</code></td></tr>
+        <tr><td>Concepto</td><td>La descripción que capturaste al registrar el gasto (Parte 4).</td><td>Renta nave</td></tr>
+        <tr><td>Tipo</td><td><span style="color:var(--warn)">fijo</span> o variable — lo hereda de la cuenta contable, o de cómo clasificaste ese gasto en particular.</td><td>fijo</td></tr>
+        <tr><td>Monto</td><td>El subtotal del gasto, tal como se registró.</td><td><code>$40,000.00</code></td></tr>
+      </tbody>
+    </table></div>
+    <p>Si notas que falta un gasto, o que uno está mal clasificado (por ejemplo, debería ser variable y aparece como fijo): <strong>no apliques todavía</strong>. Ve a <span class="path">Contabilidad → Gastos</span>, corrígelo, y vuelve — el recálculo aquí es automático.</p>
 
-      <li><strong>Aplica</strong>
-        <p>Botón <strong>Aplicar prorrateo de [mes]</strong>. El sistema:
-        genera <strong>una póliza</strong>, ajusta el costo de las órdenes que ya estaban cerradas, y marca los gastos como <em>prorrateados</em>.</p>
-      </li>
+    <h3>4. Tabla "Distribución propuesta", columna por columna</h3>
+    <div class="tbl"><table>
+      <thead><tr><th>Columna</th><th>Qué muestra</th><th>Ejemplo (fila de OP-000051)</th></tr></thead>
+      <tbody>
+        <tr><td>Destino</td><td>La orden de producción que recibe esa rebanada de CIF — o, en la última fila, "Capacidad no utilizada → 503.98 (resultados)".</td><td>Orden OP-000051</td></tr>
+        <tr><td>Horas MO</td><td>Cuántas horas de mano de obra directa tuvo <em>esa</em> orden en este centro, durante el mes.</td><td><code>360.0</code></td></tr>
+        <tr><td>Factor</td><td>Qué porcentaje representan esas horas sobre el total de horas trabajadas en el centro (la tarjeta "Horas de mano de obra del mes"). Así se reparte el CIF: a más horas, más CIF absorbe esa orden.</td><td><code>64.3%</code>  (360 ÷ 560)</td></tr>
+        <tr><td>CIF asignado</td><td>El resultado final: cuánto de los <code>$78,269</code> de la tarjeta "Distribución" le toca a esta orden en particular.</td><td><code>$50,316.00</code></td></tr>
+      </tbody>
+    </table></div>
+    <p>La fila <strong>"Capacidad no utilizada → 503.98 (resultados)"</strong> no trae horas ni factor: es el remanente del CIF fijo que ninguna orden absorbe, porque el centro no llegó al 100% de su capacidad normal (el mismo <code>$23,731.00</code> de la tarjeta "Distribución").</p>
 
-      <li><strong>Si te equivocaste o llegó un gasto tarde</strong>
-        <p>Botón <strong>Cancelar prorrateo del mes</strong>. Revierte la póliza y los gastos vuelven a quedar <em>pendientes</em>. Capturas lo que faltaba y vuelves a aplicar.</p>
-      </li>
-    </ol>
+    <h3>5. Los dos botones</h3>
+    <ul>
+      <li><strong>Aplicar prorrateo de [mes]</strong> — solo aparece si hay gastos pendientes y el mes todavía no se aplicó. Pide confirmación, genera <strong>una póliza</strong> con todo el reparto, ajusta el costo de las órdenes que ya estaban cerradas ese mes, y marca esos gastos como <em>prorrateados</em> (dejan de salir en "pendientes").</li>
+      <li><strong>Cancelar prorrateo del mes</strong> — aparece en el banner verde "Prorrateo aplicado" una vez que ya corriste el mes. Revierte la póliza (genera su reverso) y los gastos regresan a <em>pendiente</em>, para corregir algo y volver a aplicar.</li>
+    </ul>
+
+    <h3>6. El banner "Prorrateo aplicado", dato por dato</h3>
+    <p>Aparece arriba de todo, una vez que el mes ya se corrió. Así se vería después de aplicar septiembre (sumando los tres centros, no solo ENV):</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Dato</th><th>Qué es</th><th>En el ejemplo</th></tr></thead>
+      <tbody>
+        <tr><td>🧾 Póliza #N</td><td>Botón directo a la póliza que generó este prorrateo — salta a <span class="path">Contabilidad → Pólizas</span> con esa póliza enfocada.</td><td>🧾 Póliza #58</td></tr>
+        <tr><td>aplicado</td><td>El total de CIF que sí se repartió a las órdenes ese mes, sumando TODOS los centros.</td><td><code>$78,269.00</code> (si solo hubiera corrido <code>ENV</code>)</td></tr>
+        <tr><td>ociosidad</td><td>El total de capacidad no utilizada del mes, sumando todos los centros.</td><td><code>$23,731.00</code></td></tr>
+        <tr><td>N gasto(s)</td><td>Cuántos gastos indirectos distintos se incluyeron en este prorrateo.</td><td>5 gasto(s)</td></tr>
+      </tbody>
+    </table></div>
 
     <div class="callout ok">
       <span class="lbl">Qué hace bien esta forma de repartir</span>
       <p>El CIF <strong>variable</strong> (luz, insumos) se reparte entre las horas reales — todo cae a las órdenes. El CIF <strong>fijo</strong> (renta, depreciación) se reparte contra la <strong>capacidad normal</strong>: si trabajaste al 70% de lo normal, las órdenes reciben el 70% del fijo y el 30% restante se reconoce como "planta parada", separado y visible. Así un mes flojo no infla el costo de lo poco que produjiste.</p>
     </div>
 
-    <h3>Ejemplo: septiembre</h3>
-    <p>El motor hace este cálculo <strong>por centro</strong>. Para no llenar la página, aquí se sigue solo el centro <strong><code>ENV</code> · Envasado</strong>; SURT y MEZ se resuelven igual con sus propios números.</p>
-    <p>Capacidad normal de ENV: 796 h. Se trabajaron 560 h reales de envasado (70%), en dos órdenes: OP-000051 con 360 h y OP-000052 con 200 h. Parte del CIF del mes que quedó asignada a ENV (su cuenta directa + su tajada de los gastos repartidos por %):</p>
+    <h3>El ejemplo completo, de principio a fin</h3>
+    <p>Con los mismos números de arriba — capacidad normal de ENV: 796 h, 560 h reales trabajadas (70%), en <code>OP-000051</code> (360 h) y <code>OP-000052</code> (200 h) — así se arma cada peso del CIF que le tocó a <code>ENV</code> ese mes (su cuenta directa + su tajada de los gastos repartidos por plantilla):</p>
     <div class="tbl total"><table>
       <thead><tr><th>Concepto</th><th>Tipo</th><th class="num">Monto</th></tr></thead>
       <tbody>

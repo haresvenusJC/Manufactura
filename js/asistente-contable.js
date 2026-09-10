@@ -130,17 +130,19 @@ export const GUIAS = {
     },
     'prorrateo': {
         titulo: 'Prorrateo de gastos',
-        paraQue: 'Repartir, una vez al mes, los gastos indirectos de fabricación (CIF) entre las órdenes de producción y la capacidad no utilizada.',
+        paraQue: 'Una vez al mes reparte el CIF (los gastos indirectos de fabricación: renta, luz, depreciación, supervisión…) entre las órdenes que sí produjeron, en proporción a las horas que trabajó cada una. Lo que un centro no alcanzó a producir al 100% de su capacidad normal no se le carga a nadie: se reconoce aparte como "capacidad no utilizada", precisamente para no inflar el costo de lo poco que sí produjiste en un mes flojo.',
         pasos: [
-            'Elige el mes.',
-            'Revisa las tarjetas: CIF pendiente (fijo/variable), horas de mano de obra vs capacidad, distribución.',
-            'Revisa la tabla "Distribución propuesta" por centro y orden.',
-            'Aplica. Si llega un gasto tarde: Cancelar el mes, capturarlo y volver a aplicar.',
+            'Elige el mes en "Mes a prorratear" — el cálculo se recalcula solo, en vivo, sin guardar nada todavía; es una vista previa.',
+            'Lee las tres tarjetas: cuánto CIF hay pendiente (separado en fijo y variable), cuántas horas se trabajaron ese mes contra la capacidad normal del centro, y cuánto de ese CIF se repartiría a las órdenes si aplicas ahora.',
+            'Abre la tabla "Gastos indirectos pendientes": es el detalle, gasto por gasto, de lo que suma el CIF de arriba. Si algo falta o está mal clasificado (fijo cuando debería ser variable, o viceversa), corrígelo en Gastos antes de seguir — aquí se actualiza solo.',
+            'Revisa "Distribución propuesta": por cada orden, cuántas horas tuvo en este centro, qué porcentaje representan sobre el total, y cuánto CIF le tocaría.',
+            'Si todo cuadra, pulsa "Aplicar prorrateo de [mes]". Si algo llegó tarde o se te fue un error después de aplicar, usa "Cancelar prorrateo del mes": todo vuelve a pendiente para corregir y volver a aplicar.',
         ],
-        cuando: 'Fin de mes, después de capturar todos los gastos indirectos y cerrar la producción del mes.',
+        cuando: 'Al cierre de cada mes, una vez que ya capturaste todos los gastos indirectos del periodo y cerraste las órdenes de producción que correspondan.',
         errores: [
-            'Aplicar antes de capturar todos los gastos indirectos.',
-            'Dejar la capacidad normal de un centro en 0: el CIF fijo se repartiría entre pocas unidades e inflaría el costo.',
+            'Aplicar antes de haber capturado TODOS los gastos indirectos del mes: el CIF pendiente saldría incompleto y tendrías que cancelar para meter el que faltaba.',
+            'Dejar la capacidad normal de un centro en 0 (Parte 3): el sistema no tiene contra qué medir la utilización y el reparto del CIF fijo sale mal.',
+            'Pensar que la "capacidad no utilizada" es un error del sistema — es correcto y esperado cuando el mes se produjo por debajo de lo normal; es justo lo que evita que ese costo se le cargue a los pocos lotes que sí saliste a producir.',
         ],
     },
     'centros-costo': {
