@@ -484,6 +484,28 @@ export async function cargarModuloReciboMercancia() {
       </div>
       <div id="rmDetalle"></div>
       ${fiscalHtml}
+
+      <div id="rmExtrasWrap" class="bg-slate-950 border border-slate-800 rounded-xl p-4 hidden">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-semibold text-sky-400">Costos adicionales (landed cost)</h3>
+          <span class="text-[11px] text-slate-500">se reparten por valor y se suman al costo del lote</span>
+        </div>
+        <table class="w-full text-xs">
+          <thead><tr class="text-left text-slate-500 border-b border-slate-800">
+            <th class="p-1.5">Concepto</th><th class="p-1.5 text-right">Monto (s/ IVA)</th>
+            <th class="p-1.5 text-center">Al inventario</th><th class="p-1.5"></th>
+          </tr></thead>
+          <tbody id="rmExtrasBody"></tbody>
+          <tfoot><tr class="border-t border-slate-800 text-slate-300">
+            <td class="p-1.5 font-semibold">Total capitalizable</td>
+            <td class="p-1.5 text-right font-mono text-emerald-400" id="rmExtrasTotal">$0.00</td>
+            <td colspan="2"></td>
+          </tr></tfoot>
+        </table>
+        <button type="button" id="rmExtraAdd" class="mt-2 text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded">+ Cargo</button>
+        <p class="text-[10px] text-slate-500 mt-2">"Al inventario" desmarcado = el cargo va a gasto (601.14 fletes), no al costo del producto. El IVA de estos cargos va en el campo IVA de arriba.</p>
+      </div>
+
       <button type="button" id="rmConfirmar" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-3 rounded-lg text-sm hidden">✅ Confirmar recepción</button>
       <p id="rmMsg" class="text-xs min-h-[1rem]"></p>
 
@@ -803,6 +825,7 @@ function rmRenderDetalle(oc) {
       </div>`;
 
     btn.classList.remove('hidden');
+    rmInitExtras();
 
     const recalc = () => {
         let st = 0;
@@ -830,19 +853,89 @@ function rmTcActual() {
     return moneda !== 'MXN' ? (parseFloat(document.getElementById('rmTipoCambio')?.value) || 1) : 1;
 }
 
-// Inserta el detalle + mueve inventario FIFO + guarda lote del proveedor y caducidad.
-async function rmAplicarEntradaLinea(documentoId, productoId, cantidad, costo, lote, caducidad) {
+// ---- Landed cost: flete / seguro / etc. de la factura ----
+const RM_EXTRA_CONCEPTOS = ['Flete', 'Seguro', 'Maniobras', 'Aduana / pedimento', 'Otro'];
+
+function rmExtraFila(concepto, monto, cap) {
+    const opts = RM_EXTRA_CONCEPTOS.map(c => `<option${c === concepto ? ' selected' : ''}>${c}</option>`).join('');
+    return `<tr>
+      <td class="p-1.5"><select class="rmx-concepto bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-xs text-slate-100">${opts}</select></td>
+      <td class="p-1.5 text-right"><input type="number" step="0.01" min="0" class="rmx-monto w-24 bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-xs text-slate-100 text-right font-mono" value="${monto ?? ''}"></td>
+      <td class="p-1.5 text-center"><input type="checkbox" class="rmx-cap accent-emerald-500 w-4 h-4"${cap ? ' checked' : ''}></td>
+      <td class="p-1.5 text-right"><button type="button" class="rmx-del text-rose-400 hover:text-rose-300 text-xs px-1">✕</button></td>
+    </tr>`;
+}
+
+function rmExtrasRecalc() {
+    let cap = 0;
+    document.querySelectorAll('#rmExtrasBody tr').forEach(tr => {
+        const m = parseFloat(tr.querySelector('.rmx-monto').value) || 0;
+        if (m > 0 && tr.querySelector('.rmx-cap').checked) cap += m;
+    });
+    const el = document.getElementById('rmExtrasTotal');
+    if (el) el.textContent = money(cap);
+}
+
+function rmExtrasWire() {
+    const body = document.getElementById('rmExtrasBody');
+    if (!body) return;
+    body.querySelectorAll('.rmx-del').forEach(b => b.onclick = () => { b.closest('tr').remove(); rmExtrasRecalc(); });
+    body.querySelectorAll('.rmx-monto').forEach(el => el.oninput = rmExtrasRecalc);
+    body.querySelectorAll('.rmx-cap').forEach(el => el.onchange = rmExtrasRecalc);
+    rmExtrasRecalc();
+}
+
+function rmInitExtras() {
+    const wrap = document.getElementById('rmExtrasWrap');
+    if (!wrap) return;
+    wrap.classList.remove('hidden');
+    const body = document.getElementById('rmExtrasBody');
+    if (body && !body.children.length) body.innerHTML = rmExtraFila('Flete', '', true) + rmExtraFila('Seguro', '', true);
+    const add = document.getElementById('rmExtraAdd');
+    if (add) add.onclick = () => { body.insertAdjacentHTML('beforeend', rmExtraFila('Otro', '', true)); rmExtrasWire(); };
+    rmExtrasWire();
+}
+
+function rmLeerExtras() {
+    return [...document.querySelectorAll('#rmExtrasBody tr')].map(tr => ({
+        concepto: tr.querySelector('.rmx-concepto').value,
+        monto: parseFloat(tr.querySelector('.rmx-monto').value) || 0,
+        capitaliza: tr.querySelector('.rmx-cap').checked,
+    })).filter(e => e.monto > 0);
+}
+
+// Convierte los extras a MXN, reparte por valor y anota landedUnit / adicUnit en cada línea.
+function rmAplicarLanded(lineas, tc) {
+    const extras = rmLeerExtras().map(e => ({
+        concepto: e.concepto, monto: e.monto * (tc || 1), capitaliza: e.capitaliza, cuenta_gasto_id: null,
+    }));
+    const capTotal = extras.filter(e => e.capitaliza).reduce((a, e) => a + e.monto, 0);
+    const matSubtotal = lineas.reduce((a, l) => a + l.cantidad * l.costo, 0);
+    lineas.forEach(l => {
+        const lineSub = l.cantidad * l.costo;
+        const extraLinea = (capTotal > 0 && matSubtotal > 0) ? capTotal * (lineSub / matSubtotal) : 0;
+        l.adicUnit = l.cantidad > 0 ? extraLinea / l.cantidad : 0;
+        l.landedUnit = l.costo + l.adicUnit;
+    });
+    return { extras, matSubtotal, capTotal };
+}
+
+// Inserta el detalle (costo MATERIAL) + mueve inventario FIFO (costo LANDED) +
+// guarda lote del proveedor, caducidad y la parte adicional del costo.
+async function rmAplicarEntradaLinea(documentoId, productoId, cantidad, costo, lote, caducidad, landedUnit, adicUnit) {
     const { error: eDet } = await supabaseClient.from('documento_detalles').insert([{
         documento_id: documentoId, producto_id: productoId, cantidad, costo_unitario: costo, subtotal: cantidad * costo,
     }]);
     if (eDet) throw eDet;
 
+    const costoLote = (landedUnit != null && landedUnit > 0) ? landedUnit : costo;
     const { error: eFifo } = await supabaseClient.rpc('registrar_movimiento_inventario_fifo', {
         p_producto_id: productoId, p_cantidad: cantidad, p_tipo_movimiento: 'entrada',
-        p_documento_id: documentoId, p_costo_unitario: costo, p_numero_lote: lote,
+        p_documento_id: documentoId, p_costo_unitario: costoLote, p_numero_lote: lote,
     });
     if (eFifo) throw eFifo;
 
+    let loteRowId = null;
     try {
         let { data: loteRow } = await supabaseClient.from('lotes_inventario')
             .select('id').eq('producto_id', productoId).eq('numero_lote', lote)
@@ -853,14 +946,23 @@ async function rmAplicarEntradaLinea(documentoId, productoId, cantidad, costo, l
                 .order('created_at', { ascending: false }).limit(1).maybeSingle());
         }
         if (loteRow) {
+            loteRowId = loteRow.id;
             await supabaseClient.from('lotes_inventario')
                 .update({ lote_proveedor: lote, fecha_caducidad: caducidad }).eq('id', loteRow.id);
         }
     } catch (_) { /* columnas de caducidad aún no existen */ }
+
+    if (loteRowId && adicUnit != null && adicUnit > 0) {
+        try {
+            await supabaseClient.from('lotes_inventario')
+                .update({ costo_adicional_unitario: adicUnit }).eq('id', loteRowId);
+        } catch (_) { /* falta sql/2026-09-20_landed_cost.sql */ }
+    }
 }
 
 // Contabiliza el documento con los importes del bloque fiscal. Devuelve un texto de estado.
-async function rmContabilizarDoc(documentoId, subtotalFallback) {
+// extras: cargos adicionales (flete/seguro) YA en MXN, de rmAplicarLanded().
+async function rmContabilizarDoc(documentoId, subtotalFallback, extras) {
     const chk = document.getElementById('rmContabilizar');
     if (rmSinContab || !chk || !chk.checked) return '';
     const nf = (id) => Math.max(0, parseFloat(document.getElementById(id)?.value) || 0);
@@ -869,6 +971,9 @@ async function rmContabilizarDoc(documentoId, subtotalFallback) {
     const tc = moneda !== 'MXN' ? (parseFloat(document.getElementById('rmTipoCambio')?.value) || 1) : 1;
     let subtotal = nf('rmSubtotal') * tc;
     if (subtotal <= 0) subtotal = subtotalFallback;   // el fallback ya viene en MXN
+    // Con cargos adicionales: el subtotal enviado es SOLO material (los extras van aparte),
+    // para no contarlos dos veces si el CFDI ya los traía como partida.
+    if (Array.isArray(extras) && extras.length) subtotal = subtotalFallback;
     const condicion = document.getElementById('rmCondicion').value;
     try {
         const { data: cc, error: eCc } = await supabaseClient.rpc('contabilizar_compra', {
@@ -877,6 +982,9 @@ async function rmContabilizarDoc(documentoId, subtotalFallback) {
                 subtotal,
                 iva: nf('rmIva') * tc, ieps: nf('rmIeps') * tc, ret_iva: nf('rmRetIva') * tc, ret_isr: nf('rmRetIsr') * tc,
                 condicion,
+                costos_adicionales: (extras || []).map(e => ({
+                    concepto: e.concepto, monto: e.monto, capitaliza: e.capitaliza, cuenta_gasto_id: e.cuenta_gasto_id || null,
+                })),
                 tipo_cambio: tc,
                 forma_pago: document.getElementById('rmFormaPago')?.value || null,
                 metodo_pago: document.getElementById('rmMetodoPago')?.value || null,
@@ -928,6 +1036,7 @@ async function rmConfirmar(ocs) {
 
     const tc = rmTcActual();
     if (tc !== 1) lineas.forEach(l => { l.costo = l.costo * tc; });   // a MXN
+    const landed = rmAplicarLanded(lineas, tc);   // reparte flete/seguro -> l.landedUnit / l.adicUnit
 
     const btn = document.getElementById('rmConfirmar');
     btn.disabled = true;
@@ -960,16 +1069,16 @@ async function rmConfirmar(ocs) {
                 await supabaseClient.from('ordenes_compra_detalle').update({ producto_id: productoId }).eq('id', l.det.id);
             }
 
-            await rmAplicarEntradaLinea(documentoId, productoId, l.cantidad, l.costo, l.lote, l.caducidad);
-            // Deja el costo del catálogo con el último costo de compra (en MXN).
-            await supabaseClient.from('productos').update({ costo_unitario: l.costo }).eq('id', productoId);
+            await rmAplicarEntradaLinea(documentoId, productoId, l.cantidad, l.costo, l.lote, l.caducidad, l.landedUnit, l.adicUnit);
+            // Deja el costo del catálogo con el último costo de compra (landed, en MXN).
+            await supabaseClient.from('productos').update({ costo_unitario: (l.landedUnit ?? l.costo) }).eq('id', productoId);
 
             await supabaseClient.from('ordenes_compra_detalle')
                 .update({ cantidad_recibida: Number(l.det.cantidad_recibida || 0) + l.cantidad })
                 .eq('id', l.det.id);
         }
 
-        const msgContab = await rmContabilizarDoc(documentoId, lineas.reduce((a, l) => a + l.cantidad * l.costo, 0));
+        const msgContab = await rmContabilizarDoc(documentoId, landed.matSubtotal, landed.extras);
 
         // Recalcular estatus de la OC
         const { data: detFresco } = await supabaseClient.from('ordenes_compra_detalle')
@@ -1060,6 +1169,7 @@ function rmRenderDetalleXml(conceptos, meta) {
         </div>
       </div>`;
     btn.classList.remove('hidden');
+    rmInitExtras();
 
     cont.querySelectorAll('.rm-prod-select').forEach(sel => {
         const tr = sel.closest('tr');
@@ -1125,6 +1235,7 @@ async function rmConfirmarXml() {
 
     const tc = rmTcActual();
     if (tc !== 1) lineas.forEach(l => { l.costo = l.costo * tc; });   // a MXN
+    const landed = rmAplicarLanded(lineas, tc);
 
     const btn = document.getElementById('rmConfirmar');
     btn.disabled = true;
@@ -1155,8 +1266,8 @@ async function rmConfirmarXml() {
                 if (eNp) throw eNp;
                 productoId = np.id;
             }
-            await rmAplicarEntradaLinea(documentoId, productoId, l.cantidad, l.costo, l.lote, l.caducidad);
-            await supabaseClient.from('productos').update({ costo_unitario: l.costo }).eq('id', productoId);
+            await rmAplicarEntradaLinea(documentoId, productoId, l.cantidad, l.costo, l.lote, l.caducidad, l.landedUnit, l.adicUnit);
+            await supabaseClient.from('productos').update({ costo_unitario: (l.landedUnit ?? l.costo) }).eq('id', productoId);
 
             // Homologación: si se eligió a mano un producto existente para una
             // partida que el CFDI trae con su propia clave, se guarda esa
@@ -1174,7 +1285,7 @@ async function rmConfirmarXml() {
             }
         }
 
-        const msgContab = await rmContabilizarDoc(documentoId, lineas.reduce((a, l) => a + l.cantidad * l.costo, 0));
+        const msgContab = await rmContabilizarDoc(documentoId, landed.matSubtotal, landed.extras);
         alert(`✅ Recepción registrada (documento #${documentoId}).${msgContab}`);
 
         if (typeof cargarInventarioCompleto === 'function') await cargarInventarioCompleto();
