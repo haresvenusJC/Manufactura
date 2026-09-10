@@ -504,7 +504,7 @@ export async function cargarModuloReciboMercancia() {
           </tr></tfoot>
         </table>
         <button type="button" id="rmExtraAdd" class="mt-2 text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded">+ Cargo</button>
-        <p class="text-[10px] text-slate-500 mt-2">"Al inventario" desmarcado = el cargo va a gasto (601.14 fletes), no al costo del producto. El IVA de estos cargos va en el campo IVA de arriba.</p>
+        <p class="text-[10px] text-slate-500 mt-2">"Al inventario" marcado = se capitaliza al costo del producto (115.xx) — es lo que recomienda NIF C-4 para flete/seguro necesarios para poner la mercancía en su ubicación y condición de venta. Desmarcado = el cargo va a gasto (601.14 fletes), recomendable solo si el cargo no es atribuible a la mercancía recibida. El IVA de estos cargos va en el campo IVA de arriba.</p>
         <p id="rmExtrasAviso" class="text-[10px] text-amber-400 mt-1"></p>
       </div>
 
@@ -893,12 +893,23 @@ function rmClasificarConceptos(conceptos) {
     return { productos, cargos };
 }
 
+// Explica el impacto contable de cada decisión y por qué NIF C-4 la respalda,
+// para que quede claro renglón por renglón (no solo al momento del diálogo).
+function rmxNotaTexto(cap) {
+    return cap
+        ? '✓ Se capitaliza a 115.xx (inventario) — es la opción que recomienda NIF C-4.'
+        : '⚠ Va a gasto 601.14 — NIF C-4 solo lo recomienda si el cargo no es atribuible a la mercancía recibida.';
+}
+
 function rmExtraFila(concepto, monto, cap) {
     const opts = RM_EXTRA_CONCEPTOS.map(c => `<option${c === concepto ? ' selected' : ''}>${c}</option>`).join('');
     return `<tr>
       <td class="p-1.5"><select class="rmx-concepto bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-xs text-slate-100">${opts}</select></td>
       <td class="p-1.5 text-right"><input type="number" step="0.01" min="0" class="rmx-monto w-24 bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-xs text-slate-100 text-right font-mono" value="${monto ?? ''}"></td>
-      <td class="p-1.5 text-center"><input type="checkbox" class="rmx-cap accent-emerald-500 w-4 h-4"${cap ? ' checked' : ''}></td>
+      <td class="p-1.5 text-center">
+        <input type="checkbox" class="rmx-cap accent-emerald-500 w-4 h-4"${cap ? ' checked' : ''}>
+        <div class="rmx-nota text-[9px] mt-0.5 leading-tight ${cap ? 'text-emerald-500' : 'text-amber-500'}" style="max-width:8.5rem">${rmxNotaTexto(cap)}</div>
+      </td>
       <td class="p-1.5 text-right"><button type="button" class="rmx-del text-rose-400 hover:text-rose-300 text-xs px-1">✕</button></td>
     </tr>`;
 }
@@ -906,8 +917,11 @@ function rmExtraFila(concepto, monto, cap) {
 function rmExtrasRecalc() {
     let cap = 0;
     document.querySelectorAll('#rmExtrasBody tr').forEach(tr => {
-        const m = parseFloat(tr.querySelector('.rmx-monto').value) || 0;
-        if (m > 0 && tr.querySelector('.rmx-cap').checked) cap += m;
+        const montoEl = tr.querySelector('.rmx-monto');
+        const capEl = tr.querySelector('.rmx-cap');
+        if (!montoEl || !capEl) return;
+        const m = parseFloat(montoEl.value) || 0;
+        if (m > 0 && capEl.checked) cap += m;
     });
     const el = document.getElementById('rmExtrasTotal');
     if (el) el.textContent = money(cap);
@@ -918,7 +932,14 @@ function rmExtrasWire() {
     if (!body) return;
     body.querySelectorAll('.rmx-del').forEach(b => b.onclick = () => { b.closest('tr').remove(); rmExtrasRecalc(); });
     body.querySelectorAll('.rmx-monto').forEach(el => el.oninput = rmExtrasRecalc);
-    body.querySelectorAll('.rmx-cap').forEach(el => el.onchange = rmExtrasRecalc);
+    body.querySelectorAll('.rmx-cap').forEach(el => el.onchange = () => {
+        const nota = el.closest('td').querySelector('.rmx-nota');
+        if (nota) {
+            nota.textContent = rmxNotaTexto(el.checked);
+            nota.className = `rmx-nota text-[9px] mt-0.5 leading-tight ${el.checked ? 'text-emerald-500' : 'text-amber-500'}`;
+        }
+        rmExtrasRecalc();
+    });
     rmExtrasRecalc();
 }
 
@@ -940,6 +961,61 @@ function rmInitExtras(seed) {
         const aviso = document.getElementById('rmExtrasAviso');
         if (aviso) aviso.textContent = `Detectados en el CFDI y precargados aquí (no se recibieron como producto): ${seed.map((s) => s.concepto).join(', ')}.`;
     }
+}
+
+// Cada vez que se detecten cargos tipo flete/seguro/maniobras/aduana en un
+// CFDI, se PREGUNTA si se deben incluir en el landed cost — nunca se asume
+// en automático. Devuelve {usar, declinado}: usar = los cargos a precargar
+// en el panel (vacío si el usuario dice que no), declinado = true si había
+// cargos y el usuario eligió no incluirlos (para poder avisarle igual).
+function rmPreguntarLandedCost(cargos) {
+    if (!cargos || !cargos.length) return Promise.resolve({ usar: [], declinado: false });
+    return new Promise((resolve) => {
+        const total = cargos.reduce((s, c) => s + (c.monto || 0), 0);
+        const detalle = cargos.map((c) => `<div>· ${esc(c.concepto)}: <b class="font-mono">${money(c.monto)}</b></div>`).join('');
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4';
+        modal.innerHTML = `
+          <div class="bg-slate-900 border border-slate-700 rounded-xl p-5 max-w-md w-full text-sm text-slate-200 shadow-2xl">
+            <h3 class="text-sky-400 font-semibold mb-1">⚠ Detecté cargos de flete / seguro en la factura</h3>
+            <div class="text-xs text-slate-400 mb-3">${detalle}<div class="mt-1 text-slate-300">Total: <b class="font-mono">${money(total)}</b></div></div>
+            <p class="text-xs text-slate-400 mb-2">¿Cómo se contabilizan?</p>
+            <div class="space-y-2 mb-4">
+              <label class="flex items-start gap-2 bg-emerald-950/40 border border-emerald-700 rounded-lg p-2 cursor-pointer">
+                <input type="radio" name="rmDecCargos" value="landed" checked class="mt-1 accent-emerald-500">
+                <span><b class="text-emerald-400">Incluir en landed cost</b> <span class="text-emerald-500">(preset · recomendado)</span> — se prorratean por valor y se cargan al costo del lote / cuenta de inventario (115.xx), no a gasto. Es lo que pide NIF C-4 para flete/seguro necesarios para poner la mercancía en su ubicación y condición de venta.</span>
+              </label>
+              <label class="flex items-start gap-2 bg-slate-950 border border-slate-800 rounded-lg p-2 cursor-pointer">
+                <input type="radio" name="rmDecCargos" value="gasto" class="mt-1 accent-amber-500">
+                <span><b class="text-amber-400">No incluirlos aquí</b> — los registro luego como gasto aparte (601.14 Fletes y acarreos). NIF C-4 solo recomienda esto si el cargo no es atribuible a la mercancía recibida.</span>
+              </label>
+            </div>
+            <div class="flex justify-end gap-2">
+              <button type="button" id="rmDecOk" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded text-xs font-medium">Continuar</button>
+            </div>
+          </div>`;
+        document.body.appendChild(modal);
+        const cerrar = (usar, declinado) => { modal.remove(); resolve({ usar, declinado }); };
+        modal.querySelector('#rmDecOk').onclick = () => {
+            const val = modal.querySelector('input[name="rmDecCargos"]:checked').value;
+            cerrar(val === 'landed' ? cargos : [], val !== 'landed');
+        };
+    });
+}
+
+// Agrega los cargos ya confirmados al panel de Costos adicionales. Si el
+// panel solo tiene los renglones default en blanco (Flete/Seguro sin monto),
+// los reemplaza; si ya tiene datos capturados a mano, los conserva y agrega.
+function rmSembrarExtras(cargos) {
+    const body = document.getElementById('rmExtrasBody');
+    if (!body || !cargos || !cargos.length) return;
+    const filasActuales = [...body.querySelectorAll('tr')];
+    const soloDefaultVacio = filasActuales.every(tr => !parseFloat(tr.querySelector('.rmx-monto')?.value));
+    if (soloDefaultVacio) body.innerHTML = '';
+    cargos.forEach((c) => body.insertAdjacentHTML('beforeend', rmExtraFila(c.concepto, c.monto, true)));
+    rmExtrasWire();
+    const aviso = document.getElementById('rmExtrasAviso');
+    if (aviso) aviso.textContent = `Detectados en el CFDI y precargados aquí (no se recibieron como producto): ${cargos.map((s) => s.concepto).join(', ')}.`;
 }
 
 function rmLeerExtras() {
@@ -1513,6 +1589,8 @@ async function rmProcesarXml(text) {
     let conc = 0;
     const sinMatch = [];
     const cargosOc = [];
+    let cargosDecision = { usar: [], declinado: false };
+    let cargosDetectados = [];
     if (rmOcActual) {
         let claves = [];
         try {
@@ -1560,6 +1638,9 @@ async function rmProcesarXml(text) {
             }
         }
         document.querySelector('#rmDetBody .rm-cant')?.dispatchEvent(new Event('input', { bubbles: true }));
+        cargosDetectados = cargosOc;
+        cargosDecision = await rmPreguntarLandedCost(cargosOc);
+        if (cargosDecision.usar.length) rmSembrarExtras(cargosDecision.usar);
     } else {
         // Sin orden de compra: arma la recepción directamente del CFDI.
         let provId = null;
@@ -1581,10 +1662,13 @@ async function rmProcesarXml(text) {
                 });
             } catch (_) { /* tabla de claves aún no existe */ }
         }
-        // Flete / seguro / maniobras / aduana: NO se reciben como producto —
-        // se precargan en el panel de Costos adicionales (landed cost).
+        // Flete / seguro / maniobras / aduana: NO se reciben como producto.
+        // Se pregunta si se incluyen en el landed cost antes de precargarlos
+        // en el panel de Costos adicionales.
         const { productos: conceptosProducto, cargos } = rmClasificarConceptos(conceptos);
-        rmCargosXml = cargos;
+        cargosDetectados = cargos;
+        cargosDecision = await rmPreguntarLandedCost(cargos);
+        rmCargosXml = cargosDecision.usar;
         rmRenderDetalleXml(conceptosProducto, {
             proveedorId: provId, rfc: rfcEmisor, nombreEmisor, uuid, folio, claves: clavesMap, clavesSat: clavesSatMap,
             regimenFiscal: regimenEmisor, usoCfdi, formaPago, metodoPago, moneda, cp: cpEmisor,
@@ -1612,8 +1696,11 @@ async function rmProcesarXml(text) {
         if (sinMatch.length) {
             info.innerHTML += `<br><span class="text-[10px] text-amber-400">Sin coincidencia: ${sinMatch.slice(0, 8).map(esc).join(' · ')}${sinMatch.length > 8 ? '…' : ''}. Ajusta a mano o agrega la clave del proveedor en Catálogos → Productos.</span>`;
         }
-        if (cargosOc.length) {
-            info.innerHTML += `<br><span class="text-[10px] text-amber-400">⚠ Detecté ${cargosOc.map((c) => `${esc(c.concepto)} ${money(c.monto)}`).join(', ')} en el XML — NO se recibieron como producto. Captúralos a mano en "Costos adicionales (landed cost)" abajo.</span>`;
+        if (cargosDetectados.length) {
+            const lista = cargosDetectados.map((c) => `${esc(c.concepto)} ${money(c.monto)}`).join(', ');
+            info.innerHTML += cargosDecision.declinado
+                ? `<br><span class="text-[10px] text-amber-400">⚠ Detecté ${lista} en el XML — NO se recibieron como producto y elegiste no incluirlos en el landed cost. Regístralos como gasto aparte si aplica.</span>`
+                : `<br><span class="text-[10px] text-emerald-400">✓ ${lista} incluidos en "Costos adicionales (landed cost)" abajo — no se recibieron como producto.</span>`;
         }
         if (sinProveedor && nombreEmisor) {
             info.innerHTML += `<br><button type="button" id="rmBtnAltaProveedor" class="mt-1 text-[11px] bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2.5 py-1 rounded">➕ Dar de alta a "${esc(nombreEmisor)}" y vincularlo</button><div id="rmAltaProvForm"></div>`;
