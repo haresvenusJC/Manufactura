@@ -372,10 +372,10 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
                 <div class="sm:col-span-2 print:hidden">
                     <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-semibold">Póliza contable</span>
                     ${docInfo.poliza_id
-                        ? `<button onclick="window.verPolizaDeDocumento(${docInfo.poliza_id}, '${docInfo.fecha_emision || ''}')" class="mt-1 text-xs bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-900 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5" style="cursor:pointer;">🧾 Ver póliza #${docInfo.poliza_id}</button>`
-                        : `<span class="text-xs text-amber-400">Sin póliza — este documento no se contabilizó.</span>`}
+                        ? `<button onclick="window.verPolizaDeDocumento(${docInfo.poliza_id}, '${docInfo.fecha_emision || ''}')" class="mt-1 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 shadow-sm" style="cursor:pointer;">🧾 Ver póliza #${docInfo.poliza_id}</button>`
+                        : `<span class="text-xs text-amber-500 font-medium">Sin póliza — este documento no se contabilizó.</span>`}
                     ${(['entrada_compra', 'entrada'].includes(docInfo.tipo_movimiento) && docInfo.estado !== 'cancelado')
-                        ? `<button onclick="window.cancelarReciboDesdeDoc(${docInfo.id})" class="mt-1 ml-2 text-xs bg-rose-950/60 hover:bg-rose-900/70 text-rose-300 border border-rose-900 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5" style="cursor:pointer;">↩ Cancelar recibo y revertir inventario</button>`
+                        ? `<button onclick="window.cancelarReciboDesdeDoc(${docInfo.id})" class="mt-1 ml-2 text-xs bg-rose-600 hover:bg-rose-500 text-white font-semibold border border-rose-700 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 shadow-sm" style="cursor:pointer;">↩ Cancelar recibo y revertir inventario</button>`
                         : ''}
                     ${docInfo.estado === 'cancelado' ? `<span class="ml-2 text-xs text-rose-400">Documento cancelado</span>` : ''}
                 </div>

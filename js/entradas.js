@@ -364,7 +364,7 @@ async function cargarHistorialEntradas() {
                 ).join('');
             }
             const polCell = doc.poliza_id
-                ? `<button type="button" onclick="window.verPolizaDeDocumento(${doc.poliza_id}, '${doc.fecha_emision || ''}')" class="text-[11px] bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-900 px-2 py-1 rounded cursor-pointer">🧾 Póliza #${doc.poliza_id}</button>`
+                ? `<button type="button" onclick="window.verPolizaDeDocumento(${doc.poliza_id}, '${doc.fecha_emision || ''}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer">🧾 Póliza #${doc.poliza_id}</button>`
                 : `<span class="text-[11px] text-slate-600">— sin póliza —</span>`;
 
             html += `

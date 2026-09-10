@@ -100,7 +100,7 @@ async function prCargar() {
         html += `<div class="bg-emerald-950/30 border border-emerald-800 rounded-xl p-3 mb-4 flex flex-wrap items-center justify-between gap-2">
             <div class="text-sm">
               <span class="text-emerald-400 font-semibold">Prorrateo aplicado</span>
-              <span class="text-slate-400"> &middot; ${cor.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${cor.poliza_id}, null)" class="text-[11px] bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-900 px-2 py-0.5 rounded cursor-pointer">🧾 Póliza #${cor.poliza_id}</button>` : 'poliza #-'} &middot; aplicado ${money(cor.total_aplicado)} &middot; ociosidad ${money(cor.total_ocioso)} &middot; ${cor.gastos_incluidos} gasto(s)</span>
+              <span class="text-slate-400"> &middot; ${cor.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${cor.poliza_id}, null)" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-0.5 rounded cursor-pointer">🧾 Póliza #${cor.poliza_id}</button>` : 'poliza #-'} &middot; aplicado ${money(cor.total_aplicado)} &middot; ociosidad ${money(cor.total_ocioso)} &middot; ${cor.gastos_incluidos} gasto(s)</span>
             </div>
             <button type="button" id="prCancelar" class="text-xs bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-3 py-1.5 rounded-lg">Cancelar prorrateo del mes</button>
           </div>`;

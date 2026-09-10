@@ -1199,7 +1199,7 @@ async function renderizarDetalleOrden(idSeleccionado, ordenes, contenedorDetalle
                 <div class="md:col-span-5">
                     <span class="text-xs text-slate-400 block">PÓLIZA CONTABLE</span>
                     ${docPolizaId
-                        ? `<button type="button" onclick="window.verPolizaDeDocumento(${docPolizaId}, '${docPolizaFecha || ''}')" class="mt-1 text-xs bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-900 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 cursor-pointer">🧾 Ver póliza #${docPolizaId}</button>`
+                        ? `<button type="button" onclick="window.verPolizaDeDocumento(${docPolizaId}, '${docPolizaFecha || ''}')" class="mt-1 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 cursor-pointer">🧾 Ver póliza #${docPolizaId}</button>`
                         : `<span class="text-xs text-amber-400">Sin póliza — esta orden no se ha contabilizado.</span>`}
                 </div>
             </div>

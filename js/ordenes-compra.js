@@ -713,7 +713,7 @@ async function rmRecepciones() {
 
         let query = supabaseClient
             .from('documentos')
-            .select('id, folio, fecha_emision, total, poliza_id, orden_compra_id, proveedor_id, notas, proveedores ( nombre ), ordenes_compra ( folio ), documento_detalles ( cantidad, subtotal )', { count: 'exact' })
+            .select('id, folio, fecha_emision, total, poliza_id, orden_compra_id, proveedor_id, notas, estado, proveedores ( nombre ), ordenes_compra ( folio ), documento_detalles ( cantidad, subtotal )', { count: 'exact' })
             .eq('tipo_movimiento', 'entrada_compra');
         // Sin filtro por orden_compra_id: las recepciones directas desde XML
         // (sin OC) tambien cuentan como recepciones registradas.
@@ -745,15 +745,16 @@ async function rmRecepciones() {
                   const dets = d.documento_detalles || [];
                   const total = d.total != null ? Number(d.total) : dets.reduce((a, x) => a + Number(x.subtotal || 0), 0);
                   const fecha = d.fecha_emision ? String(d.fecha_emision).slice(0, 10) : '';
+                  const cancelado = d.estado === 'cancelado';
                   return `
-                    <tr class="border-b border-slate-900">
+                    <tr class="border-b border-slate-900${cancelado ? ' opacity-60' : ''}">
                       <td class="p-2"><button type="button" onclick="window.abrirDetalleDocumentoGlobal(${d.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded">Ver</button></td>
                       <td class="p-2 whitespace-nowrap text-slate-400">${fecha}</td>
-                      <td class="p-2 font-mono text-emerald-300">${esc(d.ordenes_compra?.folio || d.folio || '#' + d.id)}</td>
+                      <td class="p-2 font-mono text-emerald-300">${esc(d.ordenes_compra?.folio || d.folio || '#' + d.id)}${cancelado ? ' <span class="text-rose-500 font-sans font-semibold">· CANCELADO</span>' : ''}</td>
                       <td class="p-2">${esc(d.proveedores?.nombre || '—')}</td>
                       <td class="p-2 text-right font-mono">${dets.length}</td>
                       <td class="p-2 text-right font-mono">${money(total)}</td>
-                      <td class="p-2">${d.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${d.poliza_id}, '${fecha}')" class="text-[11px] bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-900 px-2 py-1 rounded cursor-pointer">🧾 Póliza #${d.poliza_id}</button>` : '<span class="text-slate-500">—</span>'}</td>
+                      <td class="p-2">${d.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${d.poliza_id}, '${fecha}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer">🧾 Póliza #${d.poliza_id}</button>` : '<span class="text-slate-500">—</span>'}</td>
                     </tr>`;
               }).join('')}
             </tbody>
