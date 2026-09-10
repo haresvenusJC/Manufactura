@@ -769,6 +769,18 @@ costo total de la orden   117,398.00
     <h2><span class="n">7</span>Parte 7 — Recibir mercancía: landed cost, conversión y flete/seguro</h2>
     <p class="lead">Esto lo haces cada vez que llega mercancía de un proveedor, con o sin orden de compra. El costo real de cada pieza no es solo lo que dice la factura por unidad: hay que sumar flete/seguro cuando aplica y, si la factura viene en otra presentación (millar, tambo…), convertir bien antes de guardar.</p>
 
+    <h3>Cómo cargar la factura: XML, PDF o QR</h3>
+    <p>En Recibo de mercancía hay tres botones para traer los datos de la factura, en vez de capturarlos todos a mano:</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Botón</th><th>Qué trae</th><th>Confiabilidad</th></tr></thead>
+      <tbody>
+        <tr><td><strong>📄 Importar XML</strong></td><td>Todos los campos fiscales (fecha, folio, UUID, RFC, forma/método de pago, moneda, subtotal, IVA, IEPS, retenciones) y <strong>todas las partidas</strong> (cantidad, costo, clave SAT) — lectura exacta, es el archivo estructurado del CFDI.</td><td>Alta — úsalo siempre que lo tengas.</td></tr>
+        <tr><td><strong>📕 Importar PDF</strong></td><td>Los mismos campos que el XML, leyendo el texto de la representación impresa cuando no tienes el archivo XML a la mano.</td><td>Menor — el PDF no tiene etiquetas como el XML, así que es "mejor esfuerzo": revisa siempre cantidades, costos y el RFC antes de confirmar. Si algo no se pudo leer con certeza, aparece un aviso ámbar explicando qué.</td></tr>
+        <tr><td><strong>🔳 Leer QR</strong></td><td>Solo UUID, RFC y total, a partir de una foto del código QR de la factura.</td><td>Alta para esos tres datos, pero no trae partidas ni el desglose de impuestos — captúralos a mano.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Con XML o PDF, el resto del flujo es idéntico: conciliación contra la orden de compra (si hay una seleccionada), detección de flete/seguro (más abajo) y la calculadora de conversión de presentación.</p>
+
     <h3>1. Si la factura viene en otra presentación (millar, gruesa, tambo, saco…)</h3>
     <p>Muchas facturas de materia prima cotizan por millar, gruesa, tambo o saco en vez de por pieza/kg/litro. El error típico: convertir la <em>cantidad</em> a la unidad del catálogo (40 millares → 40,000 piezas) pero dejar el <em>costo</em> tal cual venía en la factura ($241.38, que era por millar, no por pieza) — el costo del lote se dispara ~1000×.</p>
     <ol class="steps">
@@ -780,8 +792,8 @@ costo total de la orden   117,398.00
         <p>Calcula <code>cantidad × factor</code> y <code>precio ÷ factor</code>, y los escribe directo en los campos de cantidad y costo real de esa partida.</p></li>
     </ol>
 
-    <h3>2. Si detecta flete, seguro, maniobras o aduana en el XML</h3>
-    <p>Al importar el XML de la factura (con o sin orden de compra), el sistema reconoce por la descripción si un concepto es <strong>flete, seguro, maniobras o aduana/pedimento</strong> — no mercancía — y lo saca del flujo de "recibir como producto". Antes de esta versión estos conceptos se recibían como si fueran un producto más (cantidad 1), generando artículos falsos en el catálogo (p. ej. "ENVIO", "SEGURO DE ENVIO") que además inflaban el costo del lote real.</p>
+    <h3>2. Si detecta flete, seguro, maniobras o aduana en la factura</h3>
+    <p>Al importar el XML o el PDF de la factura (con o sin orden de compra), el sistema reconoce por la descripción si un concepto es <strong>flete, seguro, maniobras o aduana/pedimento</strong> — no mercancía — y lo saca del flujo de "recibir como producto". Antes de esta versión estos conceptos se recibían como si fueran un producto más (cantidad 1), generando artículos falsos en el catálogo (p. ej. "ENVIO", "SEGURO DE ENVIO") que además inflaban el costo del lote real.</p>
     <p>Cada vez que se detectan aparece una ventana que <strong>pregunta explícitamente</strong> qué hacer — nunca se asume en automático:</p>
     <div class="tbl"><table>
       <thead><tr><th>Opción</th><th>Impacto contable</th><th>¿Cuándo conviene?</th></tr></thead>

@@ -1,6 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { cargarInventarioCompleto } from './inventario.js';
 import { REGIMENES } from './proveedores.js';
+import { parsearCfdi, extraerTextoPdf, parsearCfdiPdf } from './cfdi.js';
 
 // =====================================================================
 //  Órdenes de compra + Recibo de mercancía  (Fase 1: captura y recepción
@@ -476,11 +477,14 @@ export async function cargarModuloReciboMercancia() {
           </div>
           <div class="flex gap-2">
             <input type="file" id="rmXmlFile" accept=".xml,text/xml,application/xml" class="hidden">
+            <input type="file" id="rmPdfFile" accept=".pdf,application/pdf" class="hidden">
             <input type="file" id="rmQrFile" accept="image/*" class="hidden">
             <button type="button" id="rmBtnXml" title="Cargar el XML del CFDI para prellenar impuestos y conciliar partidas" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-2 rounded-lg">📄 Importar XML</button>
+            <button type="button" id="rmBtnPdf" title="Cargar el PDF de la factura cuando no tengas el XML — mismos campos, mejor esfuerzo (revisa lo que se precargue)" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-2 rounded-lg">📕 Importar PDF</button>
             <button type="button" id="rmBtnQr" title="Leer una foto del QR del CFDI (UUID, RFC, total)" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-2 rounded-lg">🔳 Leer QR</button>
           </div>
         </div>
+        <p class="text-[11px] text-amber-400 mt-2">⚠ Si importas el PDF: siempre revisa cantidades y costos antes de confirmar — igual de importante que con el XML, pero aquí es más probable que haga falta ajustar algo a mano.</p>
         <p id="rmImportInfo" class="text-[11px] text-slate-400 mt-2"></p>
       </div>
       <div id="rmDetalle"></div>
@@ -558,10 +562,12 @@ export async function cargarModuloReciboMercancia() {
 
     document.getElementById('rmConfirmar').onclick = () => rmConfirmar(ocs);
 
-    // Importar XML / Leer QR del CFDI
+    // Importar XML / PDF / Leer QR del CFDI
     const xmlFile = document.getElementById('rmXmlFile');
+    const pdfFile = document.getElementById('rmPdfFile');
     const qrFile = document.getElementById('rmQrFile');
     document.getElementById('rmBtnXml').onclick = () => xmlFile.click();
+    document.getElementById('rmBtnPdf').onclick = () => pdfFile.click();
     document.getElementById('rmBtnQr').onclick = () => qrFile.click();
     xmlFile.onchange = () => {
         const f = xmlFile.files && xmlFile.files[0];
@@ -569,6 +575,11 @@ export async function cargarModuloReciboMercancia() {
         const r = new FileReader();
         r.onload = () => { rmProcesarXml(String(r.result || '')); xmlFile.value = ''; };
         r.readAsText(f);
+    };
+    pdfFile.onchange = () => {
+        const f = pdfFile.files && pdfFile.files[0];
+        if (f) rmProcesarPdf(f);
+        pdfFile.value = '';
     };
     qrFile.onchange = () => {
         const f = qrFile.files && qrFile.files[0];
@@ -1501,53 +1512,32 @@ async function rmConfirmarXml() {
 
 // ---- Importar XML del CFDI: prellena impuestos y concilia partidas ----
 async function rmProcesarXml(text) {
+    const r = parsearCfdi(text);
+    if (r.error) { alert('No se pudo leer el XML: ' + r.error); return; }
+    await rmProcesarDatosFactura(r, { icono: '📄', fuente: 'XML' });
+}
+
+// ---- Importar PDF de la factura: mismos campos, mejor esfuerzo (sin XML) ----
+async function rmProcesarPdf(file) {
     const info = document.getElementById('rmImportInfo');
-    let dom;
+    if (info) info.textContent = 'Leyendo el PDF…';
     try {
-        dom = new DOMParser().parseFromString(text, 'application/xml');
-        if (dom.getElementsByTagName('parsererror').length) throw new Error('XML mal formado');
+        const texto = await extraerTextoPdf(file);
+        const r = parsearCfdiPdf(texto);
+        await rmProcesarDatosFactura(r, { icono: '📕', fuente: 'PDF' });
     } catch (e) {
-        alert('No se pudo leer el XML: ' + (e.message || e));
-        return;
+        alert('No se pudo leer el PDF: ' + (e.message || e));
     }
-    const all = [...dom.getElementsByTagName('*')];
-    const byLocal = (name) => all.filter(el => el.localName === name);
-    const comp = byLocal('Comprobante')[0];
-    if (!comp) { alert('El archivo no parece un CFDI (falta el nodo Comprobante).'); return; }
+}
 
-    const A = (el, n) => (el && el.getAttribute(n)) || '';
-    const toNum = (v) => { const x = parseFloat(v); return Number.isFinite(x) ? x : 0; };
-
-    const subtotal = toNum(A(comp, 'SubTotal'));
-    const totalCfdi = toNum(A(comp, 'Total'));
-    const folio = [A(comp, 'Serie'), A(comp, 'Folio')].filter(Boolean).join('-');
-    const emisor = byLocal('Emisor')[0];
-    const rfcEmisor = A(emisor, 'Rfc');
-    const nombreEmisor = A(emisor, 'Nombre');
-    const regimenEmisor = A(emisor, 'RegimenFiscal');
-    const cpEmisor = A(comp, 'LugarExpedicion');
-    const uuid = A(byLocal('TimbreFiscalDigital')[0], 'UUID');
-    const moneda = (A(comp, 'Moneda') || 'MXN').toUpperCase();
-    const tipoCambio = toNum(A(comp, 'TipoCambio')) || 1;
-    const formaPago = A(comp, 'FormaPago');
-    const metodoPago = A(comp, 'MetodoPago');
-    const usoCfdi = A(byLocal('Receptor')[0], 'UsoCFDI');
-
-    let iva = 0, ieps = 0, retIva = 0, retIsr = 0;
-    const impComp = [...comp.children].find(c => c.localName === 'Impuestos');
-    if (impComp) {
-        [...impComp.getElementsByTagName('*')].forEach(nodo => {
-            if (nodo.localName === 'Traslado') {
-                const v = toNum(A(nodo, 'Importe'));
-                if (A(nodo, 'Impuesto') === '002') iva += v;
-                else if (A(nodo, 'Impuesto') === '003') ieps += v;
-            } else if (nodo.localName === 'Retencion') {
-                const v = toNum(A(nodo, 'Importe'));
-                if (A(nodo, 'Impuesto') === '002') retIva += v;
-                else if (A(nodo, 'Impuesto') === '001') retIsr += v;
-            }
-        });
-    }
+// ---- Aplica a la pantalla los datos ya interpretados (de XML o de PDF) ----
+async function rmProcesarDatosFactura(datos, { icono = '📄', fuente = 'XML' } = {}) {
+    const info = document.getElementById('rmImportInfo');
+    const {
+        subtotal, total: totalCfdi, folio, rfcEmisor, nombreEmisor, regimenEmisor,
+        lugarExpedicion: cpEmisor, uuid, moneda, tipoCambio, formaPago, metodoPago,
+        usoCfdi, iva, ieps, retIva, retIsr, conceptos, avisos,
+    } = datos;
 
     const setV = (id, v) => { const el = document.getElementById(id); if (el) el.value = Number(v).toFixed(2); };
     if (!rmSinContab) {
@@ -1577,14 +1567,6 @@ async function rmProcesarXml(text) {
     setSel('rmFormaPago', formaPago);
     setSel('rmMetodoPago', metodoPago);
     setSel('rmUsoCfdi', usoCfdi);
-
-    const conceptos = byLocal('Concepto').map(c => ({
-        claveSat: A(c, 'ClaveProdServ').trim(),
-        noId: A(c, 'NoIdentificacion').trim(),
-        cantidad: toNum(A(c, 'Cantidad')),
-        valorUnitario: toNum(A(c, 'ValorUnitario')),
-        descripcion: A(c, 'Descripcion'),
-    }));
 
     let conc = 0;
     const sinMatch = [];
@@ -1689,7 +1671,7 @@ async function rmProcesarXml(text) {
 
     if (info) {
         const sinProveedor = !rmOcActual && rmXmlMeta && !rmXmlMeta.proveedorId;
-        info.innerHTML = `📄 <b>${esc(nombreEmisor || rfcEmisor || 'CFDI')}</b> · Folio ${esc(folio || '—')} · Total ${money(totalCfdi)} · ${conceptos.length} concepto(s)`
+        info.innerHTML = `${icono} <b>${esc(nombreEmisor || rfcEmisor || fuente)}</b> · Folio ${esc(folio || '—')} · Total ${money(totalCfdi)} · ${conceptos.length} concepto(s)`
             + (rmOcActual
                 ? ` · <span class="text-emerald-400">${conc} conciliado(s)</span>${sinMatch.length ? ` · <span class="text-amber-400">${sinMatch.length} sin coincidencia</span>` : ''}`
                 : ` · <span class="text-emerald-400">recepción directa (sin orden)</span>${sinProveedor ? ' · <span class="text-amber-400">proveedor no identificado por RFC</span>' : ''}`);
@@ -1699,8 +1681,11 @@ async function rmProcesarXml(text) {
         if (cargosDetectados.length) {
             const lista = cargosDetectados.map((c) => `${esc(c.concepto)} ${money(c.monto)}`).join(', ');
             info.innerHTML += cargosDecision.declinado
-                ? `<br><span class="text-[10px] text-amber-400">⚠ Detecté ${lista} en el XML — NO se recibieron como producto y elegiste no incluirlos en el landed cost. Regístralos como gasto aparte si aplica.</span>`
+                ? `<br><span class="text-[10px] text-amber-400">⚠ Detecté ${lista} en el ${fuente} — NO se recibieron como producto y elegiste no incluirlos en el landed cost. Regístralos como gasto aparte si aplica.</span>`
                 : `<br><span class="text-[10px] text-emerald-400">✓ ${lista} incluidos en "Costos adicionales (landed cost)" abajo — no se recibieron como producto.</span>`;
+        }
+        if (avisos && avisos.length) {
+            info.innerHTML += `<br><span class="text-[10px] text-amber-400">⚠ Leído de PDF (menos confiable que el XML) — revisa con cuidado: ${avisos.map(esc).join(' · ')}</span>`;
         }
         if (sinProveedor && nombreEmisor) {
             info.innerHTML += `<br><button type="button" id="rmBtnAltaProveedor" class="mt-1 text-[11px] bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-800 px-2.5 py-1 rounded">➕ Dar de alta a "${esc(nombreEmisor)}" y vincularlo</button><div id="rmAltaProvForm"></div>`;

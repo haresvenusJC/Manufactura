@@ -1,5 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { montarGuia } from './asistente-contable.js';
+import { extraerTextoPdf } from './cfdi.js';
 
 // =====================================================================
 // Contabilidad · Tabla ISR — catálogo versionado de tarifas de retención
@@ -202,31 +203,6 @@ async function isrExtraerDeArchivo() {
     } finally {
         btn.disabled = false;
     }
-}
-
-async function extraerTextoPdf(archivo) {
-    if (!window.pdfjsLib) throw new Error('No se pudo cargar la librería de lectura de PDF (revisa tu conexión y recarga la página).');
-
-    const buffer = await archivo.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-    let textoCompleto = '';
-
-    for (let n = 1; n <= pdf.numPages; n++) {
-        const page = await pdf.getPage(n);
-        const contenido = await page.getTextContent();
-        // Agrupa por renglón (misma coordenada Y) para no perder la
-        // estructura de columnas al concatenar el texto.
-        const porY = new Map();
-        contenido.items.forEach((item) => {
-            const y = Math.round(item.transform[5]);
-            if (!porY.has(y)) porY.set(y, []);
-            porY.get(y).push(item.str);
-        });
-        [...porY.keys()].sort((a, b) => b - a).forEach((y) => {
-            textoCompleto += porY.get(y).join(' ') + '\n';
-        });
-    }
-    return textoCompleto;
 }
 
 async function extraerTextoImagen(archivo, onProgreso) {
