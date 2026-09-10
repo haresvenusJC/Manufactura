@@ -7,7 +7,10 @@ export async function cargarModuloEmpleados() {
     contenedor.innerHTML = `
         <div class="space-y-6 max-w-3xl mx-auto">
             <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
-                <h2 class="text-xl font-bold text-slate-100 mb-1">👷 Catálogo de Empleados</h2>
+                <div class="flex items-center justify-between gap-2 flex-wrap mb-1">
+                    <h2 class="text-xl font-bold text-slate-100">👷 Catálogo de Empleados</h2>
+                    <button type="button" onclick="window.abrirManual('#m-empleados', 'Empleados')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
                 <p class="text-xs text-slate-400 mb-4">Captura el sueldo semanal y las horas semanales de cada empleado; el costo por hora se calcula automáticamente para usarse en los cronómetros de producción.</p>
 
                 <form id="formEmpleado" class="space-y-4">

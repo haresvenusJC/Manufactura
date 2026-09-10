@@ -25,6 +25,7 @@ import { cargarModuloIndice } from './indice.js';
 import { cargarModuloIsr } from './isr.js';
 import { cargarModuloReportes } from './reportes.js';
 import { montarLogin, cerrarSesion } from './auth.js';
+import { abrirManual } from './asistente-contable.js';
 
 // 1. Exposición de funciones al scope global para eventos HTML (onclick)
 window.toggleSubmenu = function(submenuId) {
@@ -168,6 +169,9 @@ window.mostrarTabImportador = function(tab) {
     btnProd.className = `text-xs font-medium px-3 py-1.5 rounded-lg border transition cursor-pointer ${esBom ? inactivo : activo}`;
     btnBom.className = `text-xs font-medium px-3 py-1.5 rounded-lg border transition cursor-pointer ${esBom ? activo : inactivo}`;
 };
+
+// Botón "📖 Cómo llenar esta pantalla" de cada módulo (subventana con el manual).
+window.abrirManual = abrirManual;
 
 // 2. Enrutador global para la navegación de vistas
 window.loadView = function(viewName) {

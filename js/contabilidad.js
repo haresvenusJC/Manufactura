@@ -1,6 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { imprimirConPlantilla } from './impresion.js';
-import { montarGuia, crearPanelAsistente } from './asistente-contable.js';
+import { montarGuia, crearPanelAsistente, abrirManual } from './asistente-contable.js';
 import { parsearCfdi, formaPagoSimple } from './cfdi.js';
 import { REGIMENES } from './proveedores.js';
 
@@ -1111,30 +1111,8 @@ async function gaImportarCfdi(text) {
     gaResumen();
 }
 
-// --- Manual en subventana (iframe desplazable), no en pestaña nueva ---
-function gaAbrirManual(hash) {
-    if (document.getElementById('gaManualModal')) return;
-    const ov = document.createElement('div');
-    ov.id = 'gaManualModal';
-    ov.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-6';
-    ov.innerHTML = `
-      <div class="bg-slate-950 border border-slate-700 rounded-xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden shadow-2xl">
-        <div class="flex items-center justify-between gap-2 px-4 py-2 border-b border-slate-800 bg-slate-900">
-          <span class="text-sm font-semibold text-sky-400">📖 Manual — Capturar un gasto</span>
-          <span class="flex items-center gap-2">
-            <a href="manual-costos-produccion.html${hash || ''}" target="_blank" rel="noopener" class="text-[11px] text-slate-400 hover:text-sky-300">abrir en pestaña ↗</a>
-            <button type="button" id="gaManX" class="text-slate-400 hover:text-slate-100 text-xl leading-none">&times;</button>
-          </span>
-        </div>
-        <iframe src="manual-costos-produccion.html${hash || ''}" class="flex-1 w-full border-0" style="background:#f7f6f3"></iframe>
-      </div>`;
-    document.body.appendChild(ov);
-    const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
-    const onKey = (e) => { if (e.key === 'Escape') close(); };
-    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
-    document.getElementById('gaManX').onclick = close;
-    document.addEventListener('keydown', onKey);
-}
+// --- Manual en subventana: usa el helper compartido de asistente-contable.js ---
+function gaAbrirManual(hash) { abrirManual(hash, 'Capturar un gasto'); }
 
 // --- Alta rápida de proveedor desde el CFDI (subventana modal) ---
 function gaAbrirAltaProveedor(c) {

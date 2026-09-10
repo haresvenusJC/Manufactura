@@ -9,17 +9,21 @@
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const LS = (k) => 'asist:' + k;
 
-export function crearPanelAsistente({ clave, titulo, subtitulo = 'ayuda para esta pantalla', abiertoPorDefecto = false }) {
+export function crearPanelAsistente({ clave, titulo, subtitulo = 'ayuda para esta pantalla', abiertoPorDefecto = false, manualHash = null }) {
     let abierto = abiertoPorDefecto;
     try { const v = localStorage.getItem(LS(clave)); if (v === '1') abierto = true; if (v === '0') abierto = false; } catch (_) { /* */ }
 
     const wrap = document.createElement('div');
     wrap.className = 'asist-panel border border-slate-800 rounded-xl bg-slate-950 mb-4 overflow-hidden';
     wrap.innerHTML = `
-      <button type="button" class="asist-tgl w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left hover:bg-slate-900/60 transition">
-        <span class="text-sm font-semibold text-sky-400"><span class="asist-arrow inline-block w-3">${abierto ? '▾' : '▸'}</span> Asistente — ${esc(titulo)}</span>
+      <div class="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-slate-900/60 transition">
+        <button type="button" class="asist-tgl flex-1 flex items-center gap-2 text-left min-w-0">
+          <span class="asist-arrow inline-block w-3 text-sky-400 shrink-0">${abierto ? '▾' : '▸'}</span>
+          <span class="text-sm font-semibold text-sky-400 truncate">Asistente — ${esc(titulo)}</span>
+        </button>
         <span class="text-[11px] text-slate-500 shrink-0 hidden sm:inline">${esc(subtitulo)}</span>
-      </button>
+        ${manualHash ? `<button type="button" class="asist-manual text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded-lg whitespace-nowrap cursor-pointer shrink-0">📖 Manual</button>` : ''}
+      </div>
       <div class="asist-body ${abierto ? '' : 'hidden'} px-4 pb-4 pt-1 text-xs text-slate-300 leading-relaxed space-y-3"></div>`;
 
     const body = wrap.querySelector('.asist-body');
@@ -29,8 +33,26 @@ export function crearPanelAsistente({ clave, titulo, subtitulo = 'ayuda para est
         arrow.textContent = ab ? '▾' : '▸';
         try { localStorage.setItem(LS(clave), ab ? '1' : '0'); } catch (_) { /* */ }
     });
+    if (manualHash) {
+        wrap.querySelector('.asist-manual').addEventListener('click', () => abrirManual(manualHash, titulo));
+    }
     return { wrap, body };
 }
+
+// Ancla en manual-costos-produccion.html para cada clave de GUIAS/montarGuia.
+const MANUAL_ANCHORS = {
+    'plan-cuentas': '#p2',
+    'centros-costo': '#p3',
+    'areas-prorrateo': '#p3b',
+    'reparto-plantillas': '#p3c',
+    'prorrateo': '#p5',
+    'polizas': '#m-polizas',
+    'reportes-contables': '#m-reportes-contables',
+    'pagos-proveedor': '#m-pagos-proveedor',
+    'nomina': '#m-nomina',
+    'isr': '#m-isr',
+    'tareas': '#m-tareas',
+};
 
 export const GUIAS = {
     'plan-cuentas': {
@@ -175,13 +197,39 @@ export const GUIAS = {
     },
 };
 
+// --- Manual en subventana (iframe desplazable), no en pestaña nueva ---
+// Reutilizable en cualquier módulo: abrirManual('#m-catalogo', 'Productos').
+export function abrirManual(hash, titulo) {
+    if (document.getElementById('manualModal')) return;
+    const ov = document.createElement('div');
+    ov.id = 'manualModal';
+    ov.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-6';
+    ov.innerHTML = `
+      <div class="bg-slate-950 border border-slate-700 rounded-xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+        <div class="flex items-center justify-between gap-2 px-4 py-2 border-b border-slate-800 bg-slate-900">
+          <span class="text-sm font-semibold text-sky-400">📖 Manual${titulo ? ' — ' + esc(titulo) : ''}</span>
+          <span class="flex items-center gap-2">
+            <a href="manual-costos-produccion.html${hash || ''}" target="_blank" rel="noopener" class="text-[11px] text-slate-400 hover:text-sky-300">abrir en pestaña ↗</a>
+            <button type="button" id="manualModalX" class="text-slate-400 hover:text-slate-100 text-xl leading-none">&times;</button>
+          </span>
+        </div>
+        <iframe src="manual-costos-produccion.html${hash || ''}" class="flex-1 w-full border-0" style="background:#f7f6f3"></iframe>
+      </div>`;
+    document.body.appendChild(ov);
+    const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    document.getElementById('manualModalX').onclick = close;
+    document.addEventListener('keydown', onKey);
+}
+
 export function montarGuia(cont, clave) {
     if (!cont) return;
     const cfg = GUIAS[clave];
     if (!cfg) return;
     if (cont.querySelector(':scope > .asist-panel')) return;
 
-    const { wrap, body } = crearPanelAsistente({ clave, titulo: cfg.titulo, subtitulo: 'cómo usar esta pantalla' });
+    const { wrap, body } = crearPanelAsistente({ clave, titulo: cfg.titulo, subtitulo: 'cómo usar esta pantalla', manualHash: MANUAL_ANCHORS[clave] || null });
     body.innerHTML = `
       ${cfg.paraQue ? `<p><span class="text-slate-100 font-semibold">Para qué sirve. </span>${esc(cfg.paraQue)}</p>` : ''}
       ${cfg.pasos && cfg.pasos.length ? `<div><p class="text-slate-100 font-semibold mb-1">Pasos</p><ol class="list-decimal ml-4 space-y-1">${cfg.pasos.map((p) => `<li>${esc(p)}</li>`).join('')}</ol></div>` : ''}

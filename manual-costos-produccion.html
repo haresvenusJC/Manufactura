@@ -142,6 +142,8 @@
         <li><a href="#p4">Parte 4 — Capturar un gasto (asistente + XML)</a></li>
         <li><a href="#p5">Parte 5 — Fin de mes: el prorrateo</a></li>
         <li><a href="#p6">Parte 6 — Dónde se ve el costo y qué significa</a></li>
+        <li><a href="#p7">Parte 7 — Recibir mercancía: landed cost, conversión y flete/seguro</a></li>
+        <li><a href="#p8">Parte 8 — Guía rápida de los demás módulos</a></li>
         <li><a href="#rut">Rutina: qué se hace y cuándo</a></li>
         <li><a href="#err">Si algo sale mal</a></li>
         <li><a href="#ap">Apéndice — El porqué contable</a></li>
@@ -715,8 +717,11 @@ costo total de la orden   117,398.00
       <p><strong>Campos:</strong> <code>orden_produccion_procesos.centro_costo_id</code>, <code>.segundos_transcurridos</code>, <code>.costo_calculado</code> por proceso; <code>ordenes_produccion.costo_total_materiales</code>, <code>.costo_total_mano_obra</code>, <code>.costo_total_indirecto</code>, <code>.costo_indirecto_contabilizado</code>, <code>.costo_total_gasto_directo</code>, <code>.costo_gasto_directo_contabilizado</code>, <code>.costo_unitario_final</code>. El motor <code>_horas_mo_periodo</code> agrupa las horas por (orden, centro) y <code>prorrateo_calcular</code> recorre centro → órdenes.</p>
     </div>
 
-    <h3>El Kardex</h3>
+    <h3 id="m-kardex">El Kardex</h3>
     <p>En <span class="path">Inventario → Kardex</span> de un producto verás el movimiento de entrada por producción con su costo ya completo. Si el prorrateo ajustó el costo de una orden cerrada, ese ajuste se refleja aquí.</p>
+
+    <h3>Ver la póliza desde cualquier documento</h3>
+    <p>Cualquier pantalla que te muestre un documento ya registrado — Kardex, historial de Salidas, historial de Recibo de mercancía, detalle de una orden de Producción, historial de Nómina, Cuentas por pagar, Prorrateo, historial de Gastos, y los historiales de Entradas Directas y Compras — trae un botón <strong>"🧾 Ver póliza #N"</strong> junto al documento cuando ya se contabilizó (o el aviso "Sin póliza" cuando no). Te lleva directo a <span class="path">Contabilidad → Pólizas</span> con esa póliza enfocada y resaltada, sin buscarla a mano por fecha o folio.</p>
 
     <h3>Los reportes contables</h3>
     <p>En <span class="path">Contabilidad → Reportes contables</span>:</p>
@@ -729,6 +734,168 @@ costo total de la orden   117,398.00
       <span class="lbl">Cómo leerlo como administrador</span>
       <p>El costo unitario del lote es tu piso para poner precio. Si sube de un mes a otro <em>sin</em> que hayan subido tus proveedores, casi siempre es porque produjiste menos y el CIF fijo se repartió entre menos unidades — y la cuenta <code>503.98</code> te lo confirma. La decisión no es "subir el precio", es "por qué produje menos".</p>
     </div>
+  </section>
+
+  <!-- ========================================================= -->
+  <section id="p7">
+    <h2><span class="n">7</span>Parte 7 — Recibir mercancía: landed cost, conversión y flete/seguro</h2>
+    <p class="lead">Esto lo haces cada vez que llega mercancía de un proveedor, con o sin orden de compra. El costo real de cada pieza no es solo lo que dice la factura por unidad: hay que sumar flete/seguro cuando aplica y, si la factura viene en otra presentación (millar, tambo…), convertir bien antes de guardar.</p>
+
+    <h3>1. Si la factura viene en otra presentación (millar, gruesa, tambo, saco…)</h3>
+    <p>Muchas facturas de materia prima cotizan por millar, gruesa, tambo o saco en vez de por pieza/kg/litro. El error típico: convertir la <em>cantidad</em> a la unidad del catálogo (40 millares → 40,000 piezas) pero dejar el <em>costo</em> tal cual venía en la factura ($241.38, que era por millar, no por pieza) — el costo del lote se dispara ~1000×.</p>
+    <ol class="steps">
+      <li><strong>Botón "🔁 convertir"</strong>, junto al campo "Costo real" de cada partida.
+        <p>Abre una mini-calculadora para capturar la <strong>cantidad y el precio tal como vienen en la factura</strong> (ej. 40 millares a $241.38).</p></li>
+      <li><strong>Elige la presentación</strong>
+        <p>Preset (Millar ×1000, Gruesa ×144, Docena ×12, Tambo 200/208 L, Saco 25/50 kg, Kilo→gramos, Litro→mililitros) o captura un factor manual.</p></li>
+      <li><strong>"Aplicar →"</strong>
+        <p>Calcula <code>cantidad × factor</code> y <code>precio ÷ factor</code>, y los escribe directo en los campos de cantidad y costo real de esa partida.</p></li>
+    </ol>
+
+    <h3>2. Si detecta flete, seguro, maniobras o aduana en el XML</h3>
+    <p>Al importar el XML de la factura (con o sin orden de compra), el sistema reconoce por la descripción si un concepto es <strong>flete, seguro, maniobras o aduana/pedimento</strong> — no mercancía — y lo saca del flujo de "recibir como producto". Antes de esta versión estos conceptos se recibían como si fueran un producto más (cantidad 1), generando artículos falsos en el catálogo (p. ej. "ENVIO", "SEGURO DE ENVIO") que además inflaban el costo del lote real.</p>
+    <p>Cada vez que se detectan aparece una ventana que <strong>pregunta explícitamente</strong> qué hacer — nunca se asume en automático:</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Opción</th><th>Impacto contable</th><th>¿Cuándo conviene?</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Incluir en landed cost</strong> <em>(preset · recomendado)</em></td><td>Se prorratea por valor y se <strong>capitaliza al inventario</strong>: cargo a la cuenta <code>115.xx</code> del producto, no a una cuenta de gasto.</td><td>Es lo que exige <strong>NIF C-4</strong> para flete y seguro necesarios para poner la mercancía en su ubicación y condición de venta — por eso queda marcada por default.</td></tr>
+        <tr><td>No incluirlo aquí</td><td>Se registra aparte como <strong>gasto</strong>, normalmente a <code>601.14</code> Fletes y acarreos (o la cuenta que elijas).</td><td>Solo cuando el cargo <strong>no es atribuible</strong> a la mercancía recibida.</td></tr>
+      </tbody>
+    </table></div>
+    <p>La misma decisión se repite renglón por renglón en el panel <strong>"Costos adicionales (landed cost)"</strong>: la casilla <strong>"Al inventario"</strong> de cada cargo trae su propia nota — "✓ Se capitaliza a 115.xx — recomendado por NIF C-4" o "⚠ Va a gasto 601.14 — NIF C-4 solo lo recomienda si el cargo no es atribuible a la mercancía" — para que quede claro antes de confirmar el recibo.</p>
+
+    <h3>3. Ejemplo completo</h3>
+    <p>Compras 100 piezas a $10 c/u, con $100 de flete y $100 de seguro. Total antes de IVA: $1,200.</p>
+    <div class="calc">costo unitario "landed" = (1,000 + 100 + 100) ÷ 100 piezas = $12.00 por pieza   (no $10.00)</div>
+    <p>El sistema reparte flete y seguro <strong>por valor</strong> entre las partidas de la factura (si hay más de un producto, cada uno absorbe su parte proporcional a su subtotal) y actualiza el costo del lote recibido; guarda por separado cuánto de ese costo vino de flete/seguro, para poder reportarlo.</p>
+
+    <div class="callout tec">
+      <span class="lbl">Para contabilidad — el detalle está en el Apéndice</span>
+      <p>La póliza exacta y los objetos de base de datos (<code>recibo_costos_adicionales</code>, <code>lotes_inventario.costo_adicional_unitario</code>, <code>recibo_reversible</code>, <code>cancelar_recibo_inventario</code>) están en el <a href="#ap">Apéndice — El porqué contable</a>.</p>
+    </div>
+  </section>
+
+  <!-- ========================================================= -->
+  <section id="p8">
+    <h2><span class="n">8</span>Parte 8 — Guía rápida de los demás módulos</h2>
+    <p class="lead">Las Partes 1–7 cubren el flujo de costos a fondo. Esta parte es más breve: qué es cada pantalla, cómo se usa y el error más común, para el resto de los módulos del ERP. El botón <strong>"📖 Cómo llenar esta pantalla"</strong> de cada módulo te trae directo aquí.</p>
+
+    <h3>Catálogos</h3>
+
+    <h4 id="m-catalogo">Productos</h4>
+    <p><strong>Para qué sirve.</strong> Alta y edición del catálogo de productos, materias primas e insumos: SKU, unidad de medida, costo, cuenta de inventario y si requiere control de caducidad.</p>
+    <p><strong>Pasos.</strong> Busca primero si el insumo ya existe antes de crear uno nuevo. La <strong>unidad de medida</strong> y la <strong>cuenta de inventario</strong> se eligen del catálogo real (nunca se escriben a mano). Marca "Requiere caducidad" si aplica — activa el campo de caducidad en Recibo de mercancía y Producción.</p>
+    <p><strong>Errores comunes.</strong> Crear un producto duplicado por escribirlo con un nombre ligeramente distinto en vez de buscar el existente. Dejar sin <strong>Cuenta de inventario</strong> un producto que sí se recibe por compra — sin ella, <code>contabilizar_compra</code> usa la cuenta genérica en vez de la que le corresponde.</p>
+
+    <h4 id="m-clientes">Clientes y listas de precio</h4>
+    <p><strong>Para qué sirve.</strong> Catálogo de clientes y sus listas de precio, usados al vender desde Salidas / Ventas.</p>
+    <p><strong>Pasos.</strong> Da de alta al cliente con sus datos fiscales si vas a facturarle, y asígnale su lista de precio.</p>
+    <p><strong>Errores comunes.</strong> Vender sin elegir el cliente del catálogo cuando sí se requiere factura — los datos fiscales de la venta quedarían incompletos.</p>
+
+    <h4 id="m-empleados">Empleados</h4>
+    <p><strong>Para qué sirve.</strong> Plantilla de personal, su <strong>costo por hora</strong> (usado en el costeo de mano de obra directa, Parte 6) y su PIN para registrar tiempos desde la Orden de Trabajo en el celular.</p>
+    <p><strong>Pasos.</strong> Da de alta el costo por hora y el PIN; asígnalo a los procesos que opera normalmente.</p>
+    <p><strong>Errores comunes.</strong> No actualizar el costo por hora tras un aumento de sueldo — el costeo seguiría usando el sueldo anterior en las órdenes nuevas.</p>
+
+    <h4 id="m-importador">Importar Excel/CSV</h4>
+    <p><strong>Para qué sirve.</strong> Carga masiva de productos desde una plantilla, en vez de darlos de alta uno por uno.</p>
+    <p><strong>Pasos.</strong> Descarga la plantilla de ejemplo, llénala respetando las columnas y súbela; el importador hace <em>upsert</em> por SKU (actualiza si ya existe, crea si no).</p>
+    <p><strong>Errores comunes.</strong> Cambiar el orden de las columnas de la plantilla, o repetir un SKU apuntando a dos productos distintos.</p>
+
+    <h3>Inventario</h3>
+
+    <h4 id="m-inventario">Stock General</h4>
+    <p><strong>Para qué sirve.</strong> Existencias por producto y por lote, con mínimos.</p>
+    <p><strong>Pasos.</strong> Filtra por producto o por lo que está debajo de su mínimo. Cada lote muestra su costo (ya con landed cost, si aplicó) y su caducidad.</p>
+    <p><strong>Errores comunes.</strong> Leer solo el total del producto e ignorar que puede estar repartido en varios lotes con costos distintos entre sí (por eso importa el FIFO/FEFO, ver Kardex abajo).</p>
+
+    <p>El detalle de movimientos por producto está en <a href="#m-kardex">Kardex, dentro de la Parte 6</a>.</p>
+
+    <h3>Entradas</h3>
+
+    <h4 id="m-ordenes-compra">Órdenes de compra</h4>
+    <p><strong>Para qué sirve.</strong> Emitir el pedido formal a un proveedor — qué se pide, cantidad y costo estimado — antes de que llegue la mercancía. Queda "abierta" hasta que se recibe, total o parcialmente, en Recibo de mercancía.</p>
+    <p><strong>Pasos.</strong> Elige proveedor y agrega las partidas con cantidad y costo estimado.</p>
+    <p><strong>Errores comunes.</strong> Que el costo estimado quede muy distinto al real de la factura no es grave por sí solo — el Recibo de mercancía usa el costo real —, pero sí descuadra cualquier seguimiento de presupuesto que hagas contra la OC.</p>
+    <p>Cómo se recibe y cómo se calcula el costo landed está en la <a href="#p7">Parte 7</a>.</p>
+
+    <h4 id="m-compras">Compras / Proveedores</h4>
+    <p><strong>Para qué sirve.</strong> Registrar una compra con afectación contable directa (documento + póliza) cuando no necesitas pasar por el flujo Orden de compra → Recibo de mercancía.</p>
+    <p><strong>Pasos.</strong> Captura las partidas y los datos fiscales (subtotal / IVA / condición); la casilla <strong>"Generar póliza contable"</strong> arma la póliza de la compra.</p>
+    <p><strong>Errores comunes.</strong> Usarla para compras que sí traen flete/seguro que quieras prorratear — para eso está Recibo de mercancía (Parte 7), que sí tiene el landed cost.</p>
+
+    <h4 id="m-entradas-directas">Entradas directas</h4>
+    <p><strong>Para qué sirve.</strong> Dar de alta inventario sin que haya una compra de por medio: ajuste de inventario, devolución de producción, sobrante de calibración, inventario inicial.</p>
+    <p><strong>Pasos.</strong> Elige el motivo, agrega las partidas con cantidad, costo y lote; "Generar póliza contable" es opcional.</p>
+    <p><strong>Errores comunes.</strong> Usarla para registrar una compra real — eso debe ir por Compras u Órdenes de compra, para no perder el rastro del proveedor y su factura.</p>
+
+    <h3>Salidas</h3>
+
+    <h4 id="m-salidas">Salidas / Ventas</h4>
+    <p><strong>Para qué sirve.</strong> Sacar inventario (venta, merma, ajuste) y, si es venta, generar la póliza de ingreso.</p>
+    <p><strong>Pasos.</strong> Elige el producto y el lote (el sistema sugiere el que caduca primero, FEFO) y la cantidad; si es venta, captura cliente y totales.</p>
+    <p><strong>Errores comunes.</strong> Elegir a mano un lote distinto al sugerido sin necesidad — rompe el orden FEFO. No capturar el motivo en una merma.</p>
+
+    <h3>Producción</h3>
+
+    <h4 id="m-produccion">Producción</h4>
+    <p><strong>Para qué sirve.</strong> Crear y dar seguimiento a una orden de producción: fórmula (BOM), procesos con sus operarios y centro de costo, y el cierre que calcula el costo final del lote.</p>
+    <p><strong>Pasos.</strong> Elige el producto y la cantidad — la fórmula se explota sola en materiales. Los operarios registran su tiempo por proceso desde la <span class="path">Orden de Trabajo</span> en el celular. Al terminar, cierra la orden.</p>
+    <p><strong>Errores comunes.</strong> Cerrar la orden sin que todos los tiempos de los operarios estén registrados — el costo de mano de obra saldría incompleto.</p>
+    <p>Cómo se arma el costo centro por centro está en la <a href="#p3">Parte 3</a> y en <a href="#p6">Parte 6</a>.</p>
+
+    <h3>Documentos y reportes</h3>
+
+    <h4 id="m-documentos">Documentos</h4>
+    <p><strong>Para qué sirve.</strong> Consecutivos y consulta de todos los documentos generados (compras, recibos, salidas, entradas, etc.), cada uno con acceso directo a su póliza.</p>
+    <p><strong>Pasos.</strong> Filtra por tipo, fecha o folio. <strong>"Ver Detalle"</strong> abre el expediente completo; la columna <strong>"Póliza"</strong> (botón "🧾 Ver póliza #N") salta directo a la póliza contable de ese documento.</p>
+    <p><strong>Errores comunes.</strong> Buscar un folio sin darte cuenta de que un filtro de tipo o estatus lo está ocultando.</p>
+
+    <h4 id="m-reportes">Reportes</h4>
+    <p><strong>Para qué sirve.</strong> Reportes operativos (no contables) — por ejemplo, compras y gastos por rango de fechas — exportables a CSV o imprimibles con una plantilla.</p>
+    <p><strong>Pasos.</strong> Elige el rango de fechas y el tipo de reporte; exporta o imprime.</p>
+    <p><strong>Errores comunes.</strong> Confundirlo con <span class="path">Contabilidad → Reportes contables</span>, que es el que trae balanza de comprobación y estado de resultados.</p>
+
+    <h3>Contabilidad — operación diaria</h3>
+
+    <h4 id="m-pagos-proveedor">Cuentas por pagar</h4>
+    <p><strong>Para qué sirve.</strong> Lo que le debes a cada proveedor por gastos y compras a crédito, y el registro de sus pagos.</p>
+    <p><strong>Pasos.</strong> Filtra por proveedor o por antigüedad del saldo. Registra un pago eligiendo la cuenta de banco/caja y el monto — el pago genera su propia póliza y baja el saldo del proveedor.</p>
+    <p><strong>Errores comunes.</strong> Registrar el mismo pago dos veces. Pagar desde una cuenta de banco distinta a la real: el saldo de esa cuenta queda mal.</p>
+
+    <h4 id="m-tareas">Tareas</h4>
+    <p><strong>Para qué sirve.</strong> Avisos y pendientes que el sistema genera solo: inventario bajo mínimo, lotes por caducar, nómina por generar.</p>
+    <p><strong>Pasos.</strong> Revisa las tarjetas; marca cada una como atendida o descártala si no aplica. El historial muestra quién resolvió cada tarea y cuándo.</p>
+    <p><strong>Errores comunes.</strong> Descartar una tarea sin resolver el problema de fondo que la generó.</p>
+
+    <h3>Contabilidad — nómina y cierre de mes</h3>
+
+    <h4 id="m-nomina">Nómina</h4>
+    <p><strong>Para qué sirve.</strong> Calcular y contabilizar la nómina del periodo: sueldos, cuotas IMSS/INFONAVIT e ISR retenido.</p>
+    <p><strong>Pasos.</strong> Genera el borrador del periodo, revisa percepciones, deducciones y días trabajados por empleado, y confírmala — se genera la póliza y la mano de obra queda disponible para el costeo de las órdenes de producción del periodo.</p>
+    <p><strong>Errores comunes.</strong> Confirmarla sin revisar los días trabajados. Correrla dos veces para el mismo periodo.</p>
+
+    <h4 id="m-polizas">Pólizas</h4>
+    <p><strong>Para qué sirve.</strong> Ver los asientos contables (cargos y abonos) que el sistema generó por cada gasto, nómina, producción, compra o prorrateo.</p>
+    <p><strong>Pasos.</strong> Filtra por fecha, tipo u origen; abre una póliza para ver sus movimientos y su cuadre (Σ cargos = Σ abonos). Para corregir, cancela desde el origen (el gasto, el recibo de compra, la corrida de prorrateo) — nunca a mano aquí.</p>
+    <p><strong>Errores comunes.</strong> Intentar "arreglar" una póliza directamente: siempre se corrige cancelando y rehaciendo la operación que la generó.</p>
+
+    <h4 id="m-reportes-contables">Reportes contables</h4>
+    <p><strong>Para qué sirve.</strong> Balanza de comprobación, estado de resultados y saldos por cuenta a una fecha.</p>
+    <p><strong>Pasos.</strong> Elige el periodo. Revisa <code>503.98</code> (capacidad no utilizada): si crece mes a mes, tienes planta que pagas y no usas. Revisa <code>115.03</code> (producción en proceso): debería quedar cerca de cero tras cerrar órdenes y correr el prorrateo.</p>
+    <p><strong>Errores comunes.</strong> Leer los números antes de haber corrido el prorrateo del mes — faltaría todo el CIF.</p>
+
+    <h3>Configuración</h3>
+
+    <h4 id="m-isr">Tabla ISR</h4>
+    <p><strong>Para qué sirve.</strong> Las tarifas de ISR (LISR art. 96) y el subsidio al empleo que usa el cálculo de Nómina.</p>
+    <p><strong>Pasos.</strong> Revisa que la periodicidad (mensual/quincenal/semanal) y el año sean los vigentes; si el SAT publica tarifas nuevas, actualízalas aquí antes de correr la nómina.</p>
+    <p><strong>Errores comunes.</strong> Mezclar tarifas de distintas periodicidades.</p>
+
+    <h4 id="m-plantillas">Plantillas de impresión</h4>
+    <p><strong>Para qué sirve.</strong> Configurar el encabezado, logo, colores y pie de página que se usan al imprimir cada tipo de documento (recibos, órdenes, pólizas, etc.).</p>
+    <p><strong>Pasos.</strong> Elige el tipo de documento a editar y ajusta nombre, logo y colores; la lista de arriba muestra las plantillas ya configuradas.</p>
+    <p><strong>Errores comunes.</strong> Dejar sin configurar la plantilla de un tipo de documento que sí se imprime seguido — sale con el diseño genérico.</p>
   </section>
 
   <!-- ========================================================= -->
@@ -773,6 +940,9 @@ costo total de la orden   117,398.00
     <h4>Los tres componentes del costo</h4>
     <p>Costo de producción = materiales directos + mano de obra directa + gastos indirectos de fabricación (CIF). El ERP ya calculaba los dos primeros (consumo FEFO de lotes y horas de <code>registros_tiempo</code> × sueldo). El módulo de costos agrega el tercero.</p>
     <p><strong>Landed cost.</strong> Los materiales entran a su lote con el costo <em>llegado a bodega</em>: en el Recibo de mercancía se capturan los cargos de la factura (flete, seguro, maniobras) y se reparten <strong>por valor</strong> entre las partidas. Ej.: 100 pzas × $10 + flete $100 + seguro $100 → costo unitario del lote $12, no $10. Contablemente se capitalizan al inventario (<code>115.xx</code>); los cargos marcados como no inventariables van a gasto (<code>601.14</code>). Trazabilidad en <code>lotes_inventario.costo_adicional_unitario</code> y <code>recibo_costos_adicionales</code>.</p>
+
+    <h4>Detección de flete/seguro y conversión de presentación (ver Parte 7)</h4>
+    <p>El uso paso a paso del diálogo de landed cost, la casilla "Al inventario" y la calculadora de conversión de unidades está en la <a href="#p7">Parte 7 — Recibir mercancía</a>. Aquí el fundamento: capitalizar flete/seguro al inventario (<code>115.xx</code>) en vez de expensarlos de inmediato (<code>601.14</code>) es lo que exige <strong>NIF C-4</strong> (Inventarios) cuando ese cargo es necesario para poner la mercancía en su ubicación y condición de venta — por eso esa es la opción que queda marcada por default en el diálogo de decisión, aunque siempre se pregunta y nunca se asume en automático.</p>
 
     <h4>Capacidad normal y capacidad ociosa (NIF C-4 §44 / IAS 2 §13)</h4>
     <p>La norma exige que los <strong>costos fijos indirectos</strong> se asignen a la producción sobre la base de la <strong>capacidad normal</strong> de la planta — la producción media esperada en circunstancias normales, considerando mantenimiento planeado. El monto de costos fijos no asignados por operar por debajo de la capacidad normal se reconoce como <strong>gasto del periodo</strong> en que se incurre, y <strong>no</strong> se capitaliza al inventario. Cuando la producción es anormalmente alta, la tasa por unidad se reduce para no valuar el inventario por encima del costo.</p>
@@ -833,12 +1003,15 @@ Cierre de orden (consumo):  Cargo cuenta del producto (115.04 / 115.02 si es gra
         <tr><td class="m">contabilizar_produccion</td><td>Al cerrar la orden, incorpora el CIF ya prorrateado y los gastos directos. Abona la MP consumida a la cuenta de inventario de cada componente (115.01 MP / 115.02 granel), leyendo el desglose de <code>movimientos_inventario</code> del documento de salida.</td></tr>
         <tr><td class="m">productos.cuenta_inventario_id</td><td>Cuenta donde vive el inventario de ese producto: 115.01 MP, 115.02 granel/semiterminado, 115.04 terminado. Se usa al producirlo y al consumirlo.</td></tr>
         <tr><td class="m">ordenes_produccion.costo_total_indirecto, .costo_indirecto_contabilizado, .costo_total_gasto_directo, .costo_gasto_directo_contabilizado</td><td>Acumuladores de costo por orden.</td></tr>
+        <tr><td class="m">lotes_inventario.costo_adicional_unitario, recibo_costos_adicionales</td><td>Parte del costo del lote que vino de landed cost (flete/seguro/etc.) y su desglose por concepto, para poder reportar "de los $12, $2 fue flete".</td></tr>
+        <tr><td class="m">recibo_reversible(documento_id)</td><td>Diagnóstico por lote de un recibo de compra: recibido / disponible / consumido / ok. <code>ok = true</code> solo si nada de ese lote se ha usado todavía.</td></tr>
+        <tr><td class="m">cancelar_recibo_inventario(documento_id, motivo)</td><td>Cancela un recibo de compra: revierte los movimientos de inventario, cancela su póliza (genera el reverso) y regresa la orden de compra a su estatus previo. Se bloquea con un mensaje detallado si <code>recibo_reversible</code> marca algún lote como ya consumido. Solo aplica a documentos de compra — nunca toca cierres de producción.</td></tr>
       </tbody>
     </table></div>
   </section>
 
   <footer>
-    Manual de gastos y costos de producción · ERP Hares de México · Fases 1–3 + 2b (centro por proceso) + reparto en 2 niveles + asistente y lector de XML · Fase 4 pendiente · documento vivo.
+    Manual de gastos y costos de producción · ERP Hares de México · Fases 1–3 + 2b (centro por proceso) + reparto en 2 niveles + asistente y lector de XML + landed cost con conversión de presentación y detección de flete/seguro + trazabilidad universal documento→póliza + guía rápida de todos los módulos (Parte 8) + botón "📖 Cómo llenar esta pantalla" en subventana en cada módulo del ERP · Fase 4 pendiente · documento vivo.
     Ver también la <a href="guia-costos-produccion.html">guía interactiva</a>.
   </footer>
 </div>

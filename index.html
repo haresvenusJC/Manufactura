@@ -465,7 +465,10 @@
 
             <!-- Vista: Catálogo y BOM -->
             <section id="view-catalogo" class="vista-seccion space-y-4">
-                <h2 class="text-xl font-bold text-sky-400">Catálogo de Productos y BOM</h2>
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-sky-400">Catálogo de Productos y BOM</h2>
+                    <button type="button" onclick="window.abrirManual('#m-catalogo', 'Productos')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorCatalogo">Cargando catálogo...</div>
                 </div>
@@ -473,7 +476,10 @@
 
             <!-- Vista: Proveedores -->
             <section id="view-proveedores" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-sky-400">Gestión de Proveedores y Compras</h2>
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-sky-400">Gestión de Proveedores y Compras</h2>
+                    <button type="button" onclick="window.abrirManual('#p1', 'Proveedores')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorProveedores">Cargando módulo de proveedores...</div>
                 </div>
@@ -481,7 +487,10 @@
 
             <!-- Vista: Clientes y listas de precio -->
             <section id="view-clientes" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-sky-400">Clientes y listas de precio</h2>
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-sky-400">Clientes y listas de precio</h2>
+                    <button type="button" onclick="window.abrirManual('#m-clientes', 'Clientes y listas de precio')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorClientes">Cargando...</div>
                 </div>
@@ -489,7 +498,10 @@
 
             <!-- Vista: Inventario -->
             <section id="view-inventario" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-sky-400">Inventario de Materias Primas</h2>
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-sky-400">Inventario de Materias Primas</h2>
+                    <button type="button" onclick="window.abrirManual('#m-inventario', 'Stock General')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-6">
                     <div>
                         <h3 class="text-sm font-semibold text-slate-300 mb-2">Stock General por Insumo</h3>
@@ -505,8 +517,11 @@
 
             <!-- Vista: Kardex de Movimientos -->
             <section id="view-kardex" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-sky-400">📊 Kardex de Movimientos (Historial de Almacén)</h2>
-                
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-sky-400">📊 Kardex de Movimientos (Historial de Almacén)</h2>
+                    <button type="button" onclick="window.abrirManual('#m-kardex', 'Kardex')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
+
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-wrap gap-4 items-end">
                     <div class="flex-1 min-w-[280px]">
                         <label class="block text-xs text-slate-400 mb-1">Seleccionar Producto o Insumo:</label>
@@ -535,31 +550,46 @@
 
             <!-- Vista: Compras y Lotes (Entradas) -->
             <section id="view-compras" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-emerald-400">Registro de Compras (Entradas)</h2>
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-emerald-400">Registro de Compras (Entradas)</h2>
+                    <button type="button" onclick="window.abrirManual('#m-compras', 'Compras / Proveedores')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
                 <form id="formCompra"></form>
             </section>
 
             <!-- Vista: Entradas Directas -->
             <section id="view-entradas-directas" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-emerald-400">Entradas Directas de Inventario</h2>
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-emerald-400">Entradas Directas de Inventario</h2>
+                    <button type="button" onclick="window.abrirManual('#m-entradas-directas', 'Entradas directas')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
                 <form id="formEntradasDirectas"></form>
             </section>
 
             <!-- Vista: Órdenes de compra -->
             <section id="view-ordenes-compra" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-emerald-400">Órdenes de Compra</h2>
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-emerald-400">Órdenes de Compra</h2>
+                    <button type="button" onclick="window.abrirManual('#m-ordenes-compra', 'Órdenes de compra')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
                 <div id="contenedorOrdenesCompra">Cargando módulo de órdenes de compra...</div>
             </section>
 
             <!-- Vista: Recibo de mercancía -->
             <section id="view-recibo-mercancia" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-emerald-400">Recibo de Mercancía</h2>
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-emerald-400">Recibo de Mercancía</h2>
+                    <button type="button" onclick="window.abrirManual('#p7', 'Recibir mercancía')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
                 <div id="contenedorReciboMercancia">Cargando módulo de recibo de mercancía...</div>
             </section>
 
             <!-- Vista: Salidas de Inventario -->
             <section id="view-salidas" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-rose-400">Salidas de Inventario</h2>
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-rose-400">Salidas de Inventario</h2>
+                    <button type="button" onclick="window.abrirManual('#m-salidas', 'Salidas / Ventas')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorSalidas">Cargando módulo de salidas...</div>
                 </div>
@@ -567,7 +597,10 @@
 
             <!-- Vista: Producción -->
             <section id="view-produccion" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-sky-400">Órdenes de Producción</h2>
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-sky-400">Órdenes de Producción</h2>
+                    <button type="button" onclick="window.abrirManual('#m-produccion', 'Producción')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-6">
                     <div id="contenedorProduccion">Cargando módulo de producción...</div>
                     <hr class="border-slate-800">
@@ -598,7 +631,10 @@
 
             <!-- Vista: Importador de datos (Excel / CSV) -->
             <section id="view-importador" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-sky-400">Importar datos (Excel / CSV)</h2>
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-sky-400">Importar datos (Excel / CSV)</h2>
+                    <button type="button" onclick="window.abrirManual('#m-importador', 'Importar Excel/CSV')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
                 <div class="flex gap-2">
                     <button type="button" id="tabImportadorProductos" onclick="window.mostrarTabImportador('productos')"
                         class="text-xs font-medium px-3 py-1.5 rounded-lg border transition cursor-pointer bg-sky-600 border-sky-500 text-white">

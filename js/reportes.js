@@ -724,9 +724,12 @@ export async function cargarModuloReportes() {
 
     contenedor.innerHTML = `
         <div class="space-y-4">
-            <div>
-                <h2 class="text-xl font-bold text-sky-400">📊 Reportes</h2>
-                <p class="text-xs text-slate-400 mt-1">Reportes consolidados y tabla dinámica sobre compras, gastos, inventario y movimientos.</p>
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+                <div>
+                    <h2 class="text-xl font-bold text-sky-400">📊 Reportes</h2>
+                    <p class="text-xs text-slate-400 mt-1">Reportes consolidados y tabla dinámica sobre compras, gastos, inventario y movimientos.</p>
+                </div>
+                <button type="button" onclick="window.abrirManual('#m-reportes', 'Reportes')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
             </div>
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-1 flex flex-wrap gap-1" id="repTabs"></div>
             <div id="repContenido"></div>

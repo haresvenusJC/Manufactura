@@ -12,7 +12,10 @@ export async function cargarModuloPlantillas() {
 
             <!-- Lista de plantillas ya configuradas -->
             <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
-                <h2 class="text-xl font-bold text-slate-100 mb-1">🖨️ Plantillas de Documentos Imprimibles</h2>
+                <div class="flex items-center justify-between gap-2 flex-wrap mb-1">
+                    <h2 class="text-xl font-bold text-slate-100">🖨️ Plantillas de Documentos Imprimibles</h2>
+                    <button type="button" onclick="window.abrirManual('#m-plantillas', 'Plantillas de impresión')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
                 <p class="text-xs text-slate-400 mb-4">Configura el encabezado, logo, colores y pie de página que se usan al imprimir cada tipo de documento.</p>
                 <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Plantillas ya configuradas</h3>
                 <div id="listaPlantillasExistentes" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">

@@ -20,6 +20,7 @@ export async function cargarVistaDocumentos() {
                     <p class="text-xs text-slate-400 mt-1">Control integral de la tabla maestra de documentos, consecutivos y trazabilidad de almacén.</p>
                 </div>
                 <div class="flex items-center gap-3 w-full sm:w-auto">
+                    <button type="button" onclick="window.abrirManual('#m-documentos', 'Documentos')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1.5 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
                     <button onclick="window.actualizarListaDocumentos()" title="Vuelve a consultar Supabase: trae documentos y tipos nuevos que aún no se ven en esta pantalla" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition flex items-center gap-2 border border-slate-700" style="cursor: pointer;">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                         Actualizar lista
