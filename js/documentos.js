@@ -129,12 +129,13 @@ window.cargarListaDocumentos = async function() {
                 estado,
                 descripcion,
                 created_at,
+                poliza_id,
                 proveedores ( id, nombre )
             `)
             .order('id', { ascending: false });
 
         if (error) {
-            // consecutivo aún no existe (falta correr la migración): cae al select sin él.
+            // consecutivo / poliza_id aún no existen (falta correr migración): cae al select sin ellos.
             ({ data: documentos, error } = await supabaseClient
                 .from('documentos')
                 .select(`
@@ -180,6 +181,7 @@ window.renderizarTablaDocumentos = function(lista) {
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                         Ver Detalle
                     </button>
+                    ${doc.poliza_id ? `<button onclick="window.verPolizaDeDocumento(${doc.poliza_id}, '${doc.fecha_emision || ''}')" class="block mt-1.5 text-[11px] text-emerald-400 hover:underline" style="cursor:pointer;">🧾 Ver póliza #${doc.poliza_id}</button>` : ''}
                 </td>
                 <td class="p-4 font-mono">
                     <span class="font-bold text-indigo-400">#${doc.id}</span>
@@ -361,6 +363,12 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
                     <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-semibold print:text-gray-600">Documento / Registro</span>
                     <span class="text-[11px] font-mono text-slate-400 print:text-gray-700">ID #${docInfo.id} · Registrado: ${docInfo.created_at ? new Date(docInfo.created_at).toLocaleString() : 'N/D'}</span>
                 </div>
+                <div class="sm:col-span-2 print:hidden">
+                    <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-semibold">Póliza contable</span>
+                    ${docInfo.poliza_id
+                        ? `<button onclick="window.verPolizaDeDocumento(${docInfo.poliza_id}, '${docInfo.fecha_emision || ''}')" class="mt-1 text-xs bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-900 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5" style="cursor:pointer;">🧾 Ver póliza #${docInfo.poliza_id}</button>`
+                        : `<span class="text-xs text-amber-400">Sin póliza — este documento no se contabilizó.</span>`}
+                </div>
             </div>
 
             <div>
@@ -460,4 +468,12 @@ window.cerrarDetalleDocumento = function() {
     if (modalContainer) {
         modalContainer.classList.add('hidden');
     }
+};
+
+// Abre Contabilidad → Pólizas enfocado en la póliza de un documento.
+window.verPolizaDeDocumento = function(polizaId, fechaEmision) {
+    if (!polizaId) return;
+    window.__polFoco = { id: Number(polizaId), fecha: fechaEmision || null };
+    if (typeof window.cerrarDetalleDocumento === 'function') window.cerrarDetalleDocumento();
+    if (typeof window.loadView === 'function') window.loadView('polizas');
 };

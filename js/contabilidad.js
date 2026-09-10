@@ -412,9 +412,34 @@ export async function cargarModuloPolizas() {
     document.getElementById('polHasta').value = hoyISO();
     document.getElementById('polFecha').value = hoyISO();
 
+    // Enfoque a una póliza concreta (link desde Documentos u otras pantallas)
+    const polFoco = window.__polFoco;
+    window.__polFoco = null;
+    polExpandida = null;
+    if (polFoco && polFoco.id) {
+        document.getElementById('polDesde').value = '2020-01-01';
+        document.getElementById('polHasta').value = hoyISO();
+        document.getElementById('polTipoF').value = '';
+        document.getElementById('polEstatusF').value = '';
+        polExpandida = Number(polFoco.id);
+    }
+
     polCablear();
     await polCargarCuentas();
     await polBuscar();
+
+    if (polFoco && polFoco.id) {
+        const row = document.querySelector(`.pol-row[data-id="${polFoco.id}"]`);
+        if (row) {
+            row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            row.classList.add('ring-2', 'ring-sky-500');
+            setTimeout(() => row.classList.remove('ring-2', 'ring-sky-500'), 2500);
+        } else {
+            const cont = document.getElementById('polLista');
+            if (cont) cont.insertAdjacentHTML('afterbegin',
+                `<p class="text-amber-400 text-xs mb-2">No se encontró la póliza #${polFoco.id} (¿cancelada o el documento no se contabilizó?).</p>`);
+        }
+    }
     montarGuia(document.getElementById('contenedorPolizas'), 'polizas');
 }
 
