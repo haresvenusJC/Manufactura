@@ -161,11 +161,12 @@ window.consultarKardexProducto = async function() {
     try {
         const { data: productoInfo, error: errProdInfo } = await supabaseClient
             .from('productos')
-            .select('nombre, stock_actual, sku')
+            .select('nombre, stock_actual, sku, unidades_medida ( nombre )')
             .eq('id', productoId)
             .single();
 
         if (errProdInfo) throw errProdInfo;
+        const unidadNombre = productoInfo.unidades_medida?.nombre || 'unidad';
 
         const colsMov = `
                 id,
@@ -178,7 +179,7 @@ window.consultarKardexProducto = async function() {
                 documento_id,
                 lote_id,
                 criterio_lote,
-                lotes_inventario ( id, numero_lote )
+                lotes_inventario ( id, numero_lote, costo_adicional_unitario )
             `;
         let { data: movimientos, error } = await supabaseClient
             .from('movimientos_inventario')
@@ -191,6 +192,14 @@ window.consultarKardexProducto = async function() {
             ({ data: movimientos, error } = await supabaseClient
                 .from('movimientos_inventario')
                 .select(colsMov.replace('criterio_lote,', ''))
+                .eq('producto_id', productoId)
+                .order('created_at', { ascending: true }));
+        }
+        // Degradar si aún no existe lotes_inventario.costo_adicional_unitario (falta sql/2026-09-20)
+        if (error && /costo_adicional_unitario|column .* does not exist/i.test(error.message || '')) {
+            ({ data: movimientos, error } = await supabaseClient
+                .from('movimientos_inventario')
+                .select(colsMov.replace('criterio_lote,', '').replace(', costo_adicional_unitario', ''))
                 .eq('producto_id', productoId)
                 .order('created_at', { ascending: true }));
         }
@@ -279,7 +288,7 @@ window.consultarKardexProducto = async function() {
                             <th class="p-3">Fecha y Hora</th>
                             <th class="p-3">Operación</th>
                             <th class="p-3">Lote</th>
-                            <th class="p-3">Costo Unit.</th>
+                            <th class="p-3">Costo Unit. <span class="normal-case text-slate-500">(por ${unidadNombre})</span></th>
                             <th class="p-3 text-center">Stock Ant.</th>
                             <th class="p-3 text-center">Cantidad</th>
                             <th class="p-3 text-center">Stock Nuevo</th>
@@ -313,7 +322,15 @@ window.consultarKardexProducto = async function() {
                     <td class="p-3 text-xs text-slate-400 font-mono">${fechaHora}</td>
                     <td class="p-3 text-xs uppercase font-semibold text-indigo-300">${m.tipo_movimiento || 'N/D'}</td>
                     <td class="p-3 text-xs font-mono text-amber-300">${numeroLote}${chipFefo}</td>
-                    <td class="p-3 font-mono text-slate-300">$${Number(m.costo_unitario || 0).toFixed(2)}</td>
+                    <td class="p-3 font-mono text-slate-300">
+                        $${Number(m.costo_unitario || 0).toFixed(4)}
+                        ${(() => {
+                            const adic = Number(m.lotes_inventario?.costo_adicional_unitario || 0);
+                            if (!adic) return '';
+                            const mat = Number(m.costo_unitario || 0) - adic;
+                            return `<span class="block text-[10px] text-sky-400 font-sans">incluye landed cost: mat. $${mat.toFixed(4)} + $${adic.toFixed(4)} flete/seguro</span>`;
+                        })()}
+                    </td>
                     <td class="p-3 text-center font-mono text-slate-400">${m.stock_anterior_calc ?? 0}</td>
                     <td class="p-3 text-center font-mono ${claseCantidad}">${signo}${cantNum}</td>
                     <td class="p-3 text-center font-mono text-amber-300 font-semibold">${m.stock_resultante_calc ?? 0}</td>
