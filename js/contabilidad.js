@@ -1549,6 +1549,15 @@ function rcMovsDeCuenta(cuentaId) {
         .sort((a, b) => (a.polizas.fecha < b.polizas.fecha ? -1 : a.polizas.fecha > b.polizas.fecha ? 1 : (a.id || 0) - (b.id || 0)));
 }
 
+// Movimientos de pólizas ya canceladas que tocan esta cuenta — solo para
+// mostrar (no se suman a ningún saldo).
+function rcMovsCanceladosDeCuenta(cuentaId) {
+    const lista = rcCache.movsCancelados || [];
+    return lista
+        .filter((m) => m.cuenta_id === cuentaId)
+        .sort((a, b) => (a.polizas.fecha < b.polizas.fecha ? -1 : a.polizas.fecha > b.polizas.fecha ? 1 : (a.id || 0) - (b.id || 0)));
+}
+
 // Fila expandible con el detalle de movimientos de la cuenta + enlace a su póliza.
 function rcFilaDetalleCuenta(cuenta, colspan) {
     if (rcCache.sinDetalle) {
@@ -1556,13 +1565,13 @@ function rcFilaDetalleCuenta(cuenta, colspan) {
             El desglose por documento necesita el último SQL de contabilidad. Vuelve a generar el reporte tras correrlo.</td></tr>`;
     }
     const lista = rcMovsDeCuenta(cuenta.id);
-    if (!lista.length) {
+    const listaCancelados = rcMovsCanceladosDeCuenta(cuenta.id);
+    if (!lista.length && !listaCancelados.length) {
         return `<tr class="rc-detalle-row bg-slate-900/40"><td colspan="${colspan}" class="p-3 text-[11px] text-slate-500">Sin movimientos en el periodo.</td></tr>`;
     }
     let sc = 0, sa = 0;
-    const filas = lista.map((m) => {
+    const filaMov = (m) => {
         const p = m.polizas || {};
-        sc += Number(m.cargo) || 0; sa += Number(m.abono) || 0;
         return `<tr class="border-b border-slate-900/60">
             <td class="p-1.5 whitespace-nowrap text-slate-400">${p.fecha || ''}</td>
             <td class="p-1.5">
@@ -1573,10 +1582,23 @@ function rcFilaDetalleCuenta(cuenta, colspan) {
             <td class="p-1.5 text-right font-mono">${Number(m.cargo) ? rcFmt(m.cargo) : ''}</td>
             <td class="p-1.5 text-right font-mono">${Number(m.abono) ? rcFmt(m.abono) : ''}</td>
         </tr>`;
+    };
+    const filas = lista.map((m) => {
+        sc += Number(m.cargo) || 0; sa += Number(m.abono) || 0;
+        return filaMov(m);
     }).join('');
+
+    const bloqueCancelados = listaCancelados.length ? `
+        <div class="text-[11px] text-rose-400/80 mt-3 mb-1 font-semibold">⚠ Movimientos de pólizas canceladas — no se suman al saldo (${listaCancelados.length})</div>
+        <div class="overflow-x-auto opacity-60">
+        <table class="w-full text-left text-[11px] text-slate-400">
+            <tbody>${listaCancelados.map(filaMov).join('')}</tbody>
+        </table>
+        </div>` : '';
+
     return `<tr class="rc-detalle-row bg-slate-900/30"><td colspan="${colspan}" class="p-2">
         <div class="text-[11px] text-slate-500 mb-1 font-semibold">${cuenta.codigo} · ${cuenta.nombre} — ${lista.length} movimiento(s)</div>
-        <div class="overflow-x-auto">
+        ${lista.length ? `<div class="overflow-x-auto">
         <table class="w-full text-left text-[11px] text-slate-300">
             <thead class="text-slate-500 uppercase"><tr>
                 <th class="p-1.5 text-left">Fecha</th><th class="p-1.5 text-left">Póliza</th>
@@ -1589,7 +1611,8 @@ function rcFilaDetalleCuenta(cuenta, colspan) {
                 <td class="p-1.5 text-right">${rcFmt(sa)}</td>
             </tr></tfoot>
         </table>
-        </div>
+        </div>` : ''}
+        ${bloqueCancelados}
     </td></tr>`;
 }
 
@@ -1690,7 +1713,22 @@ async function rcGenerar(forzar) {
             }
             if (movsR.error) throw movsR.error;
             const movs = movsR.data || [];
-            rcCache = { desde, hasta, ctas: ctasR.data || [], movs, truncado: movs.length >= 1000, sinDetalle };
+
+            // Movimientos de pólizas YA canceladas en el periodo: no cuentan
+            // para el saldo, pero se muestran aparte al expandir la cuenta
+            // para que quede claro que se canceló y no que "desapareció".
+            let movsCancelados = [];
+            if (!sinDetalle) {
+                const cancR = await supabaseClient.from('poliza_movimientos')
+                    .select('id, cuenta_id, cargo, abono, concepto, polizas!inner(id, fecha, estatus, tipo, numero, concepto, origen)')
+                    .eq('polizas.estatus', 'cancelada')
+                    .gte('polizas.fecha', desde)
+                    .lte('polizas.fecha', hasta)
+                    .limit(2000);
+                if (!cancR.error) movsCancelados = cancR.data || [];
+            }
+
+            rcCache = { desde, hasta, ctas: ctasR.data || [], movs, movsCancelados, truncado: movs.length >= 1000, sinDetalle };
         } catch (err) {
             res.innerHTML = `<p class="text-rose-400 text-xs">No se pudo generar. ¿Corriste los SQL de contabilidad (fases 1-2)?<br>${err.message || err}</p>`;
             rcCache = null;
