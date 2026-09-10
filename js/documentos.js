@@ -53,6 +53,7 @@ export async function cargarVistaDocumentos() {
                         <thead class="bg-slate-950 text-indigo-400 border-b border-slate-800 text-xs uppercase font-mono">
                             <tr>
                                 <th class="p-4 text-left">Acciones</th>
+                                <th class="p-4 text-left">Póliza</th>
                                 <th class="p-4">ID</th>
                                 <th class="p-4">Folio Comercial</th>
                                 <th class="p-4">Tipo Movimiento / Consecutivo</th>
@@ -63,7 +64,7 @@ export async function cargarVistaDocumentos() {
                         </thead>
                         <tbody id="tablaDocumentosCuerpo">
                             <tr>
-                                <td colspan="7" class="p-8 text-center text-slate-500">Cargando registros de documentos...</td>
+                                <td colspan="8" class="p-8 text-center text-slate-500">Cargando registros de documentos...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -154,7 +155,7 @@ window.cargarListaDocumentos = async function() {
         console.error("Error al cargar documentos:", err);
         const cuerpo = document.getElementById('tablaDocumentosCuerpo');
         if (cuerpo) {
-            cuerpo.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-rose-400">Error al consultar la tabla 'documentos' en Supabase.</td></tr>`;
+            cuerpo.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-rose-400">Error al consultar la tabla 'documentos' en Supabase.</td></tr>`;
         }
     }
 };
@@ -164,7 +165,7 @@ window.renderizarTablaDocumentos = function(lista) {
     if (!cuerpo) return;
 
     if (!lista || lista.length === 0) {
-        cuerpo.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-500">No hay documentos registrados en el sistema.</td></tr>`;
+        cuerpo.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-500">No hay documentos registrados en el sistema.</td></tr>`;
         return;
     }
 
@@ -181,7 +182,11 @@ window.renderizarTablaDocumentos = function(lista) {
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                         Ver Detalle
                     </button>
-                    ${doc.poliza_id ? `<button onclick="window.verPolizaDeDocumento(${doc.poliza_id}, '${doc.fecha_emision || ''}')" class="block mt-1.5 text-[11px] text-emerald-400 hover:underline" style="cursor:pointer;">🧾 Ver póliza #${doc.poliza_id}</button>` : ''}
+                </td>
+                <td class="p-4">
+                    ${doc.poliza_id
+                        ? `<button onclick="window.verPolizaDeDocumento(${doc.poliza_id}, '${doc.fecha_emision || ''}')" class="bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-800/60 px-3 py-1.5 rounded-xl text-xs font-semibold transition inline-flex items-center gap-1.5 whitespace-nowrap" style="cursor:pointer;">🧾 Póliza #${doc.poliza_id}</button>`
+                        : `<span class="text-[11px] text-slate-600">— sin póliza —</span>`}
                 </td>
                 <td class="p-4 font-mono">
                     <span class="font-bold text-indigo-400">#${doc.id}</span>
@@ -368,6 +373,10 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
                     ${docInfo.poliza_id
                         ? `<button onclick="window.verPolizaDeDocumento(${docInfo.poliza_id}, '${docInfo.fecha_emision || ''}')" class="mt-1 text-xs bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-900 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5" style="cursor:pointer;">🧾 Ver póliza #${docInfo.poliza_id}</button>`
                         : `<span class="text-xs text-amber-400">Sin póliza — este documento no se contabilizó.</span>`}
+                    ${(['entrada_compra', 'entrada'].includes(docInfo.tipo_movimiento) && docInfo.estado !== 'cancelado')
+                        ? `<button onclick="window.cancelarReciboDesdeDoc(${docInfo.id})" class="mt-1 ml-2 text-xs bg-rose-950/60 hover:bg-rose-900/70 text-rose-300 border border-rose-900 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5" style="cursor:pointer;">↩ Cancelar recibo y revertir inventario</button>`
+                        : ''}
+                    ${docInfo.estado === 'cancelado' ? `<span class="ml-2 text-xs text-rose-400">Documento cancelado</span>` : ''}
                 </div>
             </div>
 
@@ -476,4 +485,42 @@ window.verPolizaDeDocumento = function(polizaId, fechaEmision) {
     window.__polFoco = { id: Number(polizaId), fecha: fechaEmision || null };
     if (typeof window.cerrarDetalleDocumento === 'function') window.cerrarDetalleDocumento();
     if (typeof window.loadView === 'function') window.loadView('polizas');
+};
+
+// Cancela un recibo de compra: revierte inventario + póliza. Bloquea si ya se consumió stock.
+window.cancelarReciboDesdeDoc = async function(docId) {
+    docId = Number(docId);
+    const { data: diag, error: eDiag } = await supabaseClient.rpc('recibo_reversible', { p_documento_id: docId });
+    if (eDiag) {
+        alert(/does not exist|schema cache|could not find/i.test(eDiag.message || '')
+            ? 'Falta correr sql/2026-09-21_reversa_inventario_recibo.sql en Supabase.'
+            : 'No se pudo verificar el recibo #' + docId + ':\n' + (eDiag.message || eDiag));
+        return;
+    }
+    if (!diag || !diag.length) { alert('El recibo #' + docId + ' no tiene movimientos de inventario que revertir.'); return; }
+
+    const consumidos = diag.filter((d) => !d.ok);
+    if (consumidos.length) {
+        alert('⛔ NO se puede revertir el inventario del recibo #' + docId + ' — ya se consumió stock:\n\n' +
+            consumidos.map((d) => `· ${d.producto_nombre} · lote ${d.numero_lote}: recibiste ${d.recibido}, quedan ${d.disponible} (consumido ${d.consumido})`).join('\n') +
+            '\n\nPrimero cancela las salidas / órdenes de producción que consumieron esos lotes.');
+        return;
+    }
+
+    const resumen = diag.map((d) => `· ${d.producto_nombre} · lote ${d.numero_lote}: −${d.recibido}`).join('\n');
+    if (!confirm(`✅ El recibo #${docId} SÍ es cancelable: ningún lote se ha consumido.\n\nSe revertirá el inventario y se cancelará su póliza:\n${resumen}\n\n¿Continuar?`)) return;
+
+    const motivo = prompt('Motivo de la cancelación:', 'Cancelación de recibo');
+    if (motivo === null) return;
+    try {
+        const { data, error } = await supabaseClient.rpc('cancelar_recibo_inventario', { p_documento_id: docId, p_motivo: motivo || null });
+        if (error) throw error;
+        const movs = (data && data.movimientos) || [];
+        alert('✅ ' + ((data && data.mensaje) || 'Recibo cancelado.') +
+            (movs.length ? '\n\nMovimientos revertidos:\n' + movs.map((m) => `· ${m.producto} · lote ${m.lote}: ${m.cantidad} ${m.unidad || ''}`).join('\n') : ''));
+        if (typeof window.cerrarDetalleDocumento === 'function') window.cerrarDetalleDocumento();
+        if (typeof window.cargarListaDocumentos === 'function') await window.cargarListaDocumentos();
+    } catch (err) {
+        alert('No se pudo cancelar el recibo: ' + (err.message || err));
+    }
 };

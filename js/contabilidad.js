@@ -615,7 +615,7 @@ async function polBuscar() {
             polExpandida = polExpandida === Number(tr.dataset.id) ? null : Number(tr.dataset.id);
             polBuscarRerender(data);
         }));
-        cont.querySelectorAll('.pol-cancel').forEach((b) => b.addEventListener('click', () => cancelarPoliza(Number(b.dataset.id))));
+        cont.querySelectorAll('.pol-cancel').forEach((b) => b.addEventListener('click', () => cancelarPoliza(Number(b.dataset.id), b.dataset)));
     } catch (err) {
         cont.innerHTML = `<p class="text-rose-400 text-xs">Error al consultar polizas. ¿Corriste <span class="font-mono">sql/2026-08-28_contabilidad_polizas.sql</span>?<br>${err.message || err}</p>`;
     }
@@ -631,7 +631,7 @@ function polBuscarRerender(data) {
         polExpandida = polExpandida === Number(tr.dataset.id) ? null : Number(tr.dataset.id);
         polBuscarRerender(data);
     }));
-    tbody.querySelectorAll('.pol-cancel').forEach((b) => b.addEventListener('click', () => cancelarPoliza(Number(b.dataset.id))));
+    tbody.querySelectorAll('.pol-cancel').forEach((b) => b.addEventListener('click', () => cancelarPoliza(Number(b.dataset.id), b.dataset)));
 }
 
 function renderFilaPoliza(p) {
@@ -665,14 +665,50 @@ function renderFilaPoliza(p) {
                 </tbody>
             </table>
             ${p.estatus === 'contabilizada'
-                ? `<button type="button" data-id="${p.id}" class="pol-cancel mt-2 text-[11px] bg-rose-950 hover:bg-rose-900 text-rose-300 px-3 py-1 rounded border border-rose-900 cursor-pointer">Cancelar poliza (genera reverso)</button>`
+                ? `<button type="button" data-id="${p.id}" data-origen="${esc(p.origen || '')}" data-origtabla="${esc(p.origen_tabla || '')}" data-origid="${p.origen_id || ''}" class="pol-cancel mt-2 text-[11px] bg-rose-950 hover:bg-rose-900 text-rose-300 px-3 py-1 rounded border border-rose-900 cursor-pointer">${p.origen === 'compra' && p.origen_tabla === 'documentos' ? 'Cancelar recibo (revierte inventario + póliza)' : 'Cancelar poliza (genera reverso)'}</button>`
                 : ''}
         </td></tr>`;
     }
     return html;
 }
 
-async function cancelarPoliza(id) {
+async function cancelarPoliza(id, ds) {
+    const esRecibo = ds && ds.origen === 'compra' && ds.origtabla === 'documentos' && ds.origid;
+
+    if (esRecibo) {
+        const docId = Number(ds.origid);
+        // 1) confirmar que es reversible (ningún lote consumido)
+        const { data: diag, error: eDiag } = await supabaseClient.rpc('recibo_reversible', { p_documento_id: docId });
+        if (eDiag) { alert('No se pudo verificar el recibo #' + docId + ':\n' + (eDiag.message || eDiag)); return; }
+        if (!diag || !diag.length) { alert('El recibo #' + docId + ' no tiene movimientos de inventario que revertir.'); return; }
+
+        const consumidos = diag.filter((d) => !d.ok);
+        if (consumidos.length) {
+            alert('⛔ NO se puede revertir el inventario del recibo #' + docId + ' — ya se consumió stock:\n\n' +
+                consumidos.map((d) => `· ${d.producto_nombre} · lote ${d.numero_lote}: recibiste ${d.recibido}, quedan ${d.disponible} (consumido ${d.consumido})`).join('\n') +
+                '\n\nPrimero cancela las salidas / órdenes de producción que consumieron esos lotes.');
+            return;
+        }
+
+        const resumen = diag.map((d) => `· ${d.producto_nombre} · lote ${d.numero_lote}: −${d.recibido}`).join('\n');
+        if (!confirm(`✅ El recibo #${docId} SÍ es cancelable: ningún lote se ha consumido.\n\nSe cancelará la póliza (contra-asiento) y se revertirá el inventario:\n${resumen}\n\n¿Continuar?`)) return;
+
+        const motivo = prompt('Motivo de la cancelación:', 'Cancelación de recibo');
+        if (motivo === null) return;
+        try {
+            const { data, error } = await supabaseClient.rpc('cancelar_recibo_inventario', { p_documento_id: docId, p_motivo: motivo || null });
+            if (error) throw error;
+            const movs = (data && data.movimientos) || [];
+            alert('✅ ' + ((data && data.mensaje) || 'Recibo cancelado.') +
+                (movs.length ? '\n\nMovimientos revertidos:\n' + movs.map((m) => `· ${m.producto} · lote ${m.lote}: ${m.cantidad} ${m.unidad || ''}`).join('\n') : ''));
+            polExpandida = null;
+            await polBuscar();
+        } catch (err) {
+            alert('No se pudo cancelar el recibo: ' + (err.message || err));
+        }
+        return;
+    }
+
     const motivo = prompt('Motivo de la cancelacion (opcional):', '');
     if (motivo === null) return;
     try {
