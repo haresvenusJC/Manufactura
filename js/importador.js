@@ -10,8 +10,13 @@ import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs';
 //    (Nombre, SKU, Proveedor, Precio, Moneda, Unidad, Notas).
 //  - Pre-resumen antes de validar; luego vista previa fila por fila con
 //    casillas para elegir que se importa.
-//  - Upsert: si el producto ya existe (por SKU, o por nombre si no hay
-//    SKU) se ACTUALIZA; si no, se CREA. Los proveedores nuevos se crean.
+//  - Upsert: si el producto ya existe por SKU se ACTUALIZA; si no, se CREA.
+//    Casilla "Actualizar solo por SKU" (activa por default): si se
+//    desmarca, tambien empareja por nombre cuando la fila no trae SKU —
+//    menos preciso, puede sobrescribir un producto distinto con nombre
+//    parecido. Los SKU repetidos DENTRO del mismo archivo se marcan para
+//    revision manual (si no, la fila 2 "actualizaria" lo que la fila 1
+//    acaba de crear en esta misma importacion). Los proveedores nuevos se crean.
 //  - El precio va a productos.costo_unitario (+ moneda_id).
 // =====================================================================
 
@@ -186,6 +191,9 @@ export async function cargarModuloImportador() {
                 <label class="flex items-center gap-2 text-xs text-slate-300">
                     <input type="checkbox" id="impCrearProv" checked class="accent-sky-500"> Crear proveedores que no existan
                 </label>
+                <label class="flex items-center gap-2 text-xs text-slate-300" title="Si una fila no trae SKU (o su SKU no coincide con ninguno existente), se crea como producto nuevo en vez de emparejarla por nombre. Evita sobrescribir por error un producto distinto que se llame parecido.">
+                    <input type="checkbox" id="impSoloPorSku" checked class="accent-sky-500"> Actualizar solo por SKU (no por nombre)
+                </label>
 
                 <div class="flex gap-2">
                     <button type="button" id="impValidar" class="flex-1 bg-slate-800 hover:bg-slate-700 text-sky-300 font-medium py-2 rounded-lg text-sm border border-slate-700 transition cursor-pointer">Validar</button>
@@ -230,7 +238,7 @@ function cablearEventos() {
         cargarHoja(estado.hojaActual, estado.filaEncSugerida, estado.filaEncSugerida + 1);
     });
 
-    ['impMonedaDef', 'impUnidadDef', 'impTipo', 'impCrearProv'].forEach((id) => {
+    ['impMonedaDef', 'impUnidadDef', 'impTipo', 'impCrearProv', 'impSoloPorSku'].forEach((id) => {
         $(id).addEventListener('change', () => { if (estado.filas.length) renderPreResumen(); });
     });
 
@@ -425,6 +433,8 @@ function preEstadisticas() {
     const R = estado.refs;
     const m = estado.mapeo;
     const val = (fila, key) => (m[key] ? String(fila[m[key]] ?? '').trim() : '');
+    const soloPorSku = document.getElementById('impSoloPorSku')?.checked ?? true;
+    const dupSkuMap = skusDuplicadosEnArchivo();
 
     const provNuevos = new Set();
     const dups = [];
@@ -434,7 +444,7 @@ function preEstadisticas() {
         const nombre = val(fila, 'nombre');
         if (!nombre) { sinNombre++; continue; }
         const sku = val(fila, 'sku');
-        const existe = (sku && R.prodPorSku.has(norm(sku))) || (!sku && R.prodPorNombre.has(norm(nombre)));
+        const existe = (sku && R.prodPorSku.has(norm(sku))) || (!sku && !soloPorSku && R.prodPorNombre.has(norm(nombre)));
         if (existe) {
             actualizar++;
         } else {
@@ -450,7 +460,7 @@ function preEstadisticas() {
         const pv = val(fila, 'proveedor');
         if (pv && !R.provPorNombre.has(norm(pv))) provNuevos.add(pv.trim());
     }
-    return { total: estado.filas.length, crear, actualizar, sinNombre, sinPrecio, precioMal, provNuevos: [...provNuevos], dups };
+    return { total: estado.filas.length, crear, actualizar, sinNombre, sinPrecio, precioMal, provNuevos: [...provNuevos], dups, dupSku: dupSkuMap.size };
 }
 
 function renderPreResumen() {
@@ -465,6 +475,8 @@ function renderPreResumen() {
 
     const avisos = [];
     if (!m.nombre) avisos.push('No se detecto la columna <b>Nombre</b>: mapeala a mano o el importador no podra continuar.');
+    if (!m.sku) avisos.push('No mapeaste columna de <b>SKU</b>: sin ella, el emparejamiento con productos existentes se hace por nombre (menos preciso) o, si tienes marcada "Actualizar solo por SKU", <b>todo</b> se creara como producto nuevo aunque ya exista.');
+    if (s.dupSku) avisos.push(`<b>${s.dupSku}</b> SKU(s) repetidos dentro de este mismo archivo — revisalos, si no son la misma pieza se sobrescribirian entre si.`);
     if (!m.costo_unitario) avisos.push('Sin columna de <b>precio</b>: los productos entrarian sin costo_unitario.');
     if (m.costo_unitario && !m.moneda) {
         avisos.push(estado.monedaDetectada && norm(estado.monedaDetectada) !== norm(monTxt)
@@ -575,6 +587,25 @@ function posibleDuplicado(nombre) {
     return '';
 }
 
+// SKUs que se repiten DENTRO del propio archivo (no contra la BD). Si no se
+// detectan, la fila 2 con el mismo SKU que la fila 1 termina "actualizando"
+// lo que la fila 1 acababa de crear en esta misma importacion, en cadena —
+// la causa mas comun de "se me sobreescribio un producto".
+function skusDuplicadosEnArchivo() {
+    const m = estado.mapeo;
+    if (!m.sku) return new Map();
+    const porSku = new Map(); // sku normalizado -> [num de fila...]
+    estado.filas.forEach((fila, idx) => {
+        const sku = String(celda(fila, 'sku')).trim();
+        if (!sku) return;
+        const k = norm(sku);
+        if (!porSku.has(k)) porSku.set(k, []);
+        porSku.get(k).push(estado.filaDatos + idx);
+    });
+    for (const [k, filas] of [...porSku]) { if (filas.length < 2) porSku.delete(k); }
+    return porSku;
+}
+
 function validar() {
     if (!estado.filas.length) { alert('Primero carga un archivo con datos.'); return; }
     if (!estado.mapeo.nombre) { alert('Debes mapear la columna "Nombre del producto".'); return; }
@@ -583,6 +614,8 @@ function validar() {
     const monedaDef = document.getElementById('impMonedaDef').value ? Number(document.getElementById('impMonedaDef').value) : null;
     const unidadDef = document.getElementById('impUnidadDef').value ? Number(document.getElementById('impUnidadDef').value) : null;
     const crearProv = document.getElementById('impCrearProv').checked;
+    const soloPorSku = document.getElementById('impSoloPorSku').checked;
+    const dupSkuMap = skusDuplicadosEnArchivo();
 
     const plan = estado.filas.map((fila, idx) => {
         const problemas = [];
@@ -633,7 +666,15 @@ function validar() {
         // match de producto
         let accion = 'crear', prodId = null, via = '';
         if (sku && R.prodPorSku.has(norm(sku))) { accion = 'actualizar'; prodId = R.prodPorSku.get(norm(sku)).id; via = 'SKU'; }
-        else if (!sku && R.prodPorNombre.has(norm(nombre))) { accion = 'actualizar'; prodId = R.prodPorNombre.get(norm(nombre)).id; via = 'nombre'; }
+        else if (!sku && !soloPorSku && R.prodPorNombre.has(norm(nombre))) { accion = 'actualizar'; prodId = R.prodPorNombre.get(norm(nombre)).id; via = 'nombre'; }
+
+        // SKU repetido dentro del propio archivo: si se deja pasar, la
+        // segunda fila "actualizaria" lo que la primera acaba de crear en
+        // esta misma importacion. Se marca para revision manual siempre.
+        if (sku && dupSkuMap.has(norm(sku))) {
+            problemas.push('SKU "' + sku + '" repetido en este archivo (filas ' + dupSkuMap.get(norm(sku)).join(', ') + ') — revisa si son productos distintos.');
+            requiereRevision = true;
+        }
 
         // posible duplicado (solo tiene sentido avisar si se va a crear)
         let dupDe = '';
