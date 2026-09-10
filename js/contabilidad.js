@@ -1779,8 +1779,9 @@ function rcPintarBalanza() {
         const saldoIni = a.iniC - a.iniA;                 // + deudor / - acreedor
         const saldoFin = saldoIni + a.perC - a.perA;
         tIni += saldoIni; tCargo += a.perC; tAbono += a.perA; tFin += saldoFin;
-        return { c, saldoIni, cargo: a.perC, abono: a.perA, saldoFin };
-    }).filter((r) => r.saldoIni || r.cargo || r.abono || r.saldoFin);
+        const cancelados = rcMovsCanceladosDeCuenta(c.id).length;
+        return { c, saldoIni, cargo: a.perC, abono: a.perA, saldoFin, cancelados };
+    }).filter((r) => r.saldoIni || r.cargo || r.abono || r.saldoFin || r.cancelados);
 
     if (filas.length === 0) { res.innerHTML = '<p class="text-slate-400">Sin movimientos contabilizados en el periodo.</p>'; return; }
 
@@ -1796,7 +1797,7 @@ function rcPintarBalanza() {
                     ${filas.map((r) => `
                         <tr class="rc-cuenta-row border-b border-slate-900 cursor-pointer hover:bg-slate-900/40" data-cuenta="${r.c.id}">
                             <td class="p-2 font-mono text-slate-400">${rcCuentaExpandida === r.c.id ? '▾' : '▸'} ${r.c.codigo}</td>
-                            <td class="p-2">${r.c.nombre}</td>
+                            <td class="p-2">${r.c.nombre}${(r.cancelados && !r.saldoIni && !r.cargo && !r.abono && !r.saldoFin) ? ` <span class="text-[10px] text-rose-400/80">· solo pólizas canceladas</span>` : ''}</td>
                             <td class="p-2 text-right font-mono ${r.saldoIni < 0 ? 'text-rose-400' : ''}">${rcFmt(r.saldoIni)}</td>
                             <td class="p-2 text-right font-mono">${rcFmt(r.cargo)}</td>
                             <td class="p-2 text-right font-mono">${rcFmt(r.abono)}</td>
@@ -1828,8 +1829,8 @@ function rcPintarResultados() {
 
     const bloque = (tipo) => {
         const items = ctas.filter((c) => c.afectable && c.tipo === tipo)
-            .map((c) => ({ c, monto: netoPeriodo(c) }))
-            .filter((x) => Math.abs(x.monto) > 0.005);
+            .map((c) => ({ c, monto: netoPeriodo(c), cancelados: rcMovsCanceladosDeCuenta(c.id).length }))
+            .filter((x) => Math.abs(x.monto) > 0.005 || x.cancelados);
         const total = items.reduce((s, x) => s + x.monto, 0);
         return { items, total };
     };
@@ -1844,7 +1845,7 @@ function rcPintarResultados() {
         <tr class="bg-slate-900/60"><td class="p-2 font-semibold text-sky-400" colspan="2">${titulo}</td></tr>
         ${b.items.map((x) => `
             <tr class="rc-cuenta-row border-b border-slate-900 cursor-pointer hover:bg-slate-900/40" data-cuenta="${x.c.id}">
-                <td class="p-2 pl-6"><span class="text-slate-600">${rcCuentaExpandida === x.c.id ? '▾' : '▸'}</span> <span class="font-mono text-slate-500">${x.c.codigo}</span> ${x.c.nombre}</td>
+                <td class="p-2 pl-6"><span class="text-slate-600">${rcCuentaExpandida === x.c.id ? '▾' : '▸'}</span> <span class="font-mono text-slate-500">${x.c.codigo}</span> ${x.c.nombre}${(x.cancelados && Math.abs(x.monto) <= 0.005) ? ` <span class="text-[10px] text-rose-400/80">· solo pólizas canceladas</span>` : ''}</td>
                 <td class="p-2 text-right font-mono">${rcFmt(x.monto)}</td>
             </tr>
             ${rcCuentaExpandida === x.c.id ? rcFilaDetalleCuenta(x.c, 2) : ''}`).join('') || '<tr><td class="p-2 pl-6 text-slate-600" colspan="2">(sin movimientos)</td></tr>'}
