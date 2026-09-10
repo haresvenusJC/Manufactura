@@ -1517,7 +1517,7 @@ async function gaBuscar() {
                                 <td class="p-2 text-slate-400">${g.proveedores?.nombre || '—'}</td>
                                 <td class="p-2 font-mono text-slate-500">${g.cuentas_contables ? g.cuentas_contables.codigo : '—'}</td>
                                 <td class="p-2 text-right font-mono">${money(g.total)}</td>
-                                <td class="p-2 font-mono text-slate-500">${g.polizas ? g.polizas.tipo + ' #' + g.polizas.numero : '—'}</td>
+                                <td class="p-2 font-mono">${g.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${g.poliza_id}, '${g.fecha || ''}')" class="text-[11px] bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-900 px-2 py-1 rounded cursor-pointer">🧾 ${g.polizas ? g.polizas.tipo + ' #' + g.polizas.numero : 'Póliza #' + g.poliza_id}</button>` : '<span class="text-slate-500">—</span>'}</td>
                                 <td class="p-2 ${g.estatus === 'registrado' ? 'text-emerald-400' : 'text-rose-400'}">${g.estatus}</td>
                                 <td class="p-2 text-right">
                                     ${g.estatus === 'registrado'

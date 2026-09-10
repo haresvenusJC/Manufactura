@@ -191,7 +191,7 @@ async function cxpHistorial() {
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
               <th class="p-2 text-left">Acción</th><th class="p-2">Fecha</th><th class="p-2">Proveedor</th><th class="p-2">Ref.</th>
-              <th class="p-2 text-right">Total</th><th class="p-2 text-center"># Docs</th><th class="p-2">Estatus</th>
+              <th class="p-2 text-right">Total</th><th class="p-2 text-center"># Docs</th><th class="p-2">Póliza</th><th class="p-2">Estatus</th>
             </tr></thead>
             <tbody>
               ${data.map(p => `
@@ -202,6 +202,7 @@ async function cxpHistorial() {
                   <td class="p-2 text-slate-400">${esc(p.referencia || '')}</td>
                   <td class="p-2 text-right font-mono">${money(p.total)}</td>
                   <td class="p-2 text-center font-mono text-slate-400">${(p.pagos_proveedor_aplicaciones || []).length}</td>
+                  <td class="p-2">${p.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${p.poliza_id}, '${p.fecha || ''}')" class="text-[11px] bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-900 px-2 py-1 rounded cursor-pointer">🧾 Póliza #${p.poliza_id}</button>` : '<span class="text-slate-500">—</span>'}</td>
                   <td class="p-2 ${p.estatus === 'registrado' ? 'text-emerald-400' : 'text-rose-400'}">${esc(p.estatus)}</td>
                 </tr>`).join('')}
             </tbody>

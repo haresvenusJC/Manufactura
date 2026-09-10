@@ -178,6 +178,13 @@ export async function configurarFormularioCompras() {
             <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium p-3 rounded-lg transition shadow-md text-sm" style="cursor: pointer;">
                 Registrar Compra
             </button>
+
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl mt-4">
+                <h3 class="text-md font-semibold text-emerald-400 flex items-center gap-2 mb-3">📋 Historial de Compras Registradas</h3>
+                <div id="contenedorHistorialCompras">
+                    <p class="text-slate-400 text-sm">Cargando historial...</p>
+                </div>
+            </div>
         `;
     }
 
@@ -190,6 +197,7 @@ export async function configurarFormularioCompras() {
     await cargarUnidadesMedidaSelect();
     await precargarProductosParaBusqueda();
     await cargarBloqueFiscalCompra();
+    await cargarHistorialCompras();
 
     const monedaSelect = document.getElementById('compraMoneda');
     if (monedaSelect) {
@@ -429,12 +437,75 @@ export async function configurarFormularioCompras() {
             if (typeof cargarInventarioCompleto === 'function') {
                 await cargarInventarioCompleto();
             }
+            await cargarHistorialCompras();
 
         } catch (error) {
             console.error("Error al registrar la compra:", error);
             alert("Error al procesar la compra: " + error.message);
         }
     };
+}
+
+async function cargarHistorialCompras() {
+    const cont = document.getElementById('contenedorHistorialCompras');
+    if (!cont) return;
+    try {
+        const { data: documentos, error } = await supabaseClient
+            .from('documentos')
+            .select(`id, folio, fecha_emision, notas, poliza_id, proveedores ( nombre ),
+                     documento_detalles ( cantidad, costo_unitario, subtotal, productos ( nombre ), lotes_inventario ( numero_lote ) )`)
+            .eq('tipo_movimiento', 'entrada_compra')
+            .order('fecha_emision', { ascending: false })
+            .limit(25);
+        if (error) throw error;
+
+        if (!documentos || documentos.length === 0) {
+            cont.innerHTML = `<p class="text-slate-400 text-sm">No hay compras registradas recientemente.</p>`;
+            return;
+        }
+
+        let html = `
+            <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-950">
+                <table class="w-full text-left text-sm text-slate-300">
+                    <thead class="bg-slate-900 text-emerald-400 text-xs uppercase border-b border-slate-800">
+                        <tr>
+                            <th class="p-3">Factura / Folio</th>
+                            <th class="p-3">Fecha</th>
+                            <th class="p-3">Proveedor</th>
+                            <th class="p-3">Partidas / Lotes</th>
+                            <th class="p-3">Póliza</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        documentos.forEach((doc) => {
+            let descDetalles = '';
+            if (doc.documento_detalles && doc.documento_detalles.length > 0) {
+                descDetalles = doc.documento_detalles.map((d) =>
+                    `<span class="block text-xs font-mono text-slate-300">• ${d.productos?.nombre || 'Prod'} (<b class="text-amber-300">Lote: ${d.lotes_inventario?.numero_lote || 'SIN-LOTE'}</b>): <b class="text-emerald-300">${d.cantidad} un.</b></span>`
+                ).join('');
+            }
+            const polCell = doc.poliza_id
+                ? `<button type="button" onclick="window.verPolizaDeDocumento(${doc.poliza_id}, '${doc.fecha_emision || ''}')" class="text-[11px] bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-900 px-2 py-1 rounded cursor-pointer">🧾 Póliza #${doc.poliza_id}</button>`
+                : `<span class="text-[11px] text-slate-600">— sin póliza —</span>`;
+
+            html += `
+                <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition">
+                    <td class="p-3 font-mono text-xs text-emerald-400 font-bold">${doc.folio || 'Sin Factura'}</td>
+                    <td class="p-3 text-xs text-slate-400">${doc.fecha_emision ? new Date(doc.fecha_emision).toLocaleDateString() : ''}</td>
+                    <td class="p-3 text-xs text-slate-200">${doc.proveedores?.nombre || 'N/D'}</td>
+                    <td class="p-3">${descDetalles}</td>
+                    <td class="p-3">${polCell}</td>
+                </tr>`;
+        });
+
+        html += `</tbody></table></div>`;
+        cont.innerHTML = html;
+    } catch (err) {
+        console.error("Error al cargar historial de compras:", err);
+        cont.innerHTML = `<p class="text-red-400 text-sm">Error al cargar historial de compras.</p>`;
+    }
 }
 
 // --------- Bloque fiscal / contabilidad de la compra ---------

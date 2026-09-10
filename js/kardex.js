@@ -401,6 +401,12 @@ window.abrirDetalleDocumento = async function(docId) {
                     <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-semibold">Proveedor / Tercero</span>
                     <span class="text-xs font-medium text-slate-200">${proveedorNombre}</span>
                 </div>
+                <div class="sm:col-span-2">
+                    <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-semibold">Póliza contable</span>
+                    ${docInfo.poliza_id
+                        ? `<button onclick="window.verPolizaDeDocumento(${docInfo.poliza_id}, '${docInfo.fecha_emision || ''}')" class="mt-1 text-xs bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-900 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5" style="cursor:pointer;">🧾 Ver póliza #${docInfo.poliza_id}</button>`
+                        : `<span class="text-xs text-amber-400">Sin póliza — este documento no se contabilizó.</span>`}
+                </div>
                 ${docInfo.descripcion ? `
                 <div class="sm:col-span-2">
                     <span class="text-[10px] uppercase tracking-wider text-slate-500 block font-semibold">Descripción / Observaciones</span>

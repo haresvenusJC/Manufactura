@@ -886,7 +886,7 @@ async function cargarHistorialSalidas() {
             if (!('poliza_id' in doc)) {
                 contabCell = `<span class="text-[11px] text-slate-600">—</span>`;
             } else if (doc.poliza_id) {
-                contabCell = `<span class="text-[11px] text-emerald-400">Póliza #${doc.poliza_id}</span>`;
+                contabCell = `<button type="button" onclick="window.verPolizaDeDocumento(${doc.poliza_id}, '${doc.fecha_emision || ''}')" class="text-[11px] bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-900 px-2 py-1 rounded cursor-pointer">🧾 Póliza #${doc.poliza_id}</button>`;
             } else {
                 contabCell = `<button type="button" class="btn-contab-salida text-[11px] bg-sky-950 hover:bg-sky-900 text-sky-300 px-2 py-1 rounded border border-sky-800 cursor-pointer" data-id="${doc.id}">Contabilizar</button>`;
             }

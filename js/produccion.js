@@ -1073,6 +1073,16 @@ async function renderizarDetalleOrden(idSeleccionado, ordenes, contenedorDetalle
             docIdAUsar = loteOrden.documento_id;
         }
 
+        let docPolizaId = null, docPolizaFecha = null;
+        if (docIdAUsar) {
+            const { data: docInfo } = await supabaseClient
+                .from('documentos')
+                .select('poliza_id, fecha_emision')
+                .eq('id', docIdAUsar)
+                .maybeSingle();
+            if (docInfo) { docPolizaId = docInfo.poliza_id; docPolizaFecha = docInfo.fecha_emision; }
+        }
+
         let movimientosSalida = [];
 
         if (docIdAUsar) {
@@ -1186,6 +1196,12 @@ async function renderizarDetalleOrden(idSeleccionado, ordenes, contenedorDetalle
                 <div><span class="text-xs text-slate-400 block">CANTIDAD</span><span class="font-mono text-slate-200">${cantidadProducidaLote} ${unidadProducto}</span></div>
                 <div><span class="text-xs text-slate-400 block">EMPLEADOS</span><span class="font-mono text-slate-200">${empleados}</span></div>
                 <div><span class="text-xs text-slate-400 block">FECHA</span><span class="text-slate-300">${new Date(orden.created_at).toLocaleString()}</span></div>
+                <div class="md:col-span-5">
+                    <span class="text-xs text-slate-400 block">PÓLIZA CONTABLE</span>
+                    ${docPolizaId
+                        ? `<button type="button" onclick="window.verPolizaDeDocumento(${docPolizaId}, '${docPolizaFecha || ''}')" class="mt-1 text-xs bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-900 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 cursor-pointer">🧾 Ver póliza #${docPolizaId}</button>`
+                        : `<span class="text-xs text-amber-400">Sin póliza — esta orden no se ha contabilizado.</span>`}
+                </div>
             </div>
             ${orden.productos?.descripcion ? `<p class="text-xs text-slate-400 mb-4 -mt-2">${orden.productos.descripcion}</p>` : ''}
             ${htmlProcesos}
