@@ -17,6 +17,9 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 let cxpCache = [];
 let cxpPreOcCache = null;
 let cxpFiltro = 'pendiente';
+let cxpDesde = '';
+let cxpHasta = '';
+let cxpProveedorId = '';
 const CXP_FILTROS = [
     { v: 'pendiente', t: 'Pendientes de pago' },
     { v: 'pagado', t: 'Pagadas' },
@@ -57,6 +60,7 @@ export async function cargarModuloPagosProveedor() {
     cxpPreOcCache = window.__cxpOcPreseleccion || null;
     window.__cxpOcPreseleccion = null;
     cxpFiltro = 'pendiente';
+    cxpDesde = ''; cxpHasta = ''; cxpProveedorId = '';
 
     const optCta = '<option value="">— caja / banco —</option>' +
         ctasPago.map(c => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
@@ -99,18 +103,33 @@ function cxpPintarDocumentos() {
     const panel = document.getElementById('cxpPanelDocumentos');
     if (!panel) return;
 
-    const conteos = { pendiente: 0, pagado: 0, cancelado: 0 };
-    cxpCache.forEach((x) => { if (conteos[x.estatus_cxp] != null) conteos[x.estatus_cxp]++; });
+    // Filtros de fecha / proveedor: se aplican antes que el de estatus, para
+    // que los contadores de los botones reflejen ya el rango elegido.
+    const porFechaProv = cxpCache.filter((x) =>
+        (!cxpDesde || (x.fecha || '') >= cxpDesde) &&
+        (!cxpHasta || (x.fecha || '') <= cxpHasta) &&
+        (!cxpProveedorId || String(x.proveedor_id || '') === cxpProveedorId)
+    );
 
-    const filtrados = cxpFiltro === 'todas' ? cxpCache : cxpCache.filter((x) => x.estatus_cxp === cxpFiltro);
+    const conteos = { pendiente: 0, pagado: 0, cancelado: 0 };
+    porFechaProv.forEach((x) => { if (conteos[x.estatus_cxp] != null) conteos[x.estatus_cxp]++; });
+
+    const filtrados = cxpFiltro === 'todas' ? porFechaProv : porFechaProv.filter((x) => x.estatus_cxp === cxpFiltro);
     const esPendiente = cxpFiltro === 'pendiente';
     const totalGeneral = filtrados.reduce((a, x) => a + Number(x.saldo || 0), 0);
 
     const pills = CXP_FILTROS.map((f) => {
-        const n = f.v === 'todas' ? cxpCache.length : (conteos[f.v] || 0);
+        const n = f.v === 'todas' ? porFechaProv.length : (conteos[f.v] || 0);
         const on = f.v === cxpFiltro;
         return `<button type="button" class="cxp-filtro-btn text-xs px-3 py-1.5 rounded-lg border transition ${on ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'}" data-filtro="${f.v}">${f.t} <span class="opacity-70">(${n})</span></button>`;
     }).join('');
+
+    const proveedoresUnicos = new Map();
+    cxpCache.forEach((x) => { if (x.proveedor_id && !proveedoresUnicos.has(x.proveedor_id)) proveedoresUnicos.set(x.proveedor_id, x.proveedor_nombre || `#${x.proveedor_id}`); });
+    const optProveedor = '<option value="">— todos los proveedores —</option>' +
+        [...proveedoresUnicos.entries()]
+            .sort((a, b) => a[1].localeCompare(b[1], 'es'))
+            .map(([id, nombre]) => `<option value="${id}" ${cxpProveedorId === String(id) ? 'selected' : ''}>${esc(nombre)}</option>`).join('');
 
     const estatusBadge = (x) => x.estatus_cxp === 'cancelado'
         ? '<span class="text-[10px] text-rose-400 font-semibold">CANCELADO</span>'
@@ -122,6 +141,15 @@ function cxpPintarDocumentos() {
       <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
         <h3 class="text-md font-semibold text-slate-300">Documentos por pagar</h3>
         <span class="text-xs text-slate-400">${esPendiente ? 'Saldo total' : 'Suma'}: <span class="font-mono text-amber-300">${money(totalGeneral)}</span></span>
+      </div>
+      <div class="flex flex-wrap items-end gap-2 mb-3">
+        <div><label class="block text-[10px] text-slate-400 mb-1">Desde</label>
+          <input type="date" id="cxpDesde" value="${cxpDesde}" class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></div>
+        <div><label class="block text-[10px] text-slate-400 mb-1">Hasta</label>
+          <input type="date" id="cxpHasta" value="${cxpHasta}" class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></div>
+        <div class="min-w-[200px]"><label class="block text-[10px] text-slate-400 mb-1">Proveedor</label>
+          <select id="cxpFiltroProveedor" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100">${optProveedor}</select></div>
+        <button type="button" id="cxpLimpiarFiltros" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg">Limpiar</button>
       </div>
       <div class="flex flex-wrap gap-2 mb-3">${pills}</div>
       ${filtrados.length ? `
@@ -167,13 +195,17 @@ function cxpPintarDocumentos() {
         <span class="text-sm text-slate-300">Total a pagar: <span id="cxpTotalPagar" class="font-mono text-emerald-400 font-semibold">$0.00</span></span>
         <button type="button" id="cxpRegistrar" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-5 py-2.5 rounded-lg text-sm">Registrar pago</button>
       </div>` : ''}
-      ` : `<p class="text-slate-500 text-sm">No hay documentos en "${CXP_FILTROS.find((f) => f.v === cxpFiltro)?.t.toLowerCase()}".</p>`}
+      ` : `<p class="text-slate-500 text-sm">No hay documentos en "${CXP_FILTROS.find((f) => f.v === cxpFiltro)?.t.toLowerCase()}" con los filtros de fecha/proveedor elegidos.</p>`}
       <p id="cxpMsg" class="text-xs mt-2 min-h-[1rem]"></p>
     `;
 
     panel.querySelectorAll('.cxp-filtro-btn').forEach((b) => {
         b.onclick = () => { cxpFiltro = b.dataset.filtro; cxpPintarDocumentos(); };
     });
+    document.getElementById('cxpDesde').onchange = (e) => { cxpDesde = e.target.value; cxpPintarDocumentos(); };
+    document.getElementById('cxpHasta').onchange = (e) => { cxpHasta = e.target.value; cxpPintarDocumentos(); };
+    document.getElementById('cxpFiltroProveedor').onchange = (e) => { cxpProveedorId = e.target.value; cxpPintarDocumentos(); };
+    document.getElementById('cxpLimpiarFiltros').onclick = () => { cxpDesde = ''; cxpHasta = ''; cxpProveedorId = ''; cxpPintarDocumentos(); };
 
     if (!esPendiente || !filtrados.length) return;
 
