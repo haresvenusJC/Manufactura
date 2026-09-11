@@ -826,7 +826,7 @@ function rmRenderDetalle(oc) {
           <td class="p-2"><input type="text" class="rm-lote w-28 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" placeholder="lote del proveedor"></td>
           <td class="p-2"><input type="date" class="rm-cad w-32 bg-slate-900 border ${reqCad ? 'border-amber-600' : 'border-slate-800'} rounded px-2 py-1 text-xs text-slate-100 font-mono"></td>
         </tr>
-        ${rmFilaConversion()}`;
+        ${rmFilaConversion(pend, d.costo_unitario_estimado)}`;
     }).join('');
 
     cont.innerHTML = `
@@ -1041,13 +1041,15 @@ function rmLeerExtras() {
 // ---- Conversión de presentación por partida (millar, gruesa, docena...) ----
 // Evita el error de teclear la cantidad ya convertida (ej. 40,000 piezas) pero
 // dejar el costo tal cual venía en la factura (ej. $241.38 por MILLAR, no por pieza).
-function rmFilaConversion() {
+function rmFilaConversion(cantidadActual, precioActual) {
+    const cantVal = Number(cantidadActual) > 0 ? Number(cantidadActual) : '';
+    const precioVal = Number(precioActual) > 0 ? Number(precioActual) : '';
     return `<tr class="rm-conv-row hidden bg-slate-900/60">
       <td colspan="12" class="p-2">
         <div class="flex flex-wrap items-end gap-2 text-[11px]">
           <span class="text-slate-400">Convertir desde la presentación de la factura:</span>
           <div><label class="block text-slate-500 mb-0.5">Cant. en factura</label>
-            <input type="number" step="any" min="0" class="rm-conv-cant w-20 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-100 text-right font-mono"></div>
+            <input type="number" step="any" min="0" class="rm-conv-cant w-20 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-100 text-right font-mono" value="${cantVal}"></div>
           <div><label class="block text-slate-500 mb-0.5">Presentación</label>
             <select class="rm-conv-preset bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-100">
               <option value="">Preset…</option>
@@ -1068,7 +1070,7 @@ function rmFilaConversion() {
           <div><label class="block text-slate-500 mb-0.5">Factor</label>
             <input type="number" step="any" min="0.0001" value="1" class="rm-conv-factor w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-100 text-right font-mono"></div>
           <div><label class="block text-slate-500 mb-0.5">Precio en factura (por esa presentación)</label>
-            <input type="number" step="any" min="0" class="rm-conv-precio w-24 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-100 text-right font-mono"></div>
+            <input type="number" step="any" min="0" class="rm-conv-precio w-24 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-100 text-right font-mono" value="${precioVal}"></div>
           <button type="button" class="rm-conv-aplicar bg-sky-700 hover:bg-sky-600 text-white px-2.5 py-1.5 rounded">Aplicar →</button>
           <span class="rm-conv-resultado text-emerald-400 font-mono"></span>
         </div>
@@ -1103,10 +1105,26 @@ function rmWireConversiones(root) {
             const inpCosto = mainRow.querySelector('.rm-costo');
             if (inpCant) { inpCant.value = cantFinal; inpCant.dispatchEvent(new Event('input', { bubbles: true })); }
             if (inpCosto) { inpCosto.value = costoFinal; inpCosto.dispatchEvent(new Event('input', { bubbles: true })); }
+            mainRow.dataset.convertido = '1';   // para avisar si se reimporta el archivo y se perdería este ajuste
             const res = convRow.querySelector('.rm-conv-resultado');
             if (res) res.textContent = `= ${cantFinal.toLocaleString('es-MX')} × $${costoFinal} c/u`;
         };
     });
+}
+
+// Resumen "cantidad × costo real = subtotal" por partida, para que el
+// último clic de confirmación muestre el costo unitario tal cual se va a
+// guardar — así un error de conversión (ej. $241 en vez de $0.24) se ve
+// clarísimo ANTES de guardar, sin importar en qué paso se haya originado.
+function rmResumenLineas(lineas, etiquetaFn) {
+    const fmt = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+    let total = 0;
+    const filas = lineas.map((l) => {
+        const sub = l.cantidad * l.costo;
+        total += sub;
+        return `· ${etiquetaFn(l)}: ${l.cantidad.toLocaleString('es-MX')} × ${fmt(l.costo)} c/u = ${fmt(sub)}`;
+    });
+    return filas.join('\n') + `\n\nTotal material: ${fmt(total)}`;
 }
 
 // Convierte los extras a MXN, reparte por valor y anota landedUnit / adicUnit en cada línea.
@@ -1234,11 +1252,11 @@ async function rmConfirmar(ocs) {
         const caducidad = tr.querySelector('.rm-cad').value || null;
         if (!lote) errores.push(`Falta el lote del proveedor de "${nom}".`);
         if (tr.dataset.reqcad === '1' && !caducidad) errores.push(`Falta la caducidad de "${nom}".`);
-        lineas.push({ det, cantidad: cant, costo: parseFloat(tr.querySelector('.rm-costo').value) || 0, lote, caducidad });
+        lineas.push({ det, label: nom, cantidad: cant, costo: parseFloat(tr.querySelector('.rm-costo').value) || 0, lote, caducidad });
     });
     if (!lineas.length) { msg.textContent = 'Marca al menos una partida con cantidad mayor a 0.'; msg.className = 'text-xs text-rose-400'; return; }
     if (errores.length) { alert('⚠ Revisa:\n' + errores.join('\n')); return; }
-    if (!confirm(`¿Confirmar recepción de ${lineas.length} partida(s) de la orden ${oc.folio}?`)) return;
+    if (!confirm(`¿Confirmar recepción de ${lineas.length} partida(s) de la orden ${oc.folio}?\n\nRevisa el costo unitario de cada una — así se va a guardar:\n\n${rmResumenLineas(lineas, (l) => l.label)}`)) return;
 
     const tc = rmTcActual();
     if (tc !== 1) lineas.forEach(l => { l.costo = l.costo * tc; });   // a MXN
@@ -1364,7 +1382,7 @@ function rmRenderDetalleXml(conceptos, meta) {
           <td class="p-2"><input type="text" class="rm-lote w-28 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" placeholder="lote del proveedor"></td>
           <td class="p-2"><input type="date" class="rm-cad w-32 bg-slate-900 border ${reqCad ? 'border-amber-600' : 'border-slate-800'} rounded px-2 py-1 text-xs text-slate-100 font-mono"></td>
         </tr>
-        ${rmFilaConversion()}`;
+        ${rmFilaConversion(cp.cantidad, cp.valorUnitario)}`;
     }).join('');
 
     cont.innerHTML = `
@@ -1445,7 +1463,7 @@ async function rmConfirmarXml() {
     });
     if (!lineas.length) { msg.textContent = 'Marca al menos una partida con cantidad mayor a 0.'; msg.className = 'text-xs text-rose-400'; return; }
     if (errores.length) { alert('⚠ Revisa:\n' + errores.join('\n')); return; }
-    if (!confirm(`¿Registrar la recepción de ${lineas.length} partida(s) del CFDI (sin orden de compra)?`)) return;
+    if (!confirm(`¿Registrar la recepción de ${lineas.length} partida(s) del CFDI (sin orden de compra)?\n\nRevisa el costo unitario de cada una — así se va a guardar:\n\n${rmResumenLineas(lineas, (l) => l.desc)}`)) return;
 
     const tc = rmTcActual();
     if (tc !== 1) lineas.forEach(l => { l.costo = l.costo * tc; });   // a MXN
@@ -1533,6 +1551,15 @@ async function rmProcesarPdf(file) {
 
 // ---- Aplica a la pantalla los datos ya interpretados (de XML o de PDF) ----
 async function rmProcesarDatosFactura(datos, { icono = '📄', fuente = 'XML' } = {}) {
+    const yaConvertidas = document.querySelectorAll('#rmDetBody tr[data-convertido="1"]').length;
+    if (yaConvertidas) {
+        const seguir = confirm(
+            `Ya habías aplicado la conversión de presentación (🔁 convertir) a ${yaConvertidas} partida(s) en esta pantalla.\n\n` +
+            `Si importas otro archivo ahora, esas partidas se vuelven a llenar con los valores tal cual vienen en el archivo — se PERDERÍA la conversión que ya hiciste.\n\n` +
+            `¿Continuar de todas formas?`
+        );
+        if (!seguir) return;
+    }
     const info = document.getElementById('rmImportInfo');
     const {
         subtotal, total: totalCfdi, folio, rfcEmisor, nombreEmisor, regimenEmisor,
@@ -1613,8 +1640,10 @@ async function rmProcesarDatosFactura(datos, { icono = '📄', fuente = 'XML' } 
             }
             if (tr) {
                 tr.querySelector('.rm-chk').checked = true;
-                if (cp.cantidad > 0) tr.querySelector('.rm-cant').value = cp.cantidad;
-                if (cp.valorUnitario > 0) tr.querySelector('.rm-costo').value = cp.valorUnitario.toFixed(4);
+                if (tr.dataset.convertido !== '1') {
+                    if (cp.cantidad > 0) tr.querySelector('.rm-cant').value = cp.cantidad;
+                    if (cp.valorUnitario > 0) tr.querySelector('.rm-costo').value = cp.valorUnitario.toFixed(4);
+                }
                 conc++;
             } else {
                 sinMatch.push(cp.descripcion || cp.noId || '(sin descripción)');

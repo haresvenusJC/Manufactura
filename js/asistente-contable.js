@@ -97,14 +97,16 @@ export const GUIAS = {
         titulo: 'Cuentas por pagar',
         paraQue: 'Lo que le debes a cada proveedor por gastos y compras a crédito, y el registro de sus pagos.',
         pasos: [
-            'Filtra por proveedor o por antigüedad del saldo.',
-            'Registra un pago eligiendo la cuenta de banco / caja y el monto.',
+            'Usa los botones "Pendientes de pago / Pagadas / Canceladas / Todas" para elegir qué ver — por default solo se muestra lo pendiente.',
+            'Cada documento trae "🧾 Póliza" y "Ver recibo": ábrelos para verificar que dos renglones parecidos no sean el mismo recibo duplicado antes de pagar.',
+            'Marca los documentos a pagar (solo disponible en "Pendientes de pago"), elige la cuenta de banco / caja y el monto.',
             'El pago genera su póliza y baja el saldo del proveedor.',
         ],
         cuando: 'Cuando vas a pagar, o para saber cuánto debes.',
         errores: [
             'Registrar el mismo pago dos veces.',
             'Pagar desde una cuenta de banco distinta a la real: el saldo del banco queda mal.',
+            'Pagar un documento sin revisar antes si tiene un "gemelo" (mismo folio/proveedor) por un recibo cancelado y recapturado.',
         ],
     },
     'nomina': {

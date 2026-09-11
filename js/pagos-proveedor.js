@@ -12,6 +12,18 @@ const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFract
 const hoyISO = () => new Date().toISOString().slice(0, 10);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+// Estado del filtro de visibilidad (Pendientes / Pagadas / Canceladas / Todas)
+// y el último dataset traído, para poder refiltrar sin volver a consultar.
+let cxpCache = [];
+let cxpPreOcCache = null;
+let cxpFiltro = 'pendiente';
+const CXP_FILTROS = [
+    { v: 'pendiente', t: 'Pendientes de pago' },
+    { v: 'pagado', t: 'Pagadas' },
+    { v: 'cancelado', t: 'Canceladas' },
+    { v: 'todas', t: 'Todas' },
+];
+
 export async function cargarModuloPagosProveedor() {
     const cont = document.getElementById('contenedorPagosProveedor');
     if (!cont) return;
@@ -41,10 +53,11 @@ export async function cargarModuloPagosProveedor() {
         return;
     }
 
-    const preOc = window.__cxpOcPreseleccion || null;
+    cxpCache = cxp;
+    cxpPreOcCache = window.__cxpOcPreseleccion || null;
     window.__cxpOcPreseleccion = null;
+    cxpFiltro = 'pendiente';
 
-    const totalGeneral = cxp.reduce((a, x) => a + Number(x.saldo || 0), 0);
     const optCta = '<option value="">— caja / banco —</option>' +
         ctasPago.map(c => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
 
@@ -64,46 +77,7 @@ export async function cargarModuloPagosProveedor() {
         </div>
       </div>
 
-      <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="text-md font-semibold text-slate-300">Documentos por pagar</h3>
-          <span class="text-xs text-slate-400">Saldo total: <span class="font-mono text-amber-300">${money(totalGeneral)}</span></span>
-        </div>
-        ${cxp.length ? `
-        <div class="overflow-x-auto border border-slate-800 rounded-lg">
-          <table class="w-full text-left text-xs text-slate-300">
-            <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-              <th class="p-2"><input type="checkbox" id="cxpAll" class="accent-emerald-500"></th>
-              <th class="p-2">Tipo</th><th class="p-2">Folio</th><th class="p-2">Proveedor</th><th class="p-2">Fecha</th>
-              <th class="p-2 text-right">Total</th><th class="p-2 text-right">Pagado</th><th class="p-2 text-right">Saldo</th>
-              <th class="p-2">Monto a pagar</th>
-            </tr></thead>
-            <tbody id="cxpBody">
-              ${cxp.map(x => {
-                  const pre = preOc && x.tipo === 'compra' && Number(x.orden_compra_id) === Number(preOc);
-                  return `
-                  <tr class="border-b border-slate-900" data-tipo="${x.tipo}" data-id="${x.id}" data-saldo="${x.saldo}">
-                    <td class="p-2 text-center"><input type="checkbox" class="cxp-chk accent-emerald-500 w-4 h-4" ${pre ? 'checked' : ''}></td>
-                    <td class="p-2">${x.tipo}</td>
-                    <td class="p-2 font-mono text-slate-200">${esc(x.folio || '#' + x.id)}</td>
-                    <td class="p-2">${esc(x.proveedor_nombre || '—')}</td>
-                    <td class="p-2 whitespace-nowrap text-slate-400">${x.fecha || ''}</td>
-                    <td class="p-2 text-right font-mono">${money(x.total)}</td>
-                    <td class="p-2 text-right font-mono text-slate-500">${money(x.pagado)}</td>
-                    <td class="p-2 text-right font-mono text-amber-300">${money(x.saldo)}</td>
-                    <td class="p-2"><input type="number" step="0.01" min="0" class="cxp-monto w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-right font-mono text-slate-100" value="${Number(x.saldo).toFixed(2)}"></td>
-                  </tr>`;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-        <div class="flex items-center justify-between mt-3">
-          <span class="text-sm text-slate-300">Total a pagar: <span id="cxpTotalPagar" class="font-mono text-emerald-400 font-semibold">$0.00</span></span>
-          <button type="button" id="cxpRegistrar" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-5 py-2.5 rounded-lg text-sm">Registrar pago</button>
-        </div>
-        ` : '<p class="text-slate-500 text-sm">No hay compras ni gastos a crédito pendientes de pago. 🎉</p>'}
-        <p id="cxpMsg" class="text-xs mt-2 min-h-[1rem]"></p>
-      </div>
+      <div id="cxpPanelDocumentos" class="bg-slate-950 border border-slate-800 rounded-xl p-4"></div>
 
       <div>
         <h3 class="text-md font-semibold text-slate-300 mb-2">Pagos registrados</h3>
@@ -114,27 +88,111 @@ export async function cargarModuloPagosProveedor() {
     document.getElementById('cxpFecha').value = hoyISO();
     if (ctasPago.length === 1) document.getElementById('cxpCuenta').value = ctasPago[0].id;
 
+    cxpPintarDocumentos();
+    await cxpHistorial();
+    montarGuia(cont, 'pagos-proveedor');
+}
+
+// Repinta solo el panel "Documentos por pagar" según cxpFiltro, sin
+// volver a consultar Supabase (cxpCache ya trae todos los estatus).
+function cxpPintarDocumentos() {
+    const panel = document.getElementById('cxpPanelDocumentos');
+    if (!panel) return;
+
+    const conteos = { pendiente: 0, pagado: 0, cancelado: 0 };
+    cxpCache.forEach((x) => { if (conteos[x.estatus_cxp] != null) conteos[x.estatus_cxp]++; });
+
+    const filtrados = cxpFiltro === 'todas' ? cxpCache : cxpCache.filter((x) => x.estatus_cxp === cxpFiltro);
+    const esPendiente = cxpFiltro === 'pendiente';
+    const totalGeneral = filtrados.reduce((a, x) => a + Number(x.saldo || 0), 0);
+
+    const pills = CXP_FILTROS.map((f) => {
+        const n = f.v === 'todas' ? cxpCache.length : (conteos[f.v] || 0);
+        const on = f.v === cxpFiltro;
+        return `<button type="button" class="cxp-filtro-btn text-xs px-3 py-1.5 rounded-lg border transition ${on ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'}" data-filtro="${f.v}">${f.t} <span class="opacity-70">(${n})</span></button>`;
+    }).join('');
+
+    const estatusBadge = (x) => x.estatus_cxp === 'cancelado'
+        ? '<span class="text-[10px] text-rose-400 font-semibold">CANCELADO</span>'
+        : x.estatus_cxp === 'pagado'
+            ? '<span class="text-[10px] text-emerald-400 font-semibold">PAGADO</span>'
+            : '';
+
+    panel.innerHTML = `
+      <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+        <h3 class="text-md font-semibold text-slate-300">Documentos por pagar</h3>
+        <span class="text-xs text-slate-400">${esPendiente ? 'Saldo total' : 'Suma'}: <span class="font-mono text-amber-300">${money(totalGeneral)}</span></span>
+      </div>
+      <div class="flex flex-wrap gap-2 mb-3">${pills}</div>
+      ${filtrados.length ? `
+      <div class="overflow-x-auto border border-slate-800 rounded-lg">
+        <table class="w-full text-left text-xs text-slate-300">
+          <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
+            ${esPendiente ? '<th class="p-2"><input type="checkbox" id="cxpAll" class="accent-emerald-500"></th>' : '<th class="p-2">Estatus</th>'}
+            <th class="p-2">Tipo</th><th class="p-2">Folio</th><th class="p-2">Proveedor</th><th class="p-2">Fecha</th>
+            <th class="p-2 text-right">Total</th><th class="p-2 text-right">Pagado</th><th class="p-2 text-right">Saldo</th>
+            <th class="p-2">Póliza / Recibo</th>
+            ${esPendiente ? '<th class="p-2">Monto a pagar</th>' : ''}
+          </tr></thead>
+          <tbody id="cxpBody">
+            ${filtrados.map((x) => {
+                const pre = esPendiente && cxpPreOcCache && x.tipo === 'compra' && Number(x.orden_compra_id) === Number(cxpPreOcCache);
+                const verPoliza = x.poliza_id
+                    ? `<button type="button" onclick="window.verPolizaDeDocumento(${x.poliza_id}, '${x.fecha || ''}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer">🧾 Póliza #${x.poliza_id}</button>`
+                    : '';
+                const verDoc = x.tipo === 'compra'
+                    ? `<button type="button" onclick="window.abrirDetalleDocumentoGlobal(${x.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded cursor-pointer">Ver recibo</button>`
+                    : '';
+                return `
+                <tr class="border-b border-slate-900 ${x.estatus_cxp === 'cancelado' ? 'opacity-60' : ''}" data-tipo="${x.tipo}" data-id="${x.id}" data-saldo="${x.saldo}">
+                  ${esPendiente
+                      ? `<td class="p-2 text-center"><input type="checkbox" class="cxp-chk accent-emerald-500 w-4 h-4" ${pre ? 'checked' : ''}></td>`
+                      : `<td class="p-2">${estatusBadge(x)}</td>`}
+                  <td class="p-2">${x.tipo}</td>
+                  <td class="p-2 font-mono text-slate-200">${esc(x.folio || '#' + x.id)}</td>
+                  <td class="p-2">${esc(x.proveedor_nombre || '—')}</td>
+                  <td class="p-2 whitespace-nowrap text-slate-400">${x.fecha || ''}</td>
+                  <td class="p-2 text-right font-mono">${money(x.total)}</td>
+                  <td class="p-2 text-right font-mono text-slate-500">${money(x.pagado)}</td>
+                  <td class="p-2 text-right font-mono text-amber-300">${money(x.saldo)}</td>
+                  <td class="p-2"><div class="flex flex-col gap-1">${verPoliza}${verDoc}${!verPoliza && !verDoc ? '<span class="text-slate-500">—</span>' : ''}</div></td>
+                  ${esPendiente ? `<td class="p-2"><input type="number" step="0.01" min="0" class="cxp-monto w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-right font-mono text-slate-100" value="${Number(x.saldo).toFixed(2)}"></td>` : ''}
+                </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${esPendiente ? `
+      <div class="flex items-center justify-between mt-3">
+        <span class="text-sm text-slate-300">Total a pagar: <span id="cxpTotalPagar" class="font-mono text-emerald-400 font-semibold">$0.00</span></span>
+        <button type="button" id="cxpRegistrar" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-5 py-2.5 rounded-lg text-sm">Registrar pago</button>
+      </div>` : ''}
+      ` : `<p class="text-slate-500 text-sm">No hay documentos en "${CXP_FILTROS.find((f) => f.v === cxpFiltro)?.t.toLowerCase()}".</p>`}
+      <p id="cxpMsg" class="text-xs mt-2 min-h-[1rem]"></p>
+    `;
+
+    panel.querySelectorAll('.cxp-filtro-btn').forEach((b) => {
+        b.onclick = () => { cxpFiltro = b.dataset.filtro; cxpPintarDocumentos(); };
+    });
+
+    if (!esPendiente || !filtrados.length) return;
+
     const recalcTot = () => {
         let t = 0;
-        document.querySelectorAll('#cxpBody tr').forEach(tr => {
+        document.querySelectorAll('#cxpBody tr').forEach((tr) => {
             if (!tr.querySelector('.cxp-chk').checked) return;
             t += parseFloat(tr.querySelector('.cxp-monto').value) || 0;
         });
         const el = document.getElementById('cxpTotalPagar');
         if (el) el.textContent = money(t);
     };
-    if (cxp.length) {
-        document.getElementById('cxpAll').onchange = (e) => {
-            document.querySelectorAll('#cxpBody .cxp-chk').forEach(c => { c.checked = e.target.checked; });
-            recalcTot();
-        };
-        document.querySelectorAll('#cxpBody .cxp-chk, #cxpBody .cxp-monto').forEach(el => el.addEventListener('input', recalcTot));
-        document.getElementById('cxpRegistrar').onclick = registrarPago;
+    document.getElementById('cxpAll').onchange = (e) => {
+        document.querySelectorAll('#cxpBody .cxp-chk').forEach((c) => { c.checked = e.target.checked; });
         recalcTot();
-    }
-
-    await cxpHistorial();
-    montarGuia(cont, 'pagos-proveedor');
+    };
+    document.querySelectorAll('#cxpBody .cxp-chk, #cxpBody .cxp-monto').forEach((el) => el.addEventListener('input', recalcTot));
+    document.getElementById('cxpRegistrar').onclick = registrarPago;
+    recalcTot();
 }
 
 async function registrarPago() {
