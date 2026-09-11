@@ -1540,6 +1540,7 @@ const rcFmt = (n) => {
 let rcTab = 'balanza';
 let rcCache = null; // { desde, hasta, ctas, movs, sinDetalle }
 let rcCuentaExpandida = null; // id de cuenta con el desglose abierto
+let rcExpandidos = new Set(); // ids de cuentas-mayor con sus subcuentas visibles (Balance general)
 
 // Movimientos de UNA cuenta dentro del periodo (para el desglose por cuenta).
 function rcMovsDeCuenta(cuentaId) {
@@ -1634,6 +1635,13 @@ function rcCablearDesglose() {
             window.rcVerPoliza(Number(b.dataset.pol));
         });
     });
+    res.querySelectorAll('.rc-nodo-row').forEach((tr) => {
+        tr.addEventListener('click', () => {
+            const id = Number(tr.dataset.nodo);
+            if (rcExpandidos.has(id)) rcExpandidos.delete(id); else rcExpandidos.add(id);
+            rcPintar();
+        });
+    });
 }
 
 export async function cargarModuloReportesContables() {
@@ -1664,7 +1672,7 @@ export async function cargarModuloReportesContables() {
     document.getElementById('rcGenerar').addEventListener('click', () => rcGenerar(true));
     document.getElementById('rcCsv').addEventListener('click', rcExportarCSV);
     document.getElementById('rcPrint').addEventListener('click', () => {
-        const titulo = rcTab === 'balanza' ? 'Balanza de comprobacion' : 'Estado de resultados';
+        const titulo = rcTab === 'balanza' ? 'Balanza de comprobacion' : rcTab === 'balance' ? 'Balance general' : 'Estado de resultados';
         imprimirConPlantilla('generico', titulo, 'rcTabla');
     });
 
@@ -1674,7 +1682,7 @@ export async function cargarModuloReportesContables() {
 
 function rcRenderTabs() {
     const el = document.getElementById('rcTabs');
-    const tabs = [{ id: 'balanza', t: 'Balanza de comprobación' }, { id: 'resultados', t: 'Estado de resultados' }];
+    const tabs = [{ id: 'balanza', t: 'Balanza de comprobación' }, { id: 'resultados', t: 'Estado de resultados' }, { id: 'balance', t: 'Balance general' }];
     el.innerHTML = tabs.map((x) => `
         <button data-tab="${x.id}" class="rc-tab text-xs font-semibold px-3 py-2 rounded-lg transition ${x.id === rcTab ? 'bg-sky-600 text-white' : 'text-slate-400 hover:bg-slate-800'}" style="cursor:pointer">${x.t}</button>`).join('');
     el.querySelectorAll('.rc-tab').forEach((b) => b.addEventListener('click', () => { rcTab = b.dataset.tab; rcRenderTabs(); rcPintar(); }));
@@ -1759,6 +1767,7 @@ function rcAcumular() {
 function rcPintar() {
     if (!rcCache) return;
     if (rcTab === 'balanza') rcPintarBalanza();
+    else if (rcTab === 'balance') rcPintarBalanceGeneral();
     else rcPintarResultados();
     if (rcCache.truncado) {
         const res = document.getElementById('rcResultado');
@@ -1866,6 +1875,120 @@ function rcPintarResultados() {
                 </tbody>
             </table>
         </div>`;
+}
+
+// =====================================================================
+// Balance general — árbol por cuenta_padre_id, colapsado por default.
+// El saldo es SIEMPRE acumulado desde el inicio hasta "Hasta" (un balance
+// no es "del periodo" como la Balanza o el Estado de resultados; "Desde"
+// no le aplica). Se arma sobre el mismo rcCache/rcAcumular ya cargado.
+// =====================================================================
+
+// Arma el árbol de cuentas de un tipo (o varios) usando cuenta_padre_id.
+// Cada nodo: { c: cuenta, hijos: [nodo...] }. Ordenado por código.
+function rcConstruirArbol(ctas, tipos) {
+    const enTipos = new Set(ctas.filter((c) => tipos.includes(c.tipo)).map((c) => c.id));
+    const porId = new Map(ctas.filter((c) => enTipos.has(c.id)).map((c) => [c.id, { c, hijos: [] }]));
+    const raices = [];
+    for (const nodo of porId.values()) {
+        const padreId = nodo.c.cuenta_padre_id;
+        if (padreId && porId.has(padreId)) porId.get(padreId).hijos.push(nodo);
+        else raices.push(nodo);
+    }
+    const ordenar = (nodos) => { nodos.sort((a, b) => a.c.codigo.localeCompare(b.c.codigo)); nodos.forEach((n) => ordenar(n.hijos)); };
+    ordenar(raices);
+    return raices;
+}
+
+// Saldo de una cuenta de detalle, presentado en positivo cuando es "normal"
+// para su naturaleza (activo deudor = +, pasivo/capital acreedor = +).
+function rcSaldoPresentado(cuenta, porCuenta) {
+    const a = porCuenta.get(cuenta.id) || { iniC: 0, iniA: 0, perC: 0, perA: 0 };
+    const saldoFin = (a.iniC - a.iniA) + a.perC - a.perA;
+    return cuenta.naturaleza === 'A' ? -saldoFin : saldoFin;
+}
+
+// Suma recursiva: una cuenta-mayor vale lo que sumen sus subcuentas (las
+// cuentas-mayor casi nunca son "afectable" y no reciben movimientos directos).
+function rcSaldoNodo(nodo, porCuenta, memo) {
+    if (memo.has(nodo.c.id)) return memo.get(nodo.c.id);
+    let total = nodo.c.afectable ? rcSaldoPresentado(nodo.c, porCuenta) : 0;
+    for (const hijo of nodo.hijos) total += rcSaldoNodo(hijo, porCuenta, memo);
+    memo.set(nodo.c.id, total);
+    return total;
+}
+
+// Fila (+ hijos, si está expandida) de un nodo del árbol. Las cuentas en
+// $0.00 se ocultan para no llenar la pantalla de renglones vacíos.
+function rcFilaNodoBalance(nodo, porCuenta, memo, prof) {
+    const total = rcSaldoNodo(nodo, porCuenta, memo);
+    if (Math.abs(total) < 0.005) return '';
+    const tieneHijos = nodo.hijos.length > 0;
+    const abierto = rcExpandidos.has(nodo.c.id);
+    const pad = 8 + prof * 18;
+    const flecha = tieneHijos ? (abierto ? '▾' : '▸') : (nodo.c.afectable ? (rcCuentaExpandida === nodo.c.id ? '▾' : '▸') : '');
+    const clase = tieneHijos ? 'rc-nodo-row' : 'rc-cuenta-row';
+
+    let html = `<tr class="${clase} border-b border-slate-900 cursor-pointer hover:bg-slate-900/40" data-nodo="${nodo.c.id}" data-cuenta="${nodo.c.id}">
+        <td class="p-2" style="padding-left:${pad}px"><span class="text-slate-600 inline-block w-3">${flecha}</span> <span class="font-mono text-slate-500">${nodo.c.codigo}</span> <span class="${tieneHijos ? 'font-semibold text-slate-200' : ''}">${nodo.c.nombre}</span></td>
+        <td class="p-2 text-right font-mono ${total < 0 ? 'text-rose-400' : ''}">${rcFmt(total)}</td>
+    </tr>`;
+
+    if (tieneHijos && abierto) {
+        html += nodo.hijos.map((h) => rcFilaNodoBalance(h, porCuenta, memo, prof + 1)).join('');
+    } else if (!tieneHijos && nodo.c.afectable && rcCuentaExpandida === nodo.c.id) {
+        html += rcFilaDetalleCuenta(nodo.c, 2);
+    }
+    return html;
+}
+
+function rcPintarBalanceGeneral() {
+    const res = document.getElementById('rcResultado');
+    const { ctas, porCuenta } = rcAcumular();
+    const memo = new Map();
+
+    const seccion = (tipos, titulo) => {
+        const raices = rcConstruirArbol(ctas, tipos);
+        const total = raices.reduce((s, n) => s + rcSaldoNodo(n, porCuenta, memo), 0);
+        const filas = raices.map((n) => rcFilaNodoBalance(n, porCuenta, memo, 0)).join('');
+        return { titulo, total, filas };
+    };
+
+    const activo = seccion(['activo'], 'ACTIVO');
+    const pasivo = seccion(['pasivo'], 'PASIVO');
+    const capital = seccion(['capital'], 'CAPITAL');
+    const diferencia = activo.total - (pasivo.total + capital.total);
+
+    res.innerHTML = `
+        <div id="rcTabla" class="overflow-x-auto">
+            <table class="w-full text-left text-[11px] text-slate-300">
+                <thead class="bg-slate-900 text-sky-400 uppercase border-b border-slate-800 sticky top-0">
+                    <tr><th class="p-2">Cuenta (saldo acumulado al ${rcCache.hasta})</th><th class="p-2 text-right">Importe</th></tr>
+                </thead>
+                <tbody>
+                    <tr class="bg-slate-800/60"><td class="p-2 font-bold text-sky-400" colspan="2">ACTIVO</td></tr>
+                    ${activo.filas || '<tr><td class="p-2 pl-6 text-slate-600" colspan="2">(sin cuentas de activo con saldo)</td></tr>'}
+                    <tr class="border-t border-slate-700 font-semibold bg-slate-900/60"><td class="p-2">Total activo</td><td class="p-2 text-right font-mono">${rcFmt(activo.total)}</td></tr>
+
+                    <tr class="bg-slate-800/60"><td class="p-2 font-bold text-sky-400" colspan="2">PASIVO</td></tr>
+                    ${pasivo.filas || '<tr><td class="p-2 pl-6 text-slate-600" colspan="2">(sin cuentas de pasivo con saldo)</td></tr>'}
+                    <tr class="border-t border-slate-800 font-semibold bg-slate-900/60"><td class="p-2">Total pasivo</td><td class="p-2 text-right font-mono">${rcFmt(pasivo.total)}</td></tr>
+
+                    <tr class="bg-slate-800/60"><td class="p-2 font-bold text-sky-400" colspan="2">CAPITAL</td></tr>
+                    ${capital.filas || '<tr><td class="p-2 pl-6 text-slate-600" colspan="2">(sin cuentas de capital con saldo)</td></tr>'}
+                    <tr class="border-t border-slate-800 font-semibold bg-slate-900/60"><td class="p-2">Total capital</td><td class="p-2 text-right font-mono">${rcFmt(capital.total)}</td></tr>
+
+                    <tr class="border-t-2 border-slate-700 bg-slate-800 text-sm font-bold"><td class="p-3">Total pasivo + capital</td><td class="p-3 text-right font-mono">${rcFmt(pasivo.total + capital.total)}</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="text-[11px] mt-2 font-semibold ${Math.abs(diferencia) > 0.005 ? 'text-rose-400' : 'text-emerald-400'}">
+          ${Math.abs(diferencia) > 0.005
+              ? `⚠ Activo ≠ Pasivo + Capital — diferencia de ${rcFmt(diferencia)}. Revisa la Balanza de comprobación: la contabilidad no está cuadrando.`
+              : '✓ Activo = Pasivo + Capital. La contabilidad cuadra.'}
+        </p>
+        <p class="text-[11px] text-slate-500 mt-1">El Balance general siempre es un saldo acumulado desde el inicio hasta la fecha "Hasta" — "Desde" no le aplica (solo se usa en Balanza y Estado de resultados). Haz clic en una cuenta-mayor para desglosarla en sus subcuentas; en una cuenta de detalle, para ver sus movimientos.</p>
+    `;
 }
 
 // Modal: detalle completo de una póliza + enlaces a su documento / gasto de origen.
@@ -1980,7 +2103,7 @@ function rcExportarCSV() {
     const csv = '﻿' + filas.join('\r\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-    a.download = `${rcTab === 'balanza' ? 'balanza' : 'estado_resultados'}_${document.getElementById('rcHasta').value}.csv`;
+    a.download = `${rcTab === 'balanza' ? 'balanza' : rcTab === 'balance' ? 'balance_general' : 'estado_resultados'}_${document.getElementById('rcHasta').value}.csv`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }

@@ -84,14 +84,18 @@ export const GUIAS = {
     },
     'reportes-contables': {
         titulo: 'Reportes contables',
-        paraQue: 'Balanza de comprobación, estado de resultados y saldos por cuenta a una fecha.',
+        paraQue: 'Tres reportes en pestañas: Balanza de comprobación (movimientos del periodo), Estado de resultados (utilidad del periodo) y Balance general (saldo acumulado a una fecha — activo, pasivo y capital).',
         pasos: [
-            'Elige el periodo.',
+            'Elige el periodo (Desde/Hasta) y pulsa Generar — el Balance general solo usa "Hasta", ya que un balance siempre es acumulado desde el inicio, no "del periodo".',
+            'En el Balance general, las cuentas-mayor empiezan colapsadas: haz clic para desglosarlas en sus subcuentas, y en una subcuenta para ver sus movimientos — así no arranca con todo abierto.',
             'Revisa la cuenta 503.98 (capacidad no utilizada): si crece mes a mes, tienes planta que pagas y no usas.',
             'Revisa 115.03 (producción en proceso): debería quedar cerca de cero tras cerrar órdenes y correr el prorrateo.',
         ],
-        cuando: 'Al cierre de cada mes, después del prorrateo.',
-        errores: ['Leer los números antes de haber corrido el prorrateo del mes: faltaría todo el CIF.'],
+        cuando: 'Al cierre de cada mes, después del prorrateo, o cuando quieras revisar tu situación financiera.',
+        errores: [
+            'Leer los números antes de haber corrido el prorrateo del mes: faltaría todo el CIF.',
+            'Esperar que "Desde" filtre el Balance general — no aplica, es un saldo acumulado a una fecha.',
+        ],
     },
     'pagos-proveedor': {
         titulo: 'Cuentas por pagar',

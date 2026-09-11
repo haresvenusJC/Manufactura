@@ -921,9 +921,10 @@ costo total de la orden   117,398.00
     <p><strong>Errores comunes.</strong> Intentar "arreglar" una póliza directamente: siempre se corrige cancelando y rehaciendo la operación que la generó.</p>
 
     <h4 id="m-reportes-contables">Reportes contables</h4>
-    <p><strong>Para qué sirve.</strong> Balanza de comprobación, estado de resultados y saldos por cuenta a una fecha.</p>
-    <p><strong>Pasos.</strong> Elige el periodo. Revisa <code>503.98</code> (capacidad no utilizada): si crece mes a mes, tienes planta que pagas y no usas. Revisa <code>115.03</code> (producción en proceso): debería quedar cerca de cero tras cerrar órdenes y correr el prorrateo.</p>
-    <p><strong>Errores comunes.</strong> Leer los números antes de haber corrido el prorrateo del mes — faltaría todo el CIF.</p>
+    <p><strong>Para qué sirve.</strong> Tres pestañas: <strong>Balanza de comprobación</strong> (movimientos del periodo elegido), <strong>Estado de resultados</strong> (utilidad del periodo) y <strong>Balance general</strong> (saldo acumulado de activo, pasivo y capital a una fecha).</p>
+    <p><strong>Pasos.</strong> Elige el periodo y pulsa <strong>Generar</strong>. En el <strong>Balance general</strong>, "Desde" no aplica — un balance es siempre acumulado desde el inicio hasta la fecha "Hasta", nunca "de un periodo". Las cuentas-mayor (115, 201, 501…) arrancan <strong>colapsadas</strong>; haz clic para desglosarlas en sus subcuentas, y en una subcuenta de detalle para ver sus movimientos uno por uno — así no arranca con todo el catálogo abierto de golpe. Al pie, revisa el aviso "Activo = Pasivo + Capital": si no cuadra, algo en la Balanza está mal.</p>
+    <p>En Balanza/Estado de resultados: revisa <code>503.98</code> (capacidad no utilizada) — si crece mes a mes, tienes planta que pagas y no usas; y <code>115.03</code> (producción en proceso) — debería quedar cerca de cero tras cerrar órdenes y correr el prorrateo.</p>
+    <p><strong>Errores comunes.</strong> Leer los números antes de haber corrido el prorrateo del mes — faltaría todo el CIF. Esperar que "Desde" filtre el Balance general.</p>
 
     <h3>Configuración</h3>
 
