@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
 export const REGIMENES = [
     ['601', 'General de Ley Personas Morales'],
@@ -28,6 +29,7 @@ let provCtas = [];
 let provCatUso = [];
 let provCatForma = [];
 let provCatMetodo = [];
+const provOrden = crearOrdenTabla('nombre');
 
 export async function cargarModuloProveedores() {
     const contenedor = document.getElementById('contenedorProveedores');
@@ -166,11 +168,22 @@ async function renderizarTablaProveedores() {
 
         if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-400 text-sm">No hay proveedores registrados.</p>'; return; }
 
+        aplicarOrden(provOrden, data, (p, campo) => {
+            switch (campo) {
+                case 'nombre': return (p.nombre || '').toLowerCase();
+                case 'rfc': return (p.rfc || '').toLowerCase();
+                case 'contacto': return (p.contacto || '').toLowerCase();
+                case 'condicion': return (p.condicion_pago || '').toLowerCase();
+                case 'estado': return p.activo === false ? 0 : 1;
+                default: return '';
+            }
+        });
+
         cont.innerHTML = `
             <div class="overflow-x-auto border border-slate-800 rounded-xl max-h-72 overflow-y-auto bg-slate-950">
                 <table class="w-full text-left text-sm text-slate-300">
                     <thead class="bg-slate-900 text-sky-400 border-b border-slate-800 text-xs uppercase sticky top-0">
-                        <tr><th class="p-3 text-left">Acciones</th><th class="p-3">Proveedor</th><th class="p-3">RFC</th><th class="p-3">Contacto</th><th class="p-3">Cond.</th><th class="p-3">Estado</th></tr>
+                        <tr><th class="p-3 text-left">Acciones</th>${thOrden(provOrden, 'nombre', 'Proveedor')}${thOrden(provOrden, 'rfc', 'RFC')}${thOrden(provOrden, 'contacto', 'Contacto')}${thOrden(provOrden, 'condicion', 'Cond.')}${thOrden(provOrden, 'estado', 'Estado')}</tr>
                     </thead>
                     <tbody>
                         ${data.map(p => `
@@ -186,6 +199,7 @@ async function renderizarTablaProveedores() {
                     </tbody>
                 </table>
             </div>`;
+        wireOrdenTabla(cont, provOrden, renderizarTablaProveedores);
     } catch (err) {
         console.error('Error al cargar proveedores:', err);
         cont.innerHTML = `<p class="text-rose-400 text-xs">Error al consultar proveedores: ${esc(err.message || err)}</p>`;

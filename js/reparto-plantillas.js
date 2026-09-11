@@ -1,5 +1,8 @@
 import { supabaseClient } from './supabase.js';
 import { montarGuia } from './asistente-contable.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+
+const rpOrden = crearOrdenTabla();
 
 // =====================================================================
 // Contabilidad · Reparto de gastos compartidos (plantillas)
@@ -229,12 +232,23 @@ function pintarLista() {
     if (!estado.plantillas.length) { cont.innerHTML = `<p class="text-slate-500 text-sm">Sin plantillas. Crea la primera.</p>`; return; }
     const ctaCod = (id) => { const c = estado.cuentas.find((x) => x.id === id); return c ? `${c.codigo} · ${c.nombre}` : (id ? `#${id}` : '—'); };
     const provNom = (id) => { const p = estado.proveedores.find((x) => x.id === id); return p ? p.nombre : (id ? `#${id}` : '—'); };
+
+    aplicarOrden(rpOrden, estado.plantillas, (p, campo) => {
+        switch (campo) {
+            case 'nombre': return (p.nombre || '').toLowerCase();
+            case 'ambito': return p.proveedor_id ? provNom(p.proveedor_id).toLowerCase() : (p.cuenta_id ? ctaCod(p.cuenta_id).toLowerCase() : '');
+            case 'base': return (BASE_LABEL[p.base] || p.base || '').toLowerCase();
+            case 'estado': return p.activo ? 1 : 0;
+            default: return p.id;
+        }
+    });
+
     cont.innerHTML = `
       <h3 class="text-md font-semibold text-sky-400 mb-3">Plantillas</h3>
       <div class="overflow-x-auto">
       <table class="w-full text-xs whitespace-nowrap">
         <thead><tr class="text-left text-slate-500 border-b border-slate-800">
-          <th class="p-2">Nombre</th><th class="p-2">Ámbito</th><th class="p-2">Base</th><th class="p-2">Parte oficina →</th><th class="p-2">Estado</th><th class="p-2"></th>
+          ${thOrden(rpOrden, 'nombre', 'Nombre')}${thOrden(rpOrden, 'ambito', 'Ámbito')}${thOrden(rpOrden, 'base', 'Base')}<th class="p-2">Parte oficina →</th>${thOrden(rpOrden, 'estado', 'Estado')}<th class="p-2"></th>
         </tr></thead>
         <tbody>
           ${estado.plantillas.map((p) => `
@@ -254,6 +268,7 @@ function pintarLista() {
       </div>`;
     cont.querySelectorAll('.rp-edit').forEach((b) => b.addEventListener('click', () => rpCargarEnForm(estado.plantillas.find((p) => p.id === Number(b.dataset.id)))));
     cont.querySelectorAll('.rp-del').forEach((b) => b.addEventListener('click', () => rpBorrar(Number(b.dataset.id))));
+    wireOrdenTabla(cont, rpOrden, pintarLista);
 }
 
 function rpResetForm() {

@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
 // =====================================================================
 //  Clientes + Listas de precio
@@ -6,6 +7,7 @@ import { supabaseClient } from './supabase.js';
 // =====================================================================
 
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const cliOrden = crearOrdenTabla('nombre');
 
 // Régimen fiscal (SAT c_RegimenFiscal) — los más comunes.
 const REGIMENES = [
@@ -173,12 +175,24 @@ function renderTablaClientes() {
     if (q) lista = lista.filter((c) => `${c.nombre} ${c.rfc || ''} ${c.contacto || ''}`.toLowerCase().includes(q));
     if (!lista.length) { cont.innerHTML = `<p class="text-slate-400 text-sm">Sin clientes.</p>`; return; }
 
+    aplicarOrden(cliOrden, lista, (c, campo) => {
+        switch (campo) {
+            case 'nombre': return (c.nombre || '').toLowerCase();
+            case 'rfc': return (c.rfc || '').toLowerCase();
+            case 'contacto': return (c.contacto || '').toLowerCase();
+            case 'condicion': return (c.condicion_pago || '').toLowerCase();
+            case 'lista': return (c.listas_precio?.nombre || '').toLowerCase();
+            case 'estado': return c.activo ? 1 : 0;
+            default: return '';
+        }
+    });
+
     cont.innerHTML = `
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
             <table class="w-full text-left text-[11px] text-slate-300">
                 <thead class="bg-slate-900 text-slate-400 uppercase border-b border-slate-800">
-                    <tr><th class="p-2 text-left">Acciones</th><th class="p-2">Nombre</th><th class="p-2">RFC</th><th class="p-2">Contacto</th>
-                        <th class="p-2">Cond.</th><th class="p-2">Lista</th><th class="p-2">Estado</th></tr>
+                    <tr><th class="p-2 text-left">Acciones</th>${thOrden(cliOrden, 'nombre', 'Nombre')}${thOrden(cliOrden, 'rfc', 'RFC')}${thOrden(cliOrden, 'contacto', 'Contacto')}
+                        ${thOrden(cliOrden, 'condicion', 'Cond.')}${thOrden(cliOrden, 'lista', 'Lista')}${thOrden(cliOrden, 'estado', 'Estado')}</tr>
                 </thead>
                 <tbody>
                     ${lista.map((c) => `
@@ -200,6 +214,7 @@ function renderTablaClientes() {
         await supabaseClient.from('clientes').update({ activo: !c.activo }).eq('id', c.id);
         await recargarClientes();
     }));
+    wireOrdenTabla(cont, cliOrden, renderTablaClientes);
 }
 
 function limpiarCliForm() {

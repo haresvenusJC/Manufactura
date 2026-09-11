@@ -1,5 +1,10 @@
 import { supabaseClient } from './supabase.js';
 import { imprimirConPlantilla } from './impresion.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+
+const repCompOrden = crearOrdenTabla('subtotal', 'desc');
+const repGasOrden = crearOrdenTabla('total', 'desc');
+const repInvOrden = crearOrdenTabla('valor', 'desc');
 
 // =====================================================================
 // Módulo de Reportes: 3 reportes canónicos + tabla dinámica genérica.
@@ -213,20 +218,28 @@ async function buscarComprasPorProveedor() {
             g.subtotal += f.subtotal;
             g.partidas += 1;
         });
-        const ordenados = [...grupos.entries()].sort((a, b) => b[1].subtotal - a[1].subtotal);
-        const totalGeneral = ordenados.reduce((acc, [, g]) => acc + g.subtotal, 0);
+        let ordenados = [...grupos.entries()].map(([prov, g]) => ({ prov, ...g }));
+        aplicarOrden(repCompOrden, ordenados, (g, campo) => {
+            switch (campo) {
+                case 'proveedor': return g.prov.toLowerCase();
+                case 'partidas': return g.partidas;
+                case 'subtotal': return g.subtotal;
+                default: return g.prov;
+            }
+        });
+        const totalGeneral = ordenados.reduce((acc, g) => acc + g.subtotal, 0);
 
         resultado.innerHTML = `
             ${barraAcciones('repCompTabla', 'compras_por_proveedor')}
             <div id="repCompTabla" class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead class="bg-slate-950 text-xs uppercase text-sky-400 border-b border-slate-800">
-                        <tr><th class="p-3 text-left">Proveedor</th><th class="p-3 text-right">Partidas</th><th class="p-3 text-right">Subtotal</th></tr>
+                        <tr>${thOrden(repCompOrden, 'proveedor', 'Proveedor')}${thOrden(repCompOrden, 'partidas', 'Partidas', 'text-right justify-end')}${thOrden(repCompOrden, 'subtotal', 'Subtotal', 'text-right justify-end')}</tr>
                     </thead>
                     <tbody>
-                        ${ordenados.map(([prov, g]) => `
+                        ${ordenados.map((g) => `
                             <tr class="border-b border-slate-900">
-                                <td class="p-3 text-slate-200">${prov}</td>
+                                <td class="p-3 text-slate-200">${g.prov}</td>
                                 <td class="p-3 text-right text-slate-400">${g.partidas}</td>
                                 <td class="p-3 text-right font-mono text-emerald-400">${money(g.subtotal)}</td>
                             </tr>
@@ -243,6 +256,7 @@ async function buscarComprasPorProveedor() {
             </div>
         `;
         wireBarraAcciones(resultado);
+        wireOrdenTabla(resultado, repCompOrden, buscarComprasPorProveedor);
     } catch (e) {
         resultado.innerHTML = `<p class="text-rose-400 text-sm">Error al cargar el reporte: ${e.message || e}</p>`;
     }
@@ -296,10 +310,20 @@ async function buscarGastosPorCuenta() {
             g.total += f.total;
             g.registros += 1;
         });
-        const ordenados = [...grupos.entries()].sort((a, b) => b[1].total - a[1].total);
-        const totales = ordenados.reduce((acc, [, g]) => ({
+        let ordenados = [...grupos.entries()].map(([cuenta, g]) => ({ cuenta, ...g }));
+        const totales = ordenados.reduce((acc, g) => ({
             subtotal: acc.subtotal + g.subtotal, iva: acc.iva + g.iva, total: acc.total + g.total,
         }), { subtotal: 0, iva: 0, total: 0 });
+        aplicarOrden(repGasOrden, ordenados, (g, campo) => {
+            switch (campo) {
+                case 'cuenta': return g.cuenta.toLowerCase();
+                case 'registros': return g.registros;
+                case 'subtotal': return g.subtotal;
+                case 'iva': return g.iva;
+                case 'total': return g.total;
+                default: return g.cuenta;
+            }
+        });
 
         resultado.innerHTML = `
             ${barraAcciones('repGasTabla', 'gastos_por_cuenta')}
@@ -307,14 +331,14 @@ async function buscarGastosPorCuenta() {
                 <table class="w-full text-sm">
                     <thead class="bg-slate-950 text-xs uppercase text-sky-400 border-b border-slate-800">
                         <tr>
-                            <th class="p-3 text-left">Cuenta</th><th class="p-3 text-right">Registros</th>
-                            <th class="p-3 text-right">Subtotal</th><th class="p-3 text-right">IVA</th><th class="p-3 text-right">Total</th>
+                            ${thOrden(repGasOrden, 'cuenta', 'Cuenta')}${thOrden(repGasOrden, 'registros', 'Registros', 'text-right justify-end')}
+                            ${thOrden(repGasOrden, 'subtotal', 'Subtotal', 'text-right justify-end')}${thOrden(repGasOrden, 'iva', 'IVA', 'text-right justify-end')}${thOrden(repGasOrden, 'total', 'Total', 'text-right justify-end')}
                         </tr>
                     </thead>
                     <tbody>
-                        ${ordenados.map(([cuenta, g]) => `
+                        ${ordenados.map((g) => `
                             <tr class="border-b border-slate-900">
-                                <td class="p-3 text-slate-200">${cuenta}</td>
+                                <td class="p-3 text-slate-200">${g.cuenta}</td>
                                 <td class="p-3 text-right text-slate-400">${g.registros}</td>
                                 <td class="p-3 text-right font-mono text-slate-300">${money(g.subtotal)}</td>
                                 <td class="p-3 text-right font-mono text-slate-300">${money(g.iva)}</td>
@@ -335,6 +359,7 @@ async function buscarGastosPorCuenta() {
             </div>
         `;
         wireBarraAcciones(resultado);
+        wireOrdenTabla(resultado, repGasOrden, buscarGastosPorCuenta);
     } catch (e) {
         resultado.innerHTML = `<p class="text-rose-400 text-sm">Error al cargar el reporte: ${e.message || e}</p>`;
     }
@@ -375,20 +400,28 @@ async function buscarInventarioValorizado() {
             g.valor += f.valor;
             g.items += 1;
         });
-        const ordenados = [...grupos.entries()].sort((a, b) => b[1].valor - a[1].valor);
-        const totalGeneral = ordenados.reduce((acc, [, g]) => acc + g.valor, 0);
+        let ordenados = [...grupos.entries()].map(([tipo, g]) => ({ tipo, ...g }));
+        aplicarOrden(repInvOrden, ordenados, (g, campo) => {
+            switch (campo) {
+                case 'tipo': return (ETIQUETAS_TIPO_PRODUCTO[g.tipo] || g.tipo).toLowerCase();
+                case 'items': return g.items;
+                case 'valor': return g.valor;
+                default: return g.tipo;
+            }
+        });
+        const totalGeneral = ordenados.reduce((acc, g) => acc + g.valor, 0);
 
         resultado.innerHTML = `
             ${barraAcciones('repInvTabla', 'inventario_valorizado')}
             <div id="repInvTabla" class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead class="bg-slate-950 text-xs uppercase text-sky-400 border-b border-slate-800">
-                        <tr><th class="p-3 text-left">Tipo</th><th class="p-3 text-right">Productos</th><th class="p-3 text-right">Valor</th></tr>
+                        <tr>${thOrden(repInvOrden, 'tipo', 'Tipo')}${thOrden(repInvOrden, 'items', 'Productos', 'text-right justify-end')}${thOrden(repInvOrden, 'valor', 'Valor', 'text-right justify-end')}</tr>
                     </thead>
                     <tbody>
-                        ${ordenados.map(([tipo, g]) => `
+                        ${ordenados.map((g) => `
                             <tr class="border-b border-slate-900">
-                                <td class="p-3 text-slate-200">${ETIQUETAS_TIPO_PRODUCTO[tipo] || tipo}</td>
+                                <td class="p-3 text-slate-200">${ETIQUETAS_TIPO_PRODUCTO[g.tipo] || g.tipo}</td>
                                 <td class="p-3 text-right text-slate-400">${g.items}</td>
                                 <td class="p-3 text-right font-mono text-emerald-400">${money(g.valor)}</td>
                             </tr>
@@ -405,6 +438,7 @@ async function buscarInventarioValorizado() {
             </div>
         `;
         wireBarraAcciones(resultado);
+        wireOrdenTabla(resultado, repInvOrden, buscarInventarioValorizado);
     } catch (e) {
         resultado.innerHTML = `<p class="text-rose-400 text-sm">Error al cargar el reporte: ${e.message || e}</p>`;
     }

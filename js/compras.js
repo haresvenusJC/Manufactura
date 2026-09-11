@@ -1,11 +1,13 @@
 import { supabaseClient } from './supabase.js';
 import { cargarInventarioCompleto } from './inventario.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
 let catalogoProveedoresCache = [];
 let catalogoUnidadesCache = [];
 let listaPartidasCompra = [];
 let catalogoProductosCache = []; // Caché local para la búsqueda AJAX de insumos
 let ivaFiscalEditadoManualmente = false; // true si el usuario escribió el IVA a mano (no seguir el 16% automático)
+const histComprasOrden = crearOrdenTabla('fecha', 'desc');
 
 export async function configurarFormularioCompras() {
     const formCompra = document.getElementById('formCompra');
@@ -464,14 +466,23 @@ async function cargarHistorialCompras() {
             return;
         }
 
+        aplicarOrden(histComprasOrden, documentos, (doc, campo) => {
+            switch (campo) {
+                case 'folio': return (doc.folio || '').toLowerCase();
+                case 'fecha': return doc.fecha_emision || '';
+                case 'proveedor': return (doc.proveedores?.nombre || '').toLowerCase();
+                default: return doc.id;
+            }
+        });
+
         let html = `
             <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-950">
                 <table class="w-full text-left text-sm text-slate-300">
                     <thead class="bg-slate-900 text-emerald-400 text-xs uppercase border-b border-slate-800">
                         <tr>
-                            <th class="p-3">Factura / Folio</th>
-                            <th class="p-3">Fecha</th>
-                            <th class="p-3">Proveedor</th>
+                            ${thOrden(histComprasOrden, 'folio', 'Factura / Folio')}
+                            ${thOrden(histComprasOrden, 'fecha', 'Fecha')}
+                            ${thOrden(histComprasOrden, 'proveedor', 'Proveedor')}
                             <th class="p-3">Partidas / Lotes</th>
                             <th class="p-3">Póliza</th>
                         </tr>
@@ -502,6 +513,7 @@ async function cargarHistorialCompras() {
 
         html += `</tbody></table></div>`;
         cont.innerHTML = html;
+        wireOrdenTabla(cont, histComprasOrden, cargarHistorialCompras);
     } catch (err) {
         console.error("Error al cargar historial de compras:", err);
         cont.innerHTML = `<p class="text-red-400 text-sm">Error al cargar historial de compras.</p>`;

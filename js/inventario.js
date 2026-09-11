@@ -1,4 +1,8 @@
 import { supabaseClient } from './supabase.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+
+const invResumenOrden = crearOrdenTabla();
+const invLotesOrden = crearOrdenTabla();
 
 /**
  * Función auxiliar centralizada para registrar movimientos de almacén mediante FIFO (RPC de Supabase).
@@ -69,6 +73,15 @@ export async function cargarInventarioCompleto() {
             // Renderizado optimizado de secciones
             const renderSeccion = (titulo, colorClass, lista) => {
                 if (lista.length === 0) return '';
+                aplicarOrden(invResumenOrden, lista, (item, campo) => {
+                    switch (campo) {
+                        case 'nombre': return (item.nombre || '').toLowerCase();
+                        case 'unidad': return (item.unidades_medida?.nombre || '').toLowerCase();
+                        case 'stock': return Number(item.stock_actual || 0);
+                        case 'costo': return Number(item.costo_unitario || 0);
+                        default: return item.id;
+                    }
+                });
                 let sectionHtml = `
                     <div class="mb-6">
                         <h4 class="text-xs font-bold ${colorClass} uppercase tracking-wider mb-2">${titulo}</h4>
@@ -76,10 +89,10 @@ export async function cargarInventarioCompleto() {
                             <table class="w-full text-left text-sm text-slate-300">
                                 <thead class="bg-slate-900 ${colorClass} border-b border-slate-800 text-xs uppercase">
                                     <tr>
-                                        <th class="p-3">Elemento / SKU</th>
-                                        <th class="p-3">Unidad</th>
-                                        <th class="p-3">Stock Disponible</th>
-                                        <th class="p-3">Costo Unitario</th>
+                                        ${thOrden(invResumenOrden, 'nombre', 'Elemento / SKU')}
+                                        ${thOrden(invResumenOrden, 'unidad', 'Unidad')}
+                                        ${thOrden(invResumenOrden, 'stock', 'Stock Disponible')}
+                                        ${thOrden(invResumenOrden, 'costo', 'Costo Unitario')}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -105,6 +118,7 @@ export async function cargarInventarioCompleto() {
             html += renderSeccion('⚙️ Componentes y Refacciones', 'text-emerald-400', componentes);
 
             contenedorInv.innerHTML = html;
+            wireOrdenTabla(contenedorInv, invResumenOrden, () => cargarInventarioCompleto());
         }
 
         if (contenedorLotes) {
@@ -135,6 +149,18 @@ async function renderizarTablaLotes(contenedorLotes) {
 
     const { data: lotes, count, error: errLotes } = await query;
     if (errLotes) throw errLotes;
+
+    aplicarOrden(invLotesOrden, lotes || [], (l, campo) => {
+        switch (campo) {
+            case 'lote': return (l.numero_lote || '').toLowerCase();
+            case 'producto': return (l.productos?.nombre || '').toLowerCase();
+            case 'tipo': return (l.productos?.tipo || '').toLowerCase();
+            case 'stock': return Number(l.stock_actual || 0);
+            case 'costo': return Number(l.costo_unitario || 0);
+            case 'ingreso': return l.fecha_ingreso ? new Date(l.fecha_ingreso).getTime() : 0;
+            default: return l.id;
+        }
+    });
 
     const totalRegistros = count || 0;
     const totalPaginas = Math.ceil(totalRegistros / porPaginaLotes) || 1;
@@ -168,12 +194,12 @@ async function renderizarTablaLotes(contenedorLotes) {
                     <thead class="bg-slate-900 text-indigo-400 border-b border-slate-800 text-xs uppercase">
                         <tr>
                             <th class="p-3 text-left">Acción</th>
-                            <th class="p-3">Lote / Ref</th>
-                            <th class="p-3">Insumo / Producto</th>
-                            <th class="p-3">Tipo</th>
-                            <th class="p-3">Stock Lote</th>
-                            <th class="p-3">Costo U.</th>
-                            <th class="p-3">Ingreso</th>
+                            ${thOrden(invLotesOrden, 'lote', 'Lote / Ref')}
+                            ${thOrden(invLotesOrden, 'producto', 'Insumo / Producto')}
+                            ${thOrden(invLotesOrden, 'tipo', 'Tipo')}
+                            ${thOrden(invLotesOrden, 'stock', 'Stock Lote')}
+                            ${thOrden(invLotesOrden, 'costo', 'Costo U.')}
+                            ${thOrden(invLotesOrden, 'ingreso', 'Ingreso')}
                         </tr>
                     </thead>
                     <tbody>
@@ -211,6 +237,7 @@ async function renderizarTablaLotes(contenedorLotes) {
     }
 
     contenedorLotes.innerHTML = htmlLotes;
+    wireOrdenTabla(contenedorLotes, invLotesOrden, () => renderizarTablaLotes(contenedorLotes));
 }
 
 window.aplicarFiltroFechasLotes = function() {

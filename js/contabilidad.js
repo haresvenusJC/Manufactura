@@ -3,6 +3,7 @@ import { imprimirConPlantilla } from './impresion.js';
 import { montarGuia, crearPanelAsistente, abrirManual } from './asistente-contable.js';
 import { parsearCfdi, formaPagoSimple } from './cfdi.js';
 import { REGIMENES } from './proveedores.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
 // =====================================================================
 //  Contabilidad - FASE 1: Plan de cuentas
@@ -347,6 +348,7 @@ let polCuentas = [];            // cuentas afectables (para los selects)
 let polCuentasMapa = new Map(); // id -> cuenta
 let polLineas = [];             // borrador de la poliza nueva
 let polExpandida = null;        // id de poliza con detalle abierto
+const polOrden = crearOrdenTabla('fecha', 'desc');
 
 export async function cargarModuloPolizas() {
     const cont = document.getElementById('contenedorPolizas');
@@ -597,12 +599,24 @@ async function polBuscar() {
             return;
         }
 
+        aplicarOrden(polOrden, data, (p, campo) => {
+            switch (campo) {
+                case 'fecha': return p.fecha || '';
+                case 'poliza': return `${p.tipo || ''} ${p.numero || 0}`.toLowerCase();
+                case 'concepto': return (p.concepto || '').toLowerCase();
+                case 'importe': return (p.poliza_movimientos || []).reduce((a, m) => a + Number(m.cargo || 0), 0);
+                case 'estatus': return p.estatus || '';
+                case 'origen': return p.origen || '';
+                default: return p.id;
+            }
+        });
+
         cont.innerHTML = `
             <div class="overflow-x-auto border border-slate-800 rounded-lg">
                 <table class="w-full text-left text-xs text-slate-300">
                     <thead class="bg-slate-900 text-slate-400 uppercase border-b border-slate-800">
-                        <tr><th class="p-2">Fecha</th><th class="p-2">Poliza</th><th class="p-2">Concepto</th>
-                            <th class="p-2 text-right">Importe</th><th class="p-2">Estatus</th><th class="p-2">Origen</th></tr>
+                        <tr>${thOrden(polOrden, 'fecha', 'Fecha')}${thOrden(polOrden, 'poliza', 'Poliza')}${thOrden(polOrden, 'concepto', 'Concepto')}
+                            ${thOrden(polOrden, 'importe', 'Importe', 'text-right justify-end')}${thOrden(polOrden, 'estatus', 'Estatus')}${thOrden(polOrden, 'origen', 'Origen')}</tr>
                     </thead>
                     <tbody>
                         ${data.map((p) => renderFilaPoliza(p)).join('')}
@@ -616,6 +630,7 @@ async function polBuscar() {
             polBuscarRerender(data);
         }));
         cont.querySelectorAll('.pol-cancel').forEach((b) => b.addEventListener('click', () => cancelarPoliza(Number(b.dataset.id), b.dataset)));
+        wireOrdenTabla(cont, polOrden, polBuscar);
     } catch (err) {
         cont.innerHTML = `<p class="text-rose-400 text-xs">Error al consultar polizas. ¿Corriste <span class="font-mono">sql/2026-08-28_contabilidad_polizas.sql</span>?<br>${err.message || err}</p>`;
     }
@@ -1479,13 +1494,25 @@ async function gaBuscar() {
         const totVigentes = data.filter((g) => g.estatus === 'registrado').reduce((a, g) => a + Number(g.total || 0), 0);
         document.getElementById('gaTotales').textContent = `Total registrado: ${money(totVigentes)}  ·  ${data.length} gasto(s)`;
 
+        aplicarOrden(gaOrden, data, (g, campo) => {
+            switch (campo) {
+                case 'fecha': return g.fecha || '';
+                case 'concepto': return (g.concepto || '').toLowerCase();
+                case 'proveedor': return (g.proveedores?.nombre || '').toLowerCase();
+                case 'cuenta': return (g.cuentas_contables?.codigo || '').toLowerCase();
+                case 'total': return Number(g.total || 0);
+                case 'estatus': return g.estatus || '';
+                default: return g.id;
+            }
+        });
+
         cont.innerHTML = `
             <div class="overflow-x-auto border border-slate-800 rounded-lg">
                 <table class="w-full text-left text-xs text-slate-300">
                     <thead class="bg-slate-900 text-slate-400 uppercase border-b border-slate-800">
-                        <tr><th class="p-2">Fecha</th><th class="p-2">Concepto</th><th class="p-2">Proveedor</th>
-                            <th class="p-2">Cuenta</th><th class="p-2 text-right">Total</th><th class="p-2">Poliza</th>
-                            <th class="p-2">Estatus</th><th class="p-2 text-right">Accion</th></tr>
+                        <tr>${thOrden(gaOrden, 'fecha', 'Fecha')}${thOrden(gaOrden, 'concepto', 'Concepto')}${thOrden(gaOrden, 'proveedor', 'Proveedor')}
+                            ${thOrden(gaOrden, 'cuenta', 'Cuenta')}${thOrden(gaOrden, 'total', 'Total', 'text-right justify-end')}<th class="p-2">Poliza</th>
+                            ${thOrden(gaOrden, 'estatus', 'Estatus')}<th class="p-2 text-right">Accion</th></tr>
                     </thead>
                     <tbody>
                         ${data.map((g) => `
@@ -1508,6 +1535,7 @@ async function gaBuscar() {
             </div>`;
 
         cont.querySelectorAll('.ga-cancel').forEach((b) => b.addEventListener('click', () => gaCancelar(Number(b.dataset.cancel))));
+        wireOrdenTabla(cont, gaOrden, gaBuscar);
     } catch (err) {
         cont.innerHTML = `<p class="text-rose-400 text-xs">Error al consultar gastos. ¿Corriste <span class="font-mono">sql/2026-08-28_contabilidad_gastos.sql</span>?<br>${err.message || err}</p>`;
     }
@@ -1541,6 +1569,7 @@ let rcTab = 'balanza';
 let rcCache = null; // { desde, hasta, ctas, movs, sinDetalle }
 let rcCuentaExpandida = null; // id de cuenta con el desglose abierto
 let rcExpandidos = new Set(); // ids de cuentas-mayor con sus subcuentas visibles (Balance general)
+const gaOrden = crearOrdenTabla('fecha', 'desc');
 
 // Movimientos de UNA cuenta dentro del periodo (para el desglose por cuenta).
 function rcMovsDeCuenta(cuentaId) {

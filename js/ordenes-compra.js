@@ -2,6 +2,7 @@ import { supabaseClient } from './supabase.js';
 import { cargarInventarioCompleto } from './inventario.js';
 import { REGIMENES } from './proveedores.js';
 import { parsearCfdi, extraerTextoPdf, parsearCfdiPdf } from './cfdi.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
 // =====================================================================
 //  Órdenes de compra + Recibo de mercancía  (Fase 1: captura y recepción
@@ -18,6 +19,8 @@ const normTxt = (s) => String(s || '').normalize('NFD').replace(/\p{Diacritic}/g
 
 let ocProveedores = [];
 let ocUnidades = [];
+const ocListaOrden = crearOrdenTabla('id', 'desc');
+const rmRecepOrden = crearOrdenTabla();
 let ocProductos = [];
 let ocMonedas = [];
 let ocPartidasTemp = [];
@@ -285,20 +288,36 @@ async function ocRenderLista() {
         if (error) throw error;
         if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin órdenes de compra.</p>'; return; }
 
+        data.forEach(o => {
+            const det = o.ordenes_compra_detalle || [];
+            o._total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0), 0);
+            const ped = det.reduce((a, d) => a + Number(d.cantidad || 0), 0);
+            const rec = det.reduce((a, d) => a + Number(d.cantidad_recibida || 0), 0);
+            o._pct = ped > 0 ? Math.round((rec / ped) * 100) : 0;
+        });
+        aplicarOrden(ocListaOrden, data, (o, campo) => {
+            switch (campo) {
+                case 'folio': return (o.folio || String(o.id)).toLowerCase();
+                case 'proveedor': return (o.proveedores?.nombre || '').toLowerCase();
+                case 'fecha': return o.fecha || '';
+                case 'total': return o._total;
+                case 'recibido': return o._pct;
+                case 'estatus': return o.estatus || '';
+                default: return o.id;
+            }
+        });
+
         cont.innerHTML = `
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-              <th class="p-2 text-left">Acción</th><th class="p-2">Folio</th><th class="p-2">Proveedor</th><th class="p-2">Fecha</th>
-              <th class="p-2 text-right">Total est.</th><th class="p-2">Recibido</th><th class="p-2">Estatus</th>
+              <th class="p-2 text-left">Acción</th>${thOrden(ocListaOrden, 'folio', 'Folio')}${thOrden(ocListaOrden, 'proveedor', 'Proveedor')}${thOrden(ocListaOrden, 'fecha', 'Fecha')}
+              ${thOrden(ocListaOrden, 'total', 'Total est.', 'text-right justify-end')}${thOrden(ocListaOrden, 'recibido', 'Recibido')}${thOrden(ocListaOrden, 'estatus', 'Estatus')}
             </tr></thead>
             <tbody>
               ${data.map(o => {
-                  const det = o.ordenes_compra_detalle || [];
-                  const total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0), 0);
-                  const ped = det.reduce((a, d) => a + Number(d.cantidad || 0), 0);
-                  const rec = det.reduce((a, d) => a + Number(d.cantidad_recibida || 0), 0);
-                  const pct = ped > 0 ? Math.round((rec / ped) * 100) : 0;
+                  const total = o._total;
+                  const pct = o._pct;
                   const puedeRecibir = o.estatus === 'abierta' || o.estatus === 'recibida_parcial';
                   return `
                     <tr class="border-b border-slate-900">
@@ -318,6 +337,7 @@ async function ocRenderLista() {
             </tbody>
           </table>
         </div>`;
+        wireOrdenTabla(cont, ocListaOrden, ocRenderLista);
     } catch (err) {
         const m = err?.message || String(err);
         cont.innerHTML = /does not exist|schema cache|could not find/i.test(m)
@@ -733,17 +753,33 @@ async function rmRecepciones() {
 
         const totalPaginas = Math.ceil((count || data.length) / rmRecPorPagina) || 1;
 
+        data.forEach(d => {
+            const dets = d.documento_detalles || [];
+            d._total = d.total != null ? Number(d.total) : dets.reduce((a, x) => a + Number(x.subtotal || 0), 0);
+            d._partidas = dets.length;
+        });
+        aplicarOrden(rmRecepOrden, data, (d, campo) => {
+            switch (campo) {
+                case 'fecha': return d.fecha_emision || '';
+                case 'orden': return (d.ordenes_compra?.folio || d.folio || '').toLowerCase();
+                case 'proveedor': return (d.proveedores?.nombre || '').toLowerCase();
+                case 'partidas': return d._partidas;
+                case 'total': return d._total;
+                default: return d.id;
+            }
+        });
+
         cont.innerHTML = `
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-              <th class="p-2 text-left">Acción</th><th class="p-2">Fecha</th><th class="p-2">Orden</th><th class="p-2">Proveedor</th>
-              <th class="p-2 text-right">Partidas</th><th class="p-2 text-right">Total</th><th class="p-2">Contab.</th>
+              <th class="p-2 text-left">Acción</th>${thOrden(rmRecepOrden, 'fecha', 'Fecha')}${thOrden(rmRecepOrden, 'orden', 'Orden')}${thOrden(rmRecepOrden, 'proveedor', 'Proveedor')}
+              ${thOrden(rmRecepOrden, 'partidas', 'Partidas', 'text-right justify-end')}${thOrden(rmRecepOrden, 'total', 'Total', 'text-right justify-end')}<th class="p-2">Contab.</th>
             </tr></thead>
             <tbody>
               ${data.map(d => {
                   const dets = d.documento_detalles || [];
-                  const total = d.total != null ? Number(d.total) : dets.reduce((a, x) => a + Number(x.subtotal || 0), 0);
+                  const total = d._total;
                   const fecha = d.fecha_emision ? String(d.fecha_emision).slice(0, 10) : '';
                   const cancelado = d.estado === 'cancelado';
                   return `
@@ -770,6 +806,7 @@ async function rmRecepciones() {
 
         document.getElementById('rmRecAnterior')?.addEventListener('click', () => { if (rmRecPagina > 1) { rmRecPagina--; rmRecepciones(); } });
         document.getElementById('rmRecSiguiente')?.addEventListener('click', () => { if (rmRecPagina < totalPaginas) { rmRecPagina++; rmRecepciones(); } });
+        wireOrdenTabla(cont, rmRecepOrden, rmRecepciones);
     } catch (err) {
         cont.innerHTML = `<p class="text-slate-500 text-xs">No se pudo cargar el historial: ${esc(err.message || err)}</p>`;
     }

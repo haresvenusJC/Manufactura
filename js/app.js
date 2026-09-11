@@ -24,6 +24,7 @@ import { cargarModuloRepartoPlantillas } from './reparto-plantillas.js';
 import { cargarModuloIndice } from './indice.js';
 import { cargarModuloIsr } from './isr.js';
 import { cargarModuloReportes } from './reportes.js';
+import { cargarModuloFreshStart } from './fresh-start.js';
 import { montarLogin, cerrarSesion } from './auth.js';
 import { abrirManual } from './asistente-contable.js';
 
@@ -271,6 +272,9 @@ window.loadView = function(viewName) {
             break;
         case 'reportes':
             cargarModuloReportes();
+            break;
+        case 'fresh-start':
+            cargarModuloFreshStart();
             break;
         default:
             break;

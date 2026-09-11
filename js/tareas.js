@@ -1,6 +1,9 @@
 import { supabaseClient } from './supabase.js';
 import { siguientePeriodoSugerido, nomAutorizar, nomCancelar, actualizarBannerNominaPendiente } from './nomina.js';
 import { montarGuia } from './asistente-contable.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+
+const histTareasOrden = crearOrdenTabla();
 
 // =====================================================================
 // Contabilidad · Tareas — bandeja de pendientes que requieren revisión
@@ -285,9 +288,9 @@ async function cargarHistorialTareas() {
         <div class="overflow-x-auto">
             <table class="w-full text-xs">
                 <thead>
-                    <tr class="text-left text-slate-500 border-b border-slate-800">
-                        <th class="p-2">Título</th><th class="p-2">Tipo</th><th class="p-2">Estatus</th>
-                        <th class="p-2">Creada</th><th class="p-2">Resuelta</th><th class="p-2">Por</th><th class="p-2">Nota</th>
+                    <tr class="text-left text-slate-500 border-b border-slate-800" id="histCabecera">
+                        ${thOrden(histTareasOrden, 'titulo', 'Título')}${thOrden(histTareasOrden, 'tipo', 'Tipo')}${thOrden(histTareasOrden, 'estatus', 'Estatus')}
+                        ${thOrden(histTareasOrden, 'creada', 'Creada')}${thOrden(histTareasOrden, 'resuelta', 'Resuelta')}${thOrden(histTareasOrden, 'por', 'Por')}<th class="p-2">Nota</th>
                     </tr>
                 </thead>
                 <tbody id="histCuerpo"></tbody>
@@ -295,6 +298,7 @@ async function cargarHistorialTareas() {
         </div>`;
 
     renderTablaQuienYCuerpo();
+    wireOrdenTabla(document.getElementById('histCabecera'), histTareasOrden, pintarCuerpoHistorial);
 
     document.getElementById('histFiltrar').addEventListener('click', async () => {
         const cuerpo = document.getElementById('histCuerpo');
@@ -342,6 +346,19 @@ function pintarCuerpoHistorial() {
         cuerpo.innerHTML = `<tr><td colspan="7" class="p-3 text-slate-500">Sin resultados.</td></tr>`;
         return;
     }
+
+    aplicarOrden(histTareasOrden, filas, (t, campo) => {
+        switch (campo) {
+            case 'titulo': return (t.titulo || '').toLowerCase();
+            case 'tipo': return (TIPO_LABEL[t.tipo] || t.tipo || '').toLowerCase();
+            case 'estatus': return t.estatus || '';
+            case 'creada': return t.creada_en || '';
+            case 'resuelta': return t.resuelta_en || '';
+            case 'por': return (t.resuelta_por_email || '').toLowerCase();
+            default: return t.id;
+        }
+    });
+
     cuerpo.innerHTML = filas.map((t) => `
         <tr class="border-b border-slate-900">
             <td class="p-2 text-slate-200">${esc(t.titulo)}</td>

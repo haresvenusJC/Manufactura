@@ -1,6 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { imprimirConPlantilla } from './impresion.js';
 import { montarGuia } from './asistente-contable.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
 // =====================================================================
 // Contabilidad · Nómina — arma y postea la póliza de sueldos y salarios
@@ -49,6 +50,7 @@ export async function siguientePeriodoSugerido() {
 
 let nomEmpleados = []; // catálogo de empleados activos: {id, nombre}
 let nomLineas = [];    // [{ empleado_id, nombre, incluido, sueldo }]
+const nomOrden = crearOrdenTabla('fecha_pago', 'desc');
 let nomCtasPago = [];
 let nomImssEditadoManualmente = false; // true si el usuario escribió el monto de IMSS a mano (no seguir el % automático)
 let nomIsrEditadoManualmente = false;  // idem para ISR retenido
@@ -472,13 +474,24 @@ async function nomBuscar() {
         const totVigentes = data.filter((n) => n.estatus === 'registrada').reduce((a, n) => a + Number(n.total || 0), 0);
         document.getElementById('nomTotales').textContent = `Total registrado: ${money(totVigentes)}  ·  ${data.length} nómina(s)`;
 
+        aplicarOrden(nomOrden, data, (n, campo) => {
+            switch (campo) {
+                case 'periodo': return n.periodo_inicio || '';
+                case 'fecha_pago': return n.fecha_pago || '';
+                case 'subtotal': return Number(n.subtotal || 0);
+                case 'total': return Number(n.total || 0);
+                case 'estatus': return n.estatus || '';
+                default: return n.id;
+            }
+        });
+
         cont.innerHTML = `
             <div class="overflow-x-auto border border-slate-800 rounded-lg">
                 <table class="w-full text-left text-xs text-slate-300">
                     <thead class="bg-slate-900 text-slate-400 uppercase border-b border-slate-800">
-                        <tr><th class="p-2">Periodo</th><th class="p-2">Fecha pago</th><th class="p-2 text-right">Subtotal</th>
-                            <th class="p-2 text-right">Total</th><th class="p-2">Poliza</th>
-                            <th class="p-2">Estatus</th><th class="p-2 text-right">Accion</th></tr>
+                        <tr>${thOrden(nomOrden, 'periodo', 'Periodo')}${thOrden(nomOrden, 'fecha_pago', 'Fecha pago')}${thOrden(nomOrden, 'subtotal', 'Subtotal', 'text-right justify-end')}
+                            ${thOrden(nomOrden, 'total', 'Total', 'text-right justify-end')}<th class="p-2">Poliza</th>
+                            ${thOrden(nomOrden, 'estatus', 'Estatus')}<th class="p-2 text-right">Accion</th></tr>
                     </thead>
                     <tbody>
                         ${data.map((n) => `
@@ -506,6 +519,7 @@ async function nomBuscar() {
         cont.querySelectorAll('.nom-cancel').forEach((b) => b.addEventListener('click', () => nomCancelar(Number(b.dataset.cancel))));
         cont.querySelectorAll('.nom-print').forEach((b) => b.addEventListener('click', () => nomImprimir(Number(b.dataset.print), b)));
         cont.querySelectorAll('.nom-autorizar').forEach((b) => b.addEventListener('click', () => nomAutorizar(Number(b.dataset.autorizar), b)));
+        wireOrdenTabla(cont, nomOrden, nomBuscar);
     } catch (err) {
         cont.innerHTML = `<p class="text-rose-400 text-xs">Error al consultar nómina. ¿Corriste <span class="font-mono">sql/2026-08-30_contabilidad_nomina.sql</span>?<br>${err.message || err}</p>`;
     }

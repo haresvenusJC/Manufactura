@@ -1,8 +1,23 @@
 import { supabaseClient } from './supabase.js';
 import { imprimirConPlantilla } from './impresion.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
 let documentosCache = [];
 let docActualParaImprimir = null;
+const docOrden = crearOrdenTabla('id', 'desc');
+
+function filaEncabezadoDocumentos() {
+    return `
+        <th class="p-4 text-left">Acciones</th>
+        <th class="p-4 text-left">Póliza</th>
+        ${thOrden(docOrden, 'id', 'ID')}
+        ${thOrden(docOrden, 'folio', 'Folio Comercial')}
+        ${thOrden(docOrden, 'tipo', 'Tipo Movimiento / Consecutivo')}
+        ${thOrden(docOrden, 'fecha', 'Fecha de Emisión')}
+        ${thOrden(docOrden, 'tercero', 'Proveedor / Cliente')}
+        ${thOrden(docOrden, 'estado', 'Estado', 'text-center justify-center')}
+    `;
+}
 
 export async function cargarVistaDocumentos() {
     const contenedorPrincipal = document.getElementById('view-documentos');
@@ -52,16 +67,7 @@ export async function cargarVistaDocumentos() {
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm text-slate-300">
                         <thead class="bg-slate-950 text-indigo-400 border-b border-slate-800 text-xs uppercase font-mono">
-                            <tr>
-                                <th class="p-4 text-left">Acciones</th>
-                                <th class="p-4 text-left">Póliza</th>
-                                <th class="p-4">ID</th>
-                                <th class="p-4">Folio Comercial</th>
-                                <th class="p-4">Tipo Movimiento / Consecutivo</th>
-                                <th class="p-4">Fecha de Emisión</th>
-                                <th class="p-4">Proveedor / Cliente</th>
-                                <th class="p-4 text-center">Estado</th>
-                            </tr>
+                            <tr id="filaEncabezadoDocumentos">${filaEncabezadoDocumentos()}</tr>
                         </thead>
                         <tbody id="tablaDocumentosCuerpo">
                             <tr>
@@ -165,10 +171,28 @@ window.renderizarTablaDocumentos = function(lista) {
     const cuerpo = document.getElementById('tablaDocumentosCuerpo');
     if (!cuerpo) return;
 
+    const filaHead = document.getElementById('filaEncabezadoDocumentos');
+    if (filaHead) {
+        filaHead.innerHTML = filaEncabezadoDocumentos();
+        wireOrdenTabla(filaHead, docOrden, () => window.filtrarDocumentosTabla());
+    }
+
     if (!lista || lista.length === 0) {
         cuerpo.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-500">No hay documentos registrados en el sistema.</td></tr>`;
         return;
     }
+
+    aplicarOrden(docOrden, lista, (doc, campo) => {
+        switch (campo) {
+            case 'id': return doc.id;
+            case 'folio': return (doc.folio || '').toLowerCase();
+            case 'tipo': return (doc.tipo_movimiento || '').toLowerCase();
+            case 'fecha': return doc.fecha_emision ? new Date(doc.fecha_emision).getTime() : 0;
+            case 'tercero': return (doc.proveedores?.nombre || doc.proveedor_cliente || doc.cliente_nombre || '').toLowerCase();
+            case 'estado': return (doc.estado || '').toLowerCase();
+            default: return doc.id;
+        }
+    });
 
     let html = '';
     lista.forEach(doc => {

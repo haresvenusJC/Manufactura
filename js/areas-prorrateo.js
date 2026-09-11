@@ -1,5 +1,9 @@
 import { supabaseClient } from './supabase.js';
 import { montarGuia } from './asistente-contable.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+
+const afOrden = crearOrdenTabla('codigo');
+const afcOrden = crearOrdenTabla();
 
 // =====================================================================
 // Contabilidad · Áreas y bases de prorrateo (pre-herramienta)
@@ -210,14 +214,29 @@ function pintarLista() {
     const cont = document.getElementById('afLista');
     if (!estado.areas.length) { cont.innerHTML = `<p class="text-slate-500 text-sm">Sin áreas. Crea la primera.</p>`; return; }
     const centroCod = (id) => { const c = estado.centros.find(x => x.id === id); return c ? c.codigo : '—'; };
+
+    aplicarOrden(afOrden, estado.areas, (a, campo) => {
+        switch (campo) {
+            case 'codigo': return (a.codigo || '').toLowerCase();
+            case 'nombre': return (a.nombre || '').toLowerCase();
+            case 'rol': return a.rol || '';
+            case 'centro': return centroCod(a.centro_costo_id).toLowerCase();
+            case 'm2': return Number(a.m2 || 0);
+            case 'kw': return a.kwh_mensual != null ? Number(a.kwh_mensual) : Number(estado.kw[a.id] || 0);
+            case 'personas': return Number(a.personas || 0);
+            case 'estado': return a.activo ? 1 : 0;
+            default: return a.id;
+        }
+    });
+
     cont.innerHTML = `
       <h3 class="text-md font-semibold text-sky-400 mb-3">Áreas</h3>
       <div class="overflow-x-auto">
       <table class="w-full text-xs whitespace-nowrap">
         <thead><tr class="text-left text-slate-500 border-b border-slate-800">
-          <th class="p-2">Código</th><th class="p-2">Nombre</th><th class="p-2">Rol</th><th class="p-2">Centro</th>
-          <th class="p-2 text-right">m²</th><th class="p-2 text-right">kW</th><th class="p-2 text-right">Pers.</th>
-          <th class="p-2">Estado</th><th class="p-2"></th>
+          ${thOrden(afOrden, 'codigo', 'Código')}${thOrden(afOrden, 'nombre', 'Nombre')}${thOrden(afOrden, 'rol', 'Rol')}${thOrden(afOrden, 'centro', 'Centro')}
+          ${thOrden(afOrden, 'm2', 'm²', 'text-right justify-end')}${thOrden(afOrden, 'kw', 'kW', 'text-right justify-end')}${thOrden(afOrden, 'personas', 'Pers.', 'text-right justify-end')}
+          ${thOrden(afOrden, 'estado', 'Estado')}<th class="p-2"></th>
         </tr></thead>
         <tbody>
           ${estado.areas.map(a => `
@@ -237,6 +256,7 @@ function pintarLista() {
       </div>
       <p class="text-[10px] text-slate-500 mt-2">⚠ m² en 0 = esa área no pesa en el reparto por superficie. Captura al menos m² y personas de cada área.</p>`;
     cont.querySelectorAll('.af-edit').forEach(b => b.addEventListener('click', () => afCargarEnForm(estado.areas.find(a => a.id === Number(b.dataset.id)))));
+    wireOrdenTabla(cont, afOrden, pintarLista);
 }
 
 function pintarCargas() {
@@ -246,6 +266,18 @@ function pintarCargas() {
     const area = estado.areas.find(a => a.id === cargaAreaSel);
     const cargas = estado.cargas.filter(c => c.area_id === cargaAreaSel);
     const totalKw = cargas.reduce((s, c) => s + c.kw_unitario * c.cantidad * c.factor_uso, 0);
+
+    aplicarOrden(afcOrden, cargas, (c, campo) => {
+        switch (campo) {
+            case 'descripcion': return (c.descripcion || '').toLowerCase();
+            case 'tipo': return (TIPO_CARGA[c.tipo] || c.tipo || '').toLowerCase();
+            case 'kw_unit': return Number(c.kw_unitario || 0);
+            case 'cantidad': return Number(c.cantidad || 0);
+            case 'f_uso': return Number(c.factor_uso || 0);
+            case 'kw_efect': return c.kw_unitario * c.cantidad * c.factor_uso;
+            default: return c.id;
+        }
+    });
 
     cont.innerHTML = `
       <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -258,9 +290,9 @@ function pintarCargas() {
       <div class="overflow-x-auto">
       <table class="w-full text-xs whitespace-nowrap">
         <thead><tr class="text-left text-slate-500 border-b border-slate-800">
-          <th class="p-2">Descripción</th><th class="p-2">Tipo</th>
-          <th class="p-2 text-right">kW unit.</th><th class="p-2 text-right">Cant.</th><th class="p-2 text-right">F. uso</th>
-          <th class="p-2 text-right">kW efect.</th><th class="p-2"></th>
+          ${thOrden(afcOrden, 'descripcion', 'Descripción')}${thOrden(afcOrden, 'tipo', 'Tipo')}
+          ${thOrden(afcOrden, 'kw_unit', 'kW unit.', 'text-right justify-end')}${thOrden(afcOrden, 'cantidad', 'Cant.', 'text-right justify-end')}${thOrden(afcOrden, 'f_uso', 'F. uso', 'text-right justify-end')}
+          ${thOrden(afcOrden, 'kw_efect', 'kW efect.', 'text-right justify-end')}<th class="p-2"></th>
         </tr></thead>
         <tbody>
           ${cargas.length ? cargas.map(c => `
@@ -309,6 +341,7 @@ function pintarCargas() {
     });
     document.getElementById('afCargaForm').addEventListener('submit', afGuardarCarga);
     document.getElementById('afcCancelar').addEventListener('click', () => { cargaEditId = null; pintarCargas(); });
+    wireOrdenTabla(cont, afcOrden, pintarCargas);
     cont.querySelectorAll('.afc-del').forEach(b => b.addEventListener('click', () => afBorrarCarga(Number(b.dataset.id))));
     cont.querySelectorAll('.afc-edit').forEach(b => b.addEventListener('click', () => {
         const c = estado.cargas.find(x => x.id === Number(b.dataset.id));

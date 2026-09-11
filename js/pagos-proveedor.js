@@ -1,5 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { montarGuia } from './asistente-contable.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
 // =====================================================================
 //  Cuentas por pagar / Pagos a proveedores
@@ -26,6 +27,8 @@ const CXP_FILTROS = [
     { v: 'cancelado', t: 'Canceladas' },
     { v: 'todas', t: 'Todas' },
 ];
+const cxpOrden = crearOrdenTabla();
+const cxpHistOrden = crearOrdenTabla('id', 'desc');
 
 export async function cargarModuloPagosProveedor() {
     const cont = document.getElementById('contenedorPagosProveedor');
@@ -118,6 +121,19 @@ function cxpPintarDocumentos() {
     const esPendiente = cxpFiltro === 'pendiente';
     const totalGeneral = filtrados.reduce((a, x) => a + Number(x.saldo || 0), 0);
 
+    aplicarOrden(cxpOrden, filtrados, (x, campo) => {
+        switch (campo) {
+            case 'tipo': return x.tipo || '';
+            case 'folio': return (x.folio || String(x.id)).toLowerCase();
+            case 'proveedor': return (x.proveedor_nombre || '').toLowerCase();
+            case 'fecha': return x.fecha || '';
+            case 'total': return Number(x.total || 0);
+            case 'pagado': return Number(x.pagado || 0);
+            case 'saldo': return Number(x.saldo || 0);
+            default: return x.id;
+        }
+    });
+
     const pills = CXP_FILTROS.map((f) => {
         const n = f.v === 'todas' ? porFechaProv.length : (conteos[f.v] || 0);
         const on = f.v === cxpFiltro;
@@ -157,8 +173,8 @@ function cxpPintarDocumentos() {
         <table class="w-full text-left text-xs text-slate-300">
           <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
             ${esPendiente ? '<th class="p-2"><input type="checkbox" id="cxpAll" class="accent-emerald-500"></th>' : '<th class="p-2">Estatus</th>'}
-            <th class="p-2">Tipo</th><th class="p-2">Folio</th><th class="p-2">Proveedor</th><th class="p-2">Fecha</th>
-            <th class="p-2 text-right">Total</th><th class="p-2 text-right">Pagado</th><th class="p-2 text-right">Saldo</th>
+            ${thOrden(cxpOrden, 'tipo', 'Tipo')}${thOrden(cxpOrden, 'folio', 'Folio')}${thOrden(cxpOrden, 'proveedor', 'Proveedor')}${thOrden(cxpOrden, 'fecha', 'Fecha')}
+            ${thOrden(cxpOrden, 'total', 'Total', 'text-right justify-end')}${thOrden(cxpOrden, 'pagado', 'Pagado', 'text-right justify-end')}${thOrden(cxpOrden, 'saldo', 'Saldo', 'text-right justify-end')}
             <th class="p-2">Póliza / Recibo</th>
             ${esPendiente ? '<th class="p-2">Monto a pagar</th>' : ''}
           </tr></thead>
@@ -206,6 +222,7 @@ function cxpPintarDocumentos() {
     document.getElementById('cxpHasta').onchange = (e) => { cxpHasta = e.target.value; cxpPintarDocumentos(); };
     document.getElementById('cxpFiltroProveedor').onchange = (e) => { cxpProveedorId = e.target.value; cxpPintarDocumentos(); };
     document.getElementById('cxpLimpiarFiltros').onclick = () => { cxpDesde = ''; cxpHasta = ''; cxpProveedorId = ''; cxpPintarDocumentos(); };
+    wireOrdenTabla(panel, cxpOrden, cxpPintarDocumentos);
 
     if (!esPendiente || !filtrados.length) return;
 
@@ -276,12 +293,25 @@ async function cxpHistorial() {
             .order('id', { ascending: false }).limit(100);
         if (error) throw error;
         if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin pagos registrados.</p>'; return; }
+
+        aplicarOrden(cxpHistOrden, data, (p, campo) => {
+            switch (campo) {
+                case 'fecha': return p.fecha || '';
+                case 'proveedor': return (p.proveedores?.nombre || '').toLowerCase();
+                case 'ref': return (p.referencia || '').toLowerCase();
+                case 'total': return Number(p.total || 0);
+                case 'docs': return (p.pagos_proveedor_aplicaciones || []).length;
+                case 'estatus': return p.estatus || '';
+                default: return p.id;
+            }
+        });
+
         cont.innerHTML = `
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-              <th class="p-2 text-left">Acción</th><th class="p-2">Fecha</th><th class="p-2">Proveedor</th><th class="p-2">Ref.</th>
-              <th class="p-2 text-right">Total</th><th class="p-2 text-center"># Docs</th><th class="p-2">Póliza</th><th class="p-2">Estatus</th>
+              <th class="p-2 text-left">Acción</th>${thOrden(cxpHistOrden, 'fecha', 'Fecha')}${thOrden(cxpHistOrden, 'proveedor', 'Proveedor')}${thOrden(cxpHistOrden, 'ref', 'Ref.')}
+              ${thOrden(cxpHistOrden, 'total', 'Total', 'text-right justify-end')}${thOrden(cxpHistOrden, 'docs', '# Docs', 'text-center justify-center')}<th class="p-2">Póliza</th>${thOrden(cxpHistOrden, 'estatus', 'Estatus')}
             </tr></thead>
             <tbody>
               ${data.map(p => `
@@ -306,6 +336,7 @@ async function cxpHistorial() {
                 await cargarModuloPagosProveedor();
             };
         });
+        wireOrdenTabla(cont, cxpHistOrden, cxpHistorial);
     } catch (err) {
         cont.innerHTML = `<p class="text-slate-500 text-xs">Historial no disponible: ${esc(err.message || err)}</p>`;
     }

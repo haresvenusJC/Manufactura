@@ -1,9 +1,11 @@
 import { supabaseClient } from './supabase.js';
 import { cargarInventarioCompleto } from './inventario.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
 let partidasEntradaDirecta = [];
 let catalogoInsumosCache = [];
 let catalogoUnidadesCache = [];
+const histEntradasOrden = crearOrdenTabla('fecha', 'desc');
 
 export async function configurarFormularioEntradasDirectas() {
     const formEntradasDirectas = document.getElementById('formEntradasDirectas');
@@ -341,14 +343,23 @@ async function cargarHistorialEntradas() {
             return;
         }
 
+        aplicarOrden(histEntradasOrden, documentos, (doc, campo) => {
+            switch (campo) {
+                case 'folio': return (doc.folio || '').toLowerCase();
+                case 'fecha': return doc.fecha_emision || '';
+                case 'descripcion': return (doc.descripcion || '').toLowerCase();
+                default: return doc.id;
+            }
+        });
+
         let html = `
             <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-950">
                 <table class="w-full text-left text-sm text-slate-300">
                     <thead class="bg-slate-900 text-emerald-400 text-xs uppercase border-b border-slate-800">
                         <tr>
-                            <th class="p-3">Folio</th>
-                            <th class="p-3">Fecha</th>
-                            <th class="p-3">Descripción</th>
+                            ${thOrden(histEntradasOrden, 'folio', 'Folio')}
+                            ${thOrden(histEntradasOrden, 'fecha', 'Fecha')}
+                            ${thOrden(histEntradasOrden, 'descripcion', 'Descripción')}
                             <th class="p-3">Partidas / Lotes</th>
                             <th class="p-3">Póliza</th>
                         </tr>
@@ -379,6 +390,7 @@ async function cargarHistorialEntradas() {
 
         html += `</tbody></table></div>`;
         cont.innerHTML = html;
+        wireOrdenTabla(cont, histEntradasOrden, cargarHistorialEntradas);
     } catch (err) {
         console.error("Error al cargar historial de entradas:", err);
         cont.innerHTML = `<p class="text-red-400 text-sm">Error al cargar historial de entradas.</p>`;

@@ -1,5 +1,8 @@
 import { supabaseClient } from './supabase.js';
 import { montarGuia } from './asistente-contable.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+
+const ccOrden = crearOrdenTabla('codigo');
 
 // =====================================================================
 // Contabilidad · Centros de costo (Costos de producción — Fase 1)
@@ -237,12 +240,25 @@ async function ccListar() {
     const rows = data || [];
     if (!rows.length) { cont.innerHTML = `<p class="text-slate-500 text-sm">Sin centros de costo. Crea el primero.</p>`; return; }
 
+    aplicarOrden(ccOrden, rows, (c, campo) => {
+        switch (campo) {
+            case 'codigo': return (c.codigo || '').toLowerCase();
+            case 'nombre': return (c.nombre || '').toLowerCase();
+            case 'tipo': return (TIPO_LABEL[c.tipo] || c.tipo || '').toLowerCase();
+            case 'cap_normal': return Number(c.capacidad_normal_horas || 0);
+            case 'sugerido': return Number(c.capacidad_sugerida_horas || 0);
+            case 'metodo': return c.metodo_cif || '';
+            case 'estado': return c.activo ? 1 : 0;
+            default: return c.id;
+        }
+    });
+
     cont.innerHTML = `
       <table class="w-full text-xs">
         <thead><tr class="text-left text-slate-500 border-b border-slate-800">
-          <th class="p-2">Código</th><th class="p-2">Nombre</th><th class="p-2">Tipo</th>
-          <th class="p-2 text-right">Cap. normal (h/mes)</th><th class="p-2 text-right">Sugerido</th>
-          <th class="p-2">Método CIF</th><th class="p-2">Estado</th><th class="p-2"></th>
+          ${thOrden(ccOrden, 'codigo', 'Código')}${thOrden(ccOrden, 'nombre', 'Nombre')}${thOrden(ccOrden, 'tipo', 'Tipo')}
+          ${thOrden(ccOrden, 'cap_normal', 'Cap. normal (h/mes)', 'text-right justify-end')}${thOrden(ccOrden, 'sugerido', 'Sugerido', 'text-right justify-end')}
+          ${thOrden(ccOrden, 'metodo', 'Método CIF')}${thOrden(ccOrden, 'estado', 'Estado')}<th class="p-2"></th>
         </tr></thead>
         <tbody>
           ${rows.map(c => {
@@ -265,6 +281,7 @@ async function ccListar() {
       <p class="text-[10px] text-slate-500 mt-2">⚠ capacidad en 0 = el prorrateo de la Fase 2 no podrá aislar la capacidad ociosa. ≠ la sugerida difiere &gt;15% de la que usas — revísala.</p>`;
 
     cont.querySelectorAll('.cc-edit').forEach(b => b.addEventListener('click', () => ccCargarEnForm(rows.find(r => r.id === Number(b.dataset.id)))));
+    wireOrdenTabla(cont, ccOrden, ccListar);
 }
 
 function ccCargarEnForm(c) {

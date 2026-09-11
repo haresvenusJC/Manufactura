@@ -1,7 +1,9 @@
 import { supabaseClient } from './supabase.js';
 import { irAKardexDeProducto } from './kardex.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
 let catBusqueda = ''; // texto del buscador en vivo del Catálogo General (SKU y/o nombre)
+const catOrden = crearOrdenTabla(); // columna/dirección de ordenamiento activa en la tabla del Catálogo
 
 export async function verificarConexionReal() {
     const statusEl = document.getElementById('statusConexion');
@@ -1041,26 +1043,50 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
             return;
         }
 
+        // Ordenamiento en vivo de la tabla (client-side, sobre los datos ya
+        // traídos): cada encabezado clicleable alterna asc/desc.
+        const COLUMNAS_ORDEN = [
+            { campo: 'estado', label: 'Estado', clase: '' },
+            { campo: 'sku', label: 'SKU', clase: '' },
+            { campo: 'tipo', label: 'Tipo', clase: '' },
+            { campo: 'nombre', label: 'Nombre', clase: '' },
+            { campo: 'unidad', label: 'Unidad', clase: '' },
+            { campo: 'proveedor', label: 'Proveedor', clase: '' },
+            { campo: 'existencia', label: 'Existencia', clase: 'text-right justify-end' },
+        ];
+
         let html = `
             <div class="overflow-x-auto border border-slate-800 rounded-xl">
                 <table class="w-full text-left text-sm text-slate-300">
                     <thead>
                         <tr class="border-b border-slate-800 text-sky-400 bg-slate-950">
                             <th class="p-3 text-center">Acciones</th>
-                            <th class="p-3">Estado</th>
-                            <th class="p-3">SKU</th>
-                            <th class="p-3">Tipo</th>
-                            <th class="p-3">Nombre</th>
-                            <th class="p-3">Unidad</th>
-                            <th class="p-3">Proveedor</th>
-                            <th class="p-3 text-right">Existencia</th>
+                            ${COLUMNAS_ORDEN.map((c) => thOrden(catOrden, c.campo, c.label, c.clase)).join('')}
                         </tr>
                     </thead>
                     <tbody>
         `;
 
         const mapaProductosPorId = {};
-        productosData.forEach((p) => { mapaProductosPorId[p.id] = p; });
+        productosData.forEach((p) => {
+            mapaProductosPorId[p.id] = p;
+            p._activo = p.activo !== false;
+            p._nombreProveedor = mapaProvNombres[p.proveedor_id] || 'N/D';
+            p._nombreUnidad = mapaUnidades[p.unidad_medida_id] || 'N/D';
+        });
+
+        aplicarOrden(catOrden, productosData, (p, campo) => {
+            switch (campo) {
+                case 'estado': return p._activo ? 1 : 0;
+                case 'sku': return (p.sku || '').toLowerCase();
+                case 'tipo': return p.tipo || 'producto';
+                case 'nombre': return (p.nombre || '').toLowerCase();
+                case 'unidad': return p._nombreUnidad.toLowerCase();
+                case 'proveedor': return p._nombreProveedor.toLowerCase();
+                case 'existencia': return Number(p.stock_actual || 0);
+                default: return p.id;
+            }
+        });
 
         const OPCIONES_TIPO = [
             { v: 'producto', t: 'Producto terminado' },
@@ -1134,6 +1160,8 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
                 if (producto) abrirMenuAccionesProducto(producto, btn);
             });
         });
+
+        wireOrdenTabla(contenedorTabla, catOrden, () => renderizarTablaProductos(mapaUnidades));
 
     } catch (err) {
         console.error("Error al consultar el catálogo:", err);

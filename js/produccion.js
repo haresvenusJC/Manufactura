@@ -1,6 +1,9 @@
 import { supabaseClient } from './supabase.js';
 import { cargarInventarioCompleto } from './inventario.js';
 import { imprimirConPlantilla } from './impresion.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+
+const histProdOrden = crearOrdenTabla('fecha', 'desc');
 
 // Formatea cantidades evitando colas de decimales largas (10.0000001 -> "10").
 function formatoCantidad(n) {
@@ -1016,11 +1019,23 @@ async function cargarHistorialProduccion(idSeleccionarReciente = null) {
             };
         }
 
+        aplicarOrden(histProdOrden, ordenes, (o, campo) => {
+            switch (campo) {
+                case 'folio': return (o.folio || String(o.id)).toLowerCase();
+                case 'fecha': return o.created_at || '';
+                case 'lote': return (o.numero_lote || '').toLowerCase();
+                case 'producto': return (o.productos?.nombre || '').toLowerCase();
+                case 'cantidad': return Number(o.cantidad_producida || 0);
+                case 'costo': return Number(o.costo_unitario_final || 0);
+                default: return o.id;
+            }
+        });
+
         let html = `
             <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 mt-6">Historial General de Órdenes</h4>
             <div class="overflow-x-auto"><table class="w-full text-left text-sm text-slate-300">
                 <thead><tr class="border-b border-slate-800 text-amber-400">
-                    <th class="p-2">Folio</th><th class="p-2">Fecha</th><th class="p-2">Lote PT</th><th class="p-2">Producto</th><th class="p-2">Cantidad</th><th class="p-2">Costo Unit. Final</th>
+                    ${thOrden(histProdOrden, 'folio', 'Folio')}${thOrden(histProdOrden, 'fecha', 'Fecha')}${thOrden(histProdOrden, 'lote', 'Lote PT')}${thOrden(histProdOrden, 'producto', 'Producto')}${thOrden(histProdOrden, 'cantidad', 'Cantidad')}${thOrden(histProdOrden, 'costo', 'Costo Unit. Final')}
                 </tr></thead><tbody>
         `;
 
@@ -1039,6 +1054,7 @@ async function cargarHistorialProduccion(idSeleccionarReciente = null) {
 
         html += `</tbody></table></div>`;
         contenedorHistorial.innerHTML = html;
+        wireOrdenTabla(contenedorHistorial, histProdOrden, () => cargarHistorialProduccion(Number(selectOrdenId?.value) || null));
 
         const targetId = idSeleccionarReciente || ordenes[0].id;
         if (selectOrdenId) {

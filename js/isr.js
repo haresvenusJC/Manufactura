@@ -1,6 +1,9 @@
 import { supabaseClient } from './supabase.js';
 import { montarGuia } from './asistente-contable.js';
 import { extraerTextoPdf } from './cfdi.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+
+const isrOrden = crearOrdenTabla('vigente_desde', 'desc');
 
 // =====================================================================
 // Contabilidad · Tabla ISR — catálogo versionado de tarifas de retención
@@ -416,11 +419,22 @@ async function isrBuscar() {
         const hoy = hoyISO();
         const vigenteId = data.find((t) => t.vigente_desde <= hoy)?.id;
 
+        aplicarOrden(isrOrden, data, (t, campo) => {
+            switch (campo) {
+                case 'vigente_desde': return t.vigente_desde || '';
+                case 'fuente': return (t.fuente || '').toLowerCase();
+                case 'periodo': return Number(t.dias_periodo || 0);
+                case 'tramos': return t.isr_tarifa_tramos?.length || 0;
+                case 'estatus': return t.id === vigenteId ? 1 : 0;
+                default: return t.id;
+            }
+        });
+
         cont.innerHTML = `
             <div class="overflow-x-auto border border-slate-800 rounded-lg">
                 <table class="w-full text-left text-xs text-slate-300">
                     <thead class="bg-slate-900 text-slate-400 uppercase border-b border-slate-800">
-                        <tr><th class="p-2">Vigente desde</th><th class="p-2">Fuente</th><th class="p-2">Periodo</th><th class="p-2 text-right">Tramos</th><th class="p-2">Estatus</th></tr>
+                        <tr>${thOrden(isrOrden, 'vigente_desde', 'Vigente desde')}${thOrden(isrOrden, 'fuente', 'Fuente')}${thOrden(isrOrden, 'periodo', 'Periodo')}${thOrden(isrOrden, 'tramos', 'Tramos', 'text-right justify-end')}${thOrden(isrOrden, 'estatus', 'Estatus')}</tr>
                     </thead>
                     <tbody>
                         ${data.map((t) => `
@@ -442,6 +456,7 @@ async function isrBuscar() {
         cont.querySelectorAll('.isr-fila-tarifa').forEach((tr) => {
             tr.addEventListener('click', () => isrToggleDetalleTarifa(Number(tr.dataset.id)));
         });
+        wireOrdenTabla(cont, isrOrden, isrBuscar);
     } catch (err) {
         cont.innerHTML = `<p class="text-rose-400 text-xs">Error al consultar la tabla ISR. ¿Corriste <span class="font-mono">sql/2026-08-30_contabilidad_isr.sql</span>?<br>${err.message || err}</p>`;
     }
