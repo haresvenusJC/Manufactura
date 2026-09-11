@@ -456,11 +456,16 @@ async function nomBuscar() {
     if (!cont) return;
     cont.innerHTML = `<p class="text-slate-500">Buscando...</p>`;
     try {
+        const desde = document.getElementById('nomDesde').value;
+        const hasta = document.getElementById('nomHasta').value;
+        // Los borradores pendientes de autorizar se muestran SIEMPRE, sin
+        // importar el filtro de fecha — su fecha_pago (fin del periodo) suele
+        // caer después de "hoy" (el default de Hasta), y si el filtro los
+        // escondiera parecería que la nómina "no se guardó".
         const { data, error } = await supabaseClient
             .from('nominas')
             .select('*, polizas(tipo, numero, estatus)')
-            .gte('fecha_pago', document.getElementById('nomDesde').value)
-            .lte('fecha_pago', document.getElementById('nomHasta').value)
+            .or(`estatus.eq.borrador,and(fecha_pago.gte.${desde},fecha_pago.lte.${hasta})`)
             .order('fecha_pago', { ascending: false }).order('id', { ascending: false })
             .limit(300);
         if (error) throw error;
