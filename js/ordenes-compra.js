@@ -662,6 +662,7 @@ window.ocPagar = (id) => {
 //  MÓDULO: Recibo de mercancía
 // =====================================================================
 let rmSinContab = false;
+let rmErrorContab = null;   // mensaje de por qué rmSinContab quedó en true, para mostrarlo (no fallar en silencio)
 let rmCuentasPago = [];
 let rmOcActual = null;   // OC seleccionada en Recibo (para conciliar el XML)
 let rmModo = null;       // 'oc' | 'xml'
@@ -687,13 +688,22 @@ export async function cargarModuloReciboMercancia() {
 
     // Cuentas de pago (si hay módulo contable)
     rmSinContab = false;
+    rmErrorContab = null;
     try {
         const { data, error } = await supabaseClient.from('cuentas_contables')
             .select('id, codigo, nombre').eq('afectable', true).eq('activa', true).order('codigo');
         if (error) throw error;
         rmCatCuentasGasto = data || [];
         rmCuentasPago = (data || []).filter(c => /^(101|102)/.test(c.codigo));
-    } catch (_) { rmSinContab = true; rmCuentasPago = []; rmCatCuentasGasto = []; }
+    } catch (e) {
+        // Antes esto dejaba rmSinContab=true y el bloque de "Generar póliza
+        // contable" simplemente no se dibujaba, sin avisar a nadie: la
+        // recepción se guardaba SIN contabilizar de forma invisible. Ahora se
+        // guarda el motivo para mostrarlo en vez de fallar en silencio.
+        rmSinContab = true;
+        rmErrorContab = e?.message || String(e);
+        rmCuentasPago = []; rmCatCuentasGasto = [];
+    }
 
     // Catálogos SAT del CFDI (best-effort: si falta el SQL se usan opciones básicas)
     rmCatUso = []; rmCatForma = []; rmCatMetodo = [];
@@ -738,7 +748,12 @@ export async function cargarModuloReciboMercancia() {
         ? rmCatUso.map(x => `<option value="${esc(x.clave)}">${esc(x.clave)} · ${esc(x.descripcion)}</option>`).join('')
         : `<option value="G01">G01 · Adquisición de mercancías</option><option value="G03">G03 · Gastos en general</option>`);
 
-    const fiscalHtml = rmSinContab ? '' : `
+    const fiscalHtml = rmSinContab ? `
+      <div class="bg-amber-950/40 border border-amber-700 rounded-xl p-3 mt-4 text-xs text-amber-300">
+        ⚠️ No se pudo cargar el catálogo de cuentas contables${rmErrorContab ? ' (' + esc(rmErrorContab) + ')' : ''}.
+        Esta recepción se va a guardar <b>SIN generar póliza</b>. Contabilízala manualmente
+        después, o revisa la conexión/permisos y vuelve a abrir este formulario.
+      </div>` : `
       <div id="rmBloqueFiscal" class="bg-slate-950 border border-slate-800 rounded-xl p-4 mt-4">
         <label class="flex items-center gap-2 text-sm font-semibold text-slate-200 mb-3">
           <input type="checkbox" id="rmContabilizar" checked class="accent-emerald-500"> Generar póliza contable

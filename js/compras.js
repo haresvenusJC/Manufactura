@@ -2,6 +2,8 @@ import { supabaseClient } from './supabase.js';
 import { cargarInventarioCompleto } from './inventario.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
 let catalogoProveedoresCache = [];
 let catalogoUnidadesCache = [];
 let listaPartidasCompra = [];
@@ -565,8 +567,18 @@ async function cargarBloqueFiscalCompra() {
             .order('codigo', { ascending: true });
         if (error) throw error;
         cuentasPago = (data || []).filter((c) => /^(101|102)/.test(c.codigo));
-    } catch (_) {
-        // modulo de contabilidad no instalado -> se deja el bloque oculto
+    } catch (e) {
+        // No se pudo leer el catálogo de cuentas contables (módulo no instalado,
+        // permisos, red...). Antes esto dejaba el bloque oculto sin avisar y la
+        // compra se guardaba SIN póliza sin que nadie se diera cuenta. Ahora se
+        // muestra visible para que sea una decisión consciente, no un fallo mudo.
+        bloque.classList.remove('hidden');
+        bloque.innerHTML = `
+          <div class="bg-amber-950/40 border border-amber-700 rounded-xl p-3 text-xs text-amber-300">
+            ⚠️ No se pudo cargar el catálogo de cuentas contables (${esc(e?.message || String(e))}).
+            Esta compra se va a guardar <b>SIN generar póliza</b>. Contabilízala manualmente
+            después, o revisa la conexión/permisos y vuelve a abrir este formulario.
+          </div>`;
         return;
     }
 
