@@ -439,6 +439,7 @@
                             <li class="px-3 pt-1 pb-0.5 text-[10px] uppercase tracking-wider text-slate-600 font-semibold pointer-events-none select-none">Operación diaria</li>
                             <li><button onclick="window.loadView('gastos')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Gastos</button></li>
                             <li><button onclick="window.loadView('pagos-proveedor')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Cuentas por pagar</button></li>
+                            <li><button onclick="window.loadView('cuentas-por-cobrar')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Cuentas por cobrar</button></li>
                             <li><button onclick="window.loadView('tareas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Tareas</button></li>
 
                             <li class="px-3 pt-2.5 pb-0.5 text-[10px] uppercase tracking-wider text-slate-600 font-semibold pointer-events-none select-none">Nómina y cierre de mes</li>
@@ -633,11 +634,11 @@
                 </div>
             </section>
 
-            <!-- Vista: Auditoría -->
+            <!-- Vista: Auditoría de inventarios (toma física) -->
             <section id="view-auditoria" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-sky-400">Auditoría y Lotes</h2>
+                <h2 class="text-xl font-bold text-sky-400">Auditoría de inventarios</h2>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-                    <div id="contenedorAuditoria">Cargando registros de auditoría...</div>
+                    <div id="contenedorAuditoria">Cargando...</div>
                 </div>
             </section>
 
@@ -731,6 +732,12 @@
             <section id="view-pagos-proveedor" class="vista-seccion hidden space-y-4">
                 <h2 class="text-xl font-bold text-sky-400">Contabilidad · Cuentas por pagar</h2>
                 <div id="contenedorPagosProveedor">Cargando cuentas por pagar...</div>
+            </section>
+
+            <!-- Vista: Contabilidad - Cuentas por cobrar -->
+            <section id="view-cuentas-por-cobrar" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-sky-400">Contabilidad · Cuentas por cobrar</h2>
+                <div id="contenedorCuentasPorCobrar">Cargando cuentas por cobrar...</div>
             </section>
 
             <!-- Vista: Contabilidad - Pólizas -->

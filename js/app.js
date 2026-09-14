@@ -4,6 +4,8 @@ import { configurarFormularioCompras, toggleTipoCambio } from './compras.js';
 import { configurarFormularioEntradasDirectas } from './entradas.js';
 import { cargarModuloOrdenesCompra, cargarModuloReciboMercancia } from './ordenes-compra.js';
 import { cargarModuloPagosProveedor } from './pagos-proveedor.js';
+import { cargarModuloCuentasPorCobrar } from './cuentas-por-cobrar.js';
+import { cargarModuloAuditoriaInventario } from './auditoria-inventario.js';
 import { cargarModuloProduccion } from './produccion.js';
 import { cargarModuloProveedores } from './proveedores.js';
 import { cargarModuloSalidas } from './salidas.js';
@@ -258,6 +260,9 @@ window.loadView = function(viewName) {
         case 'pagos-proveedor':
             cargarModuloPagosProveedor();
             break;
+        case 'cuentas-por-cobrar':
+            cargarModuloCuentasPorCobrar();
+            break;
         case 'reportes-contables':
             cargarModuloReportesContables();
             break;
@@ -272,6 +277,9 @@ window.loadView = function(viewName) {
             break;
         case 'reportes':
             cargarModuloReportes();
+            break;
+        case 'auditoria':
+            cargarModuloAuditoriaInventario();
             break;
         case 'fresh-start':
             cargarModuloFreshStart();

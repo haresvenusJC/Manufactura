@@ -3,6 +3,7 @@ import { cargarInventarioCompleto } from './inventario.js';
 import { REGIMENES } from './proveedores.js';
 import { parsearCfdi, extraerTextoPdf, parsearCfdiPdf } from './cfdi.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+import { imprimirConPlantilla } from './impresion.js';
 
 // =====================================================================
 //  Órdenes de compra + Recibo de mercancía  (Fase 1: captura y recepción
@@ -326,7 +327,7 @@ async function ocRenderLista() {
                         ${(o.estatus === 'recibida' || o.estatus === 'recibida_parcial') ? `<button type="button" onclick="window.ocPagar(${o.id})" class="text-[11px] bg-sky-700 hover:bg-sky-600 text-white px-2 py-1 rounded ml-1">Pagar</button>` : ''}
                         ${o.estatus === 'abierta' ? `<button type="button" onclick="window.ocCancelar(${o.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded ml-1">Cancelar</button>` : ''}
                       </td>
-                      <td class="p-2 font-mono text-emerald-300">${esc(o.folio || '#' + o.id)}</td>
+                      <td class="p-2"><button type="button" onclick="window.verDetalleOC(${o.id})" class="font-mono text-emerald-300 hover:underline hover:text-emerald-200 text-left">${esc(o.folio || '#' + o.id)}</button></td>
                       <td class="p-2">${esc(o.proveedores?.nombre || '—')}</td>
                       <td class="p-2 whitespace-nowrap text-slate-400">${o.fecha || ''}</td>
                       <td class="p-2 text-right font-mono">${money(total)}</td>
@@ -345,6 +346,299 @@ async function ocRenderLista() {
             : `<p class="text-rose-400 text-xs">Error: ${esc(m)}</p>`;
     }
 }
+
+async function abrirDetalleOC(id) {
+    document.getElementById('modalDetalleOC')?.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'modalDetalleOC';
+    modal.className = 'fixed z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]';
+    modal.style.top = '6vh';
+    modal.style.left = '50%';
+    modal.style.transform = 'translateX(-50%)';
+    modal.style.width = 'calc(100% - 2rem)';
+    modal.style.maxWidth = '42rem';
+    modal.innerHTML = `
+        <div class="flex justify-between items-center p-4 border-b border-slate-800">
+            <h3 class="text-base font-semibold text-slate-100">Orden de compra <span id="tituloDetalleOCSub" class="text-emerald-300 font-mono"></span></h3>
+            <div class="flex items-center gap-2">
+                <button id="btnImprimirOC" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg">🖨️ Imprimir</button>
+                <button id="btnEditarOC" class="hidden text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg">✏️ Editar</button>
+                <button id="cerrarDetalleOC" class="text-slate-400 hover:text-slate-200 text-xl leading-none">&times;</button>
+            </div>
+        </div>
+        <div id="cuerpoDetalleOC" class="p-4 overflow-y-auto flex-1">
+            <p class="text-slate-500 text-sm text-center">Cargando...</p>
+        </div>`;
+    document.body.appendChild(modal);
+
+    const cerrarFuera = (e) => { if (!modal.contains(e.target)) cerrar(); };
+    const cerrarEsc = (e) => { if (e.key === 'Escape') cerrar(); };
+    function cerrar() {
+        modal.remove();
+        document.removeEventListener('click', cerrarFuera);
+        document.removeEventListener('keydown', cerrarEsc);
+    }
+    document.getElementById('cerrarDetalleOC').onclick = cerrar;
+    setTimeout(() => {
+        document.addEventListener('click', cerrarFuera);
+        document.addEventListener('keydown', cerrarEsc);
+    }, 0);
+
+    const { data: o, error } = await supabaseClient
+        .from('ordenes_compra')
+        .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, created_at, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, productos ( nombre, sku ) )')
+        .eq('id', id)
+        .single();
+
+    const cuerpo = document.getElementById('cuerpoDetalleOC');
+    if (!cuerpo) return;
+    if (error || !o) { cuerpo.innerHTML = `<p class="text-rose-400 text-sm">Error: ${esc(error?.message || 'No encontrada')}</p>`; return; }
+
+    const tituloSpan = document.getElementById('tituloDetalleOCSub');
+    if (tituloSpan) tituloSpan.textContent = o.folio || ('#' + o.id);
+
+    const btnImprimir = document.getElementById('btnImprimirOC');
+    if (btnImprimir) {
+        btnImprimir.onclick = async () => {
+            renderVistaOC(o, cuerpo);
+            await imprimirConPlantilla('orden_compra', 'Orden de compra ' + (o.folio || ('#' + o.id)), 'cuerpoDetalleOC');
+        };
+    }
+
+    const btnEditar = document.getElementById('btnEditarOC');
+    const puedeEditar = o.estatus === 'abierta' || o.estatus === 'borrador';
+    if (btnEditar) {
+        btnEditar.classList.toggle('hidden', !puedeEditar);
+        btnEditar.onclick = () => renderEdicionOC(o, cuerpo);
+    }
+
+    renderVistaOC(o, cuerpo);
+}
+
+function renderVistaOC(o, cuerpo) {
+    const det = o.ordenes_compra_detalle || [];
+    const totalEst = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0), 0);
+    const nombreUnidad = (uid) => ocUnidades.find(u => u.id === uid)?.nombre || '';
+    const fmtFecha = (iso) => { try { return new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso || '—'; } };
+
+    cuerpo.innerHTML = `
+        <div class="grid grid-cols-2 gap-3 mb-4 text-sm">
+            <div><span class="block text-[10px] text-slate-500">Proveedor</span><span class="text-slate-100">${esc(o.proveedores?.nombre || '—')}</span>${o.proveedores?.rfc ? `<span class="block text-[10px] text-slate-500 font-mono">${esc(o.proveedores.rfc)}</span>` : ''}</div>
+            <div><span class="block text-[10px] text-slate-500">Estatus</span><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${OC_ESTATUS[o.estatus] || 'text-slate-400 bg-slate-800'}">${esc(o.estatus)}</span></div>
+            <div><span class="block text-[10px] text-slate-500">Fecha</span><span class="text-slate-300">${o.fecha || '—'}</span></div>
+            <div><span class="block text-[10px] text-slate-500">Fecha esperada</span><span class="text-slate-300">${o.fecha_esperada || '—'}</span></div>
+            <div><span class="block text-[10px] text-slate-500">Moneda</span><span class="text-slate-300">${esc(o.monedas?.codigo || '—')}</span></div>
+            <div><span class="block text-[10px] text-slate-500">Creada el</span><span class="text-slate-300">${fmtFecha(o.created_at)}</span></div>
+        </div>
+        ${o.notas ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Notas de la orden</span><p class="text-xs text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5">${esc(o.notas)}</p></div>` : ''}
+        <div class="overflow-x-auto border border-slate-800 rounded-lg">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-slate-950 text-slate-500 uppercase"><tr>
+              <th class="p-2">Producto</th><th class="p-2 text-right">Cant.</th><th class="p-2 text-right">Recibido</th>
+              <th class="p-2 text-right">Costo unit.</th><th class="p-2 text-right">Subtotal</th><th class="p-2">Notas</th>
+            </tr></thead>
+            <tbody>
+              ${det.map(d => `
+                <tr class="border-b border-slate-900">
+                  <td class="p-2">${esc(d.productos?.nombre || d.descripcion || '—')}${d.productos?.sku ? `<span class="block text-[10px] text-slate-500">SKU ${esc(d.productos.sku)}</span>` : ''}</td>
+                  <td class="p-2 text-right font-mono">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })} ${esc(nombreUnidad(d.unidad_medida_id))}</td>
+                  <td class="p-2 text-right font-mono text-slate-400">${Number(d.cantidad_recibida || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</td>
+                  <td class="p-2 text-right font-mono">${money(d.costo_unitario_estimado)}</td>
+                  <td class="p-2 text-right font-mono">${money(Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0))}</td>
+                  <td class="p-2 text-slate-400">${esc(d.notas || '')}</td>
+                </tr>`).join('') || '<tr><td colspan="6" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
+            </tbody>
+            <tfoot>
+              <tr><td colspan="4" class="p-2 text-right font-semibold text-slate-400">Total estimado</td><td class="p-2 text-right font-mono font-semibold text-emerald-300">${money(totalEst)}</td><td></td></tr>
+            </tfoot>
+          </table>
+        </div>`;
+}
+
+// ---- Edición de una OC ya guardada (solo mientras nada se ha recibido) ----
+function renderEdicionOC(o, cuerpo) {
+    const det = o.ordenes_compra_detalle || [];
+    let partidas = det.map(d => ({
+        detalleId: d.id,
+        productoId: d.producto_id,
+        nombre: d.productos?.nombre || d.descripcion || '(sin nombre)',
+        cantidad: Number(d.cantidad || 0),
+        costo: Number(d.costo_unitario_estimado || 0),
+        unidadId: d.unidad_medida_id,
+        unidadNombre: ocUnidades.find(u => u.id === d.unidad_medida_id)?.nombre || '',
+    }));
+    let prodSel = null;
+
+    const optProv = '<option value="">Seleccione proveedor...</option>' + ocProveedores.map(p => `<option value="${p.id}" ${p.id === o.proveedor_id ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('');
+    const optMon = ocMonedas.map(m => `<option value="${m.id}" ${m.id === o.moneda_id ? 'selected' : ''}>${esc(m.codigo)}</option>`).join('');
+    const optUni = '<option value="">Unidad...</option>' + ocUnidades.map(u => `<option value="${u.id}">${esc(u.nombre)}</option>`).join('');
+
+    cuerpo.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div><label class="block text-xs text-slate-400 mb-1">Proveedor</label>
+                <select id="oceProveedor" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optProv}</select></div>
+            <div><label class="block text-xs text-slate-400 mb-1">Moneda</label>
+                <select id="oceMoneda" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optMon}</select></div>
+            <div><label class="block text-xs text-slate-400 mb-1">Fecha</label>
+                <input type="date" id="oceFecha" value="${o.fecha || ''}" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+            <div><label class="block text-xs text-slate-400 mb-1">Fecha esperada</label>
+                <input type="date" id="oceFechaEsp" value="${o.fecha_esperada || ''}" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+            <div class="md:col-span-2"><label class="block text-xs text-slate-400 mb-1">Notas</label>
+                <input type="text" id="oceNotas" value="${esc(o.notas || '')}" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+        </div>
+
+        <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-3 mb-3">
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
+                <div class="col-span-2 relative">
+                    <label class="block text-[11px] text-slate-400 mb-1">Producto</label>
+                    <input type="text" id="oceProdInput" autocomplete="off" placeholder="Buscar o escribir uno nuevo..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                    <div id="oceProdSug" class="hidden absolute left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-40 max-h-40 overflow-y-auto"></div>
+                </div>
+                <div><label class="block text-[11px] text-slate-400 mb-1">Cantidad</label>
+                    <input type="number" step="any" min="0" id="oceProdCant" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
+                <div><label class="block text-[11px] text-slate-400 mb-1">Costo estimado</label>
+                    <input type="number" step="any" min="0" id="oceProdCosto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
+                <div><label class="block text-[11px] text-slate-400 mb-1">Unidad</label>
+                    <select id="oceProdUnidad" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${optUni}</select></div>
+            </div>
+            <button type="button" id="oceAddPartida" class="mt-2 w-full bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium py-1.5 rounded-lg text-xs">＋ Agregar partida</button>
+        </div>
+
+        <div class="overflow-x-auto border border-slate-800 rounded-lg mb-3">
+            <table class="w-full text-left text-xs text-slate-300">
+                <thead class="bg-slate-950 text-slate-500 uppercase"><tr>
+                    <th class="p-2">Producto</th><th class="p-2 text-right">Cantidad</th><th class="p-2">Unidad</th>
+                    <th class="p-2 text-right">Costo est.</th><th class="p-2 text-right">Importe</th><th class="p-2"></th>
+                </tr></thead>
+                <tbody id="oceBody"></tbody>
+            </table>
+        </div>
+
+        <p id="oceMsg" class="text-xs mb-2 min-h-[1rem]"></p>
+        <div class="flex gap-2">
+            <button type="button" id="oceCancelar" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-2.5 rounded-lg text-sm">Cancelar</button>
+            <button type="button" id="oceGuardar" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Guardar cambios</button>
+        </div>`;
+
+    function renderFilas() {
+        const b = document.getElementById('oceBody');
+        if (!b) return;
+        if (!partidas.length) { b.innerHTML = '<tr><td colspan="6" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr>'; return; }
+        b.innerHTML = partidas.map((p, i) => `
+            <tr class="border-b border-slate-900">
+                <td class="p-2 text-slate-100">${esc(p.nombre)}</td>
+                <td class="p-2 text-right"><input type="number" step="any" min="0" value="${p.cantidad}" data-i="${i}" class="oce-cant w-20 bg-slate-950 border border-slate-800 rounded p-1 text-right font-mono text-xs"></td>
+                <td class="p-2 text-slate-400">${esc(p.unidadNombre)}</td>
+                <td class="p-2 text-right"><input type="number" step="any" min="0" value="${p.costo}" data-i="${i}" class="oce-costo w-20 bg-slate-950 border border-slate-800 rounded p-1 text-right font-mono text-xs"></td>
+                <td class="p-2 text-right font-mono text-emerald-400">${money(p.cantidad * p.costo)}</td>
+                <td class="p-2 text-right"><button type="button" data-i="${i}" class="oce-quitar text-rose-400 hover:text-rose-300 text-xs px-2 py-1 bg-rose-950/40 rounded border border-rose-900/50">✕</button></td>
+            </tr>`).join('');
+
+        b.querySelectorAll('.oce-cant').forEach(inp => inp.onchange = () => {
+            partidas[Number(inp.dataset.i)].cantidad = parseFloat(inp.value) || 0;
+            renderFilas();
+        });
+        b.querySelectorAll('.oce-costo').forEach(inp => inp.onchange = () => {
+            partidas[Number(inp.dataset.i)].costo = parseFloat(inp.value) || 0;
+            renderFilas();
+        });
+        b.querySelectorAll('.oce-quitar').forEach(btn => btn.onclick = () => {
+            partidas.splice(Number(btn.dataset.i), 1);
+            renderFilas();
+        });
+    }
+    renderFilas();
+
+    const inp = document.getElementById('oceProdInput');
+    const sug = document.getElementById('oceProdSug');
+    inp.addEventListener('input', () => {
+        prodSel = null;
+        const t = inp.value.toLowerCase().trim();
+        if (!t) { sug.classList.add('hidden'); return; }
+        const hits = ocProductos.filter(p =>
+            (p.nombre && p.nombre.toLowerCase().includes(t)) || (p.sku && p.sku.toLowerCase().includes(t))
+        ).slice(0, 12);
+        if (!hits.length) { sug.classList.add('hidden'); return; }
+        sug.innerHTML = hits.map(p => `
+            <div class="px-3 py-2 text-xs text-slate-200 hover:bg-emerald-600 hover:text-white cursor-pointer border-b border-slate-800/50 last:border-0 oce-sug" data-id="${p.id}">
+                ${esc(p.nombre)} <span class="text-[10px] text-slate-400">${p.sku ? 'SKU ' + esc(p.sku) : ''}</span>
+            </div>`).join('');
+        sug.classList.remove('hidden');
+        sug.querySelectorAll('.oce-sug').forEach(el => {
+            el.onclick = () => {
+                const p = ocProductos.find(x => x.id === Number(el.dataset.id));
+                prodSel = p || null;
+                inp.value = p ? p.nombre : inp.value;
+                if (p && p.costo_unitario != null) document.getElementById('oceProdCosto').value = p.costo_unitario;
+                if (p && p.unidad_medida_id) document.getElementById('oceProdUnidad').value = p.unidad_medida_id;
+                sug.classList.add('hidden');
+            };
+        });
+    });
+    const cerrarSugOnClick = (e) => { if (!inp.contains(e.target) && !sug.contains(e.target)) sug.classList.add('hidden'); };
+    document.addEventListener('click', cerrarSugOnClick);
+
+    document.getElementById('oceAddPartida').onclick = () => {
+        const nombre = inp.value.trim();
+        const cantidad = parseFloat(document.getElementById('oceProdCant').value) || 0;
+        const costo = parseFloat(document.getElementById('oceProdCosto').value) || 0;
+        const unidadId = document.getElementById('oceProdUnidad').value ? parseInt(document.getElementById('oceProdUnidad').value) : null;
+        if (!nombre || cantidad <= 0) { alert('Indica el producto y una cantidad mayor a 0.'); return; }
+        const uNom = ocUnidades.find(u => u.id === unidadId)?.nombre || '';
+        partidas.push({ detalleId: null, productoId: prodSel ? prodSel.id : null, nombre, cantidad, costo, unidadId, unidadNombre: uNom });
+        renderFilas();
+        inp.value = ''; document.getElementById('oceProdCant').value = ''; document.getElementById('oceProdCosto').value = '';
+        document.getElementById('oceProdUnidad').value = ''; prodSel = null; inp.focus();
+    };
+
+    document.getElementById('oceCancelar').onclick = () => {
+        document.removeEventListener('click', cerrarSugOnClick);
+        renderVistaOC(o, cuerpo);
+    };
+
+    document.getElementById('oceGuardar').onclick = async () => {
+        const msg = document.getElementById('oceMsg');
+        if (!partidas.length) { msg.textContent = 'La orden debe tener al menos una partida.'; msg.className = 'text-xs mb-2 text-rose-400'; return; }
+        const btn = document.getElementById('oceGuardar');
+        btn.disabled = true; btn.textContent = 'Guardando...';
+        try {
+            const { error: eUpd } = await supabaseClient.from('ordenes_compra').update({
+                proveedor_id: document.getElementById('oceProveedor').value ? parseInt(document.getElementById('oceProveedor').value) : null,
+                fecha: document.getElementById('oceFecha').value || o.fecha,
+                fecha_esperada: document.getElementById('oceFechaEsp').value || null,
+                moneda_id: document.getElementById('oceMoneda').value ? parseInt(document.getElementById('oceMoneda').value) : null,
+                notas: document.getElementById('oceNotas').value.trim() || null,
+            }).eq('id', o.id);
+            if (eUpd) throw eUpd;
+
+            const { error: eDel } = await supabaseClient.from('ordenes_compra_detalle').delete().eq('orden_compra_id', o.id);
+            if (eDel) throw eDel;
+
+            const filas = partidas.map(p => ({
+                orden_compra_id: o.id,
+                producto_id: p.productoId,
+                descripcion: p.productoId ? null : p.nombre,
+                cantidad: p.cantidad,
+                cantidad_recibida: 0,
+                costo_unitario_estimado: p.costo,
+                unidad_medida_id: p.unidadId,
+            }));
+            const { error: eIns } = await supabaseClient.from('ordenes_compra_detalle').insert(filas);
+            if (eIns) throw eIns;
+
+            document.removeEventListener('click', cerrarSugOnClick);
+            document.getElementById('modalDetalleOC')?.remove();
+            await ocRenderLista();
+        } catch (err) {
+            msg.textContent = 'No se pudo guardar: ' + (err?.message || err);
+            msg.className = 'text-xs mb-2 text-rose-400';
+            btn.disabled = false; btn.textContent = 'Guardar cambios';
+        }
+    };
+}
+
+window.verDetalleOC = (id) => abrirDetalleOC(Number(id));
 
 window.ocCancelar = async (id) => {
     if (!confirm('¿Cancelar esta orden de compra?')) return;

@@ -113,6 +113,21 @@ export const GUIAS = {
             'Pagar un documento sin revisar antes si tiene un "gemelo" (mismo folio/proveedor) por un recibo cancelado y recapturado.',
         ],
     },
+    'cuentas-por-cobrar': {
+        titulo: 'Cuentas por cobrar',
+        paraQue: 'Lo que te debe cada cliente por ventas a crédito, y el registro de sus cobros.',
+        pasos: [
+            'Usa los botones "Pendientes de cobro / Cobradas / Canceladas / Todas" para elegir qué ver — por default solo se muestra lo pendiente.',
+            'Cada venta trae "🧾 Póliza" y "Ver venta": ábrelos para confirmar el documento antes de registrar el cobro.',
+            'Marca las ventas a cobrar (solo disponible en "Pendientes de cobro"), elige la cuenta de banco / caja y el monto.',
+            'El cobro genera su póliza y baja el saldo del cliente.',
+        ],
+        cuando: 'Cuando un cliente te paga, o para saber cuánto te deben.',
+        errores: [
+            'Registrar el mismo cobro dos veces.',
+            'Cobrar a una cuenta de banco distinta a la real: el saldo del banco queda mal.',
+        ],
+    },
     'nomina': {
         titulo: 'Nómina',
         paraQue: 'Calcular y contabilizar la nómina del periodo: sueldos, cuotas IMSS/INFONAVIT e ISR retenido.',

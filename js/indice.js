@@ -42,7 +42,7 @@ const SECCIONES = [
     {
         grupo: 'Documentos y reportes', ancla: 'doc', items: [
             { v: 'documentos', t: 'Documentos', d: 'Consecutivos y consulta de documentos.' },
-            { v: 'auditoria', t: 'Auditoría', d: 'Bitácora de cambios.' },
+            { v: 'auditoria', t: 'Auditoría', d: 'Toma física de inventario: crea auditorías, revisa el conteo de los operadores y compáralo contra el stock del sistema.' },
             { v: 'reportes', t: 'Reportes', d: 'Reportes operativos.' },
         ],
     },

@@ -1088,11 +1088,11 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
             }
         });
 
-        const OPCIONES_TIPO = [
-            { v: 'producto', t: 'Producto terminado' },
-            { v: 'materia_prima', t: 'Materia prima' },
-            { v: 'insumo', t: 'Insumo' },
-        ];
+        const OPCIONES_TIPO_LABEL = {
+            producto: 'Producto terminado',
+            materia_prima: 'Materia prima',
+            insumo: 'Insumo',
+        };
 
         productosData.forEach(item => {
             const tipoActual = item.tipo || 'producto';
@@ -1115,13 +1115,11 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
                         <button type="button" class="btn-menu-prod text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded px-2 py-1 cursor-pointer" data-id="${item.id}" title="Más acciones">☰</button>
                     </td>
                     <td class="p-3">
-                        <button type="button" class="btn-toggle-activo-prod text-[10px] px-2 py-0.5 rounded border cursor-pointer ${activo ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-slate-800 text-slate-400 border-slate-700'}" data-id="${item.id}" data-activo="${activo}">${activo ? 'Activo' : 'Inactivo'}</button>
+                        <span class="inline-block text-[10px] px-2 py-0.5 rounded border ${activo ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-slate-800 text-slate-400 border-slate-700'}" title="Para activar o desactivar el artículo, entra a Editar artículo">${activo ? 'Activo' : 'Inactivo'}</span>
                     </td>
                     <td class="p-3 font-mono text-xs text-sky-300">${item.sku || 'N/D'}</td>
                     <td class="p-3">
-                        <select class="sel-tipo-prod bg-slate-950 border ${tipoColor} rounded px-1.5 py-0.5 text-[10px] font-medium cursor-pointer focus:outline-none focus:border-sky-500" data-id="${item.id}" title="Cambiar categoría">
-                            ${OPCIONES_TIPO.map(o => `<option value="${o.v}" ${o.v === tipoActual ? 'selected' : ''}>${o.t}</option>`).join('')}
-                        </select>
+                        <span class="inline-block bg-slate-950 border ${tipoColor} rounded px-1.5 py-0.5 text-[10px] font-medium" title="El tipo se define al crear el artículo y no se puede cambiar aquí">${OPCIONES_TIPO_LABEL[tipoActual] || tipoActual}</span>
                     </td>
                     <td class="p-3 font-medium text-slate-100">${item.nombre || 'Sin nombre'}</td>
                     <td class="p-3 text-slate-400 text-xs">${nombreUnidad}</td>
@@ -1134,24 +1132,6 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
         html += `</tbody></table></div><p id="catSinResultados" class="hidden text-slate-500 text-xs p-3">Sin resultados.</p>`;
         contenedorTabla.innerHTML = html;
         aplicarFiltroCatalogo();
-
-        contenedorTabla.querySelectorAll('.btn-toggle-activo-prod').forEach((btn) => {
-            btn.addEventListener('click', async () => {
-                const nuevoEstado = btn.dataset.activo !== 'true';
-                const { error } = await supabaseClient.from('productos').update({ activo: nuevoEstado }).eq('id', Number(btn.dataset.id));
-                if (error) { alert('No se pudo cambiar el estado: ' + error.message); return; }
-                await renderizarTablaProductos(mapaUnidades);
-            });
-        });
-
-        contenedorTabla.querySelectorAll('.sel-tipo-prod').forEach((sel) => {
-            sel.addEventListener('change', async () => {
-                const producto = mapaProductosPorId[Number(sel.dataset.id)];
-                if (!producto) return;
-                const aplicado = await cambiarCategoriaProducto(producto, sel.value, mapaUnidades);
-                if (!aplicado) sel.value = producto.tipo || 'producto'; // cancelado: revertir
-            });
-        });
 
         contenedorTabla.querySelectorAll('.btn-menu-prod').forEach((btn) => {
             btn.addEventListener('click', (e) => {
@@ -1178,6 +1158,19 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
 
 const CAMPOS_NO_EDITABLES_PRODUCTO = new Set(['id', 'created_at', 'updated_at']);
 
+// Orden lógico del formulario "Editar artículo" — identificación primero,
+// luego catálogos/relaciones, costos/precios, inventario, y por último
+// las banderas. Los que no estén aquí (columnas nuevas a futuro) caen
+// después, en orden alfabético; los de solo lectura siempre van al final.
+const ORDEN_CAMPOS_PRODUCTO = [
+    'sku', 'nombre', 'tipo', 'descripcion',
+    'unidad_medida_id', 'proveedor_id', 'moneda_id',
+    'costo_unitario', 'precio_venta', 'tasa_iva', 'tasa_ieps',
+    'cuenta_inventario_id', 'cuenta_costo_id',
+    'stock_actual', 'stock_minimo', 'cantidad_minima_compra', 'tiempo_entrega_dias',
+    'requiere_caducidad',
+];
+
 function cerrarMenuAccionesProducto() {
     document.getElementById('menuAccionesProducto')?.remove();
     document.removeEventListener('click', cerrarMenuAccionesProducto);
@@ -1203,7 +1196,7 @@ function abrirMenuAccionesProducto(producto, botonAncla) {
             <span>📦</span><span>Kardex de este producto</span>
         </button>
         <button type="button" id="btnMenuProdResumen" class="w-full text-left px-3 py-2.5 hover:bg-slate-800 text-slate-200 border-t border-slate-800 flex items-center gap-2 cursor-pointer">
-            <span>📋</span><span>Resumen completo (editable)</span>
+            <span>✏️</span><span>Editar artículo</span>
         </button>
     `;
     document.body.appendChild(menu);
@@ -1214,7 +1207,7 @@ function abrirMenuAccionesProducto(producto, botonAncla) {
     });
     document.getElementById('btnMenuProdResumen').addEventListener('click', () => {
         cerrarMenuAccionesProducto();
-        abrirResumenCompletoProducto(producto.id);
+        abrirResumenCompletoProducto(producto.id, producto.nombre, producto.sku);
     });
 
     // Cerrar al hacer clic afuera o con Escape; se difiere un tick para
@@ -1249,25 +1242,6 @@ const ETIQUETA_TIPO_PRODUCTO = {
     insumo: 'Insumo / componente',
 };
 
-// Reclasifica el articulo (productos.tipo). Devuelve true si se aplico el cambio.
-async function cambiarCategoriaProducto(producto, nuevoTipo, mapaUnidades) {
-    if (nuevoTipo === producto.tipo) return false;
-    let aviso = '';
-    if (producto.tipo === 'producto' && nuevoTipo !== 'producto') {
-        aviso = '\n\nOjo: si tenía receta (BOM), dejará de usarse mientras no vuelva a ser "Producto terminado".';
-    }
-    if (!confirm(`¿Cambiar "${producto.nombre}" de ${ETIQUETA_TIPO_PRODUCTO[producto.tipo] || producto.tipo} a ${ETIQUETA_TIPO_PRODUCTO[nuevoTipo]}?${aviso}`)) return false;
-    const { error } = await supabaseClient.from('productos').update({ tipo: nuevoTipo }).eq('id', producto.id);
-    if (error) { alert('No se pudo cambiar la categoría: ' + (error.message || error)); return false; }
-    let mapa = mapaUnidades;
-    if (!mapa) {
-        const { data: um } = await supabaseClient.from('unidades_medida').select('id, nombre');
-        mapa = {};
-        (um || []).forEach((u) => { mapa[u.id] = u.nombre; });
-    }
-    await renderizarTablaProductos(mapa);
-    return true;
-}
 
 function escaparHtml(valor) {
     return String(valor).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1286,22 +1260,34 @@ function construirOpcionesSelector(lista, valorActual, textoFn, etiquetaVacio) {
     return html;
 }
 
-async function abrirResumenCompletoProducto(id) {
+async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido) {
     let modal = document.getElementById('modalResumenProducto');
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'modalResumenProducto';
-        modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4';
         document.body.appendChild(modal);
     }
+    // Subventana flotante (no un modal de pantalla completa): sin fondo
+    // oscuro que tape el resto de la app — los menús/riel de atrás se
+    // siguen viendo y usando.
+    modal.className = 'fixed z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]';
+    modal.style.top = '6vh';
+    modal.style.left = '50%';
+    modal.style.transform = 'translateX(-50%)';
+    modal.style.width = 'calc(100% - 2rem)';
+    modal.style.maxWidth = '42rem';
     modal.innerHTML = `
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div class="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-center">
-                <h3 class="text-sm font-bold text-slate-200">Resumen completo del artículo</h3>
-                <button type="button" id="btnCerrarResumenProd" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 cursor-pointer">&times;</button>
-            </div>
-            <div id="cuerpoResumenProd" class="p-5 overflow-y-auto flex-1 text-sm text-slate-300">Cargando…</div>
-            <div class="bg-slate-950 px-5 py-3 border-t border-slate-800 flex justify-end gap-2">
+        <div class="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-center rounded-t-2xl gap-3">
+            <h3 class="text-sm font-bold text-slate-200 truncate">Editar artículo<span id="tituloEditarProdSub" class="text-slate-500 font-normal"> — #${id}${skuConocido ? ' · ' + escaparHtml(skuConocido) : ''}${nombreConocido ? ' · ' + escaparHtml(nombreConocido) : ''}</span></h3>
+            <button type="button" id="btnCerrarResumenProd" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 cursor-pointer shrink-0">&times;</button>
+        </div>
+        <div id="cuerpoResumenProd" class="p-5 overflow-y-auto flex-1 text-sm text-slate-300">Cargando…</div>
+        <div class="bg-slate-950 px-5 py-3 border-t border-slate-800 flex justify-between items-center rounded-b-2xl">
+            <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                <input type="checkbox" id="rc_activo" data-campo="activo" data-tipo="boolean" class="campo-resumen-prod w-4 h-4">
+                Activo
+            </label>
+            <div class="flex gap-2">
                 <button type="button" id="btnCancelarResumenProd" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer">Cerrar</button>
                 <button type="button" id="btnGuardarResumenProd" class="bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer">Guardar cambios</button>
             </div>
@@ -1309,10 +1295,19 @@ async function abrirResumenCompletoProducto(id) {
     `;
     modal.classList.remove('hidden');
 
-    const cerrar = () => modal.remove();
+    const cerrarFuera = (e) => { if (!modal.contains(e.target)) cerrar(); };
+    const cerrarEsc = (e) => { if (e.key === 'Escape') cerrar(); };
+    function cerrar() {
+        modal.remove();
+        document.removeEventListener('click', cerrarFuera);
+        document.removeEventListener('keydown', cerrarEsc);
+    }
     document.getElementById('btnCerrarResumenProd').addEventListener('click', cerrar);
     document.getElementById('btnCancelarResumenProd').addEventListener('click', cerrar);
-    modal.addEventListener('click', (e) => { if (e.target === modal) cerrar(); });
+    setTimeout(() => {
+        document.addEventListener('click', cerrarFuera);
+        document.addEventListener('keydown', cerrarEsc);
+    }, 0);
 
     const cuerpo = document.getElementById('cuerpoResumenProd');
     try {
@@ -1324,6 +1319,14 @@ async function abrirResumenCompletoProducto(id) {
             supabaseClient.from('cuentas_contables').select('id, codigo, nombre').order('codigo', { ascending: true }),
         ]);
         if (error) throw error;
+
+        const tituloSub = document.getElementById('tituloEditarProdSub');
+        if (tituloSub) tituloSub.textContent = ` — #${art.id} · ${art.sku || 'sin SKU'} · ${art.nombre || 'sin nombre'}`;
+
+        // "Activo" vive fijo en el pie (no se va con el scroll) — se marca
+        // aparte, no como un campo más de la cuadrícula de abajo.
+        const chkActivo = document.getElementById('rc_activo');
+        if (chkActivo) chkActivo.checked = !!art.activo;
 
         // Llaves foráneas conocidas: se muestran y editan como <select> por
         // nombre, no como el número interno. Cualquier otra columna que
@@ -1337,7 +1340,23 @@ async function abrirResumenCompletoProducto(id) {
             cuenta_costo_id: construirOpcionesSelector(resCta.data, art.cuenta_costo_id, (r) => `${r.codigo} · ${r.nombre}`, '(sin cuenta)'),
         };
 
-        const claves = Object.keys(art).sort();
+        // "activo" ya no va en la cuadrícula: vive fijo en el pie del modal
+        // (ver checkbox #rc_activo), siempre visible sin importar el scroll.
+        // El resto sigue el orden lógico de ORDEN_CAMPOS_PRODUCTO; los de
+        // solo lectura (id, created_at, updated_at) siempre al final.
+        const claves = Object.keys(art)
+            .filter((c) => c !== 'activo')
+            .sort((a, b) => {
+                const soloLecturaA = CAMPOS_NO_EDITABLES_PRODUCTO.has(a);
+                const soloLecturaB = CAMPOS_NO_EDITABLES_PRODUCTO.has(b);
+                if (soloLecturaA !== soloLecturaB) return soloLecturaA ? 1 : -1;
+                const iA = ORDEN_CAMPOS_PRODUCTO.indexOf(a);
+                const iB = ORDEN_CAMPOS_PRODUCTO.indexOf(b);
+                if (iA === -1 && iB === -1) return a.localeCompare(b);
+                if (iA === -1) return 1;
+                if (iB === -1) return -1;
+                return iA - iB;
+            });
         cuerpo.innerHTML = `
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 ${claves.map((clave) => {
@@ -1349,7 +1368,7 @@ async function abrirResumenCompletoProducto(id) {
                         return `
                             <div>
                                 <label class="block text-[10px] text-slate-500 mb-1">${etiquetaCampo(clave)}</label>
-                                <p class="text-xs font-mono text-slate-400 bg-slate-950/60 border border-slate-800 rounded-lg px-2 py-1.5">${escaparHtml(valor ?? '—')}</p>
+                                <p class="text-xs font-mono text-slate-200 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 break-all">${escaparHtml(valor ?? '—')}</p>
                             </div>`;
                     }
                     if (clave === 'tipo') {
@@ -1393,7 +1412,7 @@ async function abrirResumenCompletoProducto(id) {
 
     document.getElementById('btnGuardarResumenProd').addEventListener('click', async () => {
         const payload = {};
-        cuerpo.querySelectorAll('.campo-resumen-prod').forEach((input) => {
+        modal.querySelectorAll('.campo-resumen-prod').forEach((input) => {
             const clave = input.dataset.campo;
             if (input.dataset.tipo === 'boolean') {
                 payload[clave] = input.checked;
