@@ -3,6 +3,7 @@ import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-
 
 const invResumenOrden = crearOrdenTabla();
 const invLotesOrden = crearOrdenTabla();
+const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /**
  * Función auxiliar centralizada para registrar movimientos de almacén mediante FIFO (RPC de Supabase).
@@ -211,8 +212,9 @@ async function renderizarTablaLotes(contenedorLotes) {
 
             htmlLotes += `
                 <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition">
-                    <td class="p-3">
+                    <td class="p-3 whitespace-nowrap">
                         <button type="button" onclick="window.verDetalleLoteMovimiento(${l.id})" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 text-xs px-2.5 py-1 rounded-lg border border-slate-700 transition font-medium">🔍 Documento</button>
+                        <button type="button" onclick="window.registrarDeterioroLote(${l.id}, '${String(l.numero_lote || 'S/N').replace(/'/g, "\\'")}', ${Number(l.costo_unitario || 0)})" title="Castigar el costo del lote por caducidad, daño u obsolescencia (NIF C-4: costo o valor neto de realización, el menor)" class="bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs px-2.5 py-1 rounded-lg border border-slate-700 transition font-medium ml-1">📉 Deterioro</button>
                     </td>
                     <td class="p-3 font-mono text-xs text-indigo-300">#${l.id} - ${l.numero_lote || 'S/N'}</td>
                     <td class="p-3 font-medium text-slate-100">${nombreProd}</td>
@@ -257,6 +259,41 @@ window.limpiarFiltroFechasLotes = function() {
 window.cambiarPaginaLotes = function(nuevaPagina) {
     paginaActualLotes = nuevaPagina;
     renderizarTablaLotes(document.getElementById('contenedorExistenciasLote'));
+};
+
+// Deterioro de inventario (NIF C-4: costo o valor neto de realización, el
+// menor) — castiga el costo unitario de un lote específico por caducidad,
+// daño u obsolescencia. Solo permite bajar el costo, nunca subirlo.
+// Requiere sql/2026-09-14b_deterioro_inventario.sql.
+window.registrarDeterioroLote = async function(loteId, numeroLote, costoActual) {
+    const costoStr = prompt(
+        `Lote ${numeroLote} — costo unitario actual: $${Number(costoActual).toFixed(4)}\n\n` +
+        `¿Cuál es el nuevo costo unitario (valor neto de realización)? Debe ser MENOR al actual.`,
+        ''
+    );
+    if (costoStr === null) return;
+    const costoNuevo = parseFloat(costoStr);
+    if (!Number.isFinite(costoNuevo) || costoNuevo < 0) { alert('Costo inválido.'); return; }
+    if (costoNuevo >= Number(costoActual)) { alert('El nuevo costo debe ser menor al costo actual — esto solo registra deterioro (castigo hacia abajo), no una revaluación.'); return; }
+
+    const motivo = prompt('Motivo del deterioro (caducidad, daño, obsolescencia, etc.):', '');
+    if (motivo === null || !motivo.trim()) { alert('El motivo es obligatorio.'); return; }
+
+    try {
+        const { data, error } = await supabaseClient.rpc('registrar_deterioro_inventario', {
+            p_lote_id: loteId, p_costo_nuevo: costoNuevo, p_motivo: motivo.trim(),
+        });
+        if (error) throw error;
+        alert(`Deterioro registrado — castigo de ${money(data.monto_castigo)} (póliza #${data.poliza_id}). Nuevo costo del lote: $${Number(data.costo_nuevo).toFixed(4)}.`);
+        await renderizarTablaLotes(document.getElementById('contenedorExistenciasLote'));
+    } catch (err) {
+        const m = err?.message || String(err);
+        if (/does not exist|schema cache|could not find/i.test(m)) {
+            alert('Falta correr sql/2026-09-14b_deterioro_inventario.sql en Supabase.');
+        } else {
+            alert('No se pudo registrar el deterioro: ' + m);
+        }
+    }
 };
 
 window.verDetalleLoteMovimiento = async function(loteId) {
