@@ -7,7 +7,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 
 const SECCIONES = [
     {
-        grupo: 'Catálogos', ancla: 'cat', items: [
+        grupo: 'Datos Maestros', ancla: 'cat', items: [
             { v: 'catalogo', t: 'Productos', d: 'Alta y edición de productos, materias primas e insumos: SKU, unidad, costo, bandera de control de caducidad.', cfg: true },
             { v: 'proveedores', t: 'Proveedores', d: 'Datos fiscales: RFC, régimen, uso CFDI, forma y método de pago, cuenta de gasto por defecto.', cfg: true },
             { v: 'clientes', t: 'Clientes y listas de precio', d: 'Clientes y sus listas de precio.', cfg: true },
@@ -16,13 +16,7 @@ const SECCIONES = [
         ],
     },
     {
-        grupo: 'Inventario', ancla: 'inv', items: [
-            { v: 'inventario', t: 'Stock General', d: 'Existencias por producto y por lote, con mínimos.' },
-            { v: 'kardex', t: 'Kardex', d: 'Movimientos de entrada y salida por producto, con el criterio FIFO/FEFO usado.' },
-        ],
-    },
-    {
-        grupo: 'Entradas', ancla: 'ent', items: [
+        grupo: 'Operación — Compras / Abastecimiento', ancla: 'ent', items: [
             { v: 'ordenes-compra', t: 'Órdenes de compra', d: 'Emisión de órdenes de compra a proveedores.' },
             { v: 'recibo-mercancia', t: 'Recibo de mercancía', d: 'Recepción contra OC o desde el XML del CFDI; captura de lote y caducidad.' },
             { v: 'compras', t: 'Compras / Proveedores', d: 'Compras con afectación contable directa.' },
@@ -30,35 +24,48 @@ const SECCIONES = [
         ],
     },
     {
-        grupo: 'Salidas', ancla: 'sal', items: [
+        grupo: 'Operación — Inventario y almacén', ancla: 'inv', items: [
+            { v: 'inventario', t: 'Stock General', d: 'Existencias por producto y por lote, con mínimos.' },
+            { v: 'kardex', t: 'Kardex', d: 'Movimientos de entrada y salida por producto, con el criterio FIFO/FEFO usado.' },
             { v: 'salidas', t: 'Salidas / Ventas', d: 'Salidas de inventario y ventas.' },
+            { v: 'auditoria', t: 'Auditoría de inventarios', d: 'Toma física de inventario: crea auditorías, revisa el conteo de los operadores y compáralo contra el stock del sistema.' },
         ],
     },
     {
-        grupo: 'Producción', ancla: 'prod', items: [
+        grupo: 'Operación — Producción', ancla: 'prod', items: [
             { v: 'produccion', t: 'Producción', d: 'Órdenes de producción: BOM, procesos con su centro de costo, cierre y costeo del lote.', cfg: true },
         ],
     },
     {
-        grupo: 'Documentos y reportes', ancla: 'doc', items: [
+        grupo: 'Documentos', ancla: 'doc', items: [
             { v: 'documentos', t: 'Documentos', d: 'Consecutivos y consulta de documentos.' },
-            { v: 'auditoria', t: 'Auditoría', d: 'Toma física de inventario: crea auditorías, revisa el conteo de los operadores y compáralo contra el stock del sistema.' },
-            { v: 'reportes', t: 'Reportes', d: 'Reportes operativos.' },
         ],
     },
     {
-        grupo: 'Contabilidad — operación diaria', ancla: 'cta-op', items: [
+        grupo: 'Finanzas — operación diaria', ancla: 'cta-op', items: [
             { v: 'gastos', t: 'Gastos', d: 'Captura de facturas de gasto. Trae lector de XML del CFDI y asistente de clasificación.' },
             { v: 'pagos-proveedor', t: 'Cuentas por pagar', d: 'Saldos por proveedor y registro de pagos.' },
+            { v: 'cuentas-por-cobrar', t: 'Cuentas por cobrar', d: 'Saldos por cliente y registro de cobros.' },
             { v: 'tareas', t: 'Tareas', d: 'Pendientes automáticos: inventario bajo mínimo, lotes por caducar, nómina por generar.' },
         ],
     },
     {
-        grupo: 'Contabilidad — nómina y cierre de mes', ancla: 'cta-mes', items: [
+        grupo: 'Finanzas — nómina y cierre de mes', ancla: 'cta-mes', items: [
             { v: 'nomina', t: 'Nómina', d: 'Cálculo y contabilización de sueldos, IMSS/INFONAVIT e ISR.' },
             { v: 'prorrateo', t: 'Prorrateo de gastos', d: 'Reparto mensual del CIF a las órdenes y a la capacidad no utilizada.' },
             { v: 'polizas', t: 'Pólizas', d: 'Consulta de los asientos contables generados.' },
             { v: 'reportes-contables', t: 'Reportes contables', d: 'Balanza de comprobación, estado de resultados, saldos por cuenta.' },
+            { v: 'cierre-periodo', t: 'Cierre de periodo', d: 'Revisa pendientes contables del mes (documentos, gastos, nóminas, cobros, pagos, auditorías, pólizas descuadradas) antes de cerrarlo; permite reabrirlo si hace falta corregir algo.' },
+        ],
+    },
+    {
+        grupo: 'Finanzas — fiscal', ancla: 'cta-fiscal', items: [
+            { v: 'isr', t: 'Tabla ISR', d: 'Tarifas de retención de ISR sobre sueldos (Art. 96 LISR) y subsidio.', cfg: true },
+        ],
+    },
+    {
+        grupo: 'Control y Análisis', ancla: 'ctrl', items: [
+            { v: 'reportes', t: 'Reportes', d: 'Reportes operativos.' },
         ],
     },
     {
@@ -67,12 +74,11 @@ const SECCIONES = [
             { v: 'centros-costo', t: 'Centros de costo', d: 'Las 3 etapas SURT / MEZ / ENV y su capacidad normal en horas de mano de obra al mes.', cfg: true },
             { v: 'areas-prorrateo', t: 'Áreas y bases de prorrateo', d: 'm², carga eléctrica (kW) y personas por área. De aquí salen los % con que se reparten renta, luz y servicios.', cfg: true },
             { v: 'reparto-plantillas', t: 'Reparto de gastos compartidos', d: 'Plantillas por cuenta o proveedor: qué base usar y a qué cuenta de oficina va la parte de no producción.', cfg: true },
-            { v: 'isr', t: 'Tabla ISR', d: 'Tarifas de retención de ISR sobre sueldos (Art. 96 LISR) y subsidio.', cfg: true },
         ],
     },
     {
-        grupo: 'Configuración — general', ancla: 'cfg-gral', config: true, items: [
-            { v: 'configuracion', t: 'General', d: 'Datos de la empresa y parámetros globales.', cfg: true },
+        grupo: 'Configuración General', ancla: 'cfg-gral', config: true, items: [
+            { v: 'configuracion', t: 'General', d: 'Tema de colores, tamaño de texto y enlaces a las pantallas móviles para operadores.', cfg: true },
             { v: 'plantillas', t: 'Plantillas de impresión', d: 'Diseño de los documentos que se imprimen.', cfg: true },
         ],
     },

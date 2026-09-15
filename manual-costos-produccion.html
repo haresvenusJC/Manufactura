@@ -178,12 +178,12 @@
         <thead><tr><th>Pantalla</th><th>Ruta</th><th>¿Cada cuándo?</th></tr></thead>
         <tbody>
           <tr><td>Proveedores</td><td class="path">Compras / Proveedores</td><td>Una vez por proveedor (o alta rápida desde el XML al capturar el gasto)</td></tr>
-          <tr><td>Plan de cuentas</td><td class="path">Contabilidad → Plan de cuentas</td><td>Se revisa una vez; se ajusta rara vez</td></tr>
-          <tr><td>Centros de costo</td><td class="path">Contabilidad → Centros de costo</td><td>Ya vienen creados los 3; solo ajustas su capacidad al inicio y la revisas 1–2 veces al año</td></tr>
-          <tr><td>Áreas y bases de prorrateo</td><td class="path">Contabilidad → Áreas y bases de prorrateo</td><td>Una vez al inicio: m², kW y personas por área. Se actualiza si cambia la planta</td></tr>
-          <tr><td>Reparto de gastos compartidos</td><td class="path">Contabilidad → Reparto de gastos compartidos</td><td>Una vez: define cómo se parte cada gasto compartido (renta, luz…)</td></tr>
-          <tr><td>Gastos</td><td class="path">Contabilidad → Gastos</td><td>Cada factura de gasto (con lector de XML y asistente)</td></tr>
-          <tr><td>Prorrateo de gastos</td><td class="path">Contabilidad → Prorrateo de gastos</td><td>Una vez al mes, después del cierre</td></tr>
+          <tr><td>Plan de cuentas</td><td class="path">Finanzas → Plan de cuentas</td><td>Se revisa una vez; se ajusta rara vez</td></tr>
+          <tr><td>Centros de costo</td><td class="path">Finanzas → Centros de costo</td><td>Ya vienen creados los 3; solo ajustas su capacidad al inicio y la revisas 1–2 veces al año</td></tr>
+          <tr><td>Áreas y bases de prorrateo</td><td class="path">Finanzas → Áreas y bases de prorrateo</td><td>Una vez al inicio: m², kW y personas por área. Se actualiza si cambia la planta</td></tr>
+          <tr><td>Reparto de gastos compartidos</td><td class="path">Finanzas → Reparto de gastos compartidos</td><td>Una vez: define cómo se parte cada gasto compartido (renta, luz…)</td></tr>
+          <tr><td>Gastos</td><td class="path">Finanzas → Gastos</td><td>Cada factura de gasto (con lector de XML y asistente)</td></tr>
+          <tr><td>Prorrateo de gastos</td><td class="path">Finanzas → Prorrateo de gastos</td><td>Una vez al mes, después del cierre</td></tr>
         </tbody>
       </table>
     </div>
@@ -227,8 +227,8 @@
         <div class="tbl"><table class="fieldguide">
           <thead><tr><th>Campo</th><th>Qué poner</th><th>Ejemplo</th></tr></thead>
           <tbody>
-            <tr><td><strong>Nombre</strong> (obligatorio)</td><td>El nombre comercial o razón social. Con este nombre lo vas a buscar después.</td><td>Inmobiliaria del Valle</td></tr>
-            <tr><td><strong>RFC</strong></td><td>El RFC tal cual viene en la factura. Se guarda en mayúsculas. <em>Es importante</em>: cuando cargues la factura XML, el sistema busca al proveedor por su RFC.</td><td>IVA980612ABC</td></tr>
+            <tr><td><strong>Nombre</strong> (obligatorio)</td><td>El nombre comercial o razón social. Con este nombre lo vas a buscar después.</td><td>Alkem Industrias <em>(ya está en tu catálogo)</em></td></tr>
+            <tr><td><strong>RFC</strong></td><td>El RFC tal cual viene en la factura. Se guarda en mayúsculas. <em>Es importante</em>: cuando cargues la factura XML, el sistema busca al proveedor por su RFC.</td><td>AKI850612ABC <em>(formato de ejemplo)</em></td></tr>
             <tr><td>Código Postal</td><td>El del domicilio fiscal del proveedor (viene en el XML).</td><td>64000</td></tr>
             <tr><td>Régimen fiscal</td><td>El que dice la factura. Si no lo sabes, déjalo y pregúntale a tu contador.</td><td>601 — General de Ley Personas Morales</td></tr>
             <tr><td>Contacto / Teléfono / Email</td><td>Para ubicar a quién llamarle. Opcionales.</td><td>Lic. Ramírez · 81 8000 0000</td></tr>
@@ -271,7 +271,7 @@
 
     <ol class="steps">
       <li><strong>Abre la pantalla</strong>
-        <p>Menú → <span class="path">Contabilidad → Plan de cuentas</span>. Verás la lista de cuentas agrupada por tipo: Activo, Pasivo, Capital, Ingresos, Costos, Gastos.</p></li>
+        <p>Menú → <span class="path">Finanzas → Plan de cuentas</span>. Verás la lista de cuentas agrupada por tipo: Activo, Pasivo, Capital, Ingresos, Costos, Gastos.</p></li>
 
       <li><strong>Busca el bloque de gastos indirectos de fabricación</strong>
         <p>Son las cuentas que empiezan con <code>503</code>. La migración de la Fase 1 las crea si no existían. Deberías ver algo así:</p>
@@ -319,6 +319,21 @@
     <h2><span class="n">3</span>Parte 3 — Ajustar los centros de costo</h2>
     <p class="lead">Un centro de costo es el "área" que junta los gastos indirectos para repartirlos. Aquí hay <strong>tres</strong>, uno por etapa de fabricación, y <strong>ya vienen creados</strong> por la migración. Tu trabajo en esta parte es una sola cosa: revisar y ajustar su <strong>capacidad normal</strong>.</p>
 
+    <div class="callout">
+      <span class="lbl">Si nunca has hecho esto — 4 palabras antes de empezar</span>
+      <p>No necesitas saber contabilidad para configurar esta parte; solo estas cuatro ideas, en español llano:</p>
+      <div class="tbl"><table class="fieldguide">
+        <thead><tr><th>Palabra</th><th>Qué significa aquí</th></tr></thead>
+        <tbody>
+          <tr><td><strong>CIF</strong> (gasto indirecto de fabricación)</td><td>Un gasto de la planta que no puedes señalar con el dedo hacia UN producto — renta, luz, depreciación, supervisión. Le toca un pedacito a todo lo que se produjo ese mes.</td></tr>
+          <tr><td><strong>Capacidad normal</strong></td><td>Cuántas horas de trabajo produce una etapa en un mes <em>típico</em> — ni el mejor mes, ni el peor. Es el "100%" contra el que se mide qué tanto usaste la planta.</td></tr>
+          <tr><td><strong>Capacidad ociosa</strong></td><td>La parte de esa capacidad normal que <em>no</em> se usó ese mes (planta parada, poco pedido, etc.). No se le carga a los productos que sí saliste a fabricar — se reconoce aparte, como un gasto del mes.</td></tr>
+          <tr><td><strong>Prorrateo</strong></td><td>El reparto del CIF del mes entre las órdenes que sí produjeron, una vez al mes. Es un botón que aprietas (Parte 5), no algo que captures a mano orden por orden.</td></tr>
+        </tbody>
+      </table></div>
+      <p>Con esto ya puedes seguir esta Parte de corrido. El porqué contable de fondo (NIF C-4) está en los recuadros "Para contabilidad" — sáltatelos si no los necesitas.</p>
+    </div>
+
     <div class="tbl"><table>
       <thead><tr><th>Código</th><th>Etapa</th><th>Capacidad sugerida de fábrica</th><th>Supuesto</th></tr></thead>
       <tbody>
@@ -334,9 +349,27 @@
       <p>Pesar materia prima, fabricar el granel y envasar consumen cantidades muy distintas de mano de obra por litro producido. Si todo el CIF cayera en un solo saco, un producto que se envasa a mano cargaría lo mismo que uno que sale de la llenadora automática. Con un centro por etapa, la renta, la luz y la depreciación aterrizan donde de verdad se usó la planta.</p>
     </div>
 
+    <div class="callout ok">
+      <span class="lbl">Con tu contador: qué decidir juntos una sola vez, y qué ya está resuelto</span>
+      <p>Para que la sesión con tu contador sea corta y no se alargue discutiendo lo que el sistema ya resuelve solo:</p>
+      <p><strong>Esto sí les toca decidir a los dos</strong> (son juicios de negocio, no hay una respuesta "correcta" universal):</p>
+      <ol>
+        <li>¿Cuántos operadores trabajan de verdad en cada etapa (SURT/MEZ/ENV) — y son fijos por etapa, o rotan? (afecta el paso 3 de abajo).</li>
+        <li>Para cada cuenta <code>503.xx</code> nueva que agreguen: ¿es <strong>fijo</strong> o <strong>variable</strong>? (Parte 2 ya trae las típicas clasificadas; solo revisen si agregan una.)</li>
+        <li>¿La capacidad normal que calcula la fórmula (Parte 3, abajo) se siente razonable para tu planta, o hay algo que la fórmula no está viendo (turnos, temporada)?</li>
+      </ol>
+      <p><strong>Esto ya NO hace falta discutirlo</strong> — ya es una decisión tomada por el sistema, con respaldo en NIF C-4, y aplicarla es solo seguir los pasos:</p>
+      <ul>
+        <li>Que existan <strong>tres</strong> centros (uno por etapa) y no uno solo — ya está justificado arriba.</li>
+        <li>Que la capacidad ociosa se reconozca aparte (503.98) y no se cargue a los productos — es la regla, no una opción.</li>
+        <li>Que el prorrateo se calcule una vez al mes, con base real (no una tasa estimada) — es el método "Real (a fin de mes)" del paso 4.</li>
+        <li>La fórmula exacta para estimar la capacidad normal (paso 3) — solo hace falta poner el número de operadores; el resto ya está calibrado.</li>
+      </ul>
+    </div>
+
     <ol class="steps">
       <li><strong>Abre la pantalla</strong>
-        <p>Menú → <span class="path">Contabilidad → Centros de costo</span>. Verás los tres centros (más <code>PROD</code>) ya en la lista. Dale <strong>Editar</strong> a cada uno de los tres para ajustar su capacidad.</p></li>
+        <p>Menú → <span class="path">Finanzas → Centros de costo</span>. Verás los tres centros (más <code>PROD</code>) ya en la lista. Dale <strong>Editar</strong> a cada uno de los tres para ajustar su capacidad.</p></li>
 
       <li><strong>Datos de identificación (ya vienen llenos)</strong>
         <div class="tbl"><table class="fieldguide">
@@ -357,17 +390,30 @@
 × (1 − % de tiempo no productivo)→ 0.80  (20% en limpieza, arranque/paro, juntas, esperas)
 × (1 − % de paros planeados)     → 0.96  (~1 día/mes de mantenimiento programado)
 = capacidad normal de la etapa, en horas/mes</div>
-        <p>Lo único que cambias entre un centro y otro es <strong>operadores</strong>. Los valores de fábrica asumen <strong>2 operadores en cada etapa</strong>, que es como opera hoy la planta:</p>
-        <div class="calc">2 operadores × 8 h × 24 días × 0.90 × 0.80 × 0.96 = 265.42 h/mes
+        <p><strong>Tu caso real, hoy:</strong> tienes <strong>2 operadoras en total — Michelle Carrera y Sol Lipa —</strong> y entre las dos hacen <em>todo</em>: preparan la fórmula (BOM) en Surtido, hacen la mezcla, y envasan y lotean. No están una fija en cada etapa; las dos rotan por las tres. Este es exactamente el caso "si tu gente rota" de abajo — <strong>no</strong> el de "operadores dedicados por etapa".</p>
 
-SURT   2 operadores → 265.42 h/mes
-MEZ    2 operadores → 265.42 h/mes
-ENV    2 operadores → 265.42 h/mes</div>
-        <p>Si en alguna etapa cambia el número de operadores, edita ese centro, ajusta <code>operadores</code> y pulsa <code>Usar sugerido →</code> — copia el cálculo al campo que de verdad se usa. De ahí lo ajustas a mano si conoces tu operación mejor que la fórmula.</p>
+        <div class="callout warn">
+          <span class="lbl">Revisa esto en tu configuración actual</span>
+          <p>La migración sembró cada uno de los tres centros con <code>operadores = 2</code> por separado — es decir, asumiendo <strong>6 personas en total</strong> (2 dedicadas a cada etapa). Como en realidad tienes <strong>2 personas rotando</strong>, ese supuesto está sobrado 3 veces. Si no lo corriges, la capacidad normal de cada centro saldría demasiado alta, la utilización real se vería artificialmente baja, y se te iría mucho CIF fijo a "capacidad ociosa" (503.98) en vez de al costo real de tus lotes. Corrígelo con el cálculo de abajo.</p>
+        </div>
+
+        <p>Con gente que rota, el orden correcto es al revés de lo que sugiere el formulario: primero calculas la capacidad de <strong>toda la planta</strong> con la fórmula, y luego la repartes tú entre los tres centros — no captures "operadores" centro por centro.</p>
+        <div class="calc">2 operadoras × 8 h × 24 días × 0.90 × 0.80 × 0.96 = 265.42 h/mes de TODA la planta (Michelle + Sol)</div>
+        <p>Ahora repártela entre las tres etapas según cómo se distribuye normalmente su tiempo. Como ejemplo de partida (ajústalo con tu contador si conoces mejor tu operación — envasar suele llevarse la mayor parte del tiempo):</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Etapa</th><th>% del tiempo</th><th>Capacidad normal</th></tr></thead>
+          <tbody>
+            <tr><td class="m">SURT</td><td class="num">15%</td><td class="num">39.81 h/mes</td></tr>
+            <tr><td class="m">MEZ</td><td class="num">25%</td><td class="num">66.36 h/mes</td></tr>
+            <tr><td class="m">ENV</td><td class="num">60%</td><td class="num">159.25 h/mes</td></tr>
+            <tr><td><strong>Total</strong></td><td class="num">100%</td><td class="num"><strong>265.42 h/mes</strong></td></tr>
+          </tbody>
+        </table></div>
+        <p><strong>Cómo capturarlo en la pantalla:</strong> en cada uno de los tres centros, ignora el sub-cálculo de "operadores" (o dale el mismo dato informativo, pero no uses "Usar sugerido" ahí) y teclea directo, en <strong>"Capacidad normal que se usa (h/mes)"</strong>, el número que le tocó de la tabla de arriba — 39.81 para SURT, 66.36 para MEZ, 159.25 para ENV.</p>
 
         <div class="callout">
-          <span class="lbl">Si tu gente rota entre etapas</span>
-          <p>Cuando los mismos operarios pasan del surtido al mezclado al envasado según haga falta, no hay "operadores dedicados" por etapa. Entonces: calcula la capacidad de <em>toda</em> la planta con la fórmula (ej. 6 operarios → ~796 h/mes) y repártela entre los tres centros según cómo se distribuye normalmente el trabajo — por ejemplo 15% surtido / 25% mezclado / 60% envasado → 119 / 199 / 478 h. La pantalla de Prorrateo te mostrará cada mes el reparto <strong>real</strong> de horas; tu capacidad normal es tu estimación de ese reparto en un mes típico.</p>
+          <span class="lbl">Si en el futuro contratas gente fija por etapa</span>
+          <p>Si algún día alguien se queda dedicada solo a envasado, por ejemplo, ahí sí puedes usar el sub-cálculo de "operadores" de ese centro directamente (operadores de esa etapa × jornada × días × factores) y "Usar sugerido" — pero mientras Michelle y Sol sigan rotando entre las tres, usa siempre el reparto de arriba. La pantalla de Prorrateo te mostrará cada mes el reparto <strong>real</strong> de horas por centro; ajusta tu % de reparto si ves que se aleja mucho de lo que estimaste aquí.</p>
         </div>
       </li>
 
@@ -388,6 +434,49 @@ ENV    2 operadores → 265.42 h/mes</div>
     <div class="callout tec">
       <span class="lbl">Para contabilidad</span>
       <p>La capacidad normal es el denominador para prorratear el CIF <strong>fijo</strong> (NIF C-4 §44.3, "producción normal"), <strong>por centro</strong>. El CIF <strong>variable</strong> se aplica sobre actividad real del centro. A los ~3 meses la pantalla mostrará el promedio móvil de horas reales de <code>registros_tiempo</code> junto a la capacidad capturada, para revalidar el supuesto.</p>
+    </div>
+
+    <h3>Ejemplo completo — de la capacidad normal al costo de un lote</h3>
+    <p>Este es el mismo ejemplo que recorre la <a href="guia-costos-produccion.html" target="_blank" rel="noopener">Guía interactiva</a>, con tu plantilla real: <strong>Michelle Carrera</strong> y <strong>Sol Lipa</strong>, rotando entre las tres etapas. Sigue al centro <code>ENV · Envasado</code> durante un mes.</p>
+    <ol class="steps">
+      <li><strong>Configuras los tres centros (esta Parte)</strong>
+        <p>2 operadoras rotando → 265.42 h/mes de toda la planta → repartidas 15/25/60% quedan <strong>39.81 h SURT · 66.36 h MEZ · 159.25 h ENV</strong>. Capturas esos tres números directo, como se explicó arriba.</p></li>
+      <li><strong>Durante el mes, capturas los gastos indirectos de <code>ENV</code> (Parte 4)</strong>
+        <div class="tbl"><table>
+          <thead><tr><th>Cuenta</th><th>Concepto</th><th>Fijo/Variable</th><th>Monto</th></tr></thead>
+          <tbody>
+            <tr><td class="m">503.05</td><td>Renta nave industrial (parte de ENV)</td><td>fijo</td><td class="num">$18,000.00</td></tr>
+            <tr><td class="m">503.04</td><td>Depreciación llenadora</td><td>fijo</td><td class="num">$22,000.00</td></tr>
+            <tr><td class="m">503.02</td><td>Supervisión (parte ENV)</td><td>fijo</td><td class="num">$10,000.00</td></tr>
+            <tr><td class="m">503.01</td><td>Energía de la línea de envasado</td><td>variable</td><td class="num">$10,000.00</td></tr>
+            <tr><td class="m">503.06</td><td>Insumos indirectos (guantes, cofias)</td><td>variable</td><td class="num">$4,000.00</td></tr>
+            <tr><td colspan="3"><strong>Total CIF pendiente de ENV</strong></td><td class="num"><strong>$64,000.00</strong></td></tr>
+          </tbody>
+        </table></div>
+        <p>De ese total, $50,000 es fijo y $14,000 es variable — esa separación es la que hace posible aislar la capacidad ociosa en el siguiente paso.</p>
+      </li>
+      <li><strong>Al fin de mes, Michelle y Sol registraron entre las dos 120 horas en <code>ENV</code></strong>
+        <p>Contra los <strong>159.25 h</strong> de capacidad normal de ENV, eso es <strong>75.4% de utilización</strong>. Este dato lo junta solo el sistema, de los tiempos que cada una registró desde su celular en la Orden de Trabajo — no importa cuál de las dos hizo cuánto, se suman.</p></li>
+      <li><strong>Corres el prorrateo (Parte 5) y esto es lo que calcula</strong>
+        <div class="calc">Variable — se aplica TODO, sobre horas reales:
+  $14,000 → a las órdenes que trabajaron en ENV ese mes
+
+Fijo — se aplica sobre capacidad NORMAL, topado al 100%:
+  aplicado = $50,000 × mín(120 / 159.25, 1) = $50,000 × 75.35% = $37,676.49
+  ocioso   = $50,000 − $37,676.49 = $12,323.51  →  va a la cuenta 503.98 (resultados, NO a inventario)
+
+Total aplicado a órdenes de ENV este mes = $14,000 + $37,676.49 = $51,676.49</div>
+        <p>Ese <strong>$51,676.49</strong> se reparte entre las órdenes de producción que sí tuvieron horas en <code>ENV</code> ese mes, proporcional a cuántas horas tuvo cada una. Ese mes se envasó, entre otros, <strong>Lovlub Bubblegum 60 Gr</strong> (75 de esas 120 horas, 62.5% — en realidad decenas de lotes chicos de 90 minutos cada uno, ver Parte 6) y <strong>Lovlub Chocolate 60 Gr</strong> (las 45 restantes, 37.5%):</p>
+        <div class="calc">Lovlub Bubblegum 60 Gr:  $51,676.49 × 62.5% = $32,297.81
+Lovlub Chocolate 60 Gr:  $51,676.49 × 37.5% = $19,378.68</div>
+      </li>
+      <li><strong>Ese CIF (y la mano de obra) llegan al costo del producto terminado</strong>
+        <p>Además del CIF, la orden de <strong>Lovlub Bubblegum 60 Gr</strong> también carga su mano de obra directa: 75 h entre Michelle y Sol, ambas a $54.1667/hora → <strong>$4,062.50</strong>. Esto es la suma de <em>todos</em> los lotes de Bubblegum del mes — <code>contabilizar_produccion</code> hace esta cuenta lote por lote, cada uno con su propia orden de envasado. La Parte 6 desglosa un solo lote de 10 kg (160 piezas) de principio a fin, incluyendo el paso previo de hacer el granel.</p>
+      </li>
+    </ol>
+    <div class="callout warn">
+      <span class="lbl">Lo que NO pasa</span>
+      <p>Los $12,323.51 de capacidad ociosa <strong>nunca</strong> tocan el costo de Lovlub Bubblegum, Lovlub Chocolate ni ninguna otra orden — se van directo a la cuenta de resultados <code>503.98</code> del mes. Si ese número creciera mes a mes, es una señal de negocio (planta sobrada de capacidad respecto a lo que se está vendiendo), no un error de captura.</p>
     </div>
 
     <h3>Cómo cada proceso llega a su centro</h3>
@@ -416,7 +505,7 @@ ENV    2 operadores → 265.42 h/mes</div>
 
     <ol class="steps">
       <li><strong>Abre la pantalla</strong>
-        <p>Menú → <span class="path">Contabilidad → Áreas y bases de prorrateo</span>. Ya vienen sembradas las áreas de la planta (Almacén Insumos, Surtido MP, Cosméticos, Lotificación, Envasado, Acondicionamiento) más <strong>Oficina</strong>, y los equipos conocidos con un kW <em>placeholder</em>.</p></li>
+        <p>Menú → <span class="path">Finanzas → Áreas y bases de prorrateo</span>. Ya vienen sembradas las áreas de la planta (Almacén Insumos, Surtido MP, Cosméticos, Lotificación, Envasado, Acondicionamiento) más <strong>Oficina</strong>, y los equipos conocidos con un kW <em>placeholder</em>.</p></li>
 
       <li><strong>Cada área tiene un rol</strong>
         <div class="tbl"><table class="fieldguide">
@@ -461,7 +550,7 @@ ENV    2 operadores → 265.42 h/mes</div>
 
     <ol class="steps">
       <li><strong>Abre la pantalla</strong>
-        <p>Menú → <span class="path">Contabilidad → Reparto de gastos compartidos</span>. Ya vienen sembradas 5 plantillas típicas: renta (m²), energía (kW), agua (m²), vigilancia (m²), internet/teléfono (personas).</p></li>
+        <p>Menú → <span class="path">Finanzas → Reparto de gastos compartidos</span>. Ya vienen sembradas 5 plantillas típicas: renta (m²), energía (kW), agua (m²), vigilancia (m²), internet/teléfono (personas).</p></li>
 
       <li><strong>Qué lleva cada plantilla</strong>
         <div class="tbl"><table class="fieldguide">
@@ -596,7 +685,7 @@ Cargo  119.01  IVA acreditable pend. de pago               6,400.00
     <h2><span class="n">5</span>Parte 5 — Fin de mes: el prorrateo</h2>
     <p class="lead">Una vez al mes, después de haber capturado todos los gastos y cerrado las órdenes de producción del mes, repartes el CIF entre lo que se produjo. Es un botón, pero primero revisas lo que va a hacer.</p>
 
-    <p>El motor hace este cálculo <strong>por centro de costo</strong>. Para explicar cada dato con números reales, todo lo de abajo sigue un solo ejemplo continuo: el mes <strong><code>2026-09</code></strong>, centro <strong><code>ENV</code> · Envasado</strong> (capacidad normal 796 h, se trabajaron 560 h reales = 70% de utilización, en dos órdenes: <code>OP-000051</code> con 360 h y <code>OP-000052</code> con 200 h). <code>SURT</code> y <code>MEZ</code> se calculan igual, cada uno con sus propios números.</p>
+    <p>El motor hace este cálculo <strong>por centro de costo</strong>. Para explicar cada dato con números reales, todo lo de abajo sigue el mismo ejemplo continuo de la Parte 3 — <strong>Michelle Carrera</strong> y <strong>Sol Lipa</strong> rotando entre las tres etapas —, el mes <strong><code>2026-09</code></strong>, centro <strong><code>ENV</code> · Envasado</strong> (capacidad normal <strong>159.25 h</strong>, se trabajaron <strong>120 h</strong> reales = <strong>75.4% de utilización</strong>, en dos órdenes: <strong>Lovlub Bubblegum 60 Gr</strong> con 75 h y <strong>Lovlub Chocolate 60 Gr</strong> con 45 h). <code>SURT</code> y <code>MEZ</code> se calculan igual, cada uno con sus propios números.</p>
 
     <h3>1. El único campo que llenas: "Mes a prorratear"</h3>
     <p>Es lo único que escribes en toda la pantalla — un selector de mes, ej. <strong><code>2026-09</code></strong>. En cuanto lo cambias, el sistema recalcula <strong>todo, en el acto, sin guardar nada</strong>: es una vista previa. No pasa nada irreversible hasta que aprietes el botón "Aplicar prorrateo de [mes]" (paso 5).</p>
@@ -606,12 +695,12 @@ Cargo  119.01  IVA acreditable pend. de pago               6,400.00
     <div class="tbl"><table>
       <thead><tr><th>Tarjeta</th><th>Dato en pantalla</th><th>Qué significa</th><th>En el ejemplo</th></tr></thead>
       <tbody>
-        <tr><td rowspan="2">CIF pendiente</td><td>El número grande</td><td>La suma de <em>todos</em> los gastos que clasificaste como "Indirecto de fabricación" (Parte 4) en ese mes y que aún no se han prorrateado.</td><td><code>$102,000.00</code></td></tr>
-        <tr><td>"fijo … · variable …"</td><td>El mismo total, partido en las dos cajas que importan para el cálculo: <strong>fijo</strong> (no cambia si produces más o menos: renta, depreciación, sueldo de supervisión) y <strong>variable</strong> (sí cambia con el volumen: luz, insumos indirectos).</td><td>fijo <code>$80,000</code> · variable <code>$22,000</code></td></tr>
-        <tr><td rowspan="2">Horas de mano de obra del mes</td><td>El número grande</td><td>Cuántas horas registraron los operarios ese mes <em>en este centro</em> (la pantalla arma esta tarjeta una vez por cada centro).</td><td><code>560.0 h</code></td></tr>
-        <tr><td>"capacidad normal … · utilización …"</td><td>Contra cuántas horas <em>debería</em> haber trabajado el centro en un mes normal (la capacidad normal que fijaste en la Parte 3), y qué porcentaje de esa capacidad realmente usaste.</td><td>capacidad normal <code>796 h</code> · utilización <code>70%</code></td></tr>
-        <tr><td rowspan="2">Distribución</td><td>El número grande</td><td>Cuánto CIF de este centro sí se va a repartir entre las órdenes que trabajaron en él, si aplicas el prorrateo ahora.</td><td><code>$78,269.00</code></td></tr>
-        <tr><td>"capacidad no utilizada"</td><td>La parte del CIF fijo que NO se reparte a ninguna orden, porque el centro no trabajó a toda su capacidad normal — se reconoce directo como gasto del mes (cuenta <code>503.98</code>), no se mete al costo de lo que sí produjiste.</td><td><code>$23,731.00</code></td></tr>
+        <tr><td rowspan="2">CIF pendiente</td><td>El número grande</td><td>La suma de <em>todos</em> los gastos que clasificaste como "Indirecto de fabricación" (Parte 4) en ese mes y que aún no se han prorrateado.</td><td><code>$64,000.00</code></td></tr>
+        <tr><td>"fijo … · variable …"</td><td>El mismo total, partido en las dos cajas que importan para el cálculo: <strong>fijo</strong> (no cambia si produces más o menos: renta, depreciación, sueldo de supervisión) y <strong>variable</strong> (sí cambia con el volumen: luz, insumos indirectos).</td><td>fijo <code>$50,000</code> · variable <code>$14,000</code></td></tr>
+        <tr><td rowspan="2">Horas de mano de obra del mes</td><td>El número grande</td><td>Cuántas horas registraron Michelle y Sol ese mes <em>en este centro</em> (la pantalla arma esta tarjeta una vez por cada centro).</td><td><code>120.0 h</code></td></tr>
+        <tr><td>"capacidad normal … · utilización …"</td><td>Contra cuántas horas <em>debería</em> haber trabajado el centro en un mes normal (la capacidad normal que fijaste en la Parte 3), y qué porcentaje de esa capacidad realmente usaste.</td><td>capacidad normal <code>159.25 h</code> · utilización <code>75.4%</code></td></tr>
+        <tr><td rowspan="2">Distribución</td><td>El número grande</td><td>Cuánto CIF de este centro sí se va a repartir entre las órdenes que trabajaron en él, si aplicas el prorrateo ahora.</td><td><code>$51,676.49</code></td></tr>
+        <tr><td>"capacidad no utilizada"</td><td>La parte del CIF fijo que NO se reparte a ninguna orden, porque el centro no trabajó a toda su capacidad normal — se reconoce directo como gasto del mes (cuenta <code>503.98</code>), no se mete al costo de lo que sí produjiste.</td><td><code>$12,323.51</code></td></tr>
       </tbody>
     </table></div>
 
@@ -626,19 +715,19 @@ Cargo  119.01  IVA acreditable pend. de pago               6,400.00
         <tr><td>Monto</td><td>El subtotal del gasto, tal como se registró.</td><td><code>$40,000.00</code></td></tr>
       </tbody>
     </table></div>
-    <p>Si notas que falta un gasto, o que uno está mal clasificado (por ejemplo, debería ser variable y aparece como fijo): <strong>no apliques todavía</strong>. Ve a <span class="path">Contabilidad → Gastos</span>, corrígelo, y vuelve — el recálculo aquí es automático.</p>
+    <p>Si notas que falta un gasto, o que uno está mal clasificado (por ejemplo, debería ser variable y aparece como fijo): <strong>no apliques todavía</strong>. Ve a <span class="path">Finanzas → Gastos</span>, corrígelo, y vuelve — el recálculo aquí es automático.</p>
 
     <h3>4. Tabla "Distribución propuesta", columna por columna</h3>
     <div class="tbl"><table>
-      <thead><tr><th>Columna</th><th>Qué muestra</th><th>Ejemplo (fila de OP-000051)</th></tr></thead>
+      <thead><tr><th>Columna</th><th>Qué muestra</th><th>Ejemplo (fila de Lovlub Bubblegum 60 Gr)</th></tr></thead>
       <tbody>
-        <tr><td>Destino</td><td>La orden de producción que recibe esa rebanada de CIF — o, en la última fila, "Capacidad no utilizada → 503.98 (resultados)".</td><td>Orden OP-000051</td></tr>
-        <tr><td>Horas MO</td><td>Cuántas horas de mano de obra directa tuvo <em>esa</em> orden en este centro, durante el mes.</td><td><code>360.0</code></td></tr>
-        <tr><td>Factor</td><td>Qué porcentaje representan esas horas sobre el total de horas trabajadas en el centro (la tarjeta "Horas de mano de obra del mes"). Así se reparte el CIF: a más horas, más CIF absorbe esa orden.</td><td><code>64.3%</code>  (360 ÷ 560)</td></tr>
-        <tr><td>CIF asignado</td><td>El resultado final: cuánto de los <code>$78,269</code> de la tarjeta "Distribución" le toca a esta orden en particular.</td><td><code>$50,316.00</code></td></tr>
+        <tr><td>Destino</td><td>La orden de producción que recibe esa rebanada de CIF — o, en la última fila, "Capacidad no utilizada → 503.98 (resultados)".</td><td>Orden de Lovlub Bubblegum 60 Gr</td></tr>
+        <tr><td>Horas MO</td><td>Cuántas horas de mano de obra directa tuvo <em>esa</em> orden en este centro, durante el mes.</td><td><code>75.0</code></td></tr>
+        <tr><td>Factor</td><td>Qué porcentaje representan esas horas sobre el total de horas trabajadas en el centro (la tarjeta "Horas de mano de obra del mes"). Así se reparte el CIF: a más horas, más CIF absorbe esa orden.</td><td><code>62.5%</code>  (75 ÷ 120)</td></tr>
+        <tr><td>CIF asignado</td><td>El resultado final: cuánto de los <code>$51,676.49</code> de la tarjeta "Distribución" le toca a esta orden en particular.</td><td><code>$32,297.81</code></td></tr>
       </tbody>
     </table></div>
-    <p>La fila <strong>"Capacidad no utilizada → 503.98 (resultados)"</strong> no trae horas ni factor: es el remanente del CIF fijo que ninguna orden absorbe, porque el centro no llegó al 100% de su capacidad normal (el mismo <code>$23,731.00</code> de la tarjeta "Distribución").</p>
+    <p>La fila <strong>"Capacidad no utilizada → 503.98 (resultados)"</strong> no trae horas ni factor: es el remanente del CIF fijo que ninguna orden absorbe, porque el centro no llegó al 100% de su capacidad normal (el mismo <code>$12,323.51</code> de la tarjeta "Distribución").</p>
 
     <h3>5. Los dos botones</h3>
     <ul>
@@ -651,9 +740,9 @@ Cargo  119.01  IVA acreditable pend. de pago               6,400.00
     <div class="tbl"><table>
       <thead><tr><th>Dato</th><th>Qué es</th><th>En el ejemplo</th></tr></thead>
       <tbody>
-        <tr><td>🧾 Póliza #N</td><td>Botón directo a la póliza que generó este prorrateo — salta a <span class="path">Contabilidad → Pólizas</span> con esa póliza enfocada.</td><td>🧾 Póliza #58</td></tr>
-        <tr><td>aplicado</td><td>El total de CIF que sí se repartió a las órdenes ese mes, sumando TODOS los centros.</td><td><code>$78,269.00</code> (si solo hubiera corrido <code>ENV</code>)</td></tr>
-        <tr><td>ociosidad</td><td>El total de capacidad no utilizada del mes, sumando todos los centros.</td><td><code>$23,731.00</code></td></tr>
+        <tr><td>🧾 Póliza #N</td><td>Botón directo a la póliza que generó este prorrateo — salta a <span class="path">Finanzas → Pólizas</span> con esa póliza enfocada.</td><td>🧾 Póliza #58</td></tr>
+        <tr><td>aplicado</td><td>El total de CIF que sí se repartió a las órdenes ese mes, sumando TODOS los centros.</td><td><code>$51,676.49</code> (si solo hubiera corrido <code>ENV</code>)</td></tr>
+        <tr><td>ociosidad</td><td>El total de capacidad no utilizada del mes, sumando todos los centros.</td><td><code>$12,323.51</code></td></tr>
         <tr><td>N gasto(s)</td><td>Cuántos gastos indirectos distintos se incluyeron en este prorrateo.</td><td>5 gasto(s)</td></tr>
       </tbody>
     </table></div>
@@ -664,31 +753,31 @@ Cargo  119.01  IVA acreditable pend. de pago               6,400.00
     </div>
 
     <h3>El ejemplo completo, de principio a fin</h3>
-    <p>Con los mismos números de arriba — capacidad normal de ENV: 796 h, 560 h reales trabajadas (70%), en <code>OP-000051</code> (360 h) y <code>OP-000052</code> (200 h) — así se arma cada peso del CIF que le tocó a <code>ENV</code> ese mes (su cuenta directa + su tajada de los gastos repartidos por plantilla):</p>
+    <p>Con los mismos números de arriba — capacidad normal de ENV: 159.25 h, 120 h reales trabajadas por Michelle y Sol (75.4%), en la orden de <strong>Lovlub Bubblegum 60 Gr</strong> (75 h) y la de <strong>Lovlub Chocolate 60 Gr</strong> (45 h) — así se arma cada peso del CIF que le tocó a <code>ENV</code> ese mes:</p>
     <div class="tbl total"><table>
       <thead><tr><th>Concepto</th><th>Tipo</th><th class="num">Monto</th></tr></thead>
       <tbody>
-        <tr><td>Renta nave</td><td>fijo</td><td class="num">40,000</td></tr>
-        <tr><td>Depreciación equipo</td><td>fijo</td><td class="num">18,000</td></tr>
-        <tr><td>Supervisión</td><td>fijo</td><td class="num">22,000</td></tr>
-        <tr><td>Energía de planta</td><td>variable</td><td class="num">15,000</td></tr>
-        <tr><td>Insumos indirectos</td><td>variable</td><td class="num">7,000</td></tr>
-        <tr><td>Total</td><td></td><td class="num">102,000</td></tr>
+        <tr><td>Renta nave (parte ENV)</td><td>fijo</td><td class="num">18,000</td></tr>
+        <tr><td>Depreciación llenadora</td><td>fijo</td><td class="num">22,000</td></tr>
+        <tr><td>Supervisión (parte ENV)</td><td>fijo</td><td class="num">10,000</td></tr>
+        <tr><td>Energía de la línea de envasado</td><td>variable</td><td class="num">10,000</td></tr>
+        <tr><td>Insumos indirectos</td><td>variable</td><td class="num">4,000</td></tr>
+        <tr><td>Total</td><td></td><td class="num">64,000</td></tr>
       </tbody>
     </table></div>
-    <div class="calc">CIF fijo (80,000):    aplicado = 80,000 × (560 / 796) = 56,269 → a las órdenes
-                      ocioso   = 80,000 − 56,269       = 23,731 → capacidad no utilizada
-CIF variable (22,000): todo (22,000)                          → a las órdenes
+    <div class="calc">CIF fijo (50,000):    aplicado = 50,000 × (120 / 159.25) = 37,676.49 → a las órdenes
+                      ocioso   = 50,000 − 37,676.49    = 12,323.51 → capacidad no utilizada
+CIF variable (14,000): todo (14,000)                             → a las órdenes
 
-Reparto a las órdenes (78,269 total) por horas:
-  OP-000051  360 h  →  64.3%  →  50,316
-  OP-000052  200 h  →  35.7%  →  27,953</div>
+Reparto a las órdenes (51,676.49 total) por horas:
+  Lovlub Bubblegum 60 Gr   75 h  →  62.5%  →  32,297.81
+  Lovlub Chocolate 60 Gr   45 h  →  37.5%  →  19,378.68</div>
 
     <div class="callout tec">
       <span class="lbl">Para contabilidad — la póliza del prorrateo</span>
-      <div class="calc">Cargo  115.03  Produccion en proceso           78,269   (CIF aplicado a ordenes)
-Cargo  503.98  Costo de capacidad no utilizada  23,731   (parte ociosa del fijo)
-  Abono  503.01 / 503.02 / 503.04 / 503.05 / 503.06     102,000  (cada cuenta CIF por su total)
+      <div class="calc">Cargo  115.03  Produccion en proceso           51,676.49   (CIF aplicado a ordenes)
+Cargo  503.98  Costo de capacidad no utilizada  12,323.51   (parte ociosa del fijo)
+  Abono  503.01 / 503.02 / 503.04 / 503.05 / 503.06     64,000.00  (cada cuenta CIF por su total)
 
 + por cada orden YA CERRADA del mes:
 Cargo  115.04  Producto terminado
@@ -707,7 +796,7 @@ Cargo  115.04  Producto terminado
     <p>Antes solo sumaba materiales y mano de obra. Con el módulo de costos, ya trae la parte de renta, luz, mantenimiento y supervisión que le correspondió, y cualquier gasto directo que hayas capturado contra esa orden.</p>
 
     <h3>Cómo se arma ese costo, centro por centro</h3>
-    <p>Una orden de fabricación normalmente pasa por <strong>varias etapas</strong> — surtido, mezclado, envasado — y cada una es un centro de costo distinto. El costo de la orden se construye así:</p>
+    <p>Una orden de fabricación pasa por sus etapas — surtido, mezclado, envasado — y cada una es un centro de costo distinto. El costo de la orden se construye así:</p>
     <ol>
       <li><strong>Materiales.</strong> Lo que se consumió de cada lote de materia prima, a su costo (salida FEFO con tolerancia mensual). Se acumula en <code>costo_total_materiales</code> de la orden.</li>
       <li><strong>Mano de obra directa.</strong> Por cada proceso: las <strong>horas que los operarios registraron desde el celular</strong> × su sueldo por hora (congelado al abrir la orden). La suma de todos los procesos es <code>costo_total_mano_obra</code>.</li>
@@ -716,27 +805,62 @@ Cargo  115.04  Producto terminado
     </ol>
     <div class="calc">costo unitario final = ( materiales + mano de obra + Σ CIF de cada centro + gastos directos ) ÷ piezas producidas</div>
 
-    <h4>Ejemplo: la orden OP-000051</h4>
-    <p>Gel lubricante 60 ml, <strong>5,000 piezas</strong>, producidas en septiembre. Pasó por las tres etapas. Horas registradas: 40 h en surtido, 70 h en mezclado, 120 h en envasado (230 h en total).</p>
-    <p>El prorrateo de septiembre ya corrió en cada centro. Lo que le tocó a esta orden:</p>
+    <div class="callout">
+      <span class="lbl">Tu caso real: dos órdenes encadenadas, no una</span>
+      <p>Como Surtido+Mezclado pasan el mismo día y Envasado días después, en tu operación esto casi nunca es <em>una</em> orden con tres etapas — son <strong>dos órdenes separadas</strong>: primero una orden que produce <strong>granel</strong> (semiterminado, cuenta <code>115.02</code>), y días después otra orden de <strong>envasado</strong> que consume ese granel como si fuera su materia prima. El costo del granel viaja completo hacia la orden de envasado, que le suma su propio empaque, mano de obra y CIF.</p>
+    </div>
+
+    <h4>Ejemplo: un lote de 10 kg de Lovlub Bubblegum (160 piezas de 60 g)</h4>
+    <p>Michelle y Sol pesan y mezclan un lote de granel de <strong>10 kg</strong> (25–40 min entre Surtido y Mezclado; aquí 10 min + 20 min), y días después envasan ese mismo lote completo en <strong>160 piezas</strong> (90 min de Envasado). Ese mes, sumando <em>todos</em> los lotes chicos de este sabor que se hicieron, la orden de Lovlub Bubblegum acumuló las 20 h de Surtido, 35 h de Mezclado y 75 h de Envasado que ya vimos en la Parte 5 — aquí seguimos solo <strong>un lote</strong> de esos, para ver el detalle línea por línea.</p>
+
+    <h5>Póliza 1 — cierra la orden de granel (10 kg)</h5>
     <div class="tbl total"><table>
-      <thead><tr><th>Etapa (centro)</th><th class="num">Horas de la orden</th><th class="num">Horas del centro en el mes</th><th class="num">CIF aplicado del centro</th><th class="num">% de la orden</th><th class="num">CIF a la orden</th></tr></thead>
+      <thead><tr><th>Etapa (centro)</th><th class="num">Horas del lote</th><th class="num">Horas del centro en el mes</th><th class="num">CIF aplicado del centro</th><th class="num">% del lote</th><th class="num">CIF al lote</th></tr></thead>
       <tbody>
-        <tr><td>Surtido de MP (<code>SURT</code>)</td><td class="num">40</td><td class="num">150</td><td class="num">13,057</td><td class="num">26.7%</td><td class="num">3,482</td></tr>
-        <tr><td>Mezclado (<code>MEZ</code>)</td><td class="num">70</td><td class="num">190</td><td class="num">28,075</td><td class="num">36.8%</td><td class="num">10,343</td></tr>
-        <tr><td>Envasado (<code>ENV</code>)</td><td class="num">120</td><td class="num">185</td><td class="num">48,906</td><td class="num">64.9%</td><td class="num">31,723</td></tr>
-        <tr><td>CIF total a la orden</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">45,548</td></tr>
+        <tr><td>Surtido de MP (<code>SURT</code>)</td><td class="num">0.17</td><td class="num">30</td><td class="num">8,028.89</td><td class="num">0.56%</td><td class="num">44.63</td></tr>
+        <tr><td>Mezclado (<code>MEZ</code>)</td><td class="num">0.33</td><td class="num">50</td><td class="num">13,041.60</td><td class="num">0.67%</td><td class="num">86.94</td></tr>
+        <tr><td>CIF total al granel</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">131.57</td></tr>
       </tbody>
     </table></div>
-    <div class="calc">materiales (FEFO)          58,000.00
-mano de obra directa       12,650.00   (230 h registradas × sueldo/hora)
-CIF prorrateado            45,548.00   (suma de las tres etapas, arriba)
-gastos directos             1,200.00   (análisis de laboratorio del lote)
+    <div class="calc">materia prima pesada (FEFO)     1,800.00
+mano de obra (30 min × $54.1667/h)    27.08
+CIF prorrateado (SURT + MEZ)         131.57
 ────────────────────────────────────
-costo total de la orden   117,398.00
-÷ 5,000 piezas producidas
-= costo unitario final         23.48</div>
-    <p>Fíjate en que cada etapa se calcula con su propia utilización: envasado trabajó al 70% de su capacidad, mezclado al 72%, surtido al 57%. Si envasado hubiera estado casi parado, su rebanada de CIF fijo habría sido chica y el resto se habría reconocido como capacidad ociosa en <code>503.98</code> — sin inflar el costo de este gel.</p>
+costo total del granel              1,958.65
+÷ 10 kg producidos
+= costo del granel               195.87 / kg</div>
+    <div class="callout tec">
+      <span class="lbl">Para contabilidad</span>
+      <div class="calc">Cargo  115.02  Granel (semiterminado)   1,958.65
+  Abono  115.01  Materia prima consumida        1,800.00
+  Abono  601.01  Mano de obra                      27.08
+  Abono  115.03  CIF de proceso                   131.57</div>
+    </div>
+
+    <h5>Póliza 2 — cierra la orden de envasado (consume el granel completo)</h5>
+    <div class="tbl total"><table>
+      <thead><tr><th>Concepto</th><th class="num">Monto</th></tr></thead>
+      <tbody>
+        <tr><td>Granel consumido — 10 kg × $195.87/kg</td><td class="num">1,958.65</td></tr>
+        <tr><td>Empaque — 160 × <code>PETBOSTON60ML</code> ($3.40) + 160 etiquetas ($1.36)</td><td class="num">761.60</td></tr>
+        <tr><td>Mano de obra — 90 min × $54.1667/h</td><td class="num">81.25</td></tr>
+        <tr><td>CIF Envasado — 1.5 h de las 120 h de ENV (1.25%) × $51,676.49</td><td class="num">645.96</td></tr>
+        <tr><td><strong>Costo total del lote</strong></td><td class="num"><strong>3,447.46</strong></td></tr>
+        <tr><td>÷ 160 piezas producidas</td><td class="num"></td></tr>
+        <tr><td><strong>= costo unitario final</strong></td><td class="num"><strong>21.55</strong></td></tr>
+      </tbody>
+    </table></div>
+    <div class="callout tec">
+      <span class="lbl">Para contabilidad</span>
+      <div class="calc">Cargo  115.04  Producto terminado — Lovlub Bubblegum 60 Gr   3,447.46
+  Abono  115.02  Granel consumido                                    1,958.65
+  Abono  115.01  Empaque (PET + etiqueta) consumido                    761.60
+  Abono  601.01  Mano de obra                                           81.25
+  Abono  115.03  CIF de proceso                                        645.96</div>
+      <p>El costo del granel (<code>115.02</code>) sale completo hacia <code>115.04</code> igual que cualquier otra materia prima — la única diferencia es que en vez de venir de un recibo de compra, vino de otra orden de producción cerrada antes.</p>
+    </div>
+
+    <p><strong>Por qué el CIF sigue siendo pequeño en un lote chico:</strong> 1.5 h de Envasado son solo 1.25% de las 120 h reales de ENV ese mes — por eso este lote absorbe solo $645.96 de CIF, aunque la orden completa de Lovlub Bubblegum (sumando sus ~50 lotes del mes) haya absorbido $32,297.81 (Parte 5). El mecanismo es el mismo tanto si lo ves por lote como si lo ves por el total del mes: <strong>siempre en proporción al tiempo realmente consumido</strong>.</p>
 
     <div class="callout tec">
       <span class="lbl">Para contabilidad — cuándo entra cada cosa</span>
@@ -750,10 +874,10 @@ costo total de la orden   117,398.00
     <p>En <span class="path">Inventario → Kardex</span> de un producto verás el movimiento de entrada por producción con su costo ya completo. Si el prorrateo ajustó el costo de una orden cerrada, ese ajuste se refleja aquí.</p>
 
     <h3>Ver la póliza desde cualquier documento</h3>
-    <p>Cualquier pantalla que te muestre un documento ya registrado — Kardex, historial de Salidas, historial de Recibo de mercancía, detalle de una orden de Producción, historial de Nómina, Cuentas por pagar, Prorrateo, historial de Gastos, y los historiales de Entradas Directas y Compras — trae un botón <strong>"🧾 Ver póliza #N"</strong> junto al documento cuando ya se contabilizó (o el aviso "Sin póliza" cuando no). Te lleva directo a <span class="path">Contabilidad → Pólizas</span> con esa póliza enfocada y resaltada, sin buscarla a mano por fecha o folio.</p>
+    <p>Cualquier pantalla que te muestre un documento ya registrado — Kardex, historial de Salidas, historial de Recibo de mercancía, detalle de una orden de Producción, historial de Nómina, Cuentas por pagar, Prorrateo, historial de Gastos, y los historiales de Entradas Directas y Compras — trae un botón <strong>"🧾 Ver póliza #N"</strong> junto al documento cuando ya se contabilizó (o el aviso "Sin póliza" cuando no). Te lleva directo a <span class="path">Finanzas → Pólizas</span> con esa póliza enfocada y resaltada, sin buscarla a mano por fecha o folio.</p>
 
     <h3>Los reportes contables</h3>
-    <p>En <span class="path">Contabilidad → Reportes contables</span>:</p>
+    <p>En <span class="path">Finanzas → Reportes contables</span>:</p>
     <ul>
       <li><strong>Cuenta <code>503.98</code> — Costo de capacidad no utilizada</strong>: cuánto dinero se fue a resultados por planta parada. Si crece mes con mes, es una señal fuerte: tienes capacidad que estás pagando y no usas.</li>
       <li><strong>Cuenta <code>115.03</code> — Producción en proceso</strong>: debería quedar cerca de cero después del prorrateo y de cerrar las órdenes. Si acumula saldo, hay CIF "colgado" de órdenes que no se han cerrado.</li>
@@ -806,13 +930,22 @@ costo total de la orden   117,398.00
     <p>La misma decisión se repite renglón por renglón en el panel <strong>"Costos adicionales (landed cost)"</strong>: la casilla <strong>"Al inventario"</strong> de cada cargo trae su propia nota — "✓ Se capitaliza a 115.xx — recomendado por NIF C-4" o "⚠ Va a gasto 601.14 — NIF C-4 solo lo recomienda si el cargo no es atribuible a la mercancía" — para que quede claro antes de confirmar el recibo.</p>
 
     <h3>3. Ejemplo completo</h3>
-    <p>Compras 100 piezas a $10 c/u, con $100 de flete y $100 de seguro. Total antes de IVA: $1,200.</p>
-    <div class="calc">costo unitario "landed" = (1,000 + 100 + 100) ÷ 100 piezas = $12.00 por pieza   (no $10.00)</div>
-    <p>El sistema reparte flete y seguro <strong>por valor</strong> entre las partidas de la factura (si hay más de un producto, cada uno absorbe su parte proporcional a su subtotal) y actualiza el costo del lote recibido; guarda por separado cuánto de ese costo vino de flete/seguro, para poder reportarlo.</p>
+    <p>Le compras a <strong>Alkem Industrias</strong> 100 kg de <strong>Betaina De Coco</strong> (materia prima real de tu catálogo, SKU <code>BETAINA</code>) a $34.13/kg, con $150 de flete y $50 de seguro. Total antes de IVA: $3,613.00.</p>
+    <div class="calc">costo unitario "landed" = (3,413 + 150 + 50) ÷ 100 kg = $36.13 por kg   (no $34.13)</div>
+    <p>El sistema reparte flete y seguro <strong>por valor</strong> entre las partidas de la factura (si además de la Betaina De Coco esa misma factura trae, por ejemplo, <strong>Edta Complex</strong> de otro proveedor, cada producto absorbe su parte proporcional a su subtotal) y actualiza el costo del lote recibido; guarda por separado cuánto de ese costo vino de flete/seguro, para poder reportarlo.</p>
 
     <div class="callout tec">
       <span class="lbl">Para contabilidad — el detalle está en el Apéndice</span>
       <p>La póliza exacta y los objetos de base de datos (<code>recibo_costos_adicionales</code>, <code>lotes_inventario.costo_adicional_unitario</code>, <code>recibo_reversible</code>, <code>cancelar_recibo_inventario</code>) están en el <a href="#ap">Apéndice — El porqué contable</a>.</p>
+    </div>
+
+    <h3>4. Corregir una recepción ya capturada</h3>
+    <p>Si una partida se recibió con una cantidad o un costo mal tecleado, no hace falta cancelar todo el recibo: en el historial de recepciones de la orden de compra, el botón <strong>"✎ Editar"</strong> abre una ventana para corregir cantidad y/o costo de una o más líneas ya capturadas. Ajusta el lote, el stock del producto y la orden de compra, y deja su propio movimiento de inventario como rastro (no reescribe el histórico). Solo funciona mientras la recepción <strong>no esté contabilizada</strong> (sin póliza) — si ya tiene póliza, primero se cancela el recibo y se vuelve a capturar.</p>
+    <p><strong>Errores comunes.</strong> Capturar dos veces la misma recepción de una orden de compra (mismo folio del proveedor) por no revisar antes si ya tenía una — el sistema avisa al elegir una OC que ya tiene una recepción capturada, pero el aviso es solo informativo, no bloquea.</p>
+
+    <div class="callout tec">
+      <span class="lbl">Para contabilidad — por qué "cancelar recibo" a veces se rechaza</span>
+      <p>Cada lote guarda dos contadores independientes: cuánto queda <strong>físicamente</strong> (se descuenta por FEFO, el que caduca primero) y cuánto queda <strong>sin costear</strong> en la cola PEPS estricta que exige NIF C-4 (se descuenta por antigüedad de recepción, sin importar qué lote salió físicamente). Cancelar un recibo (o reducir su cantidad al editarlo) exige que <strong>ninguno de los dos</strong> se haya tocado — si otra salida o producción ya "cobró" costo de ese lote, aunque no haya salido nada físicamente de él, la cancelación se rechaza explicando qué se consumió, para no romper la cola de costeo de operaciones ya contabilizadas.</p>
     </div>
   </section>
 
@@ -821,12 +954,19 @@ costo total de la orden   117,398.00
     <h2><span class="n">8</span>Parte 8 — Guía rápida de los demás módulos</h2>
     <p class="lead">Las Partes 1–7 cubren el flujo de costos a fondo. Esta parte es más breve: qué es cada pantalla, cómo se usa y el error más común, para el resto de los módulos del ERP. El botón <strong>"📖 Cómo llenar esta pantalla"</strong> de cada módulo te trae directo aquí.</p>
 
-    <h3>Catálogos</h3>
+    <h3>Datos Maestros <span style="font-weight:400;font-size:.7em;color:var(--mut)">(antes "Catálogos")</span></h3>
 
     <h4 id="m-catalogo">Productos</h4>
     <p><strong>Para qué sirve.</strong> Alta y edición del catálogo de productos, materias primas e insumos: SKU, unidad de medida, costo, cuenta de inventario y si requiere control de caducidad.</p>
-    <p><strong>Pasos.</strong> Busca primero si el insumo ya existe antes de crear uno nuevo. La <strong>unidad de medida</strong> y la <strong>cuenta de inventario</strong> se eligen del catálogo real (nunca se escriben a mano). Marca "Requiere caducidad" si aplica — activa el campo de caducidad en Recibo de mercancía y Producción.</p>
+    <p><strong>Pasos.</strong> Busca primero si el insumo ya existe antes de crear uno nuevo. La <strong>unidad de medida</strong> y la <strong>cuenta de inventario</strong> se eligen del catálogo real (nunca se escriben a mano). Marca "Requiere caducidad" si aplica — activa el campo de caducidad en Recibo de mercancía y Producción. El menú ☰ de cada renglón trae <strong>"👁️ Ver artículo"</strong> (todos los datos, sin poder tocar nada — para consultar rápido) y <strong>"✏️ Editar artículo"</strong> (todos los campos, editables) por separado.</p>
     <p><strong>Errores comunes.</strong> Crear un producto duplicado por escribirlo con un nombre ligeramente distinto en vez de buscar el existente. Dejar sin <strong>Cuenta de inventario</strong> un producto que sí se recibe por compra — sin ella, <code>contabilizar_compra</code> usa la cuenta genérica en vez de la que le corresponde.</p>
+    <p><strong>Ejemplo real.</strong> <code>BETAINA</code> · Betaina De Coco (materia prima, Kilogramos) y <code>7506163801025L</code> · Lovlub Bubblegum 60 Gr (producto terminado) — así se ven un insumo y un producto en tu propio catálogo.</p>
+
+    <h4 id="m-proveedores">Proveedores</h4>
+    <p><strong>Para qué sirve.</strong> Catálogo de proveedores con sus datos fiscales: RFC, régimen fiscal SAT, uso de CFDI, forma y método de pago habituales, y la cuenta de gasto que se le sugiere por default al capturarle una factura.</p>
+    <p><strong>Pasos.</strong> Da de alta al proveedor con su RFC y régimen antes de recibirle una compra o gasto — el lector de XML del CFDI (en Gastos y en Recibo de mercancía) lo busca por RFC y, si no existe, ofrece darlo de alta con los datos ya leídos de la factura.</p>
+    <p><strong>Errores comunes.</strong> Dejar el régimen fiscal o el uso de CFDI vacíos cuando sí vas a timbrar/deducir esa factura.</p>
+    <p><strong>Ejemplo real.</strong> <strong>Alkem Industrias</strong> y <strong>Escowill Envases Pet</strong> ya están dados de alta en tu catálogo de proveedores.</p>
 
     <h4 id="m-clientes">Clientes y listas de precio</h4>
     <p><strong>Para qué sirve.</strong> Catálogo de clientes y sus listas de precio, usados al vender desde Salidas / Ventas.</p>
@@ -837,6 +977,7 @@ costo total de la orden   117,398.00
     <p><strong>Para qué sirve.</strong> Plantilla de personal, su <strong>costo por hora</strong> (usado en el costeo de mano de obra directa, Parte 6) y su PIN para registrar tiempos desde la Orden de Trabajo en el celular.</p>
     <p><strong>Pasos.</strong> Da de alta el costo por hora y el PIN; asígnalo a los procesos que opera normalmente.</p>
     <p><strong>Errores comunes.</strong> No actualizar el costo por hora tras un aumento de sueldo — el costeo seguiría usando el sueldo anterior en las órdenes nuevas.</p>
+    <p><strong>Ejemplo real.</strong> <strong>Ramon Reyes</strong>, $71.25/hora — así se ve un empleado ya dado de alta, con su costo por hora listo para el costeo de mano de obra.</p>
 
     <h4 id="m-importador">Importar Excel/CSV</h4>
     <p><strong>Para qué sirve.</strong> Carga masiva de productos desde una plantilla, en vez de darlos de alta uno por uno.</p>
@@ -849,6 +990,7 @@ costo total de la orden   117,398.00
     <p><strong>Para qué sirve.</strong> Existencias por producto y por lote, con mínimos.</p>
     <p><strong>Pasos.</strong> Filtra por producto o por lo que está debajo de su mínimo. Cada lote muestra su costo (ya con landed cost, si aplicó) y su caducidad.</p>
     <p><strong>Errores comunes.</strong> Leer solo el total del producto e ignorar que puede estar repartido en varios lotes con costos distintos entre sí (por eso importa el FIFO/FEFO, ver Kardex abajo).</p>
+    <p><strong>Ejemplo real.</strong> Busca <code>PETBOSTON60ML</code> · Sonata 60-6 Ml Natural 9.5 G (insumo de empaque, proveedor Escowill Envases Pet) para ver cómo se ve un insumo con existencia por lote.</p>
 
     <p>El detalle de movimientos por producto está en <a href="#m-kardex">Kardex, dentro de la Parte 6</a>.</p>
 
@@ -856,14 +998,22 @@ costo total de la orden   117,398.00
 
     <h4 id="m-ordenes-compra">Órdenes de compra</h4>
     <p><strong>Para qué sirve.</strong> Emitir el pedido formal a un proveedor — qué se pide, cantidad y costo estimado — antes de que llegue la mercancía. Queda "abierta" hasta que se recibe, total o parcialmente, en Recibo de mercancía.</p>
-    <p><strong>Pasos.</strong> Elige proveedor y agrega las partidas con cantidad y costo estimado.</p>
-    <p><strong>Errores comunes.</strong> Que el costo estimado quede muy distinto al real de la factura no es grave por sí solo — el Recibo de mercancía usa el costo real —, pero sí descuadra cualquier seguimiento de presupuesto que hagas contra la OC.</p>
+    <p><strong>Pasos.</strong> Elige proveedor y agrega las partidas con cantidad y costo estimado. Haz clic en el <strong>folio</strong> de cualquier orden en la tabla para abrir su detalle completo en una subventana (proveedor, fechas, moneda, notas y cada partida con lo recibido a la fecha) sin perder de vista el resto de la pantalla. Desde ahí, <strong>"✏️ Editar"</strong> permite corregir proveedor, fechas, notas y las partidas mientras la orden siga "abierta" (nada recibido todavía), y <strong>"🖨️ Imprimir"</strong> la imprime con el formato de la empresa.</p>
+    <p><strong>Errores comunes.</strong> Que el costo estimado quede muy distinto al real de la factura no es grave por sí solo — el Recibo de mercancía usa el costo real —, pero sí descuadra cualquier seguimiento de presupuesto que hagas contra la OC. El botón "✏️ Editar" desaparece en cuanto la orden tiene algo recibido — para corregir una orden en ese punto, ajusta directamente en Recibo de mercancía.</p>
     <p>Cómo se recibe y cómo se calcula el costo landed está en la <a href="#p7">Parte 7</a>.</p>
+    <p><strong>Ejemplo real.</strong> Una OC a <strong>Robertet de México</strong> por materia prima, o a <strong>Escowill Envases Pet</strong> por el envase <code>PETBOSTON60ML</code> — proveedores ya dados de alta en tu catálogo.</p>
+
+    <h4 id="m-recibo-mercancia">Recibo de mercancía</h4>
+    <p><strong>Para qué sirve.</strong> Confirmar la llegada real de una orden de compra (o de una factura sin orden, leyendo su XML) — aquí es donde nace el lote de inventario con su costo real, se aplica el landed cost (flete/seguro/aduana) y se genera la póliza de la compra.</p>
+    <p><strong>Pasos.</strong> Elige la orden de compra (o importa el XML/PDF/QR de la factura), captura o confirma cantidad, costo real, lote y caducidad de cada partida, revisa los cargos adicionales detectados, y confirma. Si ya la capturaste y algo quedó mal, usa <strong>"✎ Editar"</strong> en el historial de recepciones en vez de volver a recibir todo.</p>
+    <p><strong>Errores comunes.</strong> Confirmar la recepción sin revisar el costo real contra la factura. Volver a recibir una orden que ya tiene una recepción capturada — el sistema avisa, pero no bloquea.</p>
+    <p>El detalle completo (XML/PDF/QR, conversión de presentación, landed cost, edición y cancelación) está en la <a href="#p7">Parte 7</a>, con el ejemplo numérico de la Betaina De Coco.</p>
 
     <h4 id="m-compras">Compras / Proveedores</h4>
     <p><strong>Para qué sirve.</strong> Registrar una compra con afectación contable directa (documento + póliza) cuando no necesitas pasar por el flujo Orden de compra → Recibo de mercancía.</p>
     <p><strong>Pasos.</strong> Captura las partidas y los datos fiscales (subtotal / IVA / condición); la casilla <strong>"Generar póliza contable"</strong> arma la póliza de la compra.</p>
     <p><strong>Errores comunes.</strong> Usarla para compras que sí traen flete/seguro que quieras prorratear — para eso está Recibo de mercancía (Parte 7), que sí tiene el landed cost.</p>
+    <p><strong>Ejemplo real.</strong> Una compra de contado a <strong>Droguería Cosmopolita</strong>, sin flete que prorratear.</p>
 
     <h4 id="m-entradas-directas">Entradas directas</h4>
     <p><strong>Para qué sirve.</strong> Dar de alta inventario sin que haya una compra de por medio: ajuste de inventario, devolución de producción, sobrante de calibración, inventario inicial.</p>
@@ -883,6 +1033,7 @@ costo total de la orden   117,398.00
     <p><strong>Para qué sirve.</strong> Crear y dar seguimiento a una orden de producción: fórmula (BOM), procesos con sus operarios y centro de costo, y el cierre que calcula el costo final del lote.</p>
     <p><strong>Pasos.</strong> Elige el producto y la cantidad — la fórmula se explota sola en materiales. Los operarios registran su tiempo por proceso desde la <span class="path">Orden de Trabajo</span> en el celular. Al terminar, cierra la orden.</p>
     <p><strong>Errores comunes.</strong> Cerrar la orden sin que todos los tiempos de los operarios estén registrados — el costo de mano de obra saldría incompleto.</p>
+    <p><strong>Ejemplo real.</strong> Una orden para producir <strong>Lovlub Bubblegum 60 Gr</strong> (<code>7506163801025L</code>), consumiendo Betaina De Coco y los demás componentes de su fórmula, con <strong>Ramon Reyes</strong> registrando su tiempo en el proceso.</p>
     <p>Cómo se arma el costo centro por centro está en la <a href="#p3">Parte 3</a> y en <a href="#p6">Parte 6</a>.</p>
 
     <h3>Documentos y reportes</h3>
@@ -892,24 +1043,43 @@ costo total de la orden   117,398.00
     <p><strong>Pasos.</strong> Filtra por tipo, fecha o folio. <strong>"Ver Detalle"</strong> abre el expediente completo; la columna <strong>"Póliza"</strong> (botón "🧾 Ver póliza #N") salta directo a la póliza contable de ese documento.</p>
     <p><strong>Errores comunes.</strong> Buscar un folio sin darte cuenta de que un filtro de tipo o estatus lo está ocultando.</p>
 
+    <h4 id="m-auditoria">Auditoría de inventarios</h4>
+    <p><strong>Para qué sirve.</strong> Organizar un conteo físico de inventario (materia prima, insumo o producto terminado) y compararlo contra el stock del sistema. El conteo lo captura un operador externo desde <span class="path">conteo-inventario.html</span> en su celular, con su PIN — es una pantalla aparte, pensada para que la use alguien que no tiene acceso al ERP completo.</p>
+    <p><strong>Pasos.</strong> Crea la auditoría eligiendo tipo de producto en bloque, o busca y agrega SKUs específicos uno por uno. El operador entra con su PIN, elige la auditoría y captura cantidad por renglón — sueltos o por caja, con la caducidad del lote que está contando; es <strong>conteo a ciegas</strong>: nunca ve el stock del sistema, solo lo que él mismo ha ido acumulando. Antes de dar por terminado, el operador puede revisar, corregir o borrar sus propias capturas en "📋 Ver mi resumen", y debe confirmar explícitamente ("¿Estás seguro?") para cerrar su parte. Tú revisas el resultado (sistema vs. contado, con la diferencia) y cierras la auditoría.</p>
+    <p><strong>Errores comunes.</strong> Cerrar la captura de la auditoría antes de que el operador termine de confirmar todos los renglones asignados. Mezclar cajas y piezas sueltas del mismo SKU sin declarar cuántas piezas trae cada caja — el acumulado saldría mal.</p>
+    <p><strong>Ejemplo real.</strong> Una auditoría de insumos de empaque incluyendo <code>PETBOSTON60ML</code> y <code>PETBOSTON250</code> (los envases Sonata, proveedor Escowill Envases Pet) para conciliar contra el sistema.</p>
+
     <h4 id="m-reportes">Reportes</h4>
     <p><strong>Para qué sirve.</strong> Reportes operativos (no contables) — por ejemplo, compras y gastos por rango de fechas — exportables a CSV o imprimibles con una plantilla.</p>
     <p><strong>Pasos.</strong> Elige el rango de fechas y el tipo de reporte; exporta o imprime.</p>
-    <p><strong>Errores comunes.</strong> Confundirlo con <span class="path">Contabilidad → Reportes contables</span>, que es el que trae balanza de comprobación y estado de resultados.</p>
+    <p><strong>Errores comunes.</strong> Confundirlo con <span class="path">Finanzas → Reportes contables</span>, que es el que trae balanza de comprobación y estado de resultados.</p>
 
-    <h3>Contabilidad — operación diaria</h3>
+    <h3>Finanzas — operación diaria <span style="font-weight:400;font-size:.7em;color:var(--mut)">(antes "Contabilidad")</span></h3>
+
+    <h4 id="m-gastos">Gastos</h4>
+    <p><strong>Para qué sirve.</strong> Capturar una factura de gasto (renta, luz, mantenimiento, servicios, gasto directo de una orden…) y clasificarla para que su costo llegue a donde debe: a una orden de producción, al CIF del mes, o directo a resultados.</p>
+    <p><strong>Pasos.</strong> Usa <strong>"📄 Importar XML del CFDI"</strong> para prellenar los datos fiscales. En <strong>Clasificación</strong> elige: <em>Directo a una orden</em> (señalas la orden exacta), <em>Indirecto / CIF</em> (elige centro de costo, o una plantilla de reparto si el gasto se comparte entre fábrica y oficina) o <em>No producción</em> (va directo a resultados, no entra al costeo). Confirma — se genera la póliza de inmediato.</p>
+    <p><strong>Errores comunes.</strong> Clasificar como "No producción" un gasto que en realidad es de planta — nunca llegaría al costo del producto. Elegir "Indirecto" sin capturar antes las Áreas y bases de prorrateo cuando el gasto se reparte por m²/kW.</p>
+    <p><strong>Ejemplo real.</strong> La renta de la nave se clasifica <em>Indirecto / CIF</em> al centro <strong>SURT</strong>, <strong>MEZ</strong> o <strong>ENV</strong> (tus 3 centros de producción); el mantenimiento de una máquina de envasado se puede cargar <em>Directo</em> a la orden que la estaba usando.</p>
+    <p>Cómo se reparte el CIF a las órdenes está en la <a href="#p5">Parte 5</a>.</p>
 
     <h4 id="m-pagos-proveedor">Cuentas por pagar</h4>
     <p><strong>Para qué sirve.</strong> Lo que le debes a cada proveedor por gastos y compras a crédito, y el registro de sus pagos.</p>
     <p><strong>Pasos.</strong> Filtra por proveedor o por antigüedad del saldo. Registra un pago eligiendo la cuenta de banco/caja y el monto — el pago genera su propia póliza y baja el saldo del proveedor.</p>
     <p><strong>Errores comunes.</strong> Registrar el mismo pago dos veces. Pagar desde una cuenta de banco distinta a la real: el saldo de esa cuenta queda mal.</p>
 
+    <h4 id="m-cuentas-por-cobrar">Cuentas por cobrar</h4>
+    <p><strong>Para qué sirve.</strong> Lo que te debe cada cliente por ventas a crédito, y el registro de sus cobros — la contraparte de Cuentas por pagar, del lado de ingresos.</p>
+    <p><strong>Pasos.</strong> Usa "Pendientes de cobro / Cobradas / Canceladas / Todas" para elegir qué ver — por default solo se muestra lo pendiente. Marca las ventas a cobrar, elige la cuenta de banco/caja y el monto; el cobro genera su propia póliza y baja el saldo del cliente.</p>
+    <p><strong>Errores comunes.</strong> Registrar el mismo cobro dos veces. Cobrar a una cuenta de banco distinta a la real.</p>
+    <p><strong>Ejemplo real.</strong> Una venta a crédito de <strong>Lovlub Watermelon 60 Gr</strong> (<code>7506163801063</code>) a un cliente, pendiente de cobro.</p>
+
     <h4 id="m-tareas">Tareas</h4>
     <p><strong>Para qué sirve.</strong> Avisos y pendientes que el sistema genera solo: inventario bajo mínimo, lotes por caducar, nómina por generar.</p>
     <p><strong>Pasos.</strong> Revisa las tarjetas; marca cada una como atendida o descártala si no aplica. El historial muestra quién resolvió cada tarea y cuándo.</p>
     <p><strong>Errores comunes.</strong> Descartar una tarea sin resolver el problema de fondo que la generó.</p>
 
-    <h3>Contabilidad — nómina y cierre de mes</h3>
+    <h3>Finanzas — nómina y cierre de mes</h3>
 
     <h4 id="m-nomina">Nómina</h4>
     <p><strong>Para qué sirve.</strong> Calcular y contabilizar la nómina del periodo: sueldos, cuotas IMSS/INFONAVIT e ISR retenido.</p>
@@ -927,7 +1097,17 @@ costo total de la orden   117,398.00
     <p>En Balanza/Estado de resultados: revisa <code>503.98</code> (capacidad no utilizada) — si crece mes a mes, tienes planta que pagas y no usas; y <code>115.03</code> (producción en proceso) — debería quedar cerca de cero tras cerrar órdenes y correr el prorrateo.</p>
     <p><strong>Errores comunes.</strong> Leer los números antes de haber corrido el prorrateo del mes — faltaría todo el CIF. Esperar que "Desde" filtre el Balance general.</p>
 
-    <h3>Configuración</h3>
+    <h4 id="m-cierre-periodo">Cierre de periodo</h4>
+    <p><strong>Para qué sirve.</strong> Revisar que un mes esté "limpio" contablemente y cerrarlo — después de cerrado, ya no se pueden registrar ni cancelar pólizas con fecha dentro de ese mes (ver Apéndice) hasta reabrirlo.</p>
+    <p><strong>Pasos.</strong> Elige el mes y pulsa <strong>"🔍 Revisar candados"</strong> — es solo una vista previa. Si sale limpio, <strong>"🔒 Cerrar periodo"</strong>. Si hay pendientes (documentos de compra/venta/producción, gastos, nóminas, cobros o pagos sin póliza; auditorías abiertas; pólizas descuadradas), resuélvelos en su propio módulo y vuelve a revisar, o usa <strong>"🔓 Cerrar de todos modos"</strong> si de verdad necesitas cerrar así — queda registrado qué se ignoró. Desde el historial, <strong>"Reabrir"</strong> permite corregir un mes ya cerrado (pide un motivo).</p>
+    <p><strong>Errores comunes.</strong> Cerrar el mes antes de correr el prorrateo del CIF (Parte 5) — las órdenes ya cerradas se quedarían sin su CIF. Forzar el cierre por costumbre en vez de resolver los pendientes.</p>
+
+    <h3>Configuración contable <span style="font-weight:400;font-size:.7em;color:var(--mut)">(y Tabla ISR — Finanzas → Fiscal)</span></h3>
+
+    <h4 id="m-configuracion">General</h4>
+    <p><strong>Para qué sirve.</strong> Ajustes de la pantalla, no de la empresa: tema de colores, tamaño de texto, y los enlaces a las páginas móviles independientes para operadores (Orden de Trabajo, Pre-recibo, Conteo de Inventario) para compartirlas o instalarlas en un celular/tablet.</p>
+    <p><strong>Pasos.</strong> Elige tema y tamaño de texto — se guardan en este navegador, cada dispositivo puede tener el suyo. Copia o escanea el enlace de la herramienta de operador que necesites y agrégalo a la pantalla de inicio del celular.</p>
+    <p><strong>Errores comunes.</strong> Pensar que aquí se editan los datos fiscales de la empresa — eso no vive en esta pantalla.</p>
 
     <h4 id="m-isr">Tabla ISR</h4>
     <p><strong>Para qué sirve.</strong> Las tarifas de ISR (LISR art. 96) y el subsidio al empleo que usa el cálculo de Nómina.</p>
@@ -1046,8 +1226,16 @@ Cierre de orden (consumo):  Cargo cuenta del producto (115.04 / 115.02 si es gra
         <tr><td class="m">productos.cuenta_inventario_id</td><td>Cuenta donde vive el inventario de ese producto: 115.01 MP, 115.02 granel/semiterminado, 115.04 terminado. Se usa al producirlo y al consumirlo.</td></tr>
         <tr><td class="m">ordenes_produccion.costo_total_indirecto, .costo_indirecto_contabilizado, .costo_total_gasto_directo, .costo_gasto_directo_contabilizado</td><td>Acumuladores de costo por orden.</td></tr>
         <tr><td class="m">lotes_inventario.costo_adicional_unitario, recibo_costos_adicionales</td><td>Parte del costo del lote que vino de landed cost (flete/seguro/etc.) y su desglose por concepto, para poder reportar "de los $12, $2 fue flete".</td></tr>
-        <tr><td class="m">recibo_reversible(documento_id)</td><td>Diagnóstico por lote de un recibo de compra: recibido / disponible / consumido / ok. <code>ok = true</code> solo si nada de ese lote se ha usado todavía.</td></tr>
-        <tr><td class="m">cancelar_recibo_inventario(documento_id, motivo)</td><td>Cancela un recibo de compra: revierte los movimientos de inventario, cancela su póliza (genera el reverso) y regresa la orden de compra a su estatus previo. Se bloquea con un mensaje detallado si <code>recibo_reversible</code> marca algún lote como ya consumido. Solo aplica a documentos de compra — nunca toca cierres de producción.</td></tr>
+        <tr><td class="m">lotes_inventario.stock_actual, .stock_costeo</td><td>Dos contadores independientes por lote: <code>stock_actual</code> es lo que físicamente queda (se descuenta por FEFO, caducidad primero) y <code>stock_costeo</code> es la cola de costeo PEPS estricta que exige NIF C-4 (se descuenta por antigüedad de recepción). Coinciden en total por producto, pueden diferir lote por lote — por eso toda función que reduzca cantidad de un lote (recepción, edición, cancelación) debe ajustar ambos.</td></tr>
+        <tr><td class="m">recibo_reversible(documento_id)</td><td>Diagnóstico por lote de un recibo de compra: recibido / disponible físico / consumido físico / disponible de costeo / consumido de costeo / ok. <code>ok = true</code> solo si ni el stock físico ni la cola de costeo PEPS de ese lote se han tocado todavía.</td></tr>
+        <tr><td class="m">cancelar_recibo_inventario(documento_id, motivo)</td><td>Cancela un recibo de compra: revierte tanto <code>stock_actual</code> como <code>stock_costeo</code> de cada lote, cancela su póliza (genera el reverso) y regresa la orden de compra a su estatus previo. Se bloquea con un mensaje detallado si <code>recibo_reversible</code> marca algún lote como ya consumido (físico o de costeo). Solo aplica a documentos de compra — nunca toca cierres de producción.</td></tr>
+        <tr><td class="m">editar_lineas_recepcion(documento_id, lineas)</td><td>Corrige cantidad y/o costo de una o más partidas de un recibo ya capturado pero aún sin póliza. Ajusta <code>stock_actual</code> y <code>stock_costeo</code> del lote, el stock del producto y <code>ordenes_compra_detalle.cantidad_recibida</code>, dejando su propio movimiento de inventario (<code>ajuste_recepcion</code>) como rastro. Se bloquea si la reducción pedida ya se consumió (físico o de costeo).</td></tr>
+        <tr><td class="m">periodos_contables</td><td>Una fila por año-mes, con <code>cerrado</code>, quién y cuándo lo cerró/reabrió, motivo de reapertura y <code>advertencias_forzadas</code> (jsonb con los candados que se ignoraron, si se forzó el cierre).</td></tr>
+        <tr><td class="m">_verificar_periodo_abierto(fecha)</td><td>La llaman <code>registrar_poliza</code> y <code>cancelar_poliza</code> antes de tocar cualquier movimiento — si el año-mes de esa fecha está cerrado, aborta con excepción. Como toda contabilización (compra, gasto, producción, nómina, pago, prorrateo) pasa por <code>registrar_poliza</code>, el candado de periodo cerrado protege a todas por igual, sin tener que repetirlo en cada función.</td></tr>
+        <tr><td class="m">_candados_cierre_periodo(anio, mes)</td><td>Junta en un jsonb los 8 pendientes que impiden un cierre limpio: documentos de compra/venta/producción sin póliza, gastos sin póliza, nóminas en borrador o registradas sin póliza, cobros y pagos sin póliza, auditorías de inventario abiertas, pólizas con cargos ≠ abonos.</td></tr>
+        <tr><td class="m">precierre_periodo_contable(anio, mes)</td><td>Corre <code>_candados_cierre_periodo</code> y regresa <code>listo_para_cerrar</code> — solo lectura, no cierra nada. Es lo que usa la pantalla de Cierre de periodo al pulsar "Revisar candados".</td></tr>
+        <tr><td class="m">cerrar_periodo_contable(anio, mes, forzar)</td><td>Si hay candados y <code>forzar=false</code>, rechaza el cierre explicando cuáles son. Con <code>forzar=true</code> cierra de todos modos y guarda la lista de candados ignorados en <code>advertencias_forzadas</code> — no es un cierre silencioso.</td></tr>
+        <tr><td class="m">reabrir_periodo_contable(anio, mes, motivo)</td><td>Vuelve a abrir un periodo cerrado; el motivo es obligatorio y queda en la bitácora (trigger de F8, ver <a href="#p8">Parte 8</a>).</td></tr>
       </tbody>
     </table></div>
   </section>

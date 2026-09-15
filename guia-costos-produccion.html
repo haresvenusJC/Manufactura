@@ -238,7 +238,7 @@
                   <span class="btn sec xs">Usar sugerido →</span>
                 </div>
                 <div class="fld" id="s-cc-capnorm" style="margin-top:.6rem"><label>Capacidad normal que se usa (h/mes) *</label>
-                  <input id="gCapNorm" class="inp mono" type="number" value="265" style="text-align:right;color:var(--ok)"></div>
+                  <input id="gCapNorm" class="inp mono" type="number" value="66.36" style="text-align:right;color:var(--ok)"></div>
               </div>
 
               <div class="row2">
@@ -251,12 +251,12 @@
               <table class="erp">
                 <thead><tr><th>Código</th><th>Nombre</th><th class="n">Cap. normal</th><th class="n">Sugerido</th><th>Método</th><th>Estado</th></tr></thead>
                 <tbody>
-                  <tr><td class="mono" style="color:var(--tx1)">SURT</td><td>Surtido de MP</td><td class="n" style="color:var(--warn)">0 ⚠</td><td class="n mut">265.42</td><td class="mut">Real</td><td style="color:var(--ok)">activo</td></tr>
-                  <tr><td class="mono" style="color:var(--tx1)">MEZ</td><td>Mezclado</td><td class="n" style="color:var(--ok)">265.42</td><td class="n mut">265.42</td><td class="mut">Real</td><td style="color:var(--ok)">activo</td></tr>
-                  <tr><td class="mono" style="color:var(--tx1)">ENV</td><td>Envasado</td><td class="n" style="color:var(--warn)">0 ⚠</td><td class="n mut">265.42</td><td class="mut">Real</td><td style="color:var(--ok)">activo</td></tr>
+                  <tr><td class="mono" style="color:var(--tx1)">SURT</td><td>Surtido de MP</td><td class="n" style="color:var(--warn)">0 ⚠</td><td class="n mut">39.81</td><td class="mut">Real</td><td style="color:var(--ok)">activo</td></tr>
+                  <tr><td class="mono" style="color:var(--tx1)">MEZ</td><td>Mezclado</td><td class="n" style="color:var(--ok)">66.36</td><td class="n mut">66.36</td><td class="mut">Real</td><td style="color:var(--ok)">activo</td></tr>
+                  <tr><td class="mono" style="color:var(--tx1)">ENV</td><td>Envasado</td><td class="n" style="color:var(--warn)">0 ⚠</td><td class="n mut">159.25</td><td class="mut">Real</td><td style="color:var(--ok)">activo</td></tr>
                 </tbody>
               </table>
-              <p class="xxs mut2" style="margin:.5rem 0 0">⚠ capacidad en 0 = el prorrateo no podrá aislar la capacidad ociosa. Aquí <span class="mono">SURT</span> y <span class="mono">ENV</span> aún sin capturar — se hacen igual que <span class="mono">MEZ</span>. Existe además <span class="mono">PROD</span> como comodín.</p>
+              <p class="xxs mut2" style="margin:.5rem 0 0">⚠ capacidad en 0 = el prorrateo no podrá aislar la capacidad ociosa. Aquí <span class="mono">SURT</span> y <span class="mono">ENV</span> aún sin capturar — les toca 39.81 y 159.25 respectivamente, igual que se acaba de hacer con <span class="mono">MEZ</span> (66.36). Existe además <span class="mono">PROD</span> como comodín.</p>
             </div>
           </section>
 
@@ -285,7 +285,7 @@
                   <select class="sel"><option>% por centros — SURT 20 · MEZ 35 · ENV 45</option><option>SURT · Surtido de MP</option><option>MEZ · Mezclado</option><option>ENV · Envasado</option></select></div>
                 <div class="fld gaDep" id="s-ga-tipo"><label>Tipo de CIF</label>
                   <select class="sel"><option>— (según la cuenta) —</option><option selected>Fijo (renta, depreciación, supervisión)</option><option>Variable (energía, insumos indirectos, mtto. por uso)</option></select></div>
-                <div class="fld gaDep" id="s-ga-orden" hidden><label>Orden de producción</label><select class="sel"><option>OP-000051 · Gel lubricante 60 ml · en_proceso</option></select></div>
+                <div class="fld gaDep" id="s-ga-orden" hidden><label>Orden de producción</label><select class="sel"><option>Lovlub Bubblegum 60 Gr · en_proceso</option></select></div>
               </div>
 
               <div class="row2">
@@ -307,8 +307,8 @@
 
             <div class="grid3">
               <div class="kpi" id="s-pr-pool"><p class="k">CIF pendiente — ENV</p><p class="v">$64,000.00</p><p class="k">fijo $50,000 · variable $14,000</p></div>
-              <div class="kpi" id="s-pr-horas"><p class="k">Horas de mano de obra — ENV</p><p class="v">185.0 h</p><p class="k">capacidad normal 265 h · utilización 70%</p></div>
-              <div class="kpi" id="s-pr-dist"><p class="k">Distribución</p><p class="v" style="color:var(--ok)">$48,906.00</p><p class="k">a órdenes · capacidad no utilizada <span style="color:var(--warn)">$15,094.00</span></p></div>
+              <div class="kpi" id="s-pr-horas"><p class="k">Horas de mano de obra — ENV</p><p class="v">120.0 h</p><p class="k">capacidad normal 159.25 h · utilización 75.4%</p></div>
+              <div class="kpi" id="s-pr-dist"><p class="k">Distribución</p><p class="v" style="color:var(--ok)">$51,676.49</p><p class="k">a órdenes · capacidad no utilizada <span style="color:var(--warn)">$12,323.51</span></p></div>
             </div>
 
             <div class="card" id="s-pr-pendientes">
@@ -316,7 +316,7 @@
               <table class="erp">
                 <thead><tr><th>Cuenta</th><th>Concepto</th><th>Tipo</th><th class="n">Monto</th></tr></thead>
                 <tbody>
-                  <tr><td class="mono mut">503.05</td><td>Renta nave industrial (45% a ENV)</td><td style="color:var(--warn)">fijo</td><td class="n">$18,000.00</td></tr>
+                  <tr><td class="mono mut">503.05</td><td>Renta nave industrial (parte ENV)</td><td style="color:var(--warn)">fijo</td><td class="n">$18,000.00</td></tr>
                   <tr><td class="mono mut">503.04</td><td>Depreciación llenadora</td><td style="color:var(--warn)">fijo</td><td class="n">$22,000.00</td></tr>
                   <tr><td class="mono mut">503.02</td><td>Supervisión (parte ENV)</td><td style="color:var(--warn)">fijo</td><td class="n">$10,000.00</td></tr>
                   <tr><td class="mono mut">503.01</td><td>Energía de la línea de envasado</td><td class="mut">variable</td><td class="n">$10,000.00</td></tr>
@@ -330,9 +330,9 @@
               <table class="erp">
                 <thead><tr><th>Destino</th><th class="n">Horas MO</th><th class="n">Factor</th><th class="n">CIF asignado</th></tr></thead>
                 <tbody>
-                  <tr><td style="color:var(--tx1)">Orden OP-000051</td><td class="n mut">120.0</td><td class="n mut2">64.9%</td><td class="n" style="color:var(--ok)">$31,723.00</td></tr>
-                  <tr><td style="color:var(--tx1)">Orden OP-000052</td><td class="n mut">65.0</td><td class="n mut2">35.1%</td><td class="n" style="color:var(--ok)">$17,183.00</td></tr>
-                  <tr><td style="color:var(--warn)">Capacidad no utilizada → 503.98 (resultados)</td><td class="n"></td><td class="n"></td><td class="n" style="color:var(--warn)">$15,094.00</td></tr>
+                  <tr><td style="color:var(--tx1)">Orden Lovlub Bubblegum 60 Gr</td><td class="n mut">75.0</td><td class="n mut2">62.5%</td><td class="n" style="color:var(--ok)">$32,297.81</td></tr>
+                  <tr><td style="color:var(--tx1)">Orden Lovlub Chocolate 60 Gr</td><td class="n mut">45.0</td><td class="n mut2">37.5%</td><td class="n" style="color:var(--ok)">$19,378.68</td></tr>
+                  <tr><td style="color:var(--warn)">Capacidad no utilizada → 503.98 (resultados)</td><td class="n"></td><td class="n"></td><td class="n" style="color:var(--warn)">$12,323.51</td></tr>
                 </tbody>
               </table>
             </div>
@@ -393,15 +393,15 @@
 
     { cap:'Centros de costo', screen:'centros', spot:'#s-cc-vars',
       t:'Estímala "de la nómina hacia abajo"',
-      h:'<p>No necesitas histórico. Parte de las horas que <em>podrías</em> trabajar y resta las pérdidas normales. <strong>Cambia los valores aquí</strong> y mira cómo se mueve el sugerido.</p><span class="num">operadores × jornada × días hábiles\n× (1 − ausentismo)      ~0.90\n× (1 − no productivo)   ~0.80\n× (1 − paros planeados) ~0.96</span>' },
+      h:'<p>No necesitas histórico. Parte de las horas que <em>podrías</em> trabajar y resta las pérdidas normales.</p><span class="num">operadores × jornada × días hábiles\n× (1 − ausentismo)      ~0.90\n× (1 − no productivo)   ~0.80\n× (1 − paros planeados) ~0.96</span><p><strong>Tu caso real:</strong> 2 operadoras en total — Michelle Carrera y Sol Lipa — rotando entre SURT/MEZ/ENV, no dedicadas una a cada etapa. No captures "operadores" en cada centro por separado: calcula la capacidad de TODA la planta una sola vez (2 operadoras → 265.42 h/mes) y repártela tú a mano entre los tres según cómo se distribuye normalmente el trabajo — en este ejemplo 15% SURT / 25% MEZ / 60% ENV → 39.81 / 66.36 / 159.25 h.</p>' },
 
     { cap:'Centros de costo', screen:'centros', spot:'#s-cc-sug',
       t:'Sugerido y "Usar sugerido"',
-      h:'<p>El factor combinado (~0.69 de utilización efectiva) es un punto de partida sano para una planta chica. El botón copia el sugerido al campo de abajo; de ahí lo ajustas a mano.</p>' },
+      h:'<p>El factor combinado (~0.69 de utilización efectiva) es un punto de partida sano para una planta chica — úsalo tal cual la primera vez, no hace falta debatirlo con tu contador. El botón copia el sugerido al campo de abajo; ajústalo a mano solo si tienes un dato mejor (ej. turnos, temporada).</p>' },
 
     { cap:'Centros de costo', screen:'centros', spot:'#s-cc-capnorm',
       t:'La capacidad que se usa',
-      h:'<p>Este es el número que realmente entra al prorrateo. Puede ser el sugerido o el que tú decidas. Alta gerencia lo revisa una o dos veces al año.</p>' },
+      h:'<p>Este es el número que realmente entra al prorrateo. <strong>Regla simple:</strong> si no tienes razón para dudar del sugerido, guárdalo tal cual. Revísalo de nuevo solo si cambia tu plantilla, o una o dos veces al año como mantenimiento — no hace falta ajustarlo mes a mes.</p>' },
 
     { cap:'Centros de costo', screen:'centros', spot:'#s-cc-metodo',
       t:'Método CIF',
@@ -409,7 +409,7 @@
 
     { cap:'Centros de costo', screen:'centros', spot:'#s-cc-lista',
       t:'Guardar y revisar',
-      h:'<p>La lista avisa: <span class="tag warn">⚠</span> si la capacidad quedó en 0, y <code>≠</code> si la sugerida se aleja más de 15% de la que usas. En el ejemplo, <code>SURT</code> y <code>ENV</code> todavía sin capturar — se hacen igual que <code>MEZ</code>.</p>' },
+      h:'<p>La lista avisa: <span class="tag warn">⚠</span> si la capacidad quedó en 0, y <code>≠</code> si la sugerida se aleja más de 15% de la que usas. En el ejemplo, <code>SURT</code> y <code>ENV</code> todavía sin capturar — se hacen igual que <code>MEZ</code>.</p><p><strong>Qué hacer con cada aviso:</strong> <span class="tag warn">⚠</span> corrígelo antes de correr el prorrateo — no es opcional, un 0 rompe el reparto del CIF fijo. <code>≠</code> revísalo, pero no es un error por sí solo: solo confirma que tu número a mano sigue reflejando la realidad de esa etapa.</p>' },
 
     // ----- Gastos -----
     { cap:'Gastos', screen:'gastos', spot:'#s-ga-cuenta', winTitle:'Hares de México — Contabilidad → Gastos', onEnter:function(){ gClasif.value='indirecto_produccion'; aplicarClasif(); },
@@ -443,19 +443,19 @@
 
     { cap:'Prorrateo', screen:'prorrateo', spot:'#s-pr-horas',
       t:'Horas reales contra capacidad normal',
-      h:'<p>En ENV se trabajaron <strong>185 h</strong> de mano de obra contra una capacidad normal de <strong>265 h</strong>: <strong>70% de utilización</strong>. Ese 30% sin usar es lo que se separará como capacidad ociosa.</p>' },
+      h:'<p>En ENV, Michelle Carrera y Sol Lipa trabajaron entre las dos <strong>120 h</strong> contra una capacidad normal de <strong>159.25 h</strong>: <strong>75.4% de utilización</strong>. Ese 24.6% sin usar es lo que se separará como capacidad ociosa.</p>' },
 
     { cap:'Prorrateo', screen:'prorrateo', spot:'#s-pr-pendientes',
       t:'Cómo reparte cada gasto',
-      h:'<p><strong>Variable</strong> → se divide entre las horas <em>reales</em> del centro: todo va a las órdenes.<br><strong>Fijo</strong> → se divide entre la <em>capacidad normal</em> del centro. Aplicado = <code>gasto × min(185/265, 1)</code> = 70% a las órdenes; el 30% restante ($15,094) → <code>503.98</code>.</p>' },
+      h:'<p><strong>Variable</strong> → se divide entre las horas <em>reales</em> del centro: todo va a las órdenes.<br><strong>Fijo</strong> → se divide entre la <em>capacidad normal</em> del centro. Aplicado = <code>gasto × min(120/159.25, 1)</code> = 75.4% a las órdenes; el resto ($12,323.51) → <code>503.98</code>.</p>' },
 
     { cap:'Prorrateo', screen:'prorrateo', spot:'#s-pr-dist-tabla',
       t:'Distribución propuesta',
-      h:'<p>El CIF aplicado se reparte entre las órdenes que tuvieron horas en ese centro ese mes, proporcional a sus horas. La última fila es la <strong>capacidad no utilizada</strong> que irá a resultados del periodo.</p><span class="num">OP-000051  120 h  64.9%  $31,723\nOP-000052   65 h  35.1%  $17,183\ncapacidad ociosa       $15,094\n────────────────────────────────\ntotal CIF (ENV) del mes $64,000</span>' },
+      h:'<p>El CIF aplicado se reparte entre las órdenes que tuvieron horas en ese centro ese mes, proporcional a sus horas. La última fila es la <strong>capacidad no utilizada</strong> que irá a resultados del periodo.</p><span class="num">Lovlub Bubblegum 60 Gr   75 h  62.5%  $32,297.81\nLovlub Chocolate 60 Gr   45 h  37.5%  $19,378.68\ncapacidad ociosa                       $12,323.51\n────────────────────────────────\ntotal CIF (ENV) del mes $64,000.00</span>' },
 
     { cap:'Prorrateo', screen:'prorrateo', spot:'#s-pr-aplicar',
       t:'Aplicar — la póliza',
-      h:'<p>Al confirmar se genera <strong>una póliza Diario</strong> (con las tajadas de todos los centros sumadas) y se ajusta el costo de las órdenes ya cerradas.</p><span class="num">Cargo  115.03  Produccion en proceso   48,906\nCargo  503.98  Capacidad no utilizada  15,094\n  Abono  503.01 / 503.02 / ...        64,000\n\n+ por cada orden YA CERRADA del mes:\nCargo  115.04  Producto terminado\n  Abono  115.03  Produccion en proceso</span><p style="margin:.6rem 0 0">¿Llegó un gasto tarde? <strong>Cancelar prorrateo del mes</strong>, capturas lo que falte y vuelves a aplicar.</p>' },
+      h:'<p>Al confirmar se genera <strong>una póliza Diario</strong> (con las tajadas de todos los centros sumadas) y se ajusta el costo de las órdenes ya cerradas.</p><span class="num">Cargo  115.03  Produccion en proceso   51,676.49\nCargo  503.98  Capacidad no utilizada  12,323.51\n  Abono  503.01 / 503.02 / ...        64,000.00\n\n+ por cada orden YA CERRADA del mes:\nCargo  115.04  Producto terminado\n  Abono  115.03  Produccion en proceso</span><p style="margin:.6rem 0 0">¿Llegó un gasto tarde? <strong>Cancelar prorrateo del mes</strong>, capturas lo que falte y vuelves a aplicar.</p>' },
 
     { cap:'Prorrateo', screen:'prorrateo', spot:null,
       t:'Qué pasó con el costo del lote',

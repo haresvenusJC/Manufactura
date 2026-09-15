@@ -371,10 +371,10 @@
 
                     <li><button onclick="window.loadView('indice')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-sky-300 transition text-sm font-semibold flex items-center gap-2" style="cursor: pointer;"><span>🧭 Índice</span></button></li>
 
-                    <!-- Menú Catálogos -->
+                    <!-- Menú Datos Maestros (antes "Catálogos") -->
                     <li>
                         <button onclick="window.toggleSubmenu('submenu-catalogos')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
-                            <span>Catálogos</span>
+                            <span>Datos Maestros</span>
                             <span id="flecha-catalogos" class="text-xs">▼</span>
                         </button>
                         <ul id="submenu-catalogos" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
@@ -385,54 +385,38 @@
                             <li><button onclick="window.loadView('importador')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Importar Excel/CSV</button></li>
                         </ul>
                     </li>
-                    
-                    <!-- Menú Inventario -->
-                    <li>
-                        <button onclick="window.toggleSubmenu('submenu-inventario')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
-                            <span>Inventario</span>
-                            <span id="flecha-inventario" class="text-xs">▼</span>
-                        </button>
-                        <ul id="submenu-inventario" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
-                            <li><button onclick="window.loadView('inventario')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Stock General</button></li>
-                            <li><button onclick="window.loadView('kardex')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Kardex</button></li>
-                        </ul>
-                    </li>
 
-                    <!-- Submenú: Entradas -->
+                    <!-- Menú Operación (nuevo grupo: junta Compras/Abastecimiento, Inventario y almacén, Producción) -->
                     <li>
-                        <button onclick="window.toggleSubmenu('submenu-entradas')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
-                            <span>+ Entradas</span>
-                            <span id="flecha-entradas" class="text-xs">▼</span>
+                        <button onclick="window.toggleSubmenu('submenu-operacion')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
+                            <span>Operación</span>
+                            <span id="flecha-operacion" class="text-xs">▼</span>
                         </button>
-                        <ul id="submenu-entradas" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
+                        <ul id="submenu-operacion" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
+                            <li class="px-3 pt-1 pb-0.5 text-[10px] uppercase tracking-wider text-slate-600 font-semibold pointer-events-none select-none">Compras / Abastecimiento</li>
                             <li><button onclick="window.loadView('ordenes-compra')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Órdenes de compra</button></li>
                             <li><button onclick="window.loadView('recibo-mercancia')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Recibo de mercancía</button></li>
                             <li><button onclick="window.loadView('compras')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Compras / Proveedores</button></li>
                             <li><button onclick="window.loadView('entradas-directas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Entradas Directas</button></li>
-                        </ul>
-                    </li>
 
-                    <!-- Submenú: Salidas -->
-                    <li>
-                        <button onclick="window.toggleSubmenu('submenu-salidas')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
-                            <span>- Salidas</span>
-                            <span id="flecha-salidas" class="text-xs">▼</span>
-                        </button>
-                        <ul id="submenu-salidas" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
+                            <li class="px-3 pt-2.5 pb-0.5 text-[10px] uppercase tracking-wider text-slate-600 font-semibold pointer-events-none select-none">Inventario y almacén</li>
+                            <li><button onclick="window.loadView('inventario')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Stock General</button></li>
+                            <li><button onclick="window.loadView('kardex')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Kardex</button></li>
                             <li><button onclick="window.loadView('salidas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Salidas / Ventas</button></li>
+                            <li><button onclick="window.loadView('auditoria')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Auditoría de inventarios</button></li>
+
+                            <li class="px-3 pt-2.5 pb-0.5 text-[10px] uppercase tracking-wider text-slate-600 font-semibold pointer-events-none select-none">Producción</li>
+                            <li><button onclick="window.loadView('produccion')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Producción</button></li>
                         </ul>
                     </li>
 
-                    <!-- Documentos y Otros Módulos -->
+                    <!-- Documentos -->
                     <li><button onclick="window.loadView('documentos')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium flex items-center gap-2" style="cursor: pointer;"><span>Documentos</span></button></li>
-                    <li><button onclick="window.loadView('produccion')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Producción</button></li>
-                    <li><button onclick="window.loadView('auditoria')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Auditoría</button></li>
-                    <li><button onclick="window.loadView('reportes')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">Reportes</button></li>
 
-                    <!-- Menú Contabilidad -->
+                    <!-- Menú Finanzas (antes "Contabilidad") -->
                     <li>
                         <button onclick="window.toggleSubmenu('submenu-contabilidad')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
-                            <span>Contabilidad</span>
+                            <span>Finanzas</span>
                             <span id="flecha-contabilidad" class="text-xs">▼</span>
                         </button>
                         <ul id="submenu-contabilidad" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
@@ -448,20 +432,34 @@
                             <li><button onclick="window.loadView('prorrateo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Prorrateo de gastos</button></li>
                             <li><button onclick="window.loadView('polizas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Pólizas</button></li>
                             <li><button onclick="window.loadView('reportes-contables')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Reportes contables</button></li>
+                            <li><button onclick="window.loadView('cierre-periodo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Cierre de periodo</button></li>
 
-                            <li class="px-3 pt-2.5 pb-0.5 text-[10px] uppercase tracking-wider text-slate-600 font-semibold pointer-events-none select-none">Configuración</li>
+                            <li class="px-3 pt-2.5 pb-0.5 text-[10px] uppercase tracking-wider text-slate-600 font-semibold pointer-events-none select-none">Fiscal</li>
+                            <li><button onclick="window.loadView('isr')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Tabla ISR</button></li>
+
+                            <li class="px-3 pt-2.5 pb-0.5 text-[10px] uppercase tracking-wider text-slate-600 font-semibold pointer-events-none select-none">Configuración contable</li>
                             <li><button onclick="window.loadView('plan-cuentas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Plan de cuentas</button></li>
                             <li><button onclick="window.loadView('centros-costo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Centros de costo</button></li>
                             <li><button onclick="window.loadView('areas-prorrateo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Áreas y bases de prorrateo</button></li>
                             <li><button onclick="window.loadView('reparto-plantillas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Reparto de gastos compartidos</button></li>
-                            <li><button onclick="window.loadView('isr')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Tabla ISR</button></li>
                         </ul>
                     </li>
 
-                    <!-- Menú Configuración -->
+                    <!-- Menú Control y Análisis (nuevo grupo) -->
+                    <li>
+                        <button onclick="window.toggleSubmenu('submenu-control-analisis')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
+                            <span>Control y Análisis</span>
+                            <span id="flecha-control-analisis" class="text-xs">▼</span>
+                        </button>
+                        <ul id="submenu-control-analisis" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
+                            <li><button onclick="window.loadView('reportes')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Reportes</button></li>
+                        </ul>
+                    </li>
+
+                    <!-- Menú Configuración General (antes "Configuración") -->
                     <li>
                         <button onclick="window.toggleSubmenu('submenu-configuracion')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
-                            <span>Configuración</span>
+                            <span>Configuración General</span>
                             <span id="flecha-configuracion" class="text-xs">▼</span>
                         </button>
                         <ul id="submenu-configuracion" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
@@ -739,6 +737,14 @@
             <section id="view-cuentas-por-cobrar" class="vista-seccion hidden space-y-4">
                 <h2 class="text-xl font-bold text-sky-400">Contabilidad · Cuentas por cobrar</h2>
                 <div id="contenedorCuentasPorCobrar">Cargando cuentas por cobrar...</div>
+            </section>
+
+            <!-- Vista: Contabilidad - Cierre de periodo -->
+            <section id="view-cierre-periodo" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-sky-400">Contabilidad · Cierre de periodo</h2>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div id="contenedorCierrePeriodo">Cargando...</div>
+                </div>
             </section>
 
             <!-- Vista: Contabilidad - Pólizas -->
