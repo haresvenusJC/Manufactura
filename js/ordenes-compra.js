@@ -963,15 +963,18 @@ async function rmPreRecibos() {
     try {
         const { data, error } = await supabaseClient
             .from('pre_recibos')
-            .select('id, orden_compra_id, referencia, empleado_nombre, fotos, observaciones, todo_correcto, creado_en, ordenes_compra ( folio, proveedores ( nombre ) )')
+            .select('id, orden_compra_id, referencia, empleado_nombre, fotos, observaciones, todo_correcto, lineas, creado_en, ordenes_compra ( folio, proveedores ( nombre ) )')
             .eq('estatus', 'pendiente')
             .order('creado_en', { ascending: true });
         if (error) throw error;
         filas = data || [];
     } catch (err) {
         const m = err?.message || String(err);
+        const archivoFalta = /lineas/i.test(m)
+            ? 'sql/2026-09-24_validador_piezas_prerecibo.sql'
+            : 'sql/2026-09-11_prerecibo_operador.sql';
         cont.innerHTML = /does not exist|schema cache|could not find/i.test(m)
-            ? `<p class="text-[11px] text-slate-600">Pre-recibos de operadores: falta correr <span class="font-mono">sql/2026-09-11_prerecibo_operador.sql</span>.</p>`
+            ? `<p class="text-[11px] text-slate-600">Pre-recibos de operadores: falta correr <span class="font-mono">${archivoFalta}</span>.</p>`
             : `<p class="text-rose-400 text-xs">Error al leer pre-recibos: ${esc(m)}</p>`;
         return;
     }
@@ -1005,6 +1008,20 @@ async function rmPreRecibos() {
                     <p class="text-[11px] mt-0.5 ${pr.todo_correcto ? 'text-emerald-400' : 'text-amber-400'}">${pr.todo_correcto ? '✔ El operador confirmó que todo cuadra' : '⚠ El operador NO marcó "todo correcto"'}</p>
                     ${pr.observaciones ? `<p class="text-[11px] text-slate-400 mt-0.5">“${esc(pr.observaciones)}”</p>` : ''}
                   </div>
+                  ${(() => {
+                        const lineas = Array.isArray(pr.lineas) ? pr.lineas : [];
+                        if (!lineas.length) return '';
+                        return `<div class="w-full mt-1 space-y-0.5">
+                          ${lineas.map(l => {
+                              const dif = Number(l.cantidad_capturada || 0) - Number(l.cantidad_pendiente || 0);
+                              const color = dif === 0 ? 'text-emerald-400' : 'text-amber-400';
+                              return `<div class="flex justify-between gap-2 text-[11px]">
+                                  <span class="text-slate-400 truncate">${esc(l.descripcion || '')}</span>
+                                  <span class="font-mono ${color} shrink-0">contó ${l.cantidad_capturada} ${esc(l.unidad || '')}${dif !== 0 ? ` (pendían ${l.cantidad_pendiente})` : ''}</span>
+                              </div>`;
+                          }).join('')}
+                        </div>`;
+                    })()}
                   <div class="flex gap-2 shrink-0">
                     <button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'validar')" class="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg">✔ Validar y recibir</button>
                     <button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'rechazar')" class="text-xs bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-3 py-1.5 rounded-lg">✕ Rechazar</button>

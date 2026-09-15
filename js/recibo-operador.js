@@ -29,6 +29,7 @@ function cargarSesion() {
 function salir() {
     sesion = null; fotos = [];
     try { sessionStorage.removeItem(KEY); } catch (e) { /* noop */ }
+    ocultarModal();
     pantallaLogin();
 }
 
@@ -149,6 +150,7 @@ function pantallaPin(emp) {
 // ---------- Pantalla: formulario de pre-recibo ----------
 async function pantallaFormulario() {
     fotos = [];
+    ocultarModal();
     app().innerHTML = `
         <div class="p-4 max-w-md mx-auto">
             ${cabecera()}
@@ -226,7 +228,88 @@ async function pantallaFormulario() {
         }
     };
 
-    document.getElementById('prEnviar').onclick = enviar;
+    document.getElementById('prEnviar').onclick = () => {
+        if (validarAntesDeEnviar()) mostrarConfirmacion1();
+    };
+}
+
+// ---------- validación previa (no envía nada todavía) ----------
+function validarAntesDeEnviar() {
+    const msg = document.getElementById('prMsg');
+    const selOc = document.getElementById('prOc');
+    const sinOc = selOc.value === '__sinoc__';
+    const ocId = (!sinOc && selOc.value) ? Number(selOc.value) : null;
+    const ref = document.getElementById('prRef')?.value || '';
+
+    if (!ocId && !sinOc) { msg.textContent = 'Elige una orden de compra.'; return false; }
+    if (sinOc && !ref.trim()) { msg.textContent = 'Escribe la referencia del documento.'; return false; }
+    if (fotos.length === 0) { msg.textContent = 'Toma al menos una foto del documento.'; return false; }
+    if (!document.getElementById('prOk').checked && !document.getElementById('prObs').value.trim()) {
+        msg.textContent = 'Marca "todo correcto" o escribe qué no cuadra en observaciones.'; return false;
+    }
+    msg.textContent = '';
+    return true;
+}
+
+// ---------- modal genérico (overlay sobre el formulario, que sigue montado) ----------
+function mostrarModal(html) {
+    let wrap = document.getElementById('prModalWrap');
+    if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.id = 'prModalWrap';
+        wrap.className = 'fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-4';
+        document.body.appendChild(wrap);
+    }
+    wrap.innerHTML = html;
+}
+function ocultarModal() {
+    const wrap = document.getElementById('prModalWrap');
+    if (wrap) wrap.remove();
+}
+
+// ---------- 1ra confirmación: pre-resumen de lo capturado ----------
+function mostrarConfirmacion1() {
+    const lineas = leerLineasCapturadas();
+    const obs = document.getElementById('prObs').value.trim();
+    const resumenLineas = !lineas.length
+        ? '<p class="text-xs text-slate-500">Sin partidas (pre-recibo sin orden de compra).</p>'
+        : `<div class="space-y-1 max-h-56 overflow-y-auto pr-1">` + lineas.map((l) => {
+            const dif = l.cantidad_capturada - l.cantidad_pendiente;
+            const color = dif === 0 ? 'text-emerald-400' : 'text-amber-400';
+            return `<div class="flex justify-between items-baseline gap-2 text-xs border-b border-slate-800/60 py-1">
+                <span class="text-slate-300">${esc(l.descripcion)}</span>
+                <span class="font-mono ${color} shrink-0">${l.cantidad_capturada} ${esc(l.unidad)}${dif !== 0 ? ` (esperabas ${l.cantidad_pendiente})` : ' ✓'}</span>
+            </div>`;
+        }).join('') + `</div>`;
+
+    mostrarModal(`
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-md w-full max-h-[85vh] overflow-y-auto">
+        <h3 class="text-base font-bold text-slate-100 mb-1">Revisa tu conteo</h3>
+        <p class="text-xs text-slate-400 mb-3">Esto es lo que se va a enviar. Si algo está mal, regresa y corrígelo antes de cerrar el recibo.</p>
+        ${resumenLineas}
+        ${obs ? `<p class="text-xs text-amber-300 mt-3"><b>Observaciones:</b> ${esc(obs)}</p>` : ''}
+        <div class="flex gap-2 mt-4">
+          <button type="button" id="prCancelar1" class="flex-1 bg-slate-800 border border-slate-700 text-slate-300 py-3 rounded-xl text-sm">‹ Regresar y corregir</button>
+          <button type="button" id="prContinuar1" class="flex-1 bg-sky-600 active:bg-sky-700 text-white font-semibold py-3 rounded-xl text-sm">Continuar</button>
+        </div>
+      </div>`);
+    document.getElementById('prCancelar1').onclick = ocultarModal;
+    document.getElementById('prContinuar1').onclick = mostrarConfirmacion2;
+}
+
+// ---------- 2da confirmación: pregunta directa antes de cerrar ----------
+function mostrarConfirmacion2() {
+    mostrarModal(`
+      <div class="bg-slate-900 border border-rose-700 rounded-2xl p-4 max-w-sm w-full">
+        <h3 class="text-base font-bold text-rose-400 mb-2">¿Seguro que quieres cerrar este recibo?</h3>
+        <p class="text-xs text-slate-400 mb-4">Una vez enviado ya no vas a poder editar el conteo. El administrador lo revisará contra las fotos.</p>
+        <div class="flex gap-2">
+          <button type="button" id="prCancelar2" class="flex-1 bg-slate-800 border border-slate-700 text-slate-300 py-3 rounded-xl text-sm">Cancelar</button>
+          <button type="button" id="prConfirmar2" class="flex-1 bg-emerald-600 active:bg-emerald-700 text-white font-semibold py-3 rounded-xl text-sm">Sí, cerrar recibo</button>
+        </div>
+      </div>`);
+    document.getElementById('prCancelar2').onclick = ocultarModal;
+    document.getElementById('prConfirmar2').onclick = () => { ocultarModal(); enviarReal(); };
 }
 
 async function pintarLineas(ocId) {
@@ -236,18 +319,53 @@ async function pintarLineas(ocId) {
     cont.innerHTML = 'Cargando partidas...';
     const { data, error } = await supabaseClient
         .from('v_recibo_oc_lineas')
-        .select('descripcion, cantidad, cantidad_recibida, unidad')
+        .select('id, descripcion, cantidad, cantidad_recibida, unidad')
         .eq('orden_compra_id', ocId);
     if (error) { cont.innerHTML = ''; return; }
     if (!data || !data.length) { cont.innerHTML = '<span class="text-slate-500">Sin partidas.</span>'; return; }
     cont.innerHTML = `
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-2 mt-1">
-            <p class="text-[11px] text-slate-500 mb-1">Lo que dice la orden:</p>
-            ${data.map(l => `<div class="flex justify-between py-0.5 border-b border-slate-800/60 last:border-0">
-                <span class="text-slate-300">${esc(l.descripcion)}</span>
-                <span class="text-slate-400 font-mono">${l.cantidad}${l.cantidad_recibida > 0 ? ` (${l.cantidad_recibida} ya recib.)` : ''} ${esc(l.unidad || '')}</span>
-            </div>`).join('')}
+            <p class="text-[11px] text-slate-500 mb-2">Cuenta las piezas que <b>de verdad</b> llegaron de cada partida:</p>
+            ${data.map(l => {
+                const pendiente = Math.max(0, Number(l.cantidad) - Number(l.cantidad_recibida || 0));
+                return `
+                <div class="py-1.5 border-b border-slate-800/60 last:border-0">
+                    <div class="flex justify-between items-baseline mb-1 gap-2">
+                        <span class="text-slate-300">${esc(l.descripcion)}</span>
+                        <span class="text-slate-500 text-[11px] font-mono shrink-0">pedido ${l.cantidad}${l.cantidad_recibida > 0 ? ` (${l.cantidad_recibida} ya recib.)` : ''} ${esc(l.unidad || '')}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[11px] text-slate-500 shrink-0">Llegaron:</span>
+                        <input type="number" inputmode="decimal" min="0" step="any"
+                               class="pr-linea-input w-24 bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"
+                               value="${pendiente}"
+                               data-detalle-id="${l.id}"
+                               data-descripcion="${esc(l.descripcion)}"
+                               data-unidad="${esc(l.unidad || '')}"
+                               data-pedida="${l.cantidad}"
+                               data-pendiente="${pendiente}">
+                        <span class="text-[11px] text-slate-500">${esc(l.unidad || '')}</span>
+                    </div>
+                </div>`;
+            }).join('')}
         </div>`;
+    cont.querySelectorAll('.pr-linea-input').forEach((inp) => {
+        inp.addEventListener('input', () => { if (parseFloat(inp.value) < 0) inp.value = 0; });
+    });
+}
+
+// Lee lo que el operador capturó por partida directamente del DOM
+// (no hace falta estado aparte: mientras el modal de confirmación está
+// abierto, el formulario sigue montado detrás).
+function leerLineasCapturadas() {
+    return Array.from(document.querySelectorAll('.pr-linea-input')).map((inp) => ({
+        orden_compra_detalle_id: inp.dataset.detalleId ? Number(inp.dataset.detalleId) : null,
+        descripcion: inp.dataset.descripcion || '',
+        unidad: inp.dataset.unidad || '',
+        cantidad_pedida: Number(inp.dataset.pedida) || 0,
+        cantidad_pendiente: Number(inp.dataset.pendiente) || 0,
+        cantidad_capturada: Math.max(0, parseFloat(inp.value) || 0),
+    }));
 }
 
 function pintarFotos() {
@@ -263,20 +381,13 @@ function pintarFotos() {
     });
 }
 
-async function enviar() {
+async function enviarReal() {
     const msg = document.getElementById('prMsg');
     const btn = document.getElementById('prEnviar');
     const selOc = document.getElementById('prOc');
     const sinOc = selOc.value === '__sinoc__';
     const ocId = (!sinOc && selOc.value) ? Number(selOc.value) : null;
     const ref = document.getElementById('prRef')?.value || '';
-
-    if (!ocId && !sinOc) { msg.textContent = 'Elige una orden de compra.'; return; }
-    if (sinOc && !ref.trim()) { msg.textContent = 'Escribe la referencia del documento.'; return; }
-    if (fotos.length === 0) { msg.textContent = 'Toma al menos una foto del documento.'; return; }
-    if (!document.getElementById('prOk').checked && !document.getElementById('prObs').value.trim()) {
-        msg.textContent = 'Marca "todo correcto" o escribe qué no cuadra en observaciones.'; return;
-    }
 
     btn.disabled = true; msg.classList.remove('text-rose-400'); msg.classList.add('text-slate-400');
     msg.textContent = 'Enviando...';
@@ -288,6 +399,7 @@ async function enviar() {
         p_fotos: fotos,
         p_observaciones: document.getElementById('prObs').value || null,
         p_todo_correcto: document.getElementById('prOk').checked,
+        p_lineas: leerLineasCapturadas(),
     });
 
     btn.disabled = false; msg.classList.remove('text-slate-400'); msg.classList.add('text-rose-400');
