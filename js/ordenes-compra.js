@@ -856,7 +856,12 @@ export async function cargarModuloReciboMercancia() {
         </div>
       </div>
 
-      <div id="rmTabHistorial" class="space-y-2 hidden">
+      <div id="rmTabHistorial" class="space-y-4 hidden">
+        <div>
+          <h3 class="text-md font-semibold text-slate-300 mb-2">Pre-recibos capturados por operadores (últimos 50)</h3>
+          <div id="rmHistorialPrerecibos" class="text-sm text-slate-500">Cargando...</div>
+        </div>
+
         <h3 class="text-md font-semibold text-slate-300">Historial de recepciones</h3>
         <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 mb-2">
           <div class="flex flex-wrap items-end gap-2">
@@ -965,6 +970,7 @@ export async function cargarModuloReciboMercancia() {
 
     await rmRecepciones();
     await rmPreRecibos();
+    await rmHistorialPrerecibos();
 
     if (ocRecibirId) {
         selOc.value = String(ocRecibirId);
@@ -974,6 +980,85 @@ export async function cargarModuloReciboMercancia() {
 }
 
 // ---- Pre-recibos capturados por operadores (recibo-operador.html) ----
+// Tarjeta de un pre-recibo, compartida entre "Pre-recibos por validar"
+// (pendientes, con botones) y el historial (todos los estatus, solo lectura).
+function rmTarjetaPrerecibo(pr, { conBotones = true } = {}) {
+    const fotos = Array.isArray(pr.fotos) ? pr.fotos : [];
+    const oc = pr.orden_compra_id
+        ? `OC ${esc(pr.ordenes_compra?.folio || '#' + pr.orden_compra_id)} · ${esc(pr.ordenes_compra?.proveedores?.nombre || 's/proveedor')}`
+        : `Sin OC · ref. ${esc(pr.referencia || '—')}`;
+    const lineas = Array.isArray(pr.lineas) ? pr.lineas : [];
+    const discrepancias = lineas.filter(l => Number(l.cantidad_capturada || 0) !== Number(l.cantidad_pendiente || 0));
+    const hayDiscrepancias = discrepancias.length > 0;
+
+    // El checkbox "todo correcto" lo marca el operador a ojo; el conteo
+    // por partida es el dato real. Si se contradicen, manda el conteo:
+    // se avisa fuerte en vez de confiar en el checkbox.
+    let bannerEstado;
+    if (hayDiscrepancias) {
+        bannerEstado = `<p class="text-xs font-bold text-white bg-rose-700 border border-rose-500 rounded-lg px-2 py-1 mt-1 inline-block ${conBotones ? 'animate-pulse' : ''}">
+            🚨 EL CONTEO NO CUADRÓ en ${discrepancias.length} partida${discrepancias.length > 1 ? 's' : ''}${pr.todo_correcto ? ' (aunque el operador marcó "todo correcto")' : ''}${conBotones ? ' — revisa antes de validar' : ''}
+          </p>`;
+    } else if (pr.todo_correcto) {
+        bannerEstado = `<p class="text-[11px] mt-0.5 text-emerald-400">✔ El operador confirmó que todo cuadra, y el conteo por partida coincide.</p>`;
+    } else {
+        bannerEstado = `<p class="text-[11px] mt-0.5 text-amber-400">⚠ El operador NO marcó "todo correcto".</p>`;
+    }
+
+    const estatusBadge = {
+        pendiente: '<span class="text-[10px] bg-amber-800/60 text-amber-200 border border-amber-700 rounded px-1.5 py-0.5 ml-1">Pendiente</span>',
+        validado: '<span class="text-[10px] bg-emerald-800/60 text-emerald-200 border border-emerald-700 rounded px-1.5 py-0.5 ml-1">Validado</span>',
+        rechazado: '<span class="text-[10px] bg-rose-800/60 text-rose-200 border border-rose-700 rounded px-1.5 py-0.5 ml-1">Rechazado</span>',
+    }[pr.estatus] || '';
+
+    const botones = conBotones ? `
+        <div class="flex gap-2 shrink-0">
+          <button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'validar')" class="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg">✔ Validar y recibir</button>
+          <button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'rechazar')" class="text-xs bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-3 py-1.5 rounded-lg">✕ Rechazar</button>
+        </div>` : '';
+
+    return `
+      <div class="bg-slate-950 border ${hayDiscrepancias ? 'border-rose-600' : 'border-slate-800'} rounded-lg p-3">
+        <div class="flex flex-wrap items-start justify-between gap-2">
+          <div class="min-w-0">
+            <p class="text-sm text-slate-200 font-semibold">${oc}${estatusBadge}</p>
+            <p class="text-[11px] text-slate-500">Operador: ${esc(pr.empleado_nombre || '?')} · ${new Date(pr.creado_en).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</p>
+            ${bannerEstado}
+            ${pr.observaciones ? `<p class="text-[11px] text-slate-400 mt-0.5">“${esc(pr.observaciones)}”</p>` : ''}
+            ${pr.estatus === 'rechazado' && pr.nota_validacion ? `<p class="text-[11px] text-rose-400 mt-0.5"><b>Motivo del rechazo:</b> ${esc(pr.nota_validacion)}</p>` : ''}
+          </div>
+          ${lineas.length ? `<div class="w-full mt-1 space-y-0.5">
+                ${lineas.map(l => {
+                    const dif = Number(l.cantidad_capturada || 0) - Number(l.cantidad_pendiente || 0);
+                    if (dif === 0) {
+                        return `<div class="flex justify-between gap-2 text-[11px]">
+                            <span class="text-slate-400 truncate">${esc(l.descripcion || '')}</span>
+                            <span class="font-mono text-emerald-400 shrink-0">contó ${l.cantidad_capturada} ${esc(l.unidad || '')} ✓</span>
+                        </div>`;
+                    }
+                    return `<div class="flex justify-between gap-2 text-[11px] bg-rose-950/60 border border-rose-700 rounded px-2 py-1">
+                        <span class="text-rose-200 font-semibold truncate">⚠ ${esc(l.descripcion || '')}</span>
+                        <span class="font-mono text-rose-200 font-bold shrink-0">contó ${l.cantidad_capturada} ${esc(l.unidad || '')} (pendían ${l.cantidad_pendiente})</span>
+                    </div>`;
+                }).join('')}
+              </div>` : ''}
+          ${botones}
+        </div>
+        ${fotos.length ? `<div class="flex gap-2 mt-2 flex-wrap">${fotos.map(f => `<a href="${f}" target="_blank"><img src="${f}" class="w-20 h-20 object-cover rounded border border-slate-700"></a>`).join('')}</div>` : '<p class="text-[11px] text-rose-400 mt-2">Sin fotos.</p>'}
+      </div>`;
+}
+
+const PRERECIBO_COLUMNAS = 'id, orden_compra_id, referencia, empleado_nombre, fotos, observaciones, todo_correcto, lineas, estatus, nota_validacion, creado_en, ordenes_compra ( folio, proveedores ( nombre ) )';
+function prereciboErrorMsg(err) {
+    const m = err?.message || String(err);
+    const archivoFalta = /lineas/i.test(m)
+        ? 'sql/2026-09-24_validador_piezas_prerecibo.sql'
+        : 'sql/2026-09-11_prerecibo_operador.sql';
+    return /does not exist|schema cache|could not find/i.test(m)
+        ? `Pre-recibos de operadores: falta correr <span class="font-mono">${archivoFalta}</span>.`
+        : `Error al leer pre-recibos: ${esc(m)}`;
+}
+
 async function rmPreRecibos() {
     const cont = document.getElementById('rmPreRecibos');
     if (!cont) return;
@@ -982,19 +1067,13 @@ async function rmPreRecibos() {
     try {
         const { data, error } = await supabaseClient
             .from('pre_recibos')
-            .select('id, orden_compra_id, referencia, empleado_nombre, fotos, observaciones, todo_correcto, lineas, creado_en, ordenes_compra ( folio, proveedores ( nombre ) )')
+            .select(PRERECIBO_COLUMNAS)
             .eq('estatus', 'pendiente')
             .order('creado_en', { ascending: true });
         if (error) throw error;
         filas = data || [];
     } catch (err) {
-        const m = err?.message || String(err);
-        const archivoFalta = /lineas/i.test(m)
-            ? 'sql/2026-09-24_validador_piezas_prerecibo.sql'
-            : 'sql/2026-09-11_prerecibo_operador.sql';
-        cont.innerHTML = /does not exist|schema cache|could not find/i.test(m)
-            ? `<p class="text-[11px] text-slate-600">Pre-recibos de operadores: falta correr <span class="font-mono">${archivoFalta}</span>.</p>`
-            : `<p class="text-rose-400 text-xs">Error al leer pre-recibos: ${esc(m)}</p>`;
+        cont.innerHTML = `<p class="text-[11px] text-slate-600">${prereciboErrorMsg(err)}</p>`;
         return;
     }
 
@@ -1013,63 +1092,40 @@ async function rmPreRecibos() {
           ${linkOperador}
         </div>
         <div class="space-y-2">
-          ${filas.map(pr => {
-            const fotos = Array.isArray(pr.fotos) ? pr.fotos : [];
-            const oc = pr.orden_compra_id
-                ? `OC ${esc(pr.ordenes_compra?.folio || '#' + pr.orden_compra_id)} · ${esc(pr.ordenes_compra?.proveedores?.nombre || 's/proveedor')}`
-                : `Sin OC · ref. ${esc(pr.referencia || '—')}`;
-            const lineas = Array.isArray(pr.lineas) ? pr.lineas : [];
-            const discrepancias = lineas.filter(l => Number(l.cantidad_capturada || 0) !== Number(l.cantidad_pendiente || 0));
-            const hayDiscrepancias = discrepancias.length > 0;
-
-            // El checkbox "todo correcto" lo marca el operador a ojo; el conteo
-            // por partida es el dato real. Si se contradicen, manda el conteo:
-            // se avisa fuerte en vez de confiar en el checkbox.
-            let bannerEstado;
-            if (hayDiscrepancias) {
-                bannerEstado = `<p class="text-xs font-bold text-white bg-rose-700 border border-rose-500 rounded-lg px-2 py-1 mt-1 inline-block animate-pulse">
-                    🚨 EL CONTEO NO CUADRA en ${discrepancias.length} partida${discrepancias.length > 1 ? 's' : ''}${pr.todo_correcto ? ' (aunque el operador marcó "todo correcto")' : ''} — revisa antes de validar
-                  </p>`;
-            } else if (pr.todo_correcto) {
-                bannerEstado = `<p class="text-[11px] mt-0.5 text-emerald-400">✔ El operador confirmó que todo cuadra, y el conteo por partida coincide.</p>`;
-            } else {
-                bannerEstado = `<p class="text-[11px] mt-0.5 text-amber-400">⚠ El operador NO marcó "todo correcto".</p>`;
-            }
-
-            return `
-              <div class="bg-slate-950 border ${hayDiscrepancias ? 'border-rose-600' : 'border-slate-800'} rounded-lg p-3">
-                <div class="flex flex-wrap items-start justify-between gap-2">
-                  <div class="min-w-0">
-                    <p class="text-sm text-slate-200 font-semibold">${oc}</p>
-                    <p class="text-[11px] text-slate-500">Operador: ${esc(pr.empleado_nombre || '?')} · ${new Date(pr.creado_en).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</p>
-                    ${bannerEstado}
-                    ${pr.observaciones ? `<p class="text-[11px] text-slate-400 mt-0.5">“${esc(pr.observaciones)}”</p>` : ''}
-                  </div>
-                  ${lineas.length ? `<div class="w-full mt-1 space-y-0.5">
-                        ${lineas.map(l => {
-                            const dif = Number(l.cantidad_capturada || 0) - Number(l.cantidad_pendiente || 0);
-                            if (dif === 0) {
-                                return `<div class="flex justify-between gap-2 text-[11px]">
-                                    <span class="text-slate-400 truncate">${esc(l.descripcion || '')}</span>
-                                    <span class="font-mono text-emerald-400 shrink-0">contó ${l.cantidad_capturada} ${esc(l.unidad || '')} ✓</span>
-                                </div>`;
-                            }
-                            return `<div class="flex justify-between gap-2 text-[11px] bg-rose-950/60 border border-rose-700 rounded px-2 py-1">
-                                <span class="text-rose-200 font-semibold truncate">⚠ ${esc(l.descripcion || '')}</span>
-                                <span class="font-mono text-rose-200 font-bold shrink-0">contó ${l.cantidad_capturada} ${esc(l.unidad || '')} (pendían ${l.cantidad_pendiente})</span>
-                            </div>`;
-                        }).join('')}
-                      </div>` : ''}
-                  <div class="flex gap-2 shrink-0">
-                    <button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'validar')" class="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg">✔ Validar y recibir</button>
-                    <button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'rechazar')" class="text-xs bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-3 py-1.5 rounded-lg">✕ Rechazar</button>
-                  </div>
-                </div>
-                ${fotos.length ? `<div class="flex gap-2 mt-2 flex-wrap">${fotos.map(f => `<a href="${f}" target="_blank"><img src="${f}" class="w-20 h-20 object-cover rounded border border-slate-700"></a>`).join('')}</div>` : '<p class="text-[11px] text-rose-400 mt-2">Sin fotos.</p>'}
-              </div>`;
-          }).join('')}
+          ${filas.map(pr => rmTarjetaPrerecibo(pr, { conBotones: true })).join('')}
         </div>
       </div>`;
+}
+
+// Historial de pre-recibos (cualquier estatus: pendiente/validado/rechazado)
+// para la pestaña "Historial" — sin esto, un pre-recibo ya validado
+// desaparece de "por validar" y no queda rastro de él en ningún lado
+// hasta que el admin termine de capturar la recepción real.
+async function rmHistorialPrerecibos() {
+    const cont = document.getElementById('rmHistorialPrerecibos');
+    if (!cont) return;
+    cont.innerHTML = '<p class="text-slate-500 text-xs">Cargando...</p>';
+
+    let filas;
+    try {
+        const { data, error } = await supabaseClient
+            .from('pre_recibos')
+            .select(PRERECIBO_COLUMNAS)
+            .order('creado_en', { ascending: false })
+            .limit(50);
+        if (error) throw error;
+        filas = data || [];
+    } catch (err) {
+        cont.innerHTML = `<p class="text-[11px] text-slate-600">${prereciboErrorMsg(err)}</p>`;
+        return;
+    }
+
+    if (filas.length === 0) {
+        cont.innerHTML = '<p class="text-xs text-slate-500">Todavía no hay pre-recibos capturados por operadores.</p>';
+        return;
+    }
+
+    cont.innerHTML = `<div class="space-y-2">${filas.map(pr => rmTarjetaPrerecibo(pr, { conBotones: false })).join('')}</div>`;
 }
 
 window.prereciboValidar = async (id, ocId, accion) => {
@@ -1084,6 +1140,7 @@ window.prereciboValidar = async (id, ocId, accion) => {
         window.irARecibirOC(ocId);   // recarga el módulo y abre esa OC para capturar la recepción
     } else {
         await rmPreRecibos();
+        await rmHistorialPrerecibos();
     }
 };
 
