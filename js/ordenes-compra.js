@@ -1273,7 +1273,30 @@ function rmLista(ocs) {
     }).join('');
 }
 
-function rmRenderDetalle(oc) {
+// Trae lo que el operador contó (pre-recibo más reciente, pendiente o ya
+// validado, de esta OC) para prellenar "Cant. a recibir" con la realidad
+// en vez de con lo pedido/pendiente. Devuelve { [orden_compra_detalle_id]: cantidad_capturada }.
+async function rmObtenerCapturaOperador(ocId) {
+    if (!ocId) return {};
+    try {
+        const { data, error } = await supabaseClient
+            .from('pre_recibos')
+            .select('lineas')
+            .eq('orden_compra_id', ocId)
+            .in('estatus', ['validado', 'pendiente'])
+            .order('creado_en', { ascending: false })
+            .limit(1);
+        if (error) throw error;
+        const lineas = Array.isArray(data?.[0]?.lineas) ? data[0].lineas : [];
+        const mapa = {};
+        lineas.forEach((l) => {
+            if (l.orden_compra_detalle_id != null) mapa[l.orden_compra_detalle_id] = Number(l.cantidad_capturada) || 0;
+        });
+        return mapa;
+    } catch (_) { return {}; }
+}
+
+async function rmRenderDetalle(oc) {
     const cont = document.getElementById('rmDetalle');
     const btn = document.getElementById('rmConfirmar');
     rmOcActual = oc || null;
@@ -1284,6 +1307,9 @@ function rmRenderDetalle(oc) {
     }
     rmModo = 'oc';
 
+    const capturaOperador = await rmObtenerCapturaOperador(oc.id);
+    if (rmOcActual !== oc) return;   // el admin ya cambió de OC mientras esto cargaba
+
     const nombreProd = (d) => {
         if (d.producto_id) return ocProductos.find(p => p.id === d.producto_id)?.nombre || `Producto #${d.producto_id}`;
         return d.descripcion || 'Sin nombre';
@@ -1293,14 +1319,20 @@ function rmRenderDetalle(oc) {
         const pend = Math.max(0, Number(d.cantidad || 0) - Number(d.cantidad_recibida || 0));
         const prod = d.producto_id ? ocProductos.find(p => p.id === d.producto_id) : null;
         const reqCad = !!(prod && prod.requiere_caducidad);
+        const capturado = capturaOperador[d.id];
+        const valorInicial = capturado != null ? capturado : pend;
+        const difiere = capturado != null && capturado !== pend;
         return `
         <tr class="border-b border-slate-900" data-detid="${d.id}" data-reqcad="${reqCad ? 1 : 0}">
-          <td class="p-2 text-center"><input type="checkbox" class="rm-chk accent-emerald-500 w-4 h-4" ${pend > 0 ? 'checked' : ''}></td>
+          <td class="p-2 text-center"><input type="checkbox" class="rm-chk accent-emerald-500 w-4 h-4" ${(capturado != null ? capturado > 0 : pend > 0) ? 'checked' : ''}></td>
           <td class="p-2 text-slate-100">${esc(nombreProd(d))}${d.producto_id ? '' : ' <span class="text-[10px] text-amber-400">(nuevo)</span>'}${reqCad ? ' <span class="text-[10px] text-amber-400">· caducidad requerida</span>' : ''}</td>
           <td class="p-2 text-right font-mono text-slate-400">${d.cantidad}</td>
           <td class="p-2 text-right font-mono text-slate-400">${d.cantidad_recibida}</td>
           <td class="p-2 text-right font-mono">${pend}</td>
-          <td class="p-2"><input type="number" step="any" min="0" class="rm-cant w-20 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${pend}"></td>
+          <td class="p-2">
+            <input type="number" step="any" min="0" class="rm-cant w-20 bg-slate-900 border ${difiere ? 'border-rose-600' : 'border-slate-800'} rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${valorInicial}">
+            ${capturado != null ? `<p class="text-[10px] ${difiere ? 'text-rose-400 font-bold' : 'text-emerald-500'} mt-0.5 whitespace-nowrap">${difiere ? '⚠' : '✓'} operador contó ${capturado}</p>` : ''}
+          </td>
           <td class="p-2">
             <div class="flex items-center gap-1">
               <input type="number" step="any" min="0" class="rm-costo w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${Number(d.costo_unitario_estimado || 0)}">
