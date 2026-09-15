@@ -796,61 +796,68 @@ export async function cargarModuloReciboMercancia() {
 
     cont.innerHTML = `
     <div class="space-y-4">
-      <div id="rmPreRecibos"></div>
+      <div class="flex gap-1 border-b border-slate-800">
+        <button type="button" id="rmTabBtnRecibir" class="px-3 py-2 text-sm font-semibold border-b-2 -mb-px">📥 Recibir</button>
+        <button type="button" id="rmTabBtnHistorial" class="px-3 py-2 text-sm font-semibold border-b-2 -mb-px">🕘 Historial</button>
+      </div>
 
-      <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
-        <div class="flex flex-wrap items-end justify-between gap-3">
-          <div class="flex-1 min-w-[240px]">
-            <label class="block text-xs text-slate-400 mb-1">Orden de compra</label>
-            <select id="rmOC" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optOc}</select>
+      <div id="rmTabRecibir" class="space-y-4">
+        <div id="rmPreRecibos"></div>
+
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div class="flex-1 min-w-[240px]">
+              <label class="block text-xs text-slate-400 mb-1">Orden de compra</label>
+              <select id="rmOC" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optOc}</select>
+            </div>
+            <div class="flex gap-2">
+              <input type="file" id="rmXmlFile" accept=".xml,text/xml,application/xml" class="hidden">
+              <input type="file" id="rmPdfFile" accept=".pdf,application/pdf" class="hidden">
+              <input type="file" id="rmQrFile" accept="image/*" class="hidden">
+              <button type="button" id="rmBtnXml" title="Cargar el XML del CFDI para prellenar impuestos y conciliar partidas" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-2 rounded-lg">📄 Importar XML</button>
+              <button type="button" id="rmBtnPdf" title="Cargar el PDF de la factura cuando no tengas el XML — mismos campos, mejor esfuerzo (revisa lo que se precargue)" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-2 rounded-lg">📕 Importar PDF</button>
+              <button type="button" id="rmBtnQr" title="Leer una foto del QR del CFDI (UUID, RFC, total)" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-2 rounded-lg">🔳 Leer QR</button>
+            </div>
           </div>
-          <div class="flex gap-2">
-            <input type="file" id="rmXmlFile" accept=".xml,text/xml,application/xml" class="hidden">
-            <input type="file" id="rmPdfFile" accept=".pdf,application/pdf" class="hidden">
-            <input type="file" id="rmQrFile" accept="image/*" class="hidden">
-            <button type="button" id="rmBtnXml" title="Cargar el XML del CFDI para prellenar impuestos y conciliar partidas" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-2 rounded-lg">📄 Importar XML</button>
-            <button type="button" id="rmBtnPdf" title="Cargar el PDF de la factura cuando no tengas el XML — mismos campos, mejor esfuerzo (revisa lo que se precargue)" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-2 rounded-lg">📕 Importar PDF</button>
-            <button type="button" id="rmBtnQr" title="Leer una foto del QR del CFDI (UUID, RFC, total)" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-2 rounded-lg">🔳 Leer QR</button>
+          <p class="text-[11px] text-amber-400 mt-2">⚠ Si importas el PDF: siempre revisa cantidades y costos antes de confirmar — igual de importante que con el XML, pero aquí es más probable que haga falta ajustar algo a mano.</p>
+          <p id="rmImportInfo" class="text-[11px] text-slate-400 mt-2"></p>
+        </div>
+        <div id="rmDetalle"></div>
+        ${fiscalHtml}
+
+        <div id="rmExtrasWrap" class="bg-slate-950 border border-slate-800 rounded-xl p-4 hidden">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-semibold text-sky-400">Costos adicionales (landed cost)</h3>
+            <span class="text-[11px] text-slate-500">se reparten por valor y se suman al costo del lote</span>
           </div>
+          <table class="w-full text-xs">
+            <thead><tr class="text-left text-slate-500 border-b border-slate-800">
+              <th class="p-1.5">Concepto</th><th class="p-1.5 text-right">Monto (s/ IVA)</th>
+              <th class="p-1.5 text-center">Al inventario</th><th class="p-1.5"></th>
+            </tr></thead>
+            <tbody id="rmExtrasBody"></tbody>
+            <tfoot><tr class="border-t border-slate-800 text-slate-300">
+              <td class="p-1.5 font-semibold">Total capitalizable</td>
+              <td class="p-1.5 text-right font-mono text-emerald-400" id="rmExtrasTotal">$0.00</td>
+              <td colspan="2"></td>
+            </tr></tfoot>
+          </table>
+          <button type="button" id="rmExtraAdd" class="mt-2 text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded">+ Cargo</button>
+          <p class="text-[10px] text-slate-500 mt-2">"Al inventario" marcado = se capitaliza al costo del producto (115.xx) — es lo que recomienda NIF C-4 para flete/seguro necesarios para poner la mercancía en su ubicación y condición de venta. Desmarcado = el cargo va a gasto (601.14 fletes), recomendable solo si el cargo no es atribuible a la mercancía recibida. El IVA de estos cargos va en el campo IVA de arriba.</p>
+          <p id="rmExtrasAviso" class="text-[10px] text-amber-400 mt-1"></p>
         </div>
-        <p class="text-[11px] text-amber-400 mt-2">⚠ Si importas el PDF: siempre revisa cantidades y costos antes de confirmar — igual de importante que con el XML, pero aquí es más probable que haga falta ajustar algo a mano.</p>
-        <p id="rmImportInfo" class="text-[11px] text-slate-400 mt-2"></p>
-      </div>
-      <div id="rmDetalle"></div>
-      ${fiscalHtml}
 
-      <div id="rmExtrasWrap" class="bg-slate-950 border border-slate-800 rounded-xl p-4 hidden">
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="text-sm font-semibold text-sky-400">Costos adicionales (landed cost)</h3>
-          <span class="text-[11px] text-slate-500">se reparten por valor y se suman al costo del lote</span>
+        <button type="button" id="rmConfirmar" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-3 rounded-lg text-sm hidden">✅ Confirmar recepción</button>
+        <p id="rmMsg" class="text-xs min-h-[1rem]"></p>
+
+        <div>
+          <h3 class="text-md font-semibold text-slate-300 mb-2">Órdenes con recepción pendiente</h3>
+          <div id="rmLista" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-500"></div>
         </div>
-        <table class="w-full text-xs">
-          <thead><tr class="text-left text-slate-500 border-b border-slate-800">
-            <th class="p-1.5">Concepto</th><th class="p-1.5 text-right">Monto (s/ IVA)</th>
-            <th class="p-1.5 text-center">Al inventario</th><th class="p-1.5"></th>
-          </tr></thead>
-          <tbody id="rmExtrasBody"></tbody>
-          <tfoot><tr class="border-t border-slate-800 text-slate-300">
-            <td class="p-1.5 font-semibold">Total capitalizable</td>
-            <td class="p-1.5 text-right font-mono text-emerald-400" id="rmExtrasTotal">$0.00</td>
-            <td colspan="2"></td>
-          </tr></tfoot>
-        </table>
-        <button type="button" id="rmExtraAdd" class="mt-2 text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded">+ Cargo</button>
-        <p class="text-[10px] text-slate-500 mt-2">"Al inventario" marcado = se capitaliza al costo del producto (115.xx) — es lo que recomienda NIF C-4 para flete/seguro necesarios para poner la mercancía en su ubicación y condición de venta. Desmarcado = el cargo va a gasto (601.14 fletes), recomendable solo si el cargo no es atribuible a la mercancía recibida. El IVA de estos cargos va en el campo IVA de arriba.</p>
-        <p id="rmExtrasAviso" class="text-[10px] text-amber-400 mt-1"></p>
       </div>
 
-      <button type="button" id="rmConfirmar" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-3 rounded-lg text-sm hidden">✅ Confirmar recepción</button>
-      <p id="rmMsg" class="text-xs min-h-[1rem]"></p>
-
-      <div>
-        <h3 class="text-md font-semibold text-slate-300 mb-2">Órdenes con recepción pendiente</h3>
-        <div id="rmLista" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-500"></div>
-      </div>
-
-      <div>
-        <h3 class="text-md font-semibold text-slate-300 mb-2">Recepciones registradas</h3>
+      <div id="rmTabHistorial" class="space-y-2 hidden">
+        <h3 class="text-md font-semibold text-slate-300">Historial de recepciones</h3>
         <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 mb-2">
           <div class="flex flex-wrap items-end gap-2">
             <div><label class="block text-[10px] text-slate-400 mb-1">Desde</label>
@@ -866,6 +873,18 @@ export async function cargarModuloReciboMercancia() {
         <div id="rmRecepciones" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-500">Cargando...</div>
       </div>
     </div>`;
+
+    const rmTabBtn = (activo) => `px-3 py-2 text-sm font-semibold border-b-2 -mb-px ${activo ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`;
+    const rmMostrarTab = (tab) => {
+        const esRecibir = tab === 'recibir';
+        document.getElementById('rmTabRecibir').classList.toggle('hidden', !esRecibir);
+        document.getElementById('rmTabHistorial').classList.toggle('hidden', esRecibir);
+        document.getElementById('rmTabBtnRecibir').className = rmTabBtn(esRecibir);
+        document.getElementById('rmTabBtnHistorial').className = rmTabBtn(!esRecibir);
+    };
+    rmMostrarTab('recibir');
+    document.getElementById('rmTabBtnRecibir').onclick = () => rmMostrarTab('recibir');
+    document.getElementById('rmTabBtnHistorial').onclick = () => rmMostrarTab('historial');
 
     const selOc = document.getElementById('rmOC');
     selOc.onchange = () => rmRenderDetalle(ocs.find(o => o.id === Number(selOc.value)));
