@@ -1195,6 +1195,9 @@ function abrirMenuAccionesProducto(producto, botonAncla) {
         <button type="button" id="btnMenuProdKardex" class="w-full text-left px-3 py-2.5 hover:bg-slate-800 text-slate-200 flex items-center gap-2 cursor-pointer">
             <span>📦</span><span>Kardex de este producto</span>
         </button>
+        <button type="button" id="btnMenuProdVer" class="w-full text-left px-3 py-2.5 hover:bg-slate-800 text-slate-200 border-t border-slate-800 flex items-center gap-2 cursor-pointer">
+            <span>👁️</span><span>Ver artículo</span>
+        </button>
         <button type="button" id="btnMenuProdResumen" class="w-full text-left px-3 py-2.5 hover:bg-slate-800 text-slate-200 border-t border-slate-800 flex items-center gap-2 cursor-pointer">
             <span>✏️</span><span>Editar artículo</span>
         </button>
@@ -1204,6 +1207,10 @@ function abrirMenuAccionesProducto(producto, botonAncla) {
     document.getElementById('btnMenuProdKardex').addEventListener('click', () => {
         cerrarMenuAccionesProducto();
         irAKardexDeProducto(producto.id, producto.nombre);
+    });
+    document.getElementById('btnMenuProdVer').addEventListener('click', () => {
+        cerrarMenuAccionesProducto();
+        abrirResumenCompletoProducto(producto.id, producto.nombre, producto.sku, true);
     });
     document.getElementById('btnMenuProdResumen').addEventListener('click', () => {
         cerrarMenuAccionesProducto();
@@ -1260,7 +1267,7 @@ function construirOpcionesSelector(lista, valorActual, textoFn, etiquetaVacio) {
     return html;
 }
 
-async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido) {
+async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, soloLectura = false) {
     let modal = document.getElementById('modalResumenProducto');
     if (!modal) {
         modal = document.createElement('div');
@@ -1278,18 +1285,20 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido) {
     modal.style.maxWidth = '42rem';
     modal.innerHTML = `
         <div class="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-center rounded-t-2xl gap-3">
-            <h3 class="text-sm font-bold text-slate-200 truncate">Editar artículo<span id="tituloEditarProdSub" class="text-slate-500 font-normal"> — #${id}${skuConocido ? ' · ' + escaparHtml(skuConocido) : ''}${nombreConocido ? ' · ' + escaparHtml(nombreConocido) : ''}</span></h3>
+            <h3 class="text-sm font-bold text-slate-200 truncate">${soloLectura ? 'Ver artículo' : 'Editar artículo'}<span id="tituloEditarProdSub" class="text-slate-500 font-normal"> — #${id}${skuConocido ? ' · ' + escaparHtml(skuConocido) : ''}${nombreConocido ? ' · ' + escaparHtml(nombreConocido) : ''}</span></h3>
             <button type="button" id="btnCerrarResumenProd" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 cursor-pointer shrink-0">&times;</button>
         </div>
         <div id="cuerpoResumenProd" class="p-5 overflow-y-auto flex-1 text-sm text-slate-300">Cargando…</div>
         <div class="bg-slate-950 px-5 py-3 border-t border-slate-800 flex justify-between items-center rounded-b-2xl">
-            <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-                <input type="checkbox" id="rc_activo" data-campo="activo" data-tipo="boolean" class="campo-resumen-prod w-4 h-4">
-                Activo
-            </label>
+            ${soloLectura
+                ? `<span id="rc_activo_texto" class="text-xs text-slate-300">Activo: —</span>`
+                : `<label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                    <input type="checkbox" id="rc_activo" data-campo="activo" data-tipo="boolean" class="campo-resumen-prod w-4 h-4">
+                    Activo
+                   </label>`}
             <div class="flex gap-2">
                 <button type="button" id="btnCancelarResumenProd" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer">Cerrar</button>
-                <button type="button" id="btnGuardarResumenProd" class="bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer">Guardar cambios</button>
+                ${soloLectura ? '' : '<button type="button" id="btnGuardarResumenProd" class="bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer">Guardar cambios</button>'}
             </div>
         </div>
     `;
@@ -1327,6 +1336,8 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido) {
         // aparte, no como un campo más de la cuadrícula de abajo.
         const chkActivo = document.getElementById('rc_activo');
         if (chkActivo) chkActivo.checked = !!art.activo;
+        const txtActivo = document.getElementById('rc_activo_texto');
+        if (txtActivo) txtActivo.textContent = `Activo: ${art.activo ? 'Sí' : 'No'}`;
 
         // Llaves foráneas conocidas: se muestran y editan como <select> por
         // nombre, no como el número interno. Cualquier otra columna que
@@ -1338,6 +1349,20 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido) {
             unidad_medida_id: construirOpcionesSelector(resUm.data, art.unidad_medida_id, (r) => r.nombre, '(sin unidad)'),
             cuenta_inventario_id: construirOpcionesSelector(resCta.data, art.cuenta_inventario_id, (r) => `${r.codigo} · ${r.nombre}`, '(sin cuenta)'),
             cuenta_costo_id: construirOpcionesSelector(resCta.data, art.cuenta_costo_id, (r) => `${r.codigo} · ${r.nombre}`, '(sin cuenta)'),
+        };
+
+        // Solo para "Ver artículo": el texto ya resuelto de cada llave
+        // foránea, para no mostrar el número interno en modo lectura.
+        const buscarEnLista = (lista, valorId, textoFn) => {
+            const fila = (lista || []).find((r) => String(r.id) === String(valorId));
+            return fila ? textoFn(fila) : null;
+        };
+        const etiquetaSelectPorCampo = {
+            proveedor_id: buscarEnLista(resProv.data, art.proveedor_id, (r) => r.nombre),
+            moneda_id: buscarEnLista(resMon.data, art.moneda_id, (r) => r.codigo),
+            unidad_medida_id: buscarEnLista(resUm.data, art.unidad_medida_id, (r) => r.nombre),
+            cuenta_inventario_id: buscarEnLista(resCta.data, art.cuenta_inventario_id, (r) => `${r.codigo} · ${r.nombre}`),
+            cuenta_costo_id: buscarEnLista(resCta.data, art.cuenta_costo_id, (r) => `${r.codigo} · ${r.nombre}`),
         };
 
         // "activo" ya no va en la cuadrícula: vive fijo en el pie del modal
@@ -1361,14 +1386,18 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido) {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 ${claves.map((clave) => {
                     const valor = art[clave];
-                    const soloLectura = CAMPOS_NO_EDITABLES_PRODUCTO.has(clave);
+                    const campoSoloLectura = soloLectura || CAMPOS_NO_EDITABLES_PRODUCTO.has(clave);
                     const tipo = tipoDeCampo(valor);
 
-                    if (soloLectura) {
+                    if (campoSoloLectura) {
+                        let textoMostrado = valor;
+                        if (clave === 'tipo') textoMostrado = ETIQUETA_TIPO_PRODUCTO[valor] || valor;
+                        else if (etiquetaSelectPorCampo[clave] !== undefined) textoMostrado = etiquetaSelectPorCampo[clave];
+                        else if (tipo === 'boolean') textoMostrado = valor ? 'Sí' : 'No';
                         return `
                             <div>
                                 <label class="block text-[10px] text-slate-500 mb-1">${etiquetaCampo(clave)}</label>
-                                <p class="text-xs font-mono text-slate-200 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 break-all">${escaparHtml(valor ?? '—')}</p>
+                                <p class="text-xs font-mono text-slate-200 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 break-all">${escaparHtml(textoMostrado ?? '—')}</p>
                             </div>`;
                     }
                     if (clave === 'tipo') {
@@ -1410,7 +1439,9 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido) {
         return;
     }
 
-    document.getElementById('btnGuardarResumenProd').addEventListener('click', async () => {
+    const btnGuardarResumenProd = document.getElementById('btnGuardarResumenProd');
+    if (!btnGuardarResumenProd) return;
+    btnGuardarResumenProd.addEventListener('click', async () => {
         const payload = {};
         modal.querySelectorAll('.campo-resumen-prod').forEach((input) => {
             const clave = input.dataset.campo;
