@@ -999,29 +999,48 @@ async function rmPreRecibos() {
             const oc = pr.orden_compra_id
                 ? `OC ${esc(pr.ordenes_compra?.folio || '#' + pr.orden_compra_id)} · ${esc(pr.ordenes_compra?.proveedores?.nombre || 's/proveedor')}`
                 : `Sin OC · ref. ${esc(pr.referencia || '—')}`;
+            const lineas = Array.isArray(pr.lineas) ? pr.lineas : [];
+            const discrepancias = lineas.filter(l => Number(l.cantidad_capturada || 0) !== Number(l.cantidad_pendiente || 0));
+            const hayDiscrepancias = discrepancias.length > 0;
+
+            // El checkbox "todo correcto" lo marca el operador a ojo; el conteo
+            // por partida es el dato real. Si se contradicen, manda el conteo:
+            // se avisa fuerte en vez de confiar en el checkbox.
+            let bannerEstado;
+            if (hayDiscrepancias) {
+                bannerEstado = `<p class="text-xs font-bold text-white bg-rose-700 border border-rose-500 rounded-lg px-2 py-1 mt-1 inline-block animate-pulse">
+                    🚨 EL CONTEO NO CUADRA en ${discrepancias.length} partida${discrepancias.length > 1 ? 's' : ''}${pr.todo_correcto ? ' (aunque el operador marcó "todo correcto")' : ''} — revisa antes de validar
+                  </p>`;
+            } else if (pr.todo_correcto) {
+                bannerEstado = `<p class="text-[11px] mt-0.5 text-emerald-400">✔ El operador confirmó que todo cuadra, y el conteo por partida coincide.</p>`;
+            } else {
+                bannerEstado = `<p class="text-[11px] mt-0.5 text-amber-400">⚠ El operador NO marcó "todo correcto".</p>`;
+            }
+
             return `
-              <div class="bg-slate-950 border border-slate-800 rounded-lg p-3">
+              <div class="bg-slate-950 border ${hayDiscrepancias ? 'border-rose-600' : 'border-slate-800'} rounded-lg p-3">
                 <div class="flex flex-wrap items-start justify-between gap-2">
                   <div class="min-w-0">
                     <p class="text-sm text-slate-200 font-semibold">${oc}</p>
                     <p class="text-[11px] text-slate-500">Operador: ${esc(pr.empleado_nombre || '?')} · ${new Date(pr.creado_en).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</p>
-                    <p class="text-[11px] mt-0.5 ${pr.todo_correcto ? 'text-emerald-400' : 'text-amber-400'}">${pr.todo_correcto ? '✔ El operador confirmó que todo cuadra' : '⚠ El operador NO marcó "todo correcto"'}</p>
+                    ${bannerEstado}
                     ${pr.observaciones ? `<p class="text-[11px] text-slate-400 mt-0.5">“${esc(pr.observaciones)}”</p>` : ''}
                   </div>
-                  ${(() => {
-                        const lineas = Array.isArray(pr.lineas) ? pr.lineas : [];
-                        if (!lineas.length) return '';
-                        return `<div class="w-full mt-1 space-y-0.5">
-                          ${lineas.map(l => {
-                              const dif = Number(l.cantidad_capturada || 0) - Number(l.cantidad_pendiente || 0);
-                              const color = dif === 0 ? 'text-emerald-400' : 'text-amber-400';
-                              return `<div class="flex justify-between gap-2 text-[11px]">
-                                  <span class="text-slate-400 truncate">${esc(l.descripcion || '')}</span>
-                                  <span class="font-mono ${color} shrink-0">contó ${l.cantidad_capturada} ${esc(l.unidad || '')}${dif !== 0 ? ` (pendían ${l.cantidad_pendiente})` : ''}</span>
-                              </div>`;
-                          }).join('')}
-                        </div>`;
-                    })()}
+                  ${lineas.length ? `<div class="w-full mt-1 space-y-0.5">
+                        ${lineas.map(l => {
+                            const dif = Number(l.cantidad_capturada || 0) - Number(l.cantidad_pendiente || 0);
+                            if (dif === 0) {
+                                return `<div class="flex justify-between gap-2 text-[11px]">
+                                    <span class="text-slate-400 truncate">${esc(l.descripcion || '')}</span>
+                                    <span class="font-mono text-emerald-400 shrink-0">contó ${l.cantidad_capturada} ${esc(l.unidad || '')} ✓</span>
+                                </div>`;
+                            }
+                            return `<div class="flex justify-between gap-2 text-[11px] bg-rose-950/60 border border-rose-700 rounded px-2 py-1">
+                                <span class="text-rose-200 font-semibold truncate">⚠ ${esc(l.descripcion || '')}</span>
+                                <span class="font-mono text-rose-200 font-bold shrink-0">contó ${l.cantidad_capturada} ${esc(l.unidad || '')} (pendían ${l.cantidad_pendiente})</span>
+                            </div>`;
+                        }).join('')}
+                      </div>` : ''}
                   <div class="flex gap-2 shrink-0">
                     <button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'validar')" class="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg">✔ Validar y recibir</button>
                     <button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'rechazar')" class="text-xs bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-3 py-1.5 rounded-lg">✕ Rechazar</button>

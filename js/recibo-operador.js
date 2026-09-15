@@ -271,21 +271,29 @@ function ocultarModal() {
 function mostrarConfirmacion1() {
     const lineas = leerLineasCapturadas();
     const obs = document.getElementById('prObs').value.trim();
+    const discrepancias = lineas.filter((l) => l.cantidad_capturada !== l.cantidad_pendiente);
     const resumenLineas = !lineas.length
         ? '<p class="text-xs text-slate-500">Sin partidas (pre-recibo sin orden de compra).</p>'
         : `<div class="space-y-1 max-h-56 overflow-y-auto pr-1">` + lineas.map((l) => {
             const dif = l.cantidad_capturada - l.cantidad_pendiente;
-            const color = dif === 0 ? 'text-emerald-400' : 'text-amber-400';
-            return `<div class="flex justify-between items-baseline gap-2 text-xs border-b border-slate-800/60 py-1">
-                <span class="text-slate-300">${esc(l.descripcion)}</span>
-                <span class="font-mono ${color} shrink-0">${l.cantidad_capturada} ${esc(l.unidad)}${dif !== 0 ? ` (esperabas ${l.cantidad_pendiente})` : ' ✓'}</span>
+            if (dif === 0) {
+                return `<div class="flex justify-between items-baseline gap-2 text-xs border-b border-slate-800/60 py-1">
+                    <span class="text-slate-300">${esc(l.descripcion)}</span>
+                    <span class="font-mono text-emerald-400 shrink-0">${l.cantidad_capturada} ${esc(l.unidad)} ✓</span>
+                </div>`;
+            }
+            return `<div class="flex justify-between items-baseline gap-2 text-xs bg-rose-950/60 border border-rose-700 rounded px-2 py-1">
+                <span class="text-rose-200 font-semibold">⚠ ${esc(l.descripcion)}</span>
+                <span class="font-mono text-rose-200 font-bold shrink-0">${l.cantidad_capturada} ${esc(l.unidad)} (esperabas ${l.cantidad_pendiente})</span>
             </div>`;
         }).join('') + `</div>`;
 
     mostrarModal(`
-      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-md w-full max-h-[85vh] overflow-y-auto">
+      <div class="bg-slate-900 border ${discrepancias.length ? 'border-rose-600' : 'border-slate-700'} rounded-2xl p-4 max-w-md w-full max-h-[85vh] overflow-y-auto">
         <h3 class="text-base font-bold text-slate-100 mb-1">Revisa tu conteo</h3>
-        <p class="text-xs text-slate-400 mb-3">Esto es lo que se va a enviar. Si algo está mal, regresa y corrígelo antes de cerrar el recibo.</p>
+        ${discrepancias.length
+            ? `<p class="text-xs font-bold text-white bg-rose-700 border border-rose-500 rounded-lg px-2 py-1.5 mb-3">🚨 El conteo NO coincide con lo pedido en ${discrepancias.length} partida${discrepancias.length > 1 ? 's' : ''}. Revisa que esté bien antes de continuar.</p>`
+            : `<p class="text-xs text-slate-400 mb-3">Esto es lo que se va a enviar. Si algo está mal, regresa y corrígelo antes de cerrar el recibo.</p>`}
         ${resumenLineas}
         ${obs ? `<p class="text-xs text-amber-300 mt-3"><b>Observaciones:</b> ${esc(obs)}</p>` : ''}
         <div class="flex gap-2 mt-4">
