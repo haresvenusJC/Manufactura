@@ -675,14 +675,23 @@ let rmCatCuentasGasto = []; // cuentas_contables afectables/activas, para el alt
 let rmRecProveedores = [];      // catálogo para el filtro de "Recepciones registradas"
 let rmRecPagina = 1;
 const rmRecPorPagina = 20;
-let rmRecFiltro = { desde: '', hasta: '', proveedorId: '' };
+// Default del historial: hoy hacia 7 días atrás (en vez de "todos" sin filtrar).
+// "Limpiar" sí quita el filtro por completo si se necesita buscar más atrás.
+function rmFiltroPorDefecto() {
+    const f = (d) => d.toISOString().split('T')[0];
+    const hoy = new Date();
+    const hace7 = new Date(hoy);
+    hace7.setDate(hoy.getDate() - 7);
+    return { desde: f(hace7), hasta: f(hoy), proveedorId: '' };
+}
+let rmRecFiltro = rmFiltroPorDefecto();
 
 export async function cargarModuloReciboMercancia() {
     const cont = document.getElementById('contenedorReciboMercancia');
     if (!cont) return;
     cont.innerHTML = '<p class="text-slate-500 text-sm">Cargando...</p>';
     rmModo = null; rmXmlMeta = null; rmOcActual = null; rmCargosXml = [];
-    rmRecPagina = 1; rmRecFiltro = { desde: '', hasta: '', proveedorId: '' };
+    rmRecPagina = 1; rmRecFiltro = rmFiltroPorDefecto();
     try { await ocCargarCatalogos(); }
     catch (e) { cont.innerHTML = `<p class="text-rose-400 text-xs">Error: ${e.message || e}</p>`; return; }
 
@@ -857,24 +866,26 @@ export async function cargarModuloReciboMercancia() {
       </div>
 
       <div id="rmTabHistorial" class="space-y-4 hidden">
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 mb-2">
+          <div class="flex flex-wrap items-end gap-2">
+            <div><label class="block text-[10px] text-slate-400 mb-1">Desde</label>
+              <input type="date" id="rmRecDesde" value="${rmRecFiltro.desde}" class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></div>
+            <div><label class="block text-[10px] text-slate-400 mb-1">Hasta</label>
+              <input type="date" id="rmRecHasta" value="${rmRecFiltro.hasta}" class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></div>
+            <div class="flex-1 min-w-[160px]"><label class="block text-[10px] text-slate-400 mb-1">Proveedor (solo recepciones)</label>
+              <select id="rmRecProveedor" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"><option value="">Todos</option></select></div>
+            <button type="button" id="rmRecBuscar" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg">Buscar</button>
+            <button type="button" id="rmRecLimpiar" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg">Limpiar (todo el historial)</button>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-2">Por default se muestra de hoy a 7 días atrás. Usa "Limpiar" si buscas algo más viejo.</p>
+        </div>
+
         <div>
-          <h3 class="text-md font-semibold text-slate-300 mb-2">Pre-recibos capturados por operadores (últimos 50)</h3>
+          <h3 class="text-md font-semibold text-slate-300 mb-2">Pre-recibos capturados por operadores</h3>
           <div id="rmHistorialPrerecibos" class="text-sm text-slate-500">Cargando...</div>
         </div>
 
         <h3 class="text-md font-semibold text-slate-300">Historial de recepciones</h3>
-        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 mb-2">
-          <div class="flex flex-wrap items-end gap-2">
-            <div><label class="block text-[10px] text-slate-400 mb-1">Desde</label>
-              <input type="date" id="rmRecDesde" class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></div>
-            <div><label class="block text-[10px] text-slate-400 mb-1">Hasta</label>
-              <input type="date" id="rmRecHasta" class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></div>
-            <div class="flex-1 min-w-[160px]"><label class="block text-[10px] text-slate-400 mb-1">Proveedor</label>
-              <select id="rmRecProveedor" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"><option value="">Todos</option></select></div>
-            <button type="button" id="rmRecBuscar" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg">Buscar</button>
-            <button type="button" id="rmRecLimpiar" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg">Limpiar</button>
-          </div>
-        </div>
         <div id="rmRecepciones" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-500">Cargando...</div>
       </div>
     </div>`;
@@ -958,6 +969,7 @@ export async function cargarModuloReciboMercancia() {
         };
         rmRecPagina = 1;
         rmRecepciones();
+        rmHistorialPrerecibos();
     };
     document.getElementById('rmRecLimpiar').onclick = () => {
         document.getElementById('rmRecDesde').value = '';
@@ -966,6 +978,7 @@ export async function cargarModuloReciboMercancia() {
         rmRecFiltro = { desde: '', hasta: '', proveedorId: '' };
         rmRecPagina = 1;
         rmRecepciones();
+        rmHistorialPrerecibos();
     };
 
     await rmRecepciones();
@@ -1108,11 +1121,18 @@ async function rmHistorialPrerecibos() {
 
     let filas;
     try {
-        const { data, error } = await supabaseClient
+        let query = supabaseClient
             .from('pre_recibos')
             .select(PRERECIBO_COLUMNAS)
             .order('creado_en', { ascending: false })
-            .limit(50);
+            .limit(200);
+        if (rmRecFiltro.desde) query = query.gte('creado_en', rmRecFiltro.desde);
+        if (rmRecFiltro.hasta) {
+            const hastaExclusiva = new Date(rmRecFiltro.hasta + 'T00:00:00');
+            hastaExclusiva.setDate(hastaExclusiva.getDate() + 1);
+            query = query.lt('creado_en', hastaExclusiva.toISOString().split('T')[0]);
+        }
+        const { data, error } = await query;
         if (error) throw error;
         filas = data || [];
     } catch (err) {
@@ -1121,7 +1141,9 @@ async function rmHistorialPrerecibos() {
     }
 
     if (filas.length === 0) {
-        cont.innerHTML = '<p class="text-xs text-slate-500">Todavía no hay pre-recibos capturados por operadores.</p>';
+        cont.innerHTML = rmRecFiltro.desde || rmRecFiltro.hasta
+            ? '<p class="text-xs text-slate-500">No hay pre-recibos en ese rango de fechas. Prueba "Limpiar" para ver todo el historial.</p>'
+            : '<p class="text-xs text-slate-500">Todavía no hay pre-recibos capturados por operadores.</p>';
         return;
     }
 
