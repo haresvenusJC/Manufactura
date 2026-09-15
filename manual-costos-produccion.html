@@ -984,17 +984,7 @@ costo total del granel              1,958.65
     <p><strong>Pasos.</strong> Descarga la plantilla de ejemplo, llénala respetando las columnas y súbela; el importador hace <em>upsert</em> por SKU (actualiza si ya existe, crea si no).</p>
     <p><strong>Errores comunes.</strong> Cambiar el orden de las columnas de la plantilla, o repetir un SKU apuntando a dos productos distintos.</p>
 
-    <h3>Inventario</h3>
-
-    <h4 id="m-inventario">Stock General</h4>
-    <p><strong>Para qué sirve.</strong> Existencias por producto y por lote, con mínimos.</p>
-    <p><strong>Pasos.</strong> Filtra por producto o por lo que está debajo de su mínimo. Cada lote muestra su costo (ya con landed cost, si aplicó) y su caducidad.</p>
-    <p><strong>Errores comunes.</strong> Leer solo el total del producto e ignorar que puede estar repartido en varios lotes con costos distintos entre sí (por eso importa el FIFO/FEFO, ver Kardex abajo).</p>
-    <p><strong>Ejemplo real.</strong> Busca <code>PETBOSTON60ML</code> · Sonata 60-6 Ml Natural 9.5 G (insumo de empaque, proveedor Escowill Envases Pet) para ver cómo se ve un insumo con existencia por lote.</p>
-
-    <p>El detalle de movimientos por producto está en <a href="#m-kardex">Kardex, dentro de la Parte 6</a>.</p>
-
-    <h3>Entradas</h3>
+    <h3>Operación — Compras / Abastecimiento <span style="font-weight:400;font-size:.7em;color:var(--mut)">(antes "Entradas")</span></h3>
 
     <h4 id="m-ordenes-compra">Órdenes de compra</h4>
     <p><strong>Para qué sirve.</strong> Emitir el pedido formal a un proveedor — qué se pide, cantidad y costo estimado — antes de que llegue la mercancía. Queda "abierta" hasta que se recibe, total o parcialmente, en Recibo de mercancía.</p>
@@ -1020,14 +1010,27 @@ costo total del granel              1,958.65
     <p><strong>Pasos.</strong> Elige el motivo, agrega las partidas con cantidad, costo y lote; "Generar póliza contable" es opcional.</p>
     <p><strong>Errores comunes.</strong> Usarla para registrar una compra real — eso debe ir por Compras u Órdenes de compra, para no perder el rastro del proveedor y su factura.</p>
 
-    <h3>Salidas</h3>
+    <h3>Operación — Inventario y almacén <span style="font-weight:400;font-size:.7em;color:var(--mut)">(antes "Inventario" + "Salidas")</span></h3>
+
+    <h4 id="m-inventario">Stock General</h4>
+    <p><strong>Para qué sirve.</strong> Existencias por producto y por lote, con mínimos.</p>
+    <p><strong>Pasos.</strong> Filtra por producto o por lo que está debajo de su mínimo. Cada lote muestra su costo (ya con landed cost, si aplicó) y su caducidad.</p>
+    <p><strong>Errores comunes.</strong> Leer solo el total del producto e ignorar que puede estar repartido en varios lotes con costos distintos entre sí (por eso importa el FIFO/FEFO, ver Kardex abajo).</p>
+    <p><strong>Ejemplo real.</strong> Busca <code>PETBOSTON60ML</code> · Sonata 60-6 Ml Natural 9.5 G (insumo de empaque, proveedor Escowill Envases Pet) para ver cómo se ve un insumo con existencia por lote.</p>
+    <p>El detalle de movimientos por producto está en <a href="#m-kardex">Kardex, dentro de la Parte 6</a>.</p>
 
     <h4 id="m-salidas">Salidas / Ventas</h4>
     <p><strong>Para qué sirve.</strong> Sacar inventario (venta, merma, ajuste) y, si es venta, generar la póliza de ingreso.</p>
     <p><strong>Pasos.</strong> Elige el producto y el lote (el sistema sugiere el que caduca primero, FEFO) y la cantidad; si es venta, captura cliente y totales.</p>
     <p><strong>Errores comunes.</strong> Elegir a mano un lote distinto al sugerido sin necesidad — rompe el orden FEFO. No capturar el motivo en una merma.</p>
 
-    <h3>Producción</h3>
+    <h4 id="m-auditoria">Auditoría de inventarios</h4>
+    <p><strong>Para qué sirve.</strong> Organizar un conteo físico de inventario (materia prima, insumo o producto terminado) y compararlo contra el stock del sistema. El conteo lo captura un operador externo desde <span class="path">conteo-inventario.html</span> en su celular, con su PIN — es una pantalla aparte, pensada para que la use alguien que no tiene acceso al ERP completo.</p>
+    <p><strong>Pasos.</strong> Crea la auditoría eligiendo tipo de producto en bloque, o busca y agrega SKUs específicos uno por uno. El operador entra con su PIN, elige la auditoría y captura cantidad por renglón — sueltos o por caja, con la caducidad del lote que está contando; es <strong>conteo a ciegas</strong>: nunca ve el stock del sistema, solo lo que él mismo ha ido acumulando. Antes de dar por terminado, el operador puede revisar, corregir o borrar sus propias capturas en "📋 Ver mi resumen", y debe confirmar explícitamente ("¿Estás seguro?") para cerrar su parte. Tú revisas el resultado (sistema vs. contado, con la diferencia) y cierras la auditoría.</p>
+    <p><strong>Errores comunes.</strong> Cerrar la captura de la auditoría antes de que el operador termine de confirmar todos los renglones asignados. Mezclar cajas y piezas sueltas del mismo SKU sin declarar cuántas piezas trae cada caja — el acumulado saldría mal.</p>
+    <p><strong>Ejemplo real.</strong> Una auditoría de insumos de empaque incluyendo <code>PETBOSTON60ML</code> y <code>PETBOSTON250</code> (los envases Sonata, proveedor Escowill Envases Pet) para conciliar contra el sistema.</p>
+
+    <h3>Operación — Producción</h3>
 
     <h4 id="m-produccion">Producción</h4>
     <p><strong>Para qué sirve.</strong> Crear y dar seguimiento a una orden de producción: fórmula (BOM), procesos con sus operarios y centro de costo, y el cierre que calcula el costo final del lote.</p>
@@ -1036,18 +1039,14 @@ costo total del granel              1,958.65
     <p><strong>Ejemplo real.</strong> Una orden para producir <strong>Lovlub Bubblegum 60 Gr</strong> (<code>7506163801025L</code>), consumiendo Betaina De Coco y los demás componentes de su fórmula, con <strong>Ramon Reyes</strong> registrando su tiempo en el proceso.</p>
     <p>Cómo se arma el costo centro por centro está en la <a href="#p3">Parte 3</a> y en <a href="#p6">Parte 6</a>.</p>
 
-    <h3>Documentos y reportes</h3>
+    <h3>Documentos <span style="font-weight:400;font-size:.7em;color:var(--mut)">(antes parte de "Documentos y reportes")</span></h3>
 
     <h4 id="m-documentos">Documentos</h4>
     <p><strong>Para qué sirve.</strong> Consecutivos y consulta de todos los documentos generados (compras, recibos, salidas, entradas, etc.), cada uno con acceso directo a su póliza.</p>
     <p><strong>Pasos.</strong> Filtra por tipo, fecha o folio. <strong>"Ver Detalle"</strong> abre el expediente completo; la columna <strong>"Póliza"</strong> (botón "🧾 Ver póliza #N") salta directo a la póliza contable de ese documento.</p>
     <p><strong>Errores comunes.</strong> Buscar un folio sin darte cuenta de que un filtro de tipo o estatus lo está ocultando.</p>
 
-    <h4 id="m-auditoria">Auditoría de inventarios</h4>
-    <p><strong>Para qué sirve.</strong> Organizar un conteo físico de inventario (materia prima, insumo o producto terminado) y compararlo contra el stock del sistema. El conteo lo captura un operador externo desde <span class="path">conteo-inventario.html</span> en su celular, con su PIN — es una pantalla aparte, pensada para que la use alguien que no tiene acceso al ERP completo.</p>
-    <p><strong>Pasos.</strong> Crea la auditoría eligiendo tipo de producto en bloque, o busca y agrega SKUs específicos uno por uno. El operador entra con su PIN, elige la auditoría y captura cantidad por renglón — sueltos o por caja, con la caducidad del lote que está contando; es <strong>conteo a ciegas</strong>: nunca ve el stock del sistema, solo lo que él mismo ha ido acumulando. Antes de dar por terminado, el operador puede revisar, corregir o borrar sus propias capturas en "📋 Ver mi resumen", y debe confirmar explícitamente ("¿Estás seguro?") para cerrar su parte. Tú revisas el resultado (sistema vs. contado, con la diferencia) y cierras la auditoría.</p>
-    <p><strong>Errores comunes.</strong> Cerrar la captura de la auditoría antes de que el operador termine de confirmar todos los renglones asignados. Mezclar cajas y piezas sueltas del mismo SKU sin declarar cuántas piezas trae cada caja — el acumulado saldría mal.</p>
-    <p><strong>Ejemplo real.</strong> Una auditoría de insumos de empaque incluyendo <code>PETBOSTON60ML</code> y <code>PETBOSTON250</code> (los envases Sonata, proveedor Escowill Envases Pet) para conciliar contra el sistema.</p>
+    <h3>Control y Análisis <span style="font-weight:400;font-size:.7em;color:var(--mut)">(nuevo grupo, antes parte de "Documentos y reportes")</span></h3>
 
     <h4 id="m-reportes">Reportes</h4>
     <p><strong>Para qué sirve.</strong> Reportes operativos (no contables) — por ejemplo, compras y gastos por rango de fechas — exportables a CSV o imprimibles con una plantilla.</p>
