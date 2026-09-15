@@ -831,6 +831,7 @@ export async function cargarModuloReciboMercancia() {
           <p class="text-[11px] text-amber-400 mt-2">⚠ Si importas el PDF: siempre revisa cantidades y costos antes de confirmar — igual de importante que con el XML, pero aquí es más probable que haga falta ajustar algo a mano.</p>
           <p id="rmImportInfo" class="text-[11px] text-slate-400 mt-2"></p>
         </div>
+        <div id="rmAvisoRecPrevia"></div>
         <div id="rmDetalle"></div>
         ${fiscalHtml}
 
@@ -903,7 +904,7 @@ export async function cargarModuloReciboMercancia() {
     document.getElementById('rmTabBtnHistorial').onclick = () => rmMostrarTab('historial');
 
     const selOc = document.getElementById('rmOC');
-    selOc.onchange = () => rmRenderDetalle(ocs.find(o => o.id === Number(selOc.value)));
+    selOc.onchange = () => { rmRenderDetalle(ocs.find(o => o.id === Number(selOc.value))); rmAvisoRecepcionesPrevias(); };
 
     if (!rmSinContab) {
         const rc = () => {
@@ -1227,7 +1228,10 @@ async function rmRecepciones() {
                   const cancelado = d.estado === 'cancelado';
                   return `
                     <tr class="border-b border-slate-900${cancelado ? ' opacity-60' : ''}">
-                      <td class="p-2"><button type="button" onclick="window.abrirDetalleDocumentoGlobal(${d.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded">Ver</button></td>
+                      <td class="p-2 whitespace-nowrap">
+                        <button type="button" onclick="window.abrirDetalleDocumentoGlobal(${d.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded">Ver</button>
+                        ${(!cancelado && !d.poliza_id) ? `<button type="button" onclick="window.rmAbrirEdicionRecepcion(${d.id})" class="text-[11px] bg-sky-800 hover:bg-sky-700 text-sky-200 border border-sky-700 px-2 py-1 rounded ml-1">✏ Editar</button>` : ''}
+                      </td>
                       <td class="p-2 whitespace-nowrap text-slate-400">${fecha}</td>
                       <td class="p-2 font-mono text-emerald-300">${esc(d.ordenes_compra?.folio || d.folio || '#' + d.id)}${cancelado ? ' <span class="text-rose-500 font-sans font-semibold">· CANCELADO</span>' : ''}</td>
                       <td class="p-2">${esc(d.proveedores?.nombre || '—')}</td>
@@ -1348,6 +1352,140 @@ function rmRenderDetalle(oc) {
     cont.querySelectorAll('.rm-chk, .rm-cant, .rm-costo').forEach(el => el.addEventListener('input', recalc));
     recalc();
 }
+
+// ---- Candado: avisar si la OC elegida ya tiene una recepción capturada ----
+// (para no volver a recibir por accidente la misma mercancía/folio) ----
+async function rmAvisoRecepcionesPrevias() {
+    const cont = document.getElementById('rmAvisoRecPrevia');
+    if (!cont) return;
+    cont.innerHTML = '';
+    if (!rmOcActual) return;
+
+    let filas = [];
+    try {
+        const { data, error } = await supabaseClient
+            .from('documentos')
+            .select('id, folio, fecha_emision, total, poliza_id')
+            .eq('orden_compra_id', rmOcActual.id)
+            .in('tipo_movimiento', ['entrada_compra', 'entrada'])
+            .neq('estado', 'cancelado')
+            .order('fecha_emision', { ascending: false });
+        if (error) throw error;
+        filas = data || [];
+    } catch (_) { return; }
+
+    if (!filas.length) return;
+
+    cont.innerHTML = `
+      <div class="bg-rose-950/40 border border-rose-700 rounded-xl p-3 mb-2">
+        <p class="text-xs font-bold text-rose-200 mb-1">🚨 Esta orden ya tiene ${filas.length} recepción(es) capturada(s). Si es la MISMA entrega/folio, no la vuelvas a recibir — edítala en vez de duplicarla.</p>
+        <div class="space-y-1">
+          ${filas.map(d => `
+            <div class="flex items-center justify-between gap-2 text-xs bg-slate-950 border border-slate-800 rounded px-2 py-1">
+              <span class="text-slate-300">Recibo #${d.id}${d.folio ? ' · folio ' + esc(d.folio) : ''} · ${d.fecha_emision ? new Date(d.fecha_emision).toLocaleDateString('es-MX') : ''} · ${money(d.total || 0)}${d.poliza_id ? ' · contabilizado' : ''}</span>
+              <button type="button" onclick="window.rmAbrirEdicionRecepcion(${d.id})" class="text-[11px] bg-sky-700 hover:bg-sky-600 text-white px-2 py-1 rounded shrink-0">✏ Editar</button>
+            </div>`).join('')}
+        </div>
+        <p class="text-[10px] text-slate-500 mt-1">Si de verdad es una entrega distinta (recepción parcial en otro momento), ignora este aviso y sigue capturando abajo con normalidad.</p>
+      </div>`;
+}
+
+// ---- Modal genérico de este módulo (editar recepción) ----
+function rmMostrarModal(html) {
+    let wrap = document.getElementById('rmModalWrap');
+    if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.id = 'rmModalWrap';
+        wrap.className = 'fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4';
+        document.body.appendChild(wrap);
+    }
+    wrap.innerHTML = html;
+}
+function rmOcultarModal() {
+    const wrap = document.getElementById('rmModalWrap');
+    if (wrap) wrap.remove();
+}
+
+// ---- Editar las líneas de una recepción ya capturada (solo admin: esta
+//      pantalla completa solo la usa el usuario autenticado, el operador
+//      del móvil nunca llega aquí) ----
+window.rmAbrirEdicionRecepcion = async (documentoId) => {
+    let doc, detalles, reversible = [];
+    try {
+        const [{ data: d, error: eDoc }, { data: dets, error: eDet }, rev] = await Promise.all([
+            supabaseClient.from('documentos').select('id, folio, fecha_emision, poliza_id, estado').eq('id', documentoId).single(),
+            supabaseClient.from('documento_detalles').select('id, producto_id, cantidad, costo_unitario, lote_id').eq('documento_id', documentoId),
+            supabaseClient.rpc('recibo_reversible', { p_documento_id: documentoId }),
+        ]);
+        if (eDoc) throw eDoc;
+        if (eDet) throw eDet;
+        doc = d; detalles = dets || [];
+        reversible = rev?.data || [];
+    } catch (e) {
+        alert('No se pudo cargar la recepción: ' + (e.message || e));
+        return;
+    }
+
+    if (doc.poliza_id) {
+        alert(`Esta recepción ya está contabilizada (póliza #${doc.poliza_id}). Cancélala primero desde el historial si necesitas corregir cantidades o costos, y vuelve a capturarla.`);
+        return;
+    }
+
+    const nombreProd = (pid) => ocProductos.find(p => p.id === pid)?.nombre || `Producto #${pid}`;
+    const consumidoPorProducto = {};
+    reversible.forEach(r => { consumidoPorProducto[r.producto_id] = Number(r.consumido) || 0; });
+
+    rmMostrarModal(`
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-lg w-full max-h-[85vh] overflow-y-auto">
+        <h3 class="text-base font-bold text-slate-100 mb-1">Editar recepción #${doc.id}${doc.folio ? ' · folio ' + esc(doc.folio) : ''}</h3>
+        <p class="text-xs text-slate-400 mb-3">Corrige cantidad o costo por partida. Si ya se consumió algo de un lote (producción/venta), no puedes bajar su cantidad por debajo de lo ya consumido.</p>
+        <div class="space-y-2" id="rmEditLineas">
+          ${detalles.map(d => {
+              const consumido = consumidoPorProducto[d.producto_id] || 0;
+              return `
+              <div class="bg-slate-950 border border-slate-800 rounded-lg p-2" data-det-id="${d.id}">
+                <p class="text-xs text-slate-300 mb-1">${esc(nombreProd(d.producto_id))}${consumido > 0 ? ` <span class="text-amber-400">(ya se consumieron ${consumido})</span>` : ''}</p>
+                <div class="flex gap-2">
+                  <div class="flex-1"><label class="block text-[10px] text-slate-500">Cantidad</label>
+                    <input type="number" step="any" min="${consumido}" value="${d.cantidad}" class="rm-edit-cant w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono"></div>
+                  <div class="flex-1"><label class="block text-[10px] text-slate-500">Costo unitario</label>
+                    <input type="number" step="any" min="0" value="${d.costo_unitario}" class="rm-edit-costo w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono"></div>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+        <p id="rmEditMsg" class="text-xs min-h-[1rem] mt-2"></p>
+        <div class="flex gap-2 mt-3">
+          <button type="button" id="rmEditCancelar" class="flex-1 bg-slate-800 border border-slate-700 text-slate-300 py-2.5 rounded-lg text-sm">Cancelar</button>
+          <button type="button" id="rmEditGuardar" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-lg text-sm">Guardar cambios</button>
+        </div>
+      </div>`);
+
+    document.getElementById('rmEditCancelar').onclick = rmOcultarModal;
+    document.getElementById('rmEditGuardar').onclick = async () => {
+        const lineas = Array.from(document.querySelectorAll('#rmEditLineas > div')).map(div => ({
+            documento_detalle_id: Number(div.dataset.detId),
+            cantidad: parseFloat(div.querySelector('.rm-edit-cant').value) || 0,
+            costo_unitario: parseFloat(div.querySelector('.rm-edit-costo').value) || 0,
+        }));
+        const msg = document.getElementById('rmEditMsg');
+        msg.className = 'text-xs min-h-[1rem] mt-2 text-slate-400';
+        msg.textContent = 'Guardando...';
+        const { error } = await supabaseClient.rpc('editar_lineas_recepcion', {
+            p_documento_id: documentoId, p_lineas: lineas,
+        });
+        if (error) {
+            msg.className = 'text-xs min-h-[1rem] mt-2 text-rose-400';
+            msg.textContent = error.message || 'No se pudo guardar.';
+            return;
+        }
+        rmOcultarModal();
+        alert('Recepción actualizada.');
+        rmAvisoRecepcionesPrevias();
+        rmRecepciones();
+        if (typeof cargarInventarioCompleto === 'function') await cargarInventarioCompleto();
+    };
+};
 
 // Tipo de cambio a aplicar a los costos (1 si la moneda es MXN).
 function rmTcActual() {
