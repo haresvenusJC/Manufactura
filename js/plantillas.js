@@ -113,11 +113,15 @@ export async function cargarModuloPlantillas() {
     let nombresPorTipo = {};
     let tipoActual = '';
 
-    // Solo los tipos que la app realmente escribe en documentos.tipo_movimiento.
-    // La tabla tipos_movimiento tiene códigos duplicados/sin usar (compra, venta,
-    // produccion, ajuste_entrada, ajuste_salida, salida_produccion) que solo
-    // confundían este selector — se dejan fuera a propósito.
+    // Tipos que la app realmente escribe en documentos.tipo_movimiento, más los
+    // que se imprimen desde su propia pantalla sin pasar por "documentos"
+    // (requisicion_compra, orden_compra, nomina). La tabla tipos_movimiento tiene
+    // códigos duplicados/sin usar (compra, venta, produccion, ajuste_entrada,
+    // ajuste_salida, salida_produccion) que solo confundían este selector — se
+    // dejan fuera a propósito.
     const TIPOS_DOCUMENTO_APP = [
+        { codigo: 'requisicion_compra', nombre: 'Requisición de compra' },
+        { codigo: 'orden_compra', nombre: 'Orden de compra' },
         { codigo: 'entrada_compra', nombre: 'Entrada por Compra' },
         { codigo: 'entrada', nombre: 'Entrada Directa' },
         { codigo: 'entrada_produccion', nombre: 'Entrada por Producción' },
@@ -125,6 +129,7 @@ export async function cargarModuloPlantillas() {
         { codigo: 'salida', nombre: 'Salida General' },
         { codigo: 'merma', nombre: 'Salida por Merma' },
         { codigo: 'ajuste', nombre: 'Ajuste de Inventario' },
+        { codigo: 'nomina', nombre: 'Nómina' },
     ];
 
     function cargarTipos() {

@@ -1,6 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
+import { imprimirConPlantilla } from './impresion.js';
 import './trazabilidad.js';
 
 // =====================================================================
@@ -330,7 +331,7 @@ async function reqRenderLista() {
                             <button type="button" onclick="window.abrirAntecedentesOC(${r.orden_compra_id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded ml-1">🔗 Antecedentes</button>
                         ` : '')}
                       </td>
-                      <td class="p-2 font-mono text-emerald-300">${esc(r.folio || '#' + r.id)}</td>
+                      <td class="p-2"><button type="button" onclick="window.abrirDetalleReq(${r.id})" class="font-mono text-emerald-300 hover:underline hover:text-emerald-200 text-left">${esc(r.folio || '#' + r.id)}</button></td>
                       <td class="p-2 text-slate-300 max-w-xs truncate" title="${esc(r._resumen)}">${esc(r._resumen) || '—'}</td>
                       <td class="p-2 whitespace-nowrap text-slate-400">${r.fecha || ''}</td>
                       <td class="p-2 text-right font-mono">${money(r._total)}</td>
@@ -350,6 +351,109 @@ async function reqRenderLista() {
             : `<p class="text-rose-400 text-xs">Error: ${esc(m)}</p>`;
     }
 }
+
+// ---- Detalle / versión imprimible de una requisición ----
+async function abrirDetalleReq(id) {
+    document.getElementById('modalDetalleReq')?.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'modalDetalleReq';
+    modal.className = 'fixed z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]';
+    modal.style.top = '6vh';
+    modal.style.left = '50%';
+    modal.style.transform = 'translateX(-50%)';
+    modal.style.width = 'calc(100% - 2rem)';
+    modal.style.maxWidth = '42rem';
+    modal.innerHTML = `
+        <div class="flex justify-between items-center p-4 border-b border-slate-800">
+            <h3 class="text-base font-semibold text-slate-100">Requisición <span id="tituloDetalleReqSub" class="text-emerald-300 font-mono"></span></h3>
+            <div class="flex items-center gap-2">
+                <button id="btnImprimirReq" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg">🖨️ Imprimir</button>
+                <button id="cerrarDetalleReq" class="text-slate-400 hover:text-slate-200 text-xl leading-none">&times;</button>
+            </div>
+        </div>
+        <div id="cuerpoDetalleReq" class="p-4 overflow-y-auto flex-1">
+            <p class="text-slate-500 text-sm text-center">Cargando...</p>
+        </div>`;
+    document.body.appendChild(modal);
+
+    const cerrarFuera = (e) => { if (!modal.contains(e.target)) cerrar(); };
+    const cerrarEsc = (e) => { if (e.key === 'Escape') cerrar(); };
+    function cerrar() {
+        modal.remove();
+        document.removeEventListener('click', cerrarFuera);
+        document.removeEventListener('keydown', cerrarEsc);
+    }
+    document.getElementById('cerrarDetalleReq').onclick = cerrar;
+    setTimeout(() => {
+        document.addEventListener('click', cerrarFuera);
+        document.addEventListener('keydown', cerrarEsc);
+    }, 0);
+
+    try {
+        const { data: r, error } = await supabaseClient
+            .from('requisiciones_compra')
+            .select(`id, folio, fecha, estatus, origen, notas, revisada_por, revisada_en, motivo_rechazo, orden_compra_id,
+                ordenes_compra ( folio ),
+                requisiciones_compra_detalle ( id, producto_id, descripcion, cantidad, costo_estimado,
+                    productos ( nombre, sku ), unidades_medida ( nombre ), proveedores ( nombre ) )`)
+            .eq('id', id).single();
+        if (error) throw error;
+
+        document.getElementById('tituloDetalleReqSub').textContent = r.folio || ('#' + r.id);
+        document.getElementById('btnImprimirReq').onclick = () => imprimirConPlantilla('requisicion_compra', 'Requisición ' + (r.folio || '#' + r.id), 'cuerpoDetalleReq');
+
+        const cuerpo = document.getElementById('cuerpoDetalleReq');
+        const det = r.requisiciones_compra_detalle || [];
+        const total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_estimado || 0), 0);
+        const fmtFecha = (iso) => { try { return new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso || '—'; } };
+
+        const bloqueRevision = r.estatus === 'autorizada'
+            ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Autorizada</span>
+                 <p class="text-xs text-slate-300">Se generó la <button type="button" onclick="window.verDetalleOC(${r.orden_compra_id})" class="text-emerald-300 hover:underline font-mono">Orden de compra ${esc(r.ordenes_compra?.folio || '#' + r.orden_compra_id)}</button>${r.revisada_por ? ' · autorizó ' + esc(r.revisada_por) : ''}${r.revisada_en ? ' · ' + fmtFecha(r.revisada_en) : ''}.</p></div>`
+            : r.estatus === 'rechazada'
+                ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Rechazada</span>
+                     <p class="text-xs text-rose-400">${esc(r.motivo_rechazo || 'Sin motivo registrado.')}${r.revisada_por ? ' · ' + esc(r.revisada_por) : ''}${r.revisada_en ? ' · ' + fmtFecha(r.revisada_en) : ''}</p></div>`
+                : '';
+
+        cuerpo.innerHTML = `
+            <div class="grid grid-cols-2 gap-3 mb-4 text-sm">
+                <div><span class="block text-[10px] text-slate-500">Fecha</span><span class="text-slate-300">${r.fecha || '—'}</span></div>
+                <div><span class="block text-[10px] text-slate-500">Estatus</span><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${REQ_ESTATUS[r.estatus] || 'text-slate-400 bg-slate-800'}">${esc(r.estatus)}</span></div>
+                <div><span class="block text-[10px] text-slate-500">Origen</span><span class="text-slate-300">${r.origen === 'stock_bajo_minimo' ? 'Stock bajo mínimo' : 'Manual'}</span></div>
+            </div>
+            ${r.notas ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Notas</span><p class="text-xs text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5">${esc(r.notas)}</p></div>` : ''}
+            ${bloqueRevision}
+            <div class="overflow-x-auto border border-slate-800 rounded-lg mb-4">
+              <table class="w-full text-left text-xs text-slate-300">
+                <thead class="bg-slate-950 text-slate-500 uppercase"><tr>
+                  <th class="p-2">Producto</th><th class="p-2 text-right">Cantidad</th><th class="p-2">Proveedor sugerido</th>
+                  <th class="p-2 text-right">Costo est.</th><th class="p-2 text-right">Importe</th>
+                </tr></thead>
+                <tbody>
+                  ${det.map(d => `
+                    <tr class="border-b border-slate-900">
+                      <td class="p-2">${esc(d.productos?.nombre || d.descripcion || '—')}${d.productos?.sku ? `<span class="block text-[10px] text-slate-500">SKU ${esc(d.productos.sku)}</span>` : ''}</td>
+                      <td class="p-2 text-right font-mono">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })} ${esc(d.unidades_medida?.nombre || '')}</td>
+                      <td class="p-2 text-slate-400">${esc(d.proveedores?.nombre || '—')}</td>
+                      <td class="p-2 text-right font-mono">${money(d.costo_estimado)}</td>
+                      <td class="p-2 text-right font-mono">${money(Number(d.cantidad || 0) * Number(d.costo_estimado || 0))}</td>
+                    </tr>`).join('') || '<tr><td colspan="5" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
+                </tbody>
+                <tfoot>
+                  <tr><td colspan="4" class="p-2 text-right font-semibold text-slate-400">Total estimado</td><td class="p-2 text-right font-mono font-semibold text-emerald-300">${money(total)}</td></tr>
+                </tfoot>
+              </table>
+            </div>
+            <div class="grid grid-cols-2 gap-6 mt-8 pt-4 border-t border-slate-800 text-xs text-slate-400">
+                <div><p class="border-t border-slate-600 pt-1 mt-8">Solicitó</p></div>
+                <div><p class="border-t border-slate-600 pt-1 mt-8">Revisó y autorizó</p></div>
+            </div>`;
+    } catch (err) {
+        document.getElementById('cuerpoDetalleReq').innerHTML = `<p class="text-rose-400 text-xs">Error al cargar la requisición: ${esc(err.message || err)}</p>`;
+    }
+}
+window.abrirDetalleReq = (id) => abrirDetalleReq(Number(id));
 
 window.reqRechazar = async (id) => {
     const motivo = prompt('¿Por qué se rechaza esta requisición?');
