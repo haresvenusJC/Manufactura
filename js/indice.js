@@ -17,6 +17,7 @@ const SECCIONES = [
     },
     {
         grupo: 'Operación — Compras / Abastecimiento', ancla: 'ent', items: [
+            { v: 'requisiciones-compra', t: 'Requisiciones de compra', d: 'Solicitudes de compra (manuales o por stock bajo mínimo) pendientes de revisión; el admin las autoriza y ahí se convierten en Orden de compra, o las rechaza.' },
             { v: 'ordenes-compra', t: 'Órdenes de compra', d: 'Emisión de órdenes de compra a proveedores.' },
             { v: 'recibo-mercancia', t: 'Recibo de mercancía', d: 'Recepción contra OC o desde el XML del CFDI; captura de lote y caducidad.' },
             { v: 'compras', t: 'Compras / Proveedores', d: 'Compras con afectación contable directa.' },

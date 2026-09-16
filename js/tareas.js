@@ -55,11 +55,11 @@ export async function cargarModuloTareas() {
             resolverTarea(b, 'posponer', Math.max(1, parseInt(d, 10) || 7), 'No aceptada por el usuario');
         }));
         cont.querySelectorAll('.tarea-ir-oc').forEach((b) => b.addEventListener('click', () => {
-            window.__ocPreProducto = {
+            window.__reqPreProducto = {
                 id: Number(b.dataset.prod),
                 cantidad: b.dataset.sug ? parseFloat(b.dataset.sug) : null,
             };
-            window.loadView('ordenes-compra');
+            window.loadView('requisiciones-compra');
         }));
         cont.querySelectorAll('.tarea-ir-lote').forEach((b) => b.addEventListener('click', () => window.loadView('inventario')));
 
@@ -120,7 +120,7 @@ function renderTareaSistema(t) {
             : '<span class="text-[10px] bg-amber-900/50 text-amber-300 border border-amber-700 rounded px-1.5 py-0.5">Normal</span>';
     const sug = t.datos && t.datos.sugerido_pedir != null ? t.datos.sugerido_pedir : '';
     const botonOc = t.accion_sugerida === 'crear_orden_compra' && t.entidad_id
-        ? `<button type="button" data-prod="${t.entidad_id}" data-sug="${sug}" class="tarea-ir-oc text-xs bg-emerald-700 hover:bg-emerald-600 text-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-600 cursor-pointer">🛒 Crear orden de compra</button>`
+        ? `<button type="button" data-prod="${t.entidad_id}" data-sug="${sug}" class="tarea-ir-oc text-xs bg-emerald-700 hover:bg-emerald-600 text-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-600 cursor-pointer">📝 Generar requisición</button>`
         : '';
     const botonLote = t.accion_sugerida === 'revisar_lote'
         ? `<button type="button" class="tarea-ir-lote text-xs bg-sky-800 hover:bg-sky-700 text-sky-100 px-3 py-1.5 rounded-lg border border-sky-600 cursor-pointer">📦 Ver en inventario</button>`

@@ -3,6 +3,7 @@ import { cargarInventarioCompleto } from './inventario.js';
 import { configurarFormularioCompras, toggleTipoCambio } from './compras.js';
 import { configurarFormularioEntradasDirectas } from './entradas.js';
 import { cargarModuloOrdenesCompra, cargarModuloReciboMercancia } from './ordenes-compra.js';
+import { cargarModuloRequisicionesCompra } from './requisiciones-compra.js';
 import { cargarModuloPagosProveedor } from './pagos-proveedor.js';
 import { cargarModuloCuentasPorCobrar } from './cuentas-por-cobrar.js';
 import { cargarModuloAuditoriaInventario } from './auditoria-inventario.js';
@@ -21,6 +22,7 @@ import { cargarModuloNomina, actualizarBannerNominaPendiente } from './nomina.js
 import { cargarModuloTareas } from './tareas.js';
 import { cargarModuloCentrosCosto } from './centros-costo.js';
 import { cargarModuloProrrateo } from './prorrateo.js';
+import { cargarModuloCierrePeriodo } from './cierre-periodo.js';
 import { cargarModuloAreasProrrateo } from './areas-prorrateo.js';
 import { cargarModuloRepartoPlantillas } from './reparto-plantillas.js';
 import { cargarModuloIndice } from './indice.js';
@@ -199,6 +201,9 @@ window.loadView = function(viewName) {
         case 'entradas-directas':
             configurarFormularioEntradasDirectas();
             break;
+        case 'requisiciones-compra':
+            cargarModuloRequisicionesCompra();
+            break;
         case 'ordenes-compra':
             cargarModuloOrdenesCompra();
             break;
@@ -265,6 +270,9 @@ window.loadView = function(viewName) {
             break;
         case 'reportes-contables':
             cargarModuloReportesContables();
+            break;
+        case 'cierre-periodo':
+            cargarModuloCierrePeriodo();
             break;
         case 'nomina':
             cargarModuloNomina();

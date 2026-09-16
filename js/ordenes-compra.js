@@ -4,6 +4,7 @@ import { REGIMENES } from './proveedores.js';
 import { parsearCfdi, extraerTextoPdf, parsearCfdiPdf } from './cfdi.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { imprimirConPlantilla } from './impresion.js';
+import './trazabilidad.js';
 
 // =====================================================================
 //  Órdenes de compra + Recibo de mercancía  (Fase 1: captura y recepción
@@ -123,27 +124,7 @@ export async function cargarModuloOrdenesCompra() {
     if (mxn) document.getElementById('ocMoneda').value = mxn.id;
 
     ocWireFormulario();
-    ocAplicarPreseleccion();
     await ocRenderLista();
-}
-
-// Preselección al entrar desde una tarea/sugerencia ("Crear orden de compra"
-// en Contabilidad · Tareas). window.__ocPreProducto = { id, cantidad }.
-function ocAplicarPreseleccion() {
-    const pre = window.__ocPreProducto;
-    window.__ocPreProducto = null;
-    if (!pre || !pre.id) return;
-    const p = ocProductos.find((x) => x.id === Number(pre.id));
-    if (!p) return;
-    ocProdSel = p;
-    const set = (id, v) => { const el = document.getElementById(id); if (el != null && v != null && v !== '') el.value = v; };
-    set('ocProdInput', p.nombre);
-    set('ocProdCosto', p.costo_unitario);
-    set('ocProdUnidad', p.unidad_medida_id);
-    set('ocProveedor', p.proveedor_id);
-    if (pre.cantidad) set('ocProdCant', pre.cantidad);
-    const cant = document.getElementById('ocProdCant');
-    if (cant) cant.focus();
 }
 
 function ocWireFormulario() {
@@ -362,6 +343,7 @@ async function abrirDetalleOC(id) {
         <div class="flex justify-between items-center p-4 border-b border-slate-800">
             <h3 class="text-base font-semibold text-slate-100">Orden de compra <span id="tituloDetalleOCSub" class="text-emerald-300 font-mono"></span></h3>
             <div class="flex items-center gap-2">
+                <button onclick="window.abrirAntecedentesOC(${id})" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg">🔗 Antecedentes</button>
                 <button id="btnImprimirOC" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg">🖨️ Imprimir</button>
                 <button id="btnEditarOC" class="hidden text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg">✏️ Editar</button>
                 <button id="cerrarDetalleOC" class="text-slate-400 hover:text-slate-200 text-xl leading-none">&times;</button>

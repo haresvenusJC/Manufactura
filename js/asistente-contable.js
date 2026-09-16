@@ -49,9 +49,12 @@ const MANUAL_ANCHORS = {
     'polizas': '#m-polizas',
     'reportes-contables': '#m-reportes-contables',
     'pagos-proveedor': '#m-pagos-proveedor',
+    'cuentas-por-cobrar': '#m-cuentas-por-cobrar',
+    'cierre-periodo': '#m-cierre-periodo',
     'nomina': '#m-nomina',
     'isr': '#m-isr',
     'tareas': '#m-tareas',
+    'requisiciones-compra': '#m-requisiciones-compra',
 };
 
 export const GUIAS = {
@@ -207,6 +210,22 @@ export const GUIAS = {
             'No asignar la cuenta de oficina cuando la base sí genera parte de no producción.',
         ],
     },
+    'cierre-periodo': {
+        titulo: 'Cierre de periodo',
+        paraQue: 'Revisar que un mes esté "limpio" (todo lo que debía llevar póliza ya la tiene) antes de cerrarlo, y bloquear que se sigan registrando o cancelando movimientos con fecha dentro de ese mes.',
+        pasos: [
+            'Elige el mes y pulsa "Revisar candados" — es una vista previa, no cierra nada todavía.',
+            'Si sale "limpio", pulsa "Cerrar periodo".',
+            'Si salen pendientes (documentos, gastos, nóminas, cobros o pagos sin póliza; auditorías de inventario abiertas; pólizas descuadradas), resuélvelos en su propio módulo y vuelve a revisar.',
+            'Si de verdad necesitas cerrar con pendientes (decisión de negocio), usa "Cerrar de todos modos" — queda registrado qué se ignoró.',
+            'Para corregir algo de un mes ya cerrado, "Reabrir" desde el historial — pide un motivo, que queda en la bitácora.',
+        ],
+        cuando: 'Al final de cada mes, después de correr la nómina y el prorrateo de CIF.',
+        errores: [
+            'Cerrar el mes antes de correr el prorrateo — el CIF del periodo no habría quedado incorporado a las órdenes cerradas.',
+            'Forzar el cierre por costumbre en vez de resolver los pendientes.',
+        ],
+    },
     'tareas': {
         titulo: 'Tareas',
         paraQue: 'Avisos y pendientes que el sistema genera solo: inventario bajo mínimo, lotes por caducar, nómina por generar.',
@@ -217,6 +236,21 @@ export const GUIAS = {
         ],
         cuando: 'A diario, o cada vez que entras al ERP.',
         errores: ['Descartar una tarea sin resolver el problema de fondo.'],
+    },
+    'requisiciones-compra': {
+        titulo: 'Requisiciones de compra',
+        paraQue: 'El paso antes de la Orden de compra: alguien solicita comprar algo (a mano, o el sistema solo cuando un producto cae bajo su mínimo) y el admin lo revisa antes de que se convierta en un compromiso real con un proveedor.',
+        pasos: [
+            'Captura una requisición manual: producto o descripción libre, cantidad y, si ya sabes con quién comprar, un proveedor sugerido por partida — o revisa las que llegaron solas desde Tareas por stock bajo mínimo.',
+            'Para autorizar una "pendiente", elige el proveedor, la fecha esperada y la moneda con los que se va a comprar — se crea la Orden de compra automáticamente y la requisición queda "autorizada", enlazada a esa OC.',
+            'Para rechazarla, escribe el motivo — queda registrado y no se crea ninguna Orden de compra.',
+            'Desde aquí solo se revisan las "pendientes"; una vez autorizada o rechazada, ya no se puede editar — corrige desde la Orden de compra si hace falta.',
+        ],
+        cuando: 'Cuando alguien pide comprar algo, o en automático cuando un producto llega a su stock mínimo.',
+        errores: [
+            'Autorizar sin revisar si ya hay una Orden de compra abierta con ese mismo proveedor donde te convenga meter la partida en vez de abrir una nueva.',
+            'Rechazar sin dejar motivo — la próxima persona no sabrá por qué no se compró.',
+        ],
     },
 };
 
