@@ -1001,36 +1001,6 @@
         })();
     </script>
 
-    <!-- Diagnóstico temporal: si algo truena o se cuelga antes de terminar de
-         iniciar, esto lo muestra en pantalla (visible incluso en el celular,
-         sin necesidad de abrir la consola). Quitar una vez resuelto el
-         problema reportado el 2026-09-16. -->
-    <script>
-        (function () {
-            var mostrado = false;
-            function mostrarDiagnostico(msg) {
-                if (mostrado) return;
-                mostrado = true;
-                var d = document.createElement('div');
-                d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#7f1d1d;color:#fff;padding:12px;font:12px/1.4 monospace;white-space:pre-wrap;max-height:60vh;overflow:auto;';
-                d.textContent = '⚠ DIAGNÓSTICO — manda captura de esto:\n' + msg;
-                document.body.appendChild(d);
-            }
-            window.addEventListener('error', function (e) {
-                mostrarDiagnostico('Error: ' + e.message + '\nArchivo: ' + e.filename + ':' + e.lineno + ':' + e.colno);
-            });
-            window.addEventListener('unhandledrejection', function (e) {
-                var r = e.reason;
-                mostrarDiagnostico('Promesa rechazada sin atrapar: ' + (r && r.message ? r.message : String(r)) + (r && r.stack ? ('\n' + r.stack) : ''));
-            });
-            setTimeout(function () {
-                if (!window.__haresAppIniciada) {
-                    mostrarDiagnostico('La app no terminó de iniciar en 12s (sin error visible = cuelgue silencioso).\nwindow.__haresAppIniciada = ' + window.__haresAppIniciada);
-                }
-            }, 12000);
-        })();
-    </script>
-
     <!-- Script principal de lógica estructurado como módulo -->
     <script type="module" src="js/app.js"></script>
 </body>
