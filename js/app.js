@@ -303,11 +303,14 @@ let appIniciada = false;
 async function iniciarApp() {
     if (appIniciada) return;
     appIniciada = true;
+    window.__haresAppIniciada = 'arrancando';
     console.log("Iniciando Hares de México (Sistema Modular)...");
 
     try {
         await verificarConexionReal();
+        window.__haresAppIniciada = 'conexion verificada, cargando catalogo';
         await cargarCatalogoInicial();
+        window.__haresAppIniciada = true;
 
         // Cargas simultáneas y tolerantes a fallos
         await Promise.allSettled([
@@ -331,6 +334,7 @@ async function iniciarApp() {
 window.cerrarSesionAdmin = async () => { await cerrarSesion(); };
 
 document.addEventListener('DOMContentLoaded', () => {
+    window.__haresAppIniciada = 'DOMContentLoaded, esperando sesion';
     // Sincroniza el botón "fijar menú" con el estado guardado.
     window.fijarSidebar(document.documentElement.getAttribute('data-nav') === 'fijado');
     montarLogin(iniciarApp);
