@@ -1,6 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { irAKardexDeProducto } from './kardex.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+import { opcionesPresentacionHtml } from './presentaciones-proveedor.js';
 
 let catBusqueda = ''; // texto del buscador en vivo del Catálogo General (SKU y/o nombre)
 const catOrden = crearOrdenTabla(); // columna/dirección de ordenamiento activa en la tabla del Catálogo
@@ -308,7 +309,7 @@ export async function cargarCatalogoInicial() {
                         <details id="detClavesProv" class="bg-slate-900/40 border border-slate-800 rounded-lg">
                             <summary class="cursor-pointer select-none text-xs font-semibold text-sky-400 px-3 py-2">Claves de proveedor (para importar facturas XML)</summary>
                             <div class="p-3 pt-0 space-y-2">
-                                <p class="text-[10px] text-slate-500">Cómo identifica cada proveedor a este producto en sus facturas. Puedes guardar varias.</p>
+                                <p class="text-[10px] text-slate-500">Cómo identifica y vende cada proveedor este producto — su código, descripción y presentación. Puedes guardar varias, una por proveedor.</p>
                                 <div class="grid grid-cols-2 gap-2">
                                     <div class="col-span-2">
                                         <label class="block text-[10px] text-slate-400 mb-0.5">Proveedor</label>
@@ -326,7 +327,23 @@ export async function cargarCatalogoInicial() {
                                         <label class="block text-[10px] text-slate-400 mb-0.5">Descripción en la factura</label>
                                         <input type="text" id="cpDescFactura" placeholder="Opcional · texto tal como llega en el XML" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
                                     </div>
+                                    <div>
+                                        <label class="block text-[10px] text-slate-400 mb-0.5">Unidad de venta del proveedor</label>
+                                        <select id="cpUnidadPreset" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                            <option value="">Otra / escribir abajo…</option>
+                                            ${opcionesPresentacionHtml()}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[10px] text-slate-400 mb-0.5">Factor (unidades internas por unidad del proveedor)</label>
+                                        <input type="number" step="any" min="0.0001" id="cpFactor" value="1" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                                    </div>
+                                    <div class="col-span-2">
+                                        <label class="block text-[10px] text-slate-400 mb-0.5">Unidad (texto, si elegiste "Otra")</label>
+                                        <input type="text" id="cpUnidadTexto" placeholder="Ej. Rollo 500 m" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                    </div>
                                 </div>
+                                <p class="text-[10px] text-slate-500">Ej. el proveedor vende por "Millar" y tú le das entrada en piezas: elige el preset Millar — el factor (1000) queda listo para cuando conviertas la recepción en Recibo de mercancía.</p>
                                 <button type="button" id="btnAgregarClaveProv" class="w-full bg-slate-800 hover:bg-slate-700 text-sky-300 font-medium py-1.5 rounded-lg text-xs transition">＋ Agregar clave de proveedor</button>
                                 <div id="listaClavesProv" class="text-xs text-slate-400 bg-slate-900 p-2 rounded-lg border border-slate-800 min-h-[32px]">Sin claves registradas.</div>
                             </div>
@@ -597,10 +614,17 @@ export async function cargarCatalogoInicial() {
                 // Claves de proveedor (degrada si la tabla aún no existe)
                 clavesProvTemp = [];
                 try {
-                    const { data: cps, error: errCps } = await supabaseClient
+                    let { data: cps, error: errCps } = await supabaseClient
                         .from('producto_claves_proveedor')
-                        .select('proveedor_id, clave, clave_sat, descripcion_factura')
+                        .select('proveedor_id, clave, clave_sat, descripcion_factura, unidad_factura, factor_conversion')
                         .eq('producto_id', id);
+                    if (errCps) {
+                        // factor_conversion aún no existe: cae al select sin ella.
+                        ({ data: cps, error: errCps } = await supabaseClient
+                            .from('producto_claves_proveedor')
+                            .select('proveedor_id, clave, clave_sat, descripcion_factura, unidad_factura')
+                            .eq('producto_id', id));
+                    }
                     if (!errCps && cps) {
                         const mapProv = new Map((listaProveedores || []).map(p => [p.id, p.nombre]));
                         clavesProvTemp = cps.map(c => ({
@@ -609,6 +633,8 @@ export async function cargarCatalogoInicial() {
                             clave: c.clave,
                             claveSat: c.clave_sat || '',
                             descFactura: c.descripcion_factura || '',
+                            unidadFactura: c.unidad_factura || '',
+                            factorConversion: c.factor_conversion ?? null,
                         }));
                     }
                 } catch (_) { clavesProvTemp = []; }
@@ -720,6 +746,7 @@ export async function cargarCatalogoInicial() {
                         <span class="text-slate-500"> · ${escaparHtml(c.proveedorNombre || 'sin proveedor')}</span>
                         ${c.claveSat ? `<span class="text-slate-500"> · SAT ${escaparHtml(c.claveSat)}</span>` : ''}
                         ${c.descFactura ? `<span class="text-slate-500 block">"${escaparHtml(c.descFactura)}"</span>` : ''}
+                        ${c.unidadFactura ? `<span class="text-slate-500 block">Unidad proveedor: ${escaparHtml(c.unidadFactura)}${c.factorConversion ? ` (factor ${c.factorConversion})` : ''}</span>` : ''}
                     </span>
                     <button type="button" onclick="window.removerClaveProv(${i})" class="text-red-400 hover:text-red-300 text-xs shrink-0">Eliminar</button>
                 </div>`).join('');
@@ -729,6 +756,21 @@ export async function cargarCatalogoInicial() {
             clavesProvTemp.splice(i, 1);
             renderClavesProv();
         };
+
+        const selUnidadPreset = document.getElementById('cpUnidadPreset');
+        if (selUnidadPreset) {
+            selUnidadPreset.addEventListener('change', () => {
+                const factorInput = document.getElementById('cpFactor');
+                const textoInput = document.getElementById('cpUnidadTexto');
+                if (selUnidadPreset.value) {
+                    factorInput.value = selUnidadPreset.value;
+                    textoInput.value = '';
+                    textoInput.disabled = true;
+                } else {
+                    textoInput.disabled = false;
+                }
+            });
+        }
 
         const btnAddClaveProv = document.getElementById('btnAgregarClaveProv');
         if (btnAddClaveProv) {
@@ -741,17 +783,30 @@ export async function cargarCatalogoInicial() {
                 const dup = clavesProvTemp.some(c =>
                     (c.proveedorId || null) === proveedorId && c.clave.toLowerCase() === clave.toLowerCase());
                 if (dup) { alert('Esa clave ya está en la lista para ese proveedor.'); return; }
+
+                const unidadPreset = selUnidadPreset.value ? (selUnidadPreset.options[selUnidadPreset.selectedIndex]?.dataset.etiqueta || selUnidadPreset.options[selUnidadPreset.selectedIndex]?.text) : '';
+                const unidadTexto = document.getElementById('cpUnidadTexto').value.trim();
+                const unidadFactura = unidadPreset || unidadTexto || '';
+                const factorVal = parseFloat(document.getElementById('cpFactor').value);
+                const factorConversion = unidadFactura && factorVal > 0 ? factorVal : null;
+
                 clavesProvTemp.push({
                     proveedorId,
                     proveedorNombre,
                     clave,
                     claveSat: document.getElementById('cpClaveSat').value.trim(),
                     descFactura: document.getElementById('cpDescFactura').value.trim(),
+                    unidadFactura,
+                    factorConversion,
                 });
                 renderClavesProv();
                 document.getElementById('cpClave').value = '';
                 document.getElementById('cpClaveSat').value = '';
                 document.getElementById('cpDescFactura').value = '';
+                selUnidadPreset.value = '';
+                document.getElementById('cpUnidadTexto').value = '';
+                document.getElementById('cpUnidadTexto').disabled = false;
+                document.getElementById('cpFactor').value = '1';
             });
         }
 
@@ -872,8 +927,15 @@ export async function cargarCatalogoInicial() {
                             clave: c.clave,
                             clave_sat: c.claveSat || null,
                             descripcion_factura: c.descFactura || null,
+                            unidad_factura: c.unidadFactura || null,
+                            factor_conversion: c.factorConversion ?? null,
                         }));
-                        const { error: errCp } = await supabaseClient.from('producto_claves_proveedor').insert(filasCp);
+                        let { error: errCp } = await supabaseClient.from('producto_claves_proveedor').insert(filasCp);
+                        if (errCp && /does not exist|schema cache|could not find/i.test(errCp.message || '')) {
+                            // factor_conversion aún no existe: reintenta sin ella (falta correr el SQL).
+                            const filasCpSinFactor = filasCp.map(({ factor_conversion, ...resto }) => resto);
+                            ({ error: errCp } = await supabaseClient.from('producto_claves_proveedor').insert(filasCpSinFactor));
+                        }
                         if (errCp) throw errCp;
                     }
                 } catch (errCp) {

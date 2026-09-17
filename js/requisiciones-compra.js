@@ -102,10 +102,10 @@ export async function cargarModuloRequisicionesCompra() {
         <div class="overflow-x-auto border border-slate-800 rounded-lg mb-3">
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-              <th class="p-2">Producto</th><th class="p-2 text-right">Cantidad</th><th class="p-2">Unidad</th>
-              <th class="p-2">Proveedor sugerido</th><th class="p-2"></th>
+              <th class="p-2">Mi catálogo (interno)</th><th class="p-2 text-right">Cantidad</th>
+              <th class="p-2">Datos del proveedor (para la OC)</th><th class="p-2"></th>
             </tr></thead>
-            <tbody id="reqPartidasBody"><tr><td colspan="5" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr></tbody>
+            <tbody id="reqPartidasBody"><tr><td colspan="4" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr></tbody>
           </table>
         </div>
         <button type="button" id="reqGuardar" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Guardar requisición</button>
@@ -181,7 +181,7 @@ function reqWireFormulario() {
     });
     document.getElementById('reqProdProveedor').addEventListener('change', reqActualizarInfoProveedor);
 
-    document.getElementById('reqAddPartida').onclick = () => {
+    document.getElementById('reqAddPartida').onclick = async () => {
         const nombre = inp.value.trim();
         const cantidad = parseFloat(document.getElementById('reqProdCant').value) || 0;
         const unidadId = document.getElementById('reqProdUnidad').value ? parseInt(document.getElementById('reqProdUnidad').value) : null;
@@ -189,8 +189,29 @@ function reqWireFormulario() {
         if (!nombre || cantidad <= 0) { alert('Indica el producto y una cantidad mayor a 0.'); return; }
         const uNom = reqUnidades.find(u => u.id === unidadId)?.nombre || '';
         const provNom = reqProveedores.find(p => p.id === proveedorId)?.nombre || '';
+
+        // Congela el SKU/descripción/unidad del proveedor al momento de
+        // capturar (igual que el costo estimado) — así, al analizar la
+        // requisición o al pasarla a Orden de compra, quedan lado a lado
+        // tu SKU interno y el dato del proveedor, que es el que él entiende.
+        let datosProveedor = { skuProveedor: null, descripcionProveedor: null, unidadProveedor: null, factorConversion: null };
+        if (reqProdSel && proveedorId) {
+            try {
+                const info = await obtenerInfoProveedorProducto(reqProdSel.id, proveedorId);
+                if (info) {
+                    datosProveedor = {
+                        skuProveedor: info.claveProveedor,
+                        descripcionProveedor: info.descripcionProveedor,
+                        unidadProveedor: info.unidadProveedor,
+                        factorConversion: info.factorConversion,
+                    };
+                }
+            } catch (_) { /* sin datos del proveedor: la partida se agrega igual */ }
+        }
+
         reqPartidasTemp.push({
             productoId: reqProdSel ? reqProdSel.id : null,
+            skuInterno: reqProdSel ? (reqProdSel.sku || '') : '',
             nombre,
             cantidad,
             costo: reqProdSel ? Number(reqProdSel.costo_unitario || 0) : 0,
@@ -198,6 +219,7 @@ function reqWireFormulario() {
             unidadNombre: uNom,
             proveedorId,
             proveedorNombre: provNom,
+            ...datosProveedor,
         });
         reqRenderPartidas();
         inp.value = ''; document.getElementById('reqProdCant').value = '';
@@ -230,7 +252,7 @@ async function reqActualizarInfoProveedor() {
         const partes = [];
         if (info.claveProveedor) partes.push(`<strong class="text-slate-200">SKU proveedor:</strong> <span class="font-mono">${esc(info.claveProveedor)}</span>`);
         if (info.descripcionProveedor) partes.push(`<strong class="text-slate-200">Descripción proveedor:</strong> ${esc(info.descripcionProveedor)}`);
-        if (info.unidadProveedor) partes.push(`<strong class="text-slate-200">Unidad proveedor:</strong> ${esc(info.unidadProveedor)}`);
+        if (info.unidadProveedor) partes.push(`<strong class="text-slate-200">Unidad proveedor:</strong> ${esc(info.unidadProveedor)}${info.factorConversion ? ` (factor ${info.factorConversion})` : ''}`);
         if (info.ultimoPrecio != null) partes.push(`<strong class="text-slate-200">Última compra:</strong> ${money(info.ultimoPrecio)}${info.ultimaFecha ? ' (' + esc(info.ultimaFecha) + ')' : ''}`);
         cont.innerHTML = partes.join(' &nbsp;·&nbsp; ');
     } catch (err) {
@@ -241,17 +263,29 @@ async function reqActualizarInfoProveedor() {
 function reqRenderPartidas() {
     const b = document.getElementById('reqPartidasBody');
     if (!reqPartidasTemp.length) {
-        b.innerHTML = '<tr><td colspan="5" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr>';
+        b.innerHTML = '<tr><td colspan="4" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr>';
         return;
     }
-    b.innerHTML = reqPartidasTemp.map((p, i) => `
-        <tr class="border-b border-slate-900">
-            <td class="p-2 text-slate-100">${esc(p.nombre)}${p.productoId ? '' : ' <span class="text-[10px] text-amber-400">(nuevo)</span>'}</td>
-            <td class="p-2 text-right font-mono">${p.cantidad}</td>
-            <td class="p-2 text-slate-400">${esc(p.unidadNombre)}</td>
-            <td class="p-2 text-slate-400">${esc(p.proveedorNombre) || '—'}</td>
+    b.innerHTML = reqPartidasTemp.map((p, i) => {
+        const tieneDatosProv = p.skuProveedor || p.descripcionProveedor || p.unidadProveedor;
+        return `
+        <tr class="border-b border-slate-900 align-top">
+            <td class="p-2 text-slate-100">
+                ${esc(p.nombre)}${p.productoId ? '' : ' <span class="text-[10px] text-amber-400">(nuevo)</span>'}
+                ${p.skuInterno ? `<span class="block text-[10px] text-slate-500 font-mono">SKU ${esc(p.skuInterno)}</span>` : ''}
+                <span class="block text-[10px] text-slate-500">${p.cantidad} ${esc(p.unidadNombre)}</span>
+            </td>
+            <td class="p-2 text-right font-mono">${money(p.costo)}<span class="block text-[10px] text-slate-500 font-normal">c/u</span></td>
+            <td class="p-2 text-slate-400 text-[11px]">
+                ${p.proveedorNombre ? `<span class="text-slate-300">${esc(p.proveedorNombre)}</span>` : '<span class="italic text-slate-600">sin proveedor sugerido</span>'}
+                ${tieneDatosProv ? `<span class="block">${p.skuProveedor ? `SKU proveedor: <span class="font-mono">${esc(p.skuProveedor)}</span>` : ''}</span>
+                    ${p.descripcionProveedor ? `<span class="block">"${esc(p.descripcionProveedor)}"</span>` : ''}
+                    ${p.unidadProveedor ? `<span class="block">Unidad: ${esc(p.unidadProveedor)}${p.factorConversion ? ` (×${p.factorConversion})` : ''}</span>` : ''}`
+                    : (p.proveedorNombre ? '<span class="block italic text-slate-600">sin claves capturadas para este proveedor</span>' : '')}
+            </td>
             <td class="p-2 text-right"><button type="button" onclick="window.reqQuitarPartida(${i})" class="text-rose-400 hover:text-rose-300 text-xs px-2 py-1 bg-rose-950/40 rounded border border-rose-900/50">✕</button></td>
-        </tr>`).join('');
+        </tr>`;
+    }).join('');
 }
 window.reqQuitarPartida = (i) => { reqPartidasTemp.splice(i, 1); reqRenderPartidas(); };
 
@@ -283,8 +317,17 @@ async function reqGuardarRequisicion() {
             unidad_medida_id: p.unidadId,
             proveedor_sugerido_id: p.proveedorId,
             costo_estimado: p.costo,
+            sku_proveedor: p.skuProveedor || null,
+            descripcion_proveedor: p.descripcionProveedor || null,
+            unidad_proveedor: p.unidadProveedor || null,
+            factor_conversion_proveedor: p.factorConversion ?? null,
         }));
-        const { error: e2 } = await supabaseClient.from('requisiciones_compra_detalle').insert(filas);
+        let { error: e2 } = await supabaseClient.from('requisiciones_compra_detalle').insert(filas);
+        if (e2 && /does not exist|schema cache|could not find/i.test(e2.message || '')) {
+            // columnas de datos del proveedor aún no existen: reintenta sin ellas.
+            const filasSinProveedor = filas.map(({ sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, ...resto }) => resto);
+            ({ error: e2 } = await supabaseClient.from('requisiciones_compra_detalle').insert(filasSinProveedor));
+        }
         if (e2) throw e2;
 
         msg.textContent = `Requisición ${req.folio} guardada, pendiente de autorización.`;
@@ -426,13 +469,24 @@ async function abrirDetalleReq(id) {
     }, 0);
 
     try {
-        const { data: r, error } = await supabaseClient
+        let { data: r, error } = await supabaseClient
             .from('requisiciones_compra')
             .select(`id, folio, fecha, estatus, origen, notas, revisada_por, revisada_en, motivo_rechazo, orden_compra_id,
                 ordenes_compra ( folio ),
                 requisiciones_compra_detalle ( id, producto_id, descripcion, cantidad, costo_estimado,
+                    sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor,
                     productos ( nombre, sku ), unidades_medida ( nombre ), proveedores ( nombre ) )`)
             .eq('id', id).single();
+        if (error && /does not exist|schema cache|could not find/i.test(error.message || '')) {
+            // columnas de datos del proveedor aún no existen: cae al select sin ellas.
+            ({ data: r, error } = await supabaseClient
+                .from('requisiciones_compra')
+                .select(`id, folio, fecha, estatus, origen, notas, revisada_por, revisada_en, motivo_rechazo, orden_compra_id,
+                    ordenes_compra ( folio ),
+                    requisiciones_compra_detalle ( id, producto_id, descripcion, cantidad, costo_estimado,
+                        productos ( nombre, sku ), unidades_medida ( nombre ), proveedores ( nombre ) )`)
+                .eq('id', id).single());
+        }
         if (error) throw error;
 
         document.getElementById('tituloDetalleReqSub').textContent = r.folio || ('#' + r.id);
@@ -462,18 +516,28 @@ async function abrirDetalleReq(id) {
             <div class="overflow-x-auto border border-slate-800 rounded-lg mb-4">
               <table class="w-full text-left text-xs text-slate-300">
                 <thead class="bg-slate-950 text-slate-500 uppercase"><tr>
-                  <th class="p-2">Producto</th><th class="p-2 text-right">Cantidad</th><th class="p-2">Proveedor sugerido</th>
+                  <th class="p-2">Mi catálogo (interno)</th><th class="p-2 text-right">Cantidad</th>
+                  <th class="p-2">Datos del proveedor (para la OC)</th>
                   <th class="p-2 text-right">Costo est.</th><th class="p-2 text-right">Importe</th>
                 </tr></thead>
                 <tbody>
-                  ${det.map(d => `
-                    <tr class="border-b border-slate-900">
+                  ${det.map(d => {
+                      const tieneDatosProv = d.sku_proveedor || d.descripcion_proveedor || d.unidad_proveedor;
+                      return `
+                    <tr class="border-b border-slate-900 align-top">
                       <td class="p-2">${esc(d.productos?.nombre || d.descripcion || '—')}${d.productos?.sku ? `<span class="block text-[10px] text-slate-500">SKU ${esc(d.productos.sku)}</span>` : ''}</td>
                       <td class="p-2 text-right font-mono">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })} ${esc(d.unidades_medida?.nombre || '')}</td>
-                      <td class="p-2 text-slate-400">${esc(d.proveedores?.nombre || '—')}</td>
+                      <td class="p-2 text-slate-400 text-[11px]">
+                        ${d.proveedores?.nombre ? `<span class="text-slate-300">${esc(d.proveedores.nombre)}</span>` : '<span class="italic text-slate-600">sin proveedor sugerido</span>'}
+                        ${tieneDatosProv ? `${d.sku_proveedor ? `<span class="block">SKU proveedor: <span class="font-mono">${esc(d.sku_proveedor)}</span></span>` : ''}
+                            ${d.descripcion_proveedor ? `<span class="block">"${esc(d.descripcion_proveedor)}"</span>` : ''}
+                            ${d.unidad_proveedor ? `<span class="block">Unidad: ${esc(d.unidad_proveedor)}${d.factor_conversion_proveedor ? ` (×${d.factor_conversion_proveedor})` : ''}</span>` : ''}`
+                            : (d.proveedores?.nombre ? '<span class="block italic text-slate-600">sin claves capturadas para este proveedor</span>' : '')}
+                      </td>
                       <td class="p-2 text-right font-mono">${money(d.costo_estimado)}</td>
                       <td class="p-2 text-right font-mono">${money(Number(d.cantidad || 0) * Number(d.costo_estimado || 0))}</td>
-                    </tr>`).join('') || '<tr><td colspan="5" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
+                    </tr>`;
+                  }).join('') || '<tr><td colspan="5" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
                 </tbody>
                 <tfoot>
                   <tr><td colspan="4" class="p-2 text-right font-semibold text-slate-400">Total estimado</td><td class="p-2 text-right font-mono font-semibold text-emerald-300">${money(total)}</td></tr>

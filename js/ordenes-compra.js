@@ -5,6 +5,7 @@ import { parsearCfdi, extraerTextoPdf, parsearCfdiPdf } from './cfdi.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { imprimirConPlantilla } from './impresion.js';
 import { obtenerInfoProveedorProducto } from './info-proveedor-producto.js';
+import { opcionesPresentacionHtml } from './presentaciones-proveedor.js';
 import './trazabilidad.js';
 
 // =====================================================================
@@ -105,7 +106,8 @@ export async function cargarModuloOrdenesCompra() {
         <div class="overflow-x-auto border border-slate-800 rounded-lg mb-3">
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-              <th class="p-2">Producto</th><th class="p-2 text-right">Cantidad</th><th class="p-2">Unidad</th>
+              <th class="p-2">Mi catálogo (interno)</th><th class="p-2 text-right">Cantidad</th>
+              <th class="p-2">Datos del proveedor (para comunicarle la orden)</th>
               <th class="p-2 text-right">Costo est.</th><th class="p-2 text-right">Importe</th><th class="p-2"></th>
             </tr></thead>
             <tbody id="ocPartidasBody"><tr><td colspan="6" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr></tbody>
@@ -164,20 +166,41 @@ function ocWireFormulario() {
     });
     document.getElementById('ocProveedor').addEventListener('change', ocActualizarInfoProveedor);
 
-    document.getElementById('ocAddPartida').onclick = () => {
+    document.getElementById('ocAddPartida').onclick = async () => {
         const nombre = inp.value.trim();
         const cantidad = parseFloat(document.getElementById('ocProdCant').value) || 0;
         const costo = parseFloat(document.getElementById('ocProdCosto').value) || 0;
         const unidadId = document.getElementById('ocProdUnidad').value ? parseInt(document.getElementById('ocProdUnidad').value) : null;
         if (!nombre || cantidad <= 0) { alert('Indica el producto y una cantidad mayor a 0.'); return; }
         const uNom = ocUnidades.find(u => u.id === unidadId)?.nombre || '';
+
+        // Congela el SKU/descripción/unidad del proveedor al capturar — es
+        // lo que vas a usar para comunicarle la orden a él, no tu SKU interno.
+        const proveedorId = document.getElementById('ocProveedor').value ? parseInt(document.getElementById('ocProveedor').value) : null;
+        let datosProveedor = { skuProveedor: null, descripcionProveedor: null, unidadProveedor: null, factorConversion: null };
+        if (ocProdSel && proveedorId) {
+            try {
+                const info = await obtenerInfoProveedorProducto(ocProdSel.id, proveedorId);
+                if (info) {
+                    datosProveedor = {
+                        skuProveedor: info.claveProveedor,
+                        descripcionProveedor: info.descripcionProveedor,
+                        unidadProveedor: info.unidadProveedor,
+                        factorConversion: info.factorConversion,
+                    };
+                }
+            } catch (_) { /* sin datos del proveedor: la partida se agrega igual */ }
+        }
+
         ocPartidasTemp.push({
             productoId: ocProdSel ? ocProdSel.id : null,
+            skuInterno: ocProdSel ? (ocProdSel.sku || '') : '',
             nombre,
             cantidad,
             costo,
             unidadId,
             unidadNombre: uNom,
+            ...datosProveedor,
         });
         ocRenderPartidas();
         inp.value = ''; document.getElementById('ocProdCant').value = ''; document.getElementById('ocProdCosto').value = '';
@@ -209,7 +232,7 @@ async function ocActualizarInfoProveedor() {
         const partes = [];
         if (info.claveProveedor) partes.push(`<strong class="text-slate-200">SKU proveedor:</strong> <span class="font-mono">${esc(info.claveProveedor)}</span>`);
         if (info.descripcionProveedor) partes.push(`<strong class="text-slate-200">Descripción proveedor:</strong> ${esc(info.descripcionProveedor)}`);
-        if (info.unidadProveedor) partes.push(`<strong class="text-slate-200">Unidad proveedor:</strong> ${esc(info.unidadProveedor)}`);
+        if (info.unidadProveedor) partes.push(`<strong class="text-slate-200">Unidad proveedor:</strong> ${esc(info.unidadProveedor)}${info.factorConversion ? ` (factor ${info.factorConversion})` : ''}`);
         if (info.ultimoPrecio != null) partes.push(`<strong class="text-slate-200">Última compra:</strong> ${money(info.ultimoPrecio)}${info.ultimaFecha ? ' (' + esc(info.ultimaFecha) + ')' : ''}`);
         cont.innerHTML = partes.join(' &nbsp;·&nbsp; ');
     } catch (err) {
@@ -223,15 +246,26 @@ function ocRenderPartidas() {
         b.innerHTML = '<tr><td colspan="6" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr>';
         return;
     }
-    b.innerHTML = ocPartidasTemp.map((p, i) => `
-        <tr class="border-b border-slate-900">
-            <td class="p-2 text-slate-100">${esc(p.nombre)}${p.productoId ? '' : ' <span class="text-[10px] text-amber-400">(nuevo)</span>'}</td>
-            <td class="p-2 text-right font-mono">${p.cantidad}</td>
-            <td class="p-2 text-slate-400">${esc(p.unidadNombre)}</td>
+    b.innerHTML = ocPartidasTemp.map((p, i) => {
+        const tieneDatosProv = p.skuProveedor || p.descripcionProveedor || p.unidadProveedor;
+        return `
+        <tr class="border-b border-slate-900 align-top">
+            <td class="p-2 text-slate-100">
+                ${esc(p.nombre)}${p.productoId ? '' : ' <span class="text-[10px] text-amber-400">(nuevo)</span>'}
+                ${p.skuInterno ? `<span class="block text-[10px] text-slate-500 font-mono">SKU ${esc(p.skuInterno)}</span>` : ''}
+            </td>
+            <td class="p-2 text-right font-mono">${p.cantidad}<span class="block text-[10px] text-slate-500 font-normal">${esc(p.unidadNombre)}</span></td>
+            <td class="p-2 text-slate-400 text-[11px]">
+                ${tieneDatosProv ? `${p.skuProveedor ? `SKU proveedor: <span class="font-mono">${esc(p.skuProveedor)}</span>` : ''}
+                    ${p.descripcionProveedor ? `<span class="block">"${esc(p.descripcionProveedor)}"</span>` : ''}
+                    ${p.unidadProveedor ? `<span class="block">Unidad: ${esc(p.unidadProveedor)}${p.factorConversion ? ` (×${p.factorConversion})` : ''}</span>` : ''}`
+                    : '<span class="italic text-slate-600">sin claves capturadas para este proveedor</span>'}
+            </td>
             <td class="p-2 text-right font-mono">${money(p.costo)}</td>
             <td class="p-2 text-right font-mono text-emerald-400">${money(p.cantidad * p.costo)}</td>
             <td class="p-2 text-right"><button type="button" onclick="window.ocQuitarPartida(${i})" class="text-rose-400 hover:text-rose-300 text-xs px-2 py-1 bg-rose-950/40 rounded border border-rose-900/50">✕</button></td>
-        </tr>`).join('');
+        </tr>`;
+    }).join('');
 }
 window.ocQuitarPartida = (i) => { ocPartidasTemp.splice(i, 1); ocRenderPartidas(); };
 
@@ -263,8 +297,17 @@ async function ocGuardarOrden() {
             cantidad_recibida: 0,
             costo_unitario_estimado: p.costo,
             unidad_medida_id: p.unidadId,
+            sku_proveedor: p.skuProveedor || null,
+            descripcion_proveedor: p.descripcionProveedor || null,
+            unidad_proveedor: p.unidadProveedor || null,
+            factor_conversion_proveedor: p.factorConversion ?? null,
         }));
-        const { error: e2 } = await supabaseClient.from('ordenes_compra_detalle').insert(filas);
+        let { error: e2 } = await supabaseClient.from('ordenes_compra_detalle').insert(filas);
+        if (e2 && /does not exist|schema cache|could not find/i.test(e2.message || '')) {
+            // columnas de datos del proveedor aún no existen: reintenta sin ellas.
+            const filasSinProveedor = filas.map(({ sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, ...resto }) => resto);
+            ({ error: e2 } = await supabaseClient.from('ordenes_compra_detalle').insert(filasSinProveedor));
+        }
         if (e2) throw e2;
 
         msg.textContent = `Orden ${oc.folio} guardada.`;
@@ -402,11 +445,19 @@ async function abrirDetalleOC(id) {
         document.addEventListener('keydown', cerrarEsc);
     }, 0);
 
-    const { data: o, error } = await supabaseClient
+    let { data: o, error } = await supabaseClient
         .from('ordenes_compra')
-        .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, created_at, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, productos ( nombre, sku ) )')
+        .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, created_at, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, productos ( nombre, sku ) )')
         .eq('id', id)
         .single();
+    if (error && /does not exist|schema cache|could not find/i.test(error.message || '')) {
+        // columnas de datos del proveedor aún no existen: cae al select sin ellas.
+        ({ data: o, error } = await supabaseClient
+            .from('ordenes_compra')
+            .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, created_at, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, productos ( nombre, sku ) )')
+            .eq('id', id)
+            .single());
+    }
 
     const cuerpo = document.getElementById('cuerpoDetalleOC');
     if (!cuerpo) return;
@@ -456,15 +507,23 @@ function renderVistaOC(o, cuerpo) {
               <th class="p-2 text-right">Costo unit.</th><th class="p-2 text-right">Subtotal</th><th class="p-2">Notas</th>
             </tr></thead>
             <tbody>
-              ${det.map(d => `
-                <tr class="border-b border-slate-900">
-                  <td class="p-2">${esc(d.productos?.nombre || d.descripcion || '—')}${d.productos?.sku ? `<span class="block text-[10px] text-slate-500">SKU ${esc(d.productos.sku)}</span>` : ''}</td>
+              ${det.map(d => {
+                  const tieneDatosProv = d.sku_proveedor || d.descripcion_proveedor || d.unidad_proveedor;
+                  return `
+                <tr class="border-b border-slate-900 align-top">
+                  <td class="p-2">
+                    ${esc(d.productos?.nombre || d.descripcion || '—')}${d.productos?.sku ? `<span class="block text-[10px] text-slate-500">SKU ${esc(d.productos.sku)}</span>` : ''}
+                    ${tieneDatosProv ? `<span class="block text-[10px] text-sky-400 mt-1">Para el proveedor:${d.sku_proveedor ? ` SKU ${esc(d.sku_proveedor)}` : ''}</span>
+                        ${d.descripcion_proveedor ? `<span class="block text-[10px] text-slate-500">"${esc(d.descripcion_proveedor)}"</span>` : ''}
+                        ${d.unidad_proveedor ? `<span class="block text-[10px] text-slate-500">Unidad: ${esc(d.unidad_proveedor)}${d.factor_conversion_proveedor ? ` (×${d.factor_conversion_proveedor})` : ''}</span>` : ''}` : ''}
+                  </td>
                   <td class="p-2 text-right font-mono">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })} ${esc(nombreUnidad(d.unidad_medida_id))}</td>
                   <td class="p-2 text-right font-mono text-slate-400">${Number(d.cantidad_recibida || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</td>
                   <td class="p-2 text-right font-mono">${money(d.costo_unitario_estimado)}</td>
                   <td class="p-2 text-right font-mono">${money(Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0))}</td>
                   <td class="p-2 text-slate-400">${esc(d.notas || '')}</td>
-                </tr>`).join('') || '<tr><td colspan="6" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
+                </tr>`;
+              }).join('') || '<tr><td colspan="6" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
             </tbody>
             <tfoot>
               <tr><td colspan="4" class="p-2 text-right font-semibold text-slate-400">Total estimado</td><td class="p-2 text-right font-mono font-semibold text-emerald-300">${money(totalEst)}</td><td></td></tr>
@@ -479,11 +538,16 @@ function renderEdicionOC(o, cuerpo) {
     let partidas = det.map(d => ({
         detalleId: d.id,
         productoId: d.producto_id,
+        skuInterno: d.productos?.sku || '',
         nombre: d.productos?.nombre || d.descripcion || '(sin nombre)',
         cantidad: Number(d.cantidad || 0),
         costo: Number(d.costo_unitario_estimado || 0),
         unidadId: d.unidad_medida_id,
         unidadNombre: ocUnidades.find(u => u.id === d.unidad_medida_id)?.nombre || '',
+        skuProveedor: d.sku_proveedor || null,
+        descripcionProveedor: d.descripcion_proveedor || null,
+        unidadProveedor: d.unidad_proveedor || null,
+        factorConversion: d.factor_conversion_proveedor ?? null,
     }));
     let prodSel = null;
 
@@ -543,8 +607,11 @@ function renderEdicionOC(o, cuerpo) {
         if (!b) return;
         if (!partidas.length) { b.innerHTML = '<tr><td colspan="6" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr>'; return; }
         b.innerHTML = partidas.map((p, i) => `
-            <tr class="border-b border-slate-900">
-                <td class="p-2 text-slate-100">${esc(p.nombre)}</td>
+            <tr class="border-b border-slate-900 align-top">
+                <td class="p-2 text-slate-100">
+                    ${esc(p.nombre)}${p.skuInterno ? `<span class="block text-[10px] text-slate-500 font-mono">SKU ${esc(p.skuInterno)}</span>` : ''}
+                    ${p.skuProveedor || p.unidadProveedor ? `<span class="block text-[10px] text-sky-400">Proveedor: ${esc(p.skuProveedor || '')}${p.unidadProveedor ? ` · ${esc(p.unidadProveedor)}${p.factorConversion ? ` (×${p.factorConversion})` : ''}` : ''}</span>` : ''}
+                </td>
                 <td class="p-2 text-right"><input type="number" step="any" min="0" value="${p.cantidad}" data-i="${i}" class="oce-cant w-20 bg-slate-950 border border-slate-800 rounded p-1 text-right font-mono text-xs"></td>
                 <td class="p-2 text-slate-400">${esc(p.unidadNombre)}</td>
                 <td class="p-2 text-right"><input type="number" step="any" min="0" value="${p.costo}" data-i="${i}" class="oce-costo w-20 bg-slate-950 border border-slate-800 rounded p-1 text-right font-mono text-xs"></td>
@@ -596,14 +663,37 @@ function renderEdicionOC(o, cuerpo) {
     const cerrarSugOnClick = (e) => { if (!inp.contains(e.target) && !sug.contains(e.target)) sug.classList.add('hidden'); };
     document.addEventListener('click', cerrarSugOnClick);
 
-    document.getElementById('oceAddPartida').onclick = () => {
+    document.getElementById('oceAddPartida').onclick = async () => {
         const nombre = inp.value.trim();
         const cantidad = parseFloat(document.getElementById('oceProdCant').value) || 0;
         const costo = parseFloat(document.getElementById('oceProdCosto').value) || 0;
         const unidadId = document.getElementById('oceProdUnidad').value ? parseInt(document.getElementById('oceProdUnidad').value) : null;
         if (!nombre || cantidad <= 0) { alert('Indica el producto y una cantidad mayor a 0.'); return; }
         const uNom = ocUnidades.find(u => u.id === unidadId)?.nombre || '';
-        partidas.push({ detalleId: null, productoId: prodSel ? prodSel.id : null, nombre, cantidad, costo, unidadId, unidadNombre: uNom });
+
+        const proveedorId = document.getElementById('oceProveedor').value ? parseInt(document.getElementById('oceProveedor').value) : null;
+        let datosProveedor = { skuProveedor: null, descripcionProveedor: null, unidadProveedor: null, factorConversion: null };
+        if (prodSel && proveedorId) {
+            try {
+                const info = await obtenerInfoProveedorProducto(prodSel.id, proveedorId);
+                if (info) {
+                    datosProveedor = {
+                        skuProveedor: info.claveProveedor,
+                        descripcionProveedor: info.descripcionProveedor,
+                        unidadProveedor: info.unidadProveedor,
+                        factorConversion: info.factorConversion,
+                    };
+                }
+            } catch (_) { /* sin datos del proveedor: la partida se agrega igual */ }
+        }
+
+        partidas.push({
+            detalleId: null,
+            productoId: prodSel ? prodSel.id : null,
+            skuInterno: prodSel ? (prodSel.sku || '') : '',
+            nombre, cantidad, costo, unidadId, unidadNombre: uNom,
+            ...datosProveedor,
+        });
         renderFilas();
         inp.value = ''; document.getElementById('oceProdCant').value = ''; document.getElementById('oceProdCosto').value = '';
         document.getElementById('oceProdUnidad').value = ''; prodSel = null; inp.focus();
@@ -640,8 +730,17 @@ function renderEdicionOC(o, cuerpo) {
                 cantidad_recibida: 0,
                 costo_unitario_estimado: p.costo,
                 unidad_medida_id: p.unidadId,
+                sku_proveedor: p.skuProveedor || null,
+                descripcion_proveedor: p.descripcionProveedor || null,
+                unidad_proveedor: p.unidadProveedor || null,
+                factor_conversion_proveedor: p.factorConversion ?? null,
             }));
-            const { error: eIns } = await supabaseClient.from('ordenes_compra_detalle').insert(filas);
+            let { error: eIns } = await supabaseClient.from('ordenes_compra_detalle').insert(filas);
+            if (eIns && /does not exist|schema cache|could not find/i.test(eIns.message || '')) {
+                // columnas de datos del proveedor aún no existen: reintenta sin ellas.
+                const filasSinProveedor = filas.map(({ sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, ...resto }) => resto);
+                ({ error: eIns } = await supabaseClient.from('ordenes_compra_detalle').insert(filasSinProveedor));
+            }
             if (eIns) throw eIns;
 
             document.removeEventListener('click', cerrarSugOnClick);
@@ -1340,7 +1439,7 @@ async function rmRenderDetalle(oc) {
         const valorInicial = capturado != null ? capturado : pend;
         const difiere = capturado != null && capturado !== pend;
         return `
-        <tr class="border-b border-slate-900" data-detid="${d.id}" data-reqcad="${reqCad ? 1 : 0}">
+        <tr class="border-b border-slate-900" data-detid="${d.id}" data-prodid="${d.producto_id || ''}" data-reqcad="${reqCad ? 1 : 0}">
           <td class="p-2 text-center"><input type="checkbox" class="rm-chk accent-emerald-500 w-4 h-4" ${(capturado != null ? capturado > 0 : pend > 0) ? 'checked' : ''}></td>
           <td class="p-2 text-slate-100">${esc(nombreProd(d))}${d.producto_id ? '' : ' <span class="text-[10px] text-amber-400">(nuevo)</span>'}${reqCad ? ' <span class="text-[10px] text-amber-400">· caducidad requerida</span>' : ''}</td>
           <td class="p-2 text-right font-mono text-slate-400">${d.cantidad}</td>
@@ -1720,19 +1819,7 @@ function rmFilaConversion(cantidadActual, precioActual) {
           <div><label class="block text-slate-500 mb-0.5">Presentación</label>
             <select class="rm-conv-preset bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-100">
               <option value="">Preset…</option>
-              <optgroup label="Piezas">
-                <option value="1000">Millar (×1000 piezas)</option>
-                <option value="144">Gruesa (×144 piezas)</option>
-                <option value="12">Docena (×12 piezas)</option>
-              </optgroup>
-              <optgroup label="Volumen / peso a granel">
-                <option value="200">Tambo 200 L (×200 L)</option>
-                <option value="208">Tambo 208 L (×208 L)</option>
-                <option value="1000">Kilo a gramos (×1000 g)</option>
-                <option value="1000">Litro a mililitros (×1000 mL)</option>
-                <option value="25">Saco 25 kg (×25 kg)</option>
-                <option value="50">Saco 50 kg (×50 kg)</option>
-              </optgroup>
+              ${opcionesPresentacionHtml()}
             </select></div>
           <div><label class="block text-slate-500 mb-0.5">Factor</label>
             <input type="number" step="any" min="0.0001" value="1" class="rm-conv-factor w-16 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-slate-100 text-right font-mono"></div>
@@ -1741,6 +1828,7 @@ function rmFilaConversion(cantidadActual, precioActual) {
           <button type="button" class="rm-conv-aplicar bg-sky-700 hover:bg-sky-600 text-white px-2.5 py-1.5 rounded">Aplicar →</button>
           <span class="rm-conv-resultado text-emerald-400 font-mono"></span>
         </div>
+        <p class="rm-conv-sugerido text-[10px] text-sky-400 mt-1"></p>
       </td>
     </tr>`;
 }
@@ -1748,9 +1836,29 @@ function rmFilaConversion(cantidadActual, precioActual) {
 function rmWireConversiones(root) {
     if (!root) return;
     root.querySelectorAll('.rm-conv-toggle').forEach((btn) => {
-        btn.onclick = () => {
-            const row = btn.closest('tr').nextElementSibling;
-            if (row && row.classList.contains('rm-conv-row')) row.classList.toggle('hidden');
+        btn.onclick = async () => {
+            const mainRow = btn.closest('tr');
+            const row = mainRow.nextElementSibling;
+            if (!row || !row.classList.contains('rm-conv-row')) return;
+            const abriendo = row.classList.contains('hidden');
+            row.classList.toggle('hidden');
+            if (!abriendo || row.dataset.sugeridoConsultado) return;
+            row.dataset.sugeridoConsultado = '1';
+
+            const productoId = mainRow.dataset.prodid ? Number(mainRow.dataset.prodid) : null;
+            const proveedorId = rmModo === 'xml' ? (rmXmlMeta?.proveedorId || null) : (rmOcActual?.proveedor_id || null);
+            if (!productoId || !proveedorId) return;
+            try {
+                const info = await obtenerInfoProveedorProducto(productoId, proveedorId);
+                if (info && info.factorConversion) {
+                    const factorInput = row.querySelector('.rm-conv-factor');
+                    if (factorInput && (!factorInput.value || Number(factorInput.value) === 1)) {
+                        factorInput.value = info.factorConversion;
+                    }
+                    const sug = row.querySelector('.rm-conv-sugerido');
+                    if (sug) sug.textContent = `Sugerido por Claves de proveedor: ${info.unidadProveedor || 'factor'} (×${info.factorConversion})`;
+                }
+            } catch (_) { /* sugerencia opcional: si falla, se sigue convirtiendo a mano */ }
         };
     });
     root.querySelectorAll('.rm-conv-preset').forEach((sel) => {

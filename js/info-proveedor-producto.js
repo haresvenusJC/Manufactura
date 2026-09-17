@@ -15,21 +15,28 @@ import { supabaseClient } from './supabase.js';
 export async function obtenerInfoProveedorProducto(productoId, proveedorId) {
     if (!productoId || !proveedorId) return null;
 
-    const [clave, docs] = await Promise.all([
-        supabaseClient.from('producto_claves_proveedor')
+    let clave = await supabaseClient.from('producto_claves_proveedor')
+        .select('clave, descripcion_factura, unidad_factura, factor_conversion')
+        .eq('producto_id', productoId)
+        .eq('proveedor_id', proveedorId)
+        .limit(1);
+    if (clave.error && /does not exist|schema cache|could not find/i.test(clave.error.message || '')) {
+        // factor_conversion aún no existe: cae al select sin ella.
+        clave = await supabaseClient.from('producto_claves_proveedor')
             .select('clave, descripcion_factura, unidad_factura')
             .eq('producto_id', productoId)
             .eq('proveedor_id', proveedorId)
-            .limit(1),
-        supabaseClient.from('documento_detalles')
-            .select('costo_unitario, documentos!inner( fecha_emision, proveedor_id, tipo_movimiento, estado )')
-            .eq('producto_id', productoId)
-            .eq('documentos.proveedor_id', proveedorId)
-            .eq('documentos.tipo_movimiento', 'entrada_compra')
-            .neq('documentos.estado', 'cancelado')
-            .order('id', { ascending: false })
-            .limit(20),
-    ]);
+            .limit(1);
+    }
+
+    const docs = await supabaseClient.from('documento_detalles')
+        .select('costo_unitario, documentos!inner( fecha_emision, proveedor_id, tipo_movimiento, estado )')
+        .eq('producto_id', productoId)
+        .eq('documentos.proveedor_id', proveedorId)
+        .eq('documentos.tipo_movimiento', 'entrada_compra')
+        .neq('documentos.estado', 'cancelado')
+        .order('id', { ascending: false })
+        .limit(20);
 
     let ultimoPrecio = null;
     let ultimaFecha = null;
@@ -45,6 +52,7 @@ export async function obtenerInfoProveedorProducto(productoId, proveedorId) {
         claveProveedor: claveRow?.clave || null,
         descripcionProveedor: claveRow?.descripcion_factura || null,
         unidadProveedor: claveRow?.unidad_factura || null,
+        factorConversion: claveRow?.factor_conversion ?? null,
         ultimoPrecio,
         ultimaFecha,
     };
