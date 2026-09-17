@@ -2,6 +2,7 @@ import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
 import { imprimirConPlantilla } from './impresion.js';
+import { obtenerInfoProveedorProducto } from './info-proveedor-producto.js';
 import './trazabilidad.js';
 
 // =====================================================================
@@ -94,6 +95,7 @@ export async function cargarModuloRequisicionesCompra() {
             <div><label class="block text-[11px] text-slate-400 mb-1">Proveedor sugerido</label>
               <select id="reqProdProveedor" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${optProv}</select></div>
           </div>
+          <div id="reqInfoProveedor" class="hidden mt-2 text-[11px] text-slate-300 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2"></div>
           <button type="button" id="reqAddPartida" class="mt-2 w-full bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium py-1.5 rounded-lg text-xs">＋ Agregar partida</button>
         </div>
 
@@ -150,6 +152,7 @@ function reqWireFormulario() {
 
     inp.addEventListener('input', () => {
         reqProdSel = null;
+        reqActualizarInfoProveedor();
         const t = inp.value.toLowerCase().trim();
         if (!t) { sug.classList.add('hidden'); return; }
         const hits = reqProductos.filter(p =>
@@ -169,12 +172,14 @@ function reqWireFormulario() {
                 if (p && p.unidad_medida_id) document.getElementById('reqProdUnidad').value = p.unidad_medida_id;
                 if (p && p.proveedor_id) document.getElementById('reqProdProveedor').value = p.proveedor_id;
                 sug.classList.add('hidden');
+                reqActualizarInfoProveedor();
             };
         });
     });
     document.addEventListener('click', (e) => {
         if (!inp.contains(e.target) && !sug.contains(e.target)) sug.classList.add('hidden');
     });
+    document.getElementById('reqProdProveedor').addEventListener('change', reqActualizarInfoProveedor);
 
     document.getElementById('reqAddPartida').onclick = () => {
         const nombre = inp.value.trim();
@@ -198,9 +203,39 @@ function reqWireFormulario() {
         inp.value = ''; document.getElementById('reqProdCant').value = '';
         document.getElementById('reqProdUnidad').value = ''; document.getElementById('reqProdProveedor').value = '';
         reqProdSel = null; inp.focus();
+        reqActualizarInfoProveedor();
     };
 
     document.getElementById('reqGuardar').onclick = reqGuardarRequisicion;
+}
+
+// Refleja, para el producto y proveedor elegidos en la fila de captura, cómo
+// ESE proveedor identifica y vende el producto (su SKU, su descripción, su
+// unidad) y el precio unitario de la última compra que se le hizo — la
+// referencia para hablar con él en sus propios términos.
+async function reqActualizarInfoProveedor() {
+    const cont = document.getElementById('reqInfoProveedor');
+    if (!cont) return;
+    const proveedorId = document.getElementById('reqProdProveedor').value ? parseInt(document.getElementById('reqProdProveedor').value) : null;
+    if (!reqProdSel || !proveedorId) { cont.classList.add('hidden'); cont.innerHTML = ''; return; }
+
+    cont.classList.remove('hidden');
+    cont.innerHTML = 'Buscando datos del proveedor...';
+    try {
+        const info = await obtenerInfoProveedorProducto(reqProdSel.id, proveedorId);
+        if (!info || (!info.claveProveedor && !info.descripcionProveedor && !info.unidadProveedor && info.ultimoPrecio == null)) {
+            cont.innerHTML = '<span class="text-slate-500 italic">Sin datos registrados de este proveedor para este producto — captúralos en Productos → "Claves de proveedor".</span>';
+            return;
+        }
+        const partes = [];
+        if (info.claveProveedor) partes.push(`<strong class="text-slate-200">SKU proveedor:</strong> <span class="font-mono">${esc(info.claveProveedor)}</span>`);
+        if (info.descripcionProveedor) partes.push(`<strong class="text-slate-200">Descripción proveedor:</strong> ${esc(info.descripcionProveedor)}`);
+        if (info.unidadProveedor) partes.push(`<strong class="text-slate-200">Unidad proveedor:</strong> ${esc(info.unidadProveedor)}`);
+        if (info.ultimoPrecio != null) partes.push(`<strong class="text-slate-200">Última compra:</strong> ${money(info.ultimoPrecio)}${info.ultimaFecha ? ' (' + esc(info.ultimaFecha) + ')' : ''}`);
+        cont.innerHTML = partes.join(' &nbsp;·&nbsp; ');
+    } catch (err) {
+        cont.innerHTML = `<span class="text-rose-400">Error al consultar datos del proveedor: ${esc(err.message || err)}</span>`;
+    }
 }
 
 function reqRenderPartidas() {

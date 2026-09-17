@@ -4,6 +4,7 @@ import { REGIMENES } from './proveedores.js';
 import { parsearCfdi, extraerTextoPdf, parsearCfdiPdf } from './cfdi.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { imprimirConPlantilla } from './impresion.js';
+import { obtenerInfoProveedorProducto } from './info-proveedor-producto.js';
 import './trazabilidad.js';
 
 // =====================================================================
@@ -97,6 +98,7 @@ export async function cargarModuloOrdenesCompra() {
             <div><label class="block text-[11px] text-slate-400 mb-1">Unidad</label>
               <select id="ocProdUnidad" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${optUni}</select></div>
           </div>
+          <div id="ocInfoProveedor" class="hidden mt-2 text-[11px] text-slate-300 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2"></div>
           <button type="button" id="ocAddPartida" class="mt-2 w-full bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium py-1.5 rounded-lg text-xs">＋ Agregar partida</button>
         </div>
 
@@ -133,6 +135,7 @@ function ocWireFormulario() {
 
     inp.addEventListener('input', () => {
         ocProdSel = null;
+        ocActualizarInfoProveedor();
         const t = inp.value.toLowerCase().trim();
         if (!t) { sug.classList.add('hidden'); return; }
         const hits = ocProductos.filter(p =>
@@ -152,12 +155,14 @@ function ocWireFormulario() {
                 if (p && p.costo_unitario != null) document.getElementById('ocProdCosto').value = p.costo_unitario;
                 if (p && p.unidad_medida_id) document.getElementById('ocProdUnidad').value = p.unidad_medida_id;
                 sug.classList.add('hidden');
+                ocActualizarInfoProveedor();
             };
         });
     });
     document.addEventListener('click', (e) => {
         if (!inp.contains(e.target) && !sug.contains(e.target)) sug.classList.add('hidden');
     });
+    document.getElementById('ocProveedor').addEventListener('change', ocActualizarInfoProveedor);
 
     document.getElementById('ocAddPartida').onclick = () => {
         const nombre = inp.value.trim();
@@ -177,9 +182,39 @@ function ocWireFormulario() {
         ocRenderPartidas();
         inp.value = ''; document.getElementById('ocProdCant').value = ''; document.getElementById('ocProdCosto').value = '';
         document.getElementById('ocProdUnidad').value = ''; ocProdSel = null; inp.focus();
+        ocActualizarInfoProveedor();
     };
 
     document.getElementById('ocGuardar').onclick = ocGuardarOrden;
+}
+
+// Refleja, para el producto en captura y el proveedor de la orden, cómo ESE
+// proveedor identifica y vende el producto (su SKU, su descripción, su
+// unidad) y el precio unitario de la última compra que se le hizo — la
+// referencia para hablar con él en sus propios términos.
+async function ocActualizarInfoProveedor() {
+    const cont = document.getElementById('ocInfoProveedor');
+    if (!cont) return;
+    const proveedorId = document.getElementById('ocProveedor').value ? parseInt(document.getElementById('ocProveedor').value) : null;
+    if (!ocProdSel || !proveedorId) { cont.classList.add('hidden'); cont.innerHTML = ''; return; }
+
+    cont.classList.remove('hidden');
+    cont.innerHTML = 'Buscando datos del proveedor...';
+    try {
+        const info = await obtenerInfoProveedorProducto(ocProdSel.id, proveedorId);
+        if (!info || (!info.claveProveedor && !info.descripcionProveedor && !info.unidadProveedor && info.ultimoPrecio == null)) {
+            cont.innerHTML = '<span class="text-slate-500 italic">Sin datos registrados de este proveedor para este producto — captúralos en Productos → "Claves de proveedor".</span>';
+            return;
+        }
+        const partes = [];
+        if (info.claveProveedor) partes.push(`<strong class="text-slate-200">SKU proveedor:</strong> <span class="font-mono">${esc(info.claveProveedor)}</span>`);
+        if (info.descripcionProveedor) partes.push(`<strong class="text-slate-200">Descripción proveedor:</strong> ${esc(info.descripcionProveedor)}`);
+        if (info.unidadProveedor) partes.push(`<strong class="text-slate-200">Unidad proveedor:</strong> ${esc(info.unidadProveedor)}`);
+        if (info.ultimoPrecio != null) partes.push(`<strong class="text-slate-200">Última compra:</strong> ${money(info.ultimoPrecio)}${info.ultimaFecha ? ' (' + esc(info.ultimaFecha) + ')' : ''}`);
+        cont.innerHTML = partes.join(' &nbsp;·&nbsp; ');
+    } catch (err) {
+        cont.innerHTML = `<span class="text-rose-400">Error al consultar datos del proveedor: ${esc(err.message || err)}</span>`;
+    }
 }
 
 function ocRenderPartidas() {
