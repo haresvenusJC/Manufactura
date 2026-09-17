@@ -10,6 +10,11 @@ import { cargarModuloAuditoriaInventario } from './auditoria-inventario.js';
 import { cargarModuloProduccion } from './produccion.js';
 import { cargarModuloProveedores } from './proveedores.js';
 import { cargarModuloSalidas } from './salidas.js';
+import { cargarModuloPedidosVenta } from './pedidos-venta.js';
+import { cargarModuloDevoluciones } from './devoluciones.js';
+import { cargarModuloActivosFijos } from './activos-fijos.js';
+import { cargarModuloBancosTesoreria } from './bancos-tesoreria.js';
+import { cargarModuloBitacora } from './bitacora-cambios.js';
 import { cargarVistaKardex } from './kardex.js'; 
 import { cargarVistaDocumentos } from './documentos.js'; 
 import { cargarModuloPlantillas } from './plantillas.js';
@@ -213,6 +218,21 @@ window.loadView = function(viewName) {
             break;
         case 'salidas':
             cargarModuloSalidas();
+            break;
+        case 'pedidos-venta':
+            cargarModuloPedidosVenta();
+            break;
+        case 'devoluciones':
+            cargarModuloDevoluciones();
+            break;
+        case 'activos-fijos':
+            cargarModuloActivosFijos();
+            break;
+        case 'bancos-tesoreria':
+            cargarModuloBancosTesoreria();
+            break;
+        case 'bitacora-cambios':
+            cargarModuloBitacora();
             break;
         case 'produccion':
             cargarModuloProduccion();

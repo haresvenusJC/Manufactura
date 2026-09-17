@@ -529,17 +529,20 @@ function recalcularVentaDesdePartidas() {
 export async function registrarSalidaMultiPartida(datosDoc) {
     try {
         if (!supabaseClient) throw new Error("Cliente de Supabase no inicializado.");
-        const { tipoMovimiento, folio, descripcion, partidas } = datosDoc;
+        const { tipoMovimiento, folio, descripcion, partidas, pedidoVentaId } = datosDoc;
+
+        const filaDoc = {
+            tipo_movimiento: tipoMovimiento,
+            folio: folio,
+            fecha_emision: new Date().toISOString(),
+            descripcion: descripcion || 'Salida multi-partida',
+            estado: 'completado'
+        };
+        if (pedidoVentaId) filaDoc.pedido_venta_id = pedidoVentaId;
 
         const { data: docSalida, error: errDoc } = await supabaseClient
             .from('documentos')
-            .insert([{
-                tipo_movimiento: tipoMovimiento,
-                folio: folio,
-                fecha_emision: new Date().toISOString(),
-                descripcion: descripcion || 'Salida multi-partida',
-                estado: 'completado'
-            }])
+            .insert([filaDoc])
             .select('id')
             .single();
 

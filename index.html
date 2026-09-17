@@ -404,7 +404,9 @@
                             <li class="px-3 pt-2.5 pb-0.5 text-[10px] uppercase tracking-wider text-slate-600 font-semibold pointer-events-none select-none">Inventario y almacén</li>
                             <li><button onclick="window.loadView('inventario')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Stock General</button></li>
                             <li><button onclick="window.loadView('kardex')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Kardex</button></li>
+                            <li><button onclick="window.loadView('pedidos-venta')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Pedidos de venta</button></li>
                             <li><button onclick="window.loadView('salidas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Salidas / Ventas</button></li>
+                            <li><button onclick="window.loadView('devoluciones')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Devoluciones</button></li>
                             <li><button onclick="window.loadView('auditoria')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Auditoría de inventarios</button></li>
 
                             <li class="px-3 pt-2.5 pb-0.5 text-[10px] uppercase tracking-wider text-slate-600 font-semibold pointer-events-none select-none">Producción</li>
@@ -427,11 +429,13 @@
                             <li><button onclick="window.loadView('gastos')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Gastos</button></li>
                             <li><button onclick="window.loadView('pagos-proveedor')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Cuentas por pagar</button></li>
                             <li><button onclick="window.loadView('cuentas-por-cobrar')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Cuentas por cobrar</button></li>
+                            <li><button onclick="window.loadView('bancos-tesoreria')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Bancos y Tesorería</button></li>
                             <li><button onclick="window.loadView('tareas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Tareas</button></li>
 
                             <li class="px-3 pt-2.5 pb-0.5 text-[10px] uppercase tracking-wider text-slate-600 font-semibold pointer-events-none select-none">Nómina y cierre de mes</li>
                             <li><button onclick="window.loadView('nomina')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Nómina</button></li>
                             <li><button onclick="window.loadView('prorrateo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Prorrateo de gastos</button></li>
+                            <li><button onclick="window.loadView('activos-fijos')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Activos fijos</button></li>
                             <li><button onclick="window.loadView('polizas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Pólizas</button></li>
                             <li><button onclick="window.loadView('reportes-contables')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Reportes contables</button></li>
                             <li><button onclick="window.loadView('cierre-periodo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Cierre de periodo</button></li>
@@ -455,6 +459,7 @@
                         </button>
                         <ul id="submenu-control-analisis" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
                             <li><button onclick="window.loadView('reportes')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Reportes</button></li>
+                            <li><button onclick="window.loadView('bitacora-cambios')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Bitácora de cambios</button></li>
                         </ul>
                     </li>
 
@@ -622,6 +627,24 @@
             </section>
 
             <!-- Vista: Salidas de Inventario -->
+            <!-- Vista: Pedidos de venta -->
+            <section id="view-pedidos-venta" class="vista-seccion hidden space-y-4">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-sky-400">Pedidos de Venta</h2>
+                    <button type="button" onclick="window.abrirManual('#m-pedidos-venta', 'Pedidos de venta')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
+                <div id="contenedorPedidosVenta">Cargando módulo de pedidos de venta...</div>
+            </section>
+
+            <!-- Vista: Devoluciones -->
+            <section id="view-devoluciones" class="vista-seccion hidden space-y-4">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-sky-400">Devoluciones</h2>
+                    <button type="button" onclick="window.abrirManual('#m-devoluciones', 'Devoluciones')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
+                <div id="contenedorDevoluciones">Cargando módulo de devoluciones...</div>
+            </section>
+
             <section id="view-salidas" class="vista-seccion hidden space-y-4">
                 <div class="flex items-center justify-between gap-2 flex-wrap">
                     <h2 class="text-xl font-bold text-rose-400">Salidas de Inventario</h2>
@@ -655,6 +678,15 @@
             <!-- Vista: Reportes -->
             <!-- Se inyecta dinámicamente el contenido generado por reportes.js -->
             <section id="view-reportes" class="vista-seccion hidden space-y-4"></section>
+
+            <!-- Vista: Bitácora de cambios -->
+            <section id="view-bitacora-cambios" class="vista-seccion hidden space-y-4">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-sky-400">Bitácora de Cambios</h2>
+                    <button type="button" onclick="window.abrirManual('#m-bitacora-cambios', 'Bitácora de cambios')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
+                <div id="contenedorBitacora">Cargando módulo...</div>
+            </section>
 
             <!-- Vista: Plantillas de Impresión -->
             <section id="view-plantillas" class="vista-seccion hidden space-y-4">
@@ -747,6 +779,15 @@
                 </div>
             </section>
 
+            <!-- Vista: Activos fijos -->
+            <section id="view-activos-fijos" class="vista-seccion hidden space-y-4">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-sky-400">Activos Fijos</h2>
+                    <button type="button" onclick="window.abrirManual('#m-activos-fijos', 'Activos fijos')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
+                <div id="contenedorActivosFijos">Cargando módulo...</div>
+            </section>
+
             <!-- Vista: Contabilidad - Cuentas por pagar -->
             <section id="view-pagos-proveedor" class="vista-seccion hidden space-y-4">
                 <h2 class="text-xl font-bold text-sky-400">Contabilidad · Cuentas por pagar</h2>
@@ -757,6 +798,15 @@
             <section id="view-cuentas-por-cobrar" class="vista-seccion hidden space-y-4">
                 <h2 class="text-xl font-bold text-sky-400">Contabilidad · Cuentas por cobrar</h2>
                 <div id="contenedorCuentasPorCobrar">Cargando cuentas por cobrar...</div>
+            </section>
+
+            <!-- Vista: Bancos y Tesorería -->
+            <section id="view-bancos-tesoreria" class="vista-seccion hidden space-y-4">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-sky-400">Bancos y Tesorería</h2>
+                    <button type="button" onclick="window.abrirManual('#m-bancos-tesoreria', 'Bancos y Tesorería')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
+                <div id="contenedorBancosTesoreria">Cargando módulo...</div>
             </section>
 
             <!-- Vista: Contabilidad - Cierre de periodo -->

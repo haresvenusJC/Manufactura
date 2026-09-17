@@ -1329,6 +1329,39 @@ function construirOpcionesSelector(lista, valorActual, textoFn, etiquetaVacio) {
     return html;
 }
 
+// Muestra, de solo lectura, las filas de producto_claves_proveedor de este
+// producto (una por proveedor) — el SKU/UPC, descripción y unidad con que
+// CADA proveedor lo vende. Genérico igual que la cuadrícula de arriba: no
+// hay una lista fija de columnas, así que cualquier columna que se agregue
+// después a esa tabla aparece sola, sin tocar este código. Para editarlas
+// se usa el bloque "Claves de proveedor" del formulario de alta/edición
+// (clic en la fila del producto) — aquí es solo consulta rápida.
+function renderClavesProveedorResumen(filas, proveedores) {
+    const mapaProv = new Map((proveedores || []).map((p) => [String(p.id), p.nombre]));
+    const camposOcultos = new Set(['id', 'producto_id', 'proveedor_id']);
+    const tarjeta = (fila) => {
+        const claves = Object.keys(fila).filter((c) => !camposOcultos.has(c));
+        return `
+            <div class="bg-slate-900 border border-slate-800 rounded-lg p-3">
+                <p class="text-xs font-semibold text-sky-300 mb-2">${escaparHtml(mapaProv.get(String(fila.proveedor_id)) || '(sin proveedor)')}</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    ${claves.map((clave) => `
+                        <div>
+                            <label class="block text-[10px] text-slate-500 mb-0.5">${etiquetaCampo(clave)}</label>
+                            <p class="text-xs font-mono text-slate-300 break-all">${escaparHtml(fila[clave] ?? '—')}</p>
+                        </div>`).join('')}
+                </div>
+            </div>`;
+    };
+    return `
+        <div class="mt-4 pt-4 border-t border-slate-800">
+            <p class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-2">Claves de proveedor <span class="font-normal">(edítalas desde el formulario de alta/edición — clic en la fila del producto)</span></p>
+            ${filas && filas.length
+                ? `<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">${filas.map(tarjeta).join('')}</div>`
+                : '<p class="text-xs text-slate-500 italic">Sin claves de proveedor capturadas para este producto.</p>'}
+        </div>`;
+}
+
 async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, soloLectura = false) {
     let modal = document.getElementById('modalResumenProducto');
     if (!modal) {
@@ -1382,12 +1415,13 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
 
     const cuerpo = document.getElementById('cuerpoResumenProd');
     try {
-        const [{ data: art, error }, resProv, resMon, resUm, resCta] = await Promise.all([
+        const [{ data: art, error }, resProv, resMon, resUm, resCta, resClaves] = await Promise.all([
             supabaseClient.from('productos').select('*').eq('id', id).single(),
             supabaseClient.from('proveedores').select('id, nombre').order('nombre', { ascending: true }),
             supabaseClient.from('monedas').select('id, codigo').order('id', { ascending: true }),
             supabaseClient.from('unidades_medida').select('id, nombre').order('id', { ascending: true }),
             supabaseClient.from('cuentas_contables').select('id, codigo, nombre').order('codigo', { ascending: true }),
+            supabaseClient.from('producto_claves_proveedor').select('*').eq('producto_id', id),
         ]);
         if (error) throw error;
 
@@ -1495,7 +1529,8 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                             <input type="${tipo === 'number' ? 'number' : 'text'}" ${tipo === 'number' ? 'step="any"' : ''} id="rc_${clave}" data-campo="${clave}" data-tipo="${tipo}" value="${escaparHtml(valor ?? '')}" class="campo-resumen-prod w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
                         </div>`;
                 }).join('')}
-            </div>`;
+            </div>
+            ${renderClavesProveedorResumen(resClaves.data, resProv.data)}`;
     } catch (err) {
         cuerpo.innerHTML = `<p class="text-rose-400 text-xs">No se pudo cargar el artículo: ${err.message || err}</p>`;
         return;

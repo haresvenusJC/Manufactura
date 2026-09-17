@@ -56,6 +56,11 @@ const MANUAL_ANCHORS = {
     'tareas': '#m-tareas',
     'requisiciones-compra': '#m-requisiciones-compra',
     'importador-claves-proveedor': '#m-importador-claves-proveedor',
+    'pedidos-venta': '#m-pedidos-venta',
+    'devoluciones': '#m-devoluciones',
+    'activos-fijos': '#m-activos-fijos',
+    'bancos-tesoreria': '#m-bancos-tesoreria',
+    'bitacora-cambios': '#m-bitacora-cambios',
 };
 
 export const GUIAS = {
@@ -266,6 +271,77 @@ export const GUIAS = {
         errores: [
             'Guardar una partida emparejada con el producto equivocado — revisa antes de guardar, sobre todo las que dice "sin coincidencia".',
             'Subir facturas de flete/seguro esperando que aparezcan aquí — esos conceptos se excluyen a propósito, igual que en Recibo de mercancía.',
+        ],
+    },
+    'pedidos-venta': {
+        titulo: 'Pedidos de venta',
+        paraQue: 'Anotar que un cliente pidió algo que se le va a surtir después — total o en partes — en vez de forzar una salida inmediata como en Salidas / Ventas.',
+        pasos: [
+            'Captura cliente, y por cada partida el producto, la cantidad y el precio.',
+            'Guarda el pedido — queda "pendiente", sin tocar inventario todavía.',
+            'Cuando haya mercancía lista, abre el pedido por su folio y usa "📦 Surtir pendiente": elige el lote y la cantidad a surtir de cada partida (puede ser menos de lo pedido).',
+            'Cada surtido genera una salida real (mismo motor que Salidas / Ventas) enlazada al pedido; el estatus pasa a "parcial" o "surtido" según quede.',
+        ],
+        cuando: 'Cuando un cliente pide algo que no vas a entregar de inmediato, o que vas a entregar en varias partes.',
+        errores: [
+            'Cancelar un pedido que ya tiene algo surtido — no se puede: para lo ya entregado usa Devoluciones, no la cancelación del pedido.',
+        ],
+    },
+    'devoluciones': {
+        titulo: 'Devoluciones',
+        paraQue: 'Registrar cuando un cliente te regresa producto, o cuando tú le regresas producto a un proveedor — con su efecto real de inventario y su póliza. No recalcula IVA ni emite CFDI de nota de crédito: es el asiento base.',
+        pasos: [
+            'Elige la pestaña "Devolución de cliente" o "Devolución a proveedor".',
+            'De cliente: elige el cliente, y por partida el producto, cantidad, costo (para revertir el costo de venta) y precio (para revertir el ingreso). Entra a inventario como un lote nuevo, a ese costo.',
+            'A proveedor: elige el proveedor, y por partida el producto y el LOTE existente del que va a salir (debe tener suficiente stock físico y de costeo) — el costo se toma del lote, no se captura a mano.',
+            'Registra — genera la póliza automáticamente y queda en el historial de abajo, con opción de "Cancelar" si algo salió mal.',
+        ],
+        cuando: 'Cuando de verdad regresa mercancía — no para corregir un error de captura (eso se corrige cancelando el documento original).',
+        errores: [
+            'Usar una devolución para corregir un error de captura en vez de cancelar el documento original.',
+            'Esperar que ajuste IVA/IEPS o timbre un CFDI de nota de crédito — no lo hace; si el proveedor/cliente lo exige, se complementa a mano.',
+        ],
+    },
+    'activos-fijos': {
+        titulo: 'Activos fijos',
+        paraQue: 'Llevar el catálogo de tu maquinaria, equipo y vehículos, y su depreciación mensual en línea recta (NIF C-6) — cuánto valen en libros y cuánto gasto de depreciación cae cada mes.',
+        pasos: [
+            'Da de alta el activo: costo de adquisición, valor residual (lo que valdría al final de su vida útil, puede ser 0), vida útil en meses, y sus 3 cuentas (activo, gasto de depreciación, depreciación acumulada).',
+            'En "Depreciación del mes", elige año y mes y pulsa "Calcular" — es una vista previa, no aplica nada todavía.',
+            'Si todo cuadra, "Aplicar depreciación de [mes]" — genera UNA póliza con todos los activos de ese mes.',
+            'Si algo salió mal, "Cancelar" ese mes desde el historial — revierte la póliza y lo deja listo para corregir y volver a aplicar.',
+            'Cuando un activo se vende, se descompone o deja de usarse, "Dar de baja" (pide fecha y motivo) — deja de aparecer en los cálculos futuros.',
+        ],
+        cuando: 'Al dar de alta un activo nuevo, y una vez al mes (después de nómina y antes del cierre de periodo) para aplicar la depreciación.',
+        errores: [
+            'Aplicar la depreciación de un mes dos veces — no lo permite (ya calculado no vuelve a salir en el preview), pero revísalo antes de confirmar.',
+            'Dar de baja un activo con fecha futura o antes de terminar de depreciarlo sin revisar el valor en libros restante.',
+        ],
+    },
+    'bancos-tesoreria': {
+        titulo: 'Bancos y Tesorería',
+        paraQue: 'Capturar el banco/número/CLABE real de tus cuentas (ligadas a la cuenta contable que ya usabas), marcar qué movimientos ya salieron en el estado de cuenta del banco (conciliación), y ver una fotografía simple de tu flujo: saldo + por cobrar − por pagar.',
+        pasos: [
+            'Da de alta cada cuenta bancaria, ligándola a su cuenta contable (101.xx/102.xx) ya existente en el plan de cuentas.',
+            'Haz clic en el alias de una cuenta para ver sus movimientos (vienen de las pólizas que ya se generan en todo el sistema) — marca "Conciliado" y anota la referencia del banco conforme vayas revisando el estado de cuenta.',
+            'El panel de "Flujo proyectado" se actualiza solo: no tiene fechas de vencimiento (no existen todavía en el sistema), es lo que ya se sabe hoy.',
+        ],
+        cuando: 'Al recibir el estado de cuenta del banco (conciliación), y cuando quieras un vistazo rápido de qué tan holgada anda la caja.',
+        errores: [
+            'Esperar que el flujo proyectado tenga fechas — es un total, no un calendario.',
+            'Ligar dos cuentas bancarias a la misma cuenta contable — no se puede, cada cuenta contable de banco es de una sola cuenta bancaria.',
+        ],
+    },
+    'bitacora-cambios': {
+        titulo: 'Bitácora de cambios',
+        paraQue: 'Ver quién cambió qué y cuándo en las tablas más sensibles a error o fraude — plan de cuentas, tarifas ISR, cierre de periodo, activos fijos, devoluciones, pedidos de venta y cuentas bancarias. Es de solo lectura: ni el admin puede alterar o borrar el rastro.',
+        pasos: [
+            'Filtra por tabla y/o por tipo de acción (alta, modificación, baja) y pulsa "Consultar".',
+            '"Ver" en cada renglón muestra los datos de antes y de después, lado a lado, tal como quedaron guardados.',
+        ],
+        cuando: 'Cuando algo cambió y no sabes quién lo hizo, o para revisar de vez en cuando que nadie esté tocando el plan de cuentas o las tarifas fiscales sin que te enteres.',
+        errores: [
+            'Esperar encontrar aquí cambios de tablas que no tienen bitácora todavía (por ejemplo documentos, gastos, productos) — solo las 8 tablas listadas la tienen.',
         ],
     },
 };

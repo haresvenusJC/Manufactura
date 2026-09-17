@@ -29,7 +29,9 @@ const SECCIONES = [
         grupo: 'Operación — Inventario y almacén', ancla: 'inv', items: [
             { v: 'inventario', t: 'Stock General', d: 'Existencias por producto y por lote, con mínimos.' },
             { v: 'kardex', t: 'Kardex', d: 'Movimientos de entrada y salida por producto, con el criterio FIFO/FEFO usado.' },
+            { v: 'pedidos-venta', t: 'Pedidos de venta', d: 'El cliente pide y se surte después, total o en partes. Al surtir genera una salida real de inventario y queda enlazado al pedido.' },
             { v: 'salidas', t: 'Salidas / Ventas', d: 'Salidas de inventario y ventas.' },
+            { v: 'devoluciones', t: 'Devoluciones', d: 'Devolución de cliente (regresa a inventario) y a proveedor (sale de un lote existente), con su póliza correspondiente.' },
             { v: 'auditoria', t: 'Auditoría de inventarios', d: 'Toma física de inventario: crea auditorías, revisa el conteo de los operadores y compáralo contra el stock del sistema.' },
         ],
     },
@@ -48,6 +50,7 @@ const SECCIONES = [
             { v: 'gastos', t: 'Gastos', d: 'Captura de facturas de gasto. Trae lector de XML del CFDI y asistente de clasificación.' },
             { v: 'pagos-proveedor', t: 'Cuentas por pagar', d: 'Saldos por proveedor y registro de pagos.' },
             { v: 'cuentas-por-cobrar', t: 'Cuentas por cobrar', d: 'Saldos por cliente y registro de cobros.' },
+            { v: 'bancos-tesoreria', t: 'Bancos y Tesorería', d: 'Catálogo de cuentas bancarias, conciliación de sus movimientos y un flujo proyectado simple (saldo + por cobrar − por pagar).' },
             { v: 'tareas', t: 'Tareas', d: 'Pendientes automáticos: inventario bajo mínimo, lotes por caducar, nómina por generar.' },
         ],
     },
@@ -55,6 +58,7 @@ const SECCIONES = [
         grupo: 'Finanzas — nómina y cierre de mes', ancla: 'cta-mes', items: [
             { v: 'nomina', t: 'Nómina', d: 'Cálculo y contabilización de sueldos, IMSS/INFONAVIT e ISR.' },
             { v: 'prorrateo', t: 'Prorrateo de gastos', d: 'Reparto mensual del CIF a las órdenes y a la capacidad no utilizada.' },
+            { v: 'activos-fijos', t: 'Activos fijos', d: 'Catálogo de activos fijos y su depreciación mensual en línea recta (NIF C-6), con póliza e historial por mes.' },
             { v: 'polizas', t: 'Pólizas', d: 'Consulta de los asientos contables generados.' },
             { v: 'reportes-contables', t: 'Reportes contables', d: 'Balanza de comprobación, estado de resultados, saldos por cuenta.' },
             { v: 'cierre-periodo', t: 'Cierre de periodo', d: 'Revisa pendientes contables del mes (documentos, gastos, nóminas, cobros, pagos, auditorías, pólizas descuadradas) antes de cerrarlo; permite reabrirlo si hace falta corregir algo.' },
@@ -68,6 +72,7 @@ const SECCIONES = [
     {
         grupo: 'Control y Análisis', ancla: 'ctrl', items: [
             { v: 'reportes', t: 'Reportes', d: 'Reportes operativos.' },
+            { v: 'bitacora-cambios', t: 'Bitácora de cambios', d: 'Quién cambió qué y cuándo en las tablas sensibles (plan de cuentas, tarifas ISR, cierre de periodo, activos fijos, devoluciones, pedidos, cuentas bancarias) — solo lectura, nadie puede alterarla.' },
         ],
     },
     {

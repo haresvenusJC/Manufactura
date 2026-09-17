@@ -1032,10 +1032,20 @@ costo total del granel              1,958.65
     <p><strong>Ejemplo real.</strong> Busca <code>PETBOSTON60ML</code> · Sonata 60-6 Ml Natural 9.5 G (insumo de empaque, proveedor Escowill Envases Pet) para ver cómo se ve un insumo con existencia por lote.</p>
     <p>El detalle de movimientos por producto está en <a href="#m-kardex">Kardex, dentro de la Parte 6</a>.</p>
 
+    <h4 id="m-pedidos-venta">Pedidos de venta</h4>
+    <p><strong>Para qué sirve.</strong> Anotar que un cliente pidió algo que se le va a surtir después — total o en varias partes — sin forzar una salida inmediata. Antes, "Salidas / Ventas" solo sabía sacar inventario de golpe y completo; esto es lo mismo que ya existía para compras (<a href="#m-requisiciones-compra">Requisición → Orden de compra</a>) pero del lado de venta.</p>
+    <p><strong>Pasos.</strong> Captura cliente y las partidas (producto, cantidad, precio) y guarda — el pedido queda "pendiente" sin tocar inventario. Cuando haya mercancía lista, abre el pedido por su folio y usa <strong>"📦 Surtir pendiente"</strong>: eliges el lote y la cantidad a surtir de cada partida (puede ser menos de lo pedido). Cada surtido genera una salida real — mismo motor de inventario/kardex que <a href="#m-salidas">Salidas / Ventas</a> — enlazada de vuelta al pedido; el estatus pasa a "parcial" o "surtido" según quede.</p>
+    <p><strong>Errores comunes.</strong> Intentar cancelar un pedido que ya tiene algo surtido — no se puede: para lo ya entregado usa <a href="#m-devoluciones">Devoluciones</a>, no la cancelación del pedido.</p>
+
     <h4 id="m-salidas">Salidas / Ventas</h4>
     <p><strong>Para qué sirve.</strong> Sacar inventario (venta, merma, ajuste) y, si es venta, generar la póliza de ingreso.</p>
     <p><strong>Pasos.</strong> Elige el producto y el lote (el sistema sugiere el que caduca primero, FEFO) y la cantidad; si es venta, captura cliente y totales.</p>
     <p><strong>Errores comunes.</strong> Elegir a mano un lote distinto al sugerido sin necesidad — rompe el orden FEFO. No capturar el motivo en una merma.</p>
+
+    <h4 id="m-devoluciones">Devoluciones</h4>
+    <p><strong>Para qué sirve.</strong> Registrar cuando un cliente regresa producto, o cuando tú le regresas producto a un proveedor — con su efecto real de inventario y su propia póliza. Antes no existía ningún módulo de esto; solo estaban sembradas las cuentas 402/402.01 "Devoluciones sobre ventas" sin usarse.</p>
+    <p><strong>Pasos.</strong> Elige la pestaña de cliente o de proveedor. <strong>De cliente:</strong> cliente + por partida producto/cantidad/costo/precio — entra a inventario como un lote nuevo, a ese costo (no se intenta encontrar el lote original: puede ya no existir o estar mezclado). <strong>A proveedor:</strong> proveedor + por partida producto y el <em>lote existente</em> del que sale (debe tener suficiente stock físico y de costeo) — el costo se toma del lote, no se captura a mano. Al registrar se genera la póliza sola; "Cancelar" en el historial la revierte completa.</p>
+    <p><strong>Errores comunes.</strong> Usarlo para corregir un error de captura en vez de cancelar el documento original. Esperar que ajuste IVA/IEPS o timbre un CFDI de nota de crédito — no lo hace: es el asiento base, y si el proveedor/cliente exige el ajuste fiscal se complementa a mano en la póliza generada.</p>
 
     <h4 id="m-auditoria">Auditoría de inventarios</h4>
     <p><strong>Para qué sirve.</strong> Organizar un conteo físico de inventario (materia prima, insumo o producto terminado) y compararlo contra el stock del sistema. El conteo lo captura un operador externo desde <span class="path">conteo-inventario.html</span> en su celular, con su PIN — es una pantalla aparte, pensada para que la use alguien que no tiene acceso al ERP completo.</p>
@@ -1066,6 +1076,11 @@ costo total del granel              1,958.65
     <p><strong>Pasos.</strong> Elige el rango de fechas y el tipo de reporte; exporta o imprime.</p>
     <p><strong>Errores comunes.</strong> Confundirlo con <span class="path">Finanzas → Reportes contables</span>, que es el que trae balanza de comprobación y estado de resultados.</p>
 
+    <h4 id="m-bitacora-cambios">Bitácora de cambios</h4>
+    <p><strong>Para qué sirve.</strong> Ver quién cambió qué y cuándo en las tablas más sensibles a error o fraude: plan de cuentas, tarifas ISR, cierre de periodo, activos fijos, devoluciones, pedidos de venta y cuentas bancarias. Es de <strong>solo lectura</strong> — la tabla que la guarda (<code>bitacora_cambios</code>) solo admite escritura desde el trigger que la llena sola; ni el admin puede alterar o borrar el rastro.</p>
+    <p><strong>Pasos.</strong> Filtra por tabla y/o tipo de acción (alta, modificación, baja) y pulsa "Consultar". "Ver" en cada renglón muestra los datos de antes y de después, lado a lado.</p>
+    <p><strong>Errores comunes.</strong> Esperar encontrar aquí cambios de tablas que todavía no tienen bitácora (documentos, gastos, productos, etc.) — solo las que se listan arriba la tienen.</p>
+
     <h3>Finanzas — operación diaria <span style="font-weight:400;font-size:.7em;color:var(--mut)">(antes "Contabilidad")</span></h3>
 
     <h4 id="m-gastos">Gastos</h4>
@@ -1085,6 +1100,11 @@ costo total del granel              1,958.65
     <p><strong>Pasos.</strong> Usa "Pendientes de cobro / Cobradas / Canceladas / Todas" para elegir qué ver — por default solo se muestra lo pendiente. Marca las ventas a cobrar, elige la cuenta de banco/caja y el monto; el cobro genera su propia póliza y baja el saldo del cliente.</p>
     <p><strong>Errores comunes.</strong> Registrar el mismo cobro dos veces. Cobrar a una cuenta de banco distinta a la real.</p>
     <p><strong>Ejemplo real.</strong> Una venta a crédito de <strong>Lovlub Watermelon 60 Gr</strong> (<code>7506163801063</code>) a un cliente, pendiente de cobro.</p>
+
+    <h4 id="m-bancos-tesoreria">Bancos y Tesorería</h4>
+    <p><strong>Para qué sirve.</strong> Capturar el banco/número/CLABE real de tus cuentas (ligadas a la cuenta contable 101.xx/102.xx que ya usabas en Gastos, Cuentas por pagar y Cuentas por cobrar — no la sustituye), marcar qué movimientos ya salieron en el estado de cuenta del banco (conciliación), y ver un flujo proyectado simple.</p>
+    <p><strong>Pasos.</strong> Da de alta cada cuenta bancaria ligándola a su cuenta contable. Haz clic en su alias para ver sus movimientos (vienen de las pólizas que ya genera todo el sistema) — marca "Conciliado" y anota la referencia del banco conforme revisas el estado de cuenta. El panel de <strong>"Flujo proyectado"</strong> se actualiza solo: saldo de tus cuentas + lo que te deben − lo que debes — no tiene fechas de vencimiento (no existen todavía en el sistema), es una fotografía de lo que ya se sabe hoy, no un calendario.</p>
+    <p><strong>Errores comunes.</strong> Esperar que el flujo proyectado tenga fechas. Ligar dos cuentas bancarias a la misma cuenta contable — no se puede, es una relación de uno a uno.</p>
 
     <h4 id="m-tareas">Tareas</h4>
     <p><strong>Para qué sirve.</strong> Avisos y pendientes que el sistema genera solo: inventario bajo mínimo, lotes por caducar, nómina por generar.</p>
@@ -1108,6 +1128,11 @@ costo total del granel              1,958.65
     <p><strong>Pasos.</strong> Elige el periodo y pulsa <strong>Generar</strong>. En el <strong>Balance general</strong>, "Desde" no aplica — un balance es siempre acumulado desde el inicio hasta la fecha "Hasta", nunca "de un periodo". Las cuentas-mayor (115, 201, 501…) arrancan <strong>colapsadas</strong>; haz clic para desglosarlas en sus subcuentas, y en una subcuenta de detalle para ver sus movimientos uno por uno — así no arranca con todo el catálogo abierto de golpe. Al pie, revisa el aviso "Activo = Pasivo + Capital": si no cuadra, algo en la Balanza está mal.</p>
     <p>En Balanza/Estado de resultados: revisa <code>503.98</code> (capacidad no utilizada) — si crece mes a mes, tienes planta que pagas y no usas; y <code>115.03</code> (producción en proceso) — debería quedar cerca de cero tras cerrar órdenes y correr el prorrateo.</p>
     <p><strong>Errores comunes.</strong> Leer los números antes de haber corrido el prorrateo del mes — faltaría todo el CIF. Esperar que "Desde" filtre el Balance general.</p>
+
+    <h4 id="m-activos-fijos">Activos fijos</h4>
+    <p><strong>Para qué sirve.</strong> Llevar el catálogo de tu maquinaria, equipo y vehículos, y calcular su depreciación mensual en línea recta (NIF C-6) — cuánto valen en libros y cuánto gasto de depreciación cae cada mes.</p>
+    <p><strong>Pasos.</strong> Da de alta el activo: costo de adquisición, valor residual (lo que valdría al final de su vida útil — puede ser 0), vida útil en meses, y sus 3 cuentas (de activo, de gasto de depreciación, y de depreciación acumulada — esta última es nueva: <code>153.01</code> maquinaria, <code>153.02</code> equipo de cómputo). En "Depreciación del mes" elige año y mes, "Calcular" (vista previa, no aplica nada) y si cuadra, "Aplicar" — genera UNA póliza con todos los activos de ese mes. "Cancelar" desde el historial revierte esa póliza. "Dar de baja" un activo (pide fecha y motivo) lo saca de los cálculos futuros.</p>
+    <p><strong>Errores comunes.</strong> Confundir el orden: aplica primero Nómina y Prorrateo, y la depreciación antes del <a href="#m-cierre-periodo">Cierre de periodo</a> del mes. Dar de baja un activo sin revisar antes cuánto le quedaba por depreciar.</p>
 
     <h4 id="m-cierre-periodo">Cierre de periodo</h4>
     <p><strong>Para qué sirve.</strong> Revisar que un mes esté "limpio" contablemente y cerrarlo — después de cerrado, ya no se pueden registrar ni cancelar pólizas con fecha dentro de ese mes (ver Apéndice) hasta reabrirlo.</p>
@@ -1255,6 +1280,14 @@ Cierre de orden (consumo):  Cargo cuenta del producto (115.04 / 115.02 si es gra
         <tr><td class="m">obtenerInfoProveedorProducto(producto_id, proveedor_id)</td><td>Solo para la fila de captura en Requisiciones y Órdenes de compra: junta la clave/descripción/unidad de <code>producto_claves_proveedor</code> con el <code>costo_unitario</code> del <code>documento_detalles</code> más reciente de un recibo de compra no cancelado a ese proveedor — el precio de la última compra real, no un estimado.</td></tr>
         <tr><td class="m">producto_claves_proveedor.factor_conversion</td><td>Unidades internas por 1 unidad de venta del proveedor (<code>unidad_factura</code>). Ej. proveedor vende "Millar" de piezas → 1000. Se captura desde Productos → "Claves de proveedor" eligiendo un preset (mismo catálogo de presentaciones que usa el conversor "🔁 convertir" de Recibo de mercancía, en <code>js/presentaciones-proveedor.js</code>) o a mano si no aplica ningún preset.</td></tr>
         <tr><td class="m">requisiciones_compra_detalle / ordenes_compra_detalle · sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor</td><td>Snapshot de <code>producto_claves_proveedor</code> congelado en la partida al capturarla (igual que <code>costo_estimado</code>/<code>costo_unitario_estimado</code>) — no una referencia en vivo. <code>requisicion_autorizar</code> copia estos 4 campos de la requisición a la Orden de compra que genera.</td></tr>
+        <tr><td class="m">pedidos_venta / pedidos_venta_detalle</td><td>Pedido de un cliente pendiente de surtir (total o en partes). <code>cantidad_surtida</code> se acumula cada vez que se surte; <code>documentos.pedido_venta_id</code> enlaza cada salida real generada de vuelta al pedido (mismo patrón que <code>documentos.orden_compra_id</code>).</td></tr>
+        <tr><td class="m">devoluciones_cliente(_detalle) / devoluciones_proveedor(_detalle)</td><td>De cliente: crea un lote nuevo (no busca el original) y póliza Cargo 402.01 + Abono 105.01 (revierte venta) y Cargo inventario + Abono 501.01 (revierte costo). A proveedor: descuenta un lote existente (stock_actual y stock_costeo) y póliza Cargo 201.01 + Abono inventario. No ajusta IVA ni emite CFDI de nota de crédito.</td></tr>
+        <tr><td class="m">registrar_devolucion_cliente / registrar_devolucion_proveedor / cancelar_devolucion_*</td><td>Cada "registrar_*" crea el documento, mueve inventario y genera la póliza en una sola transacción. Los "cancelar_*" revierten la póliza (<code>cancelar_poliza</code>) y el movimiento de inventario.</td></tr>
+        <tr><td class="m">activos_fijos / activos_fijos_depreciaciones</td><td>Catálogo de activos con sus 3 cuentas (activo, gasto de depreciación, depreciación acumulada) y el historial mensual ya aplicado (único por activo+año+mes). Cuentas nuevas: <code>153</code>/<code>153.01</code>/<code>153.02</code> Depreciación acumulada.</td></tr>
+        <tr><td class="m">depreciacion_calcular / depreciacion_aplicar / depreciacion_cancelar</td><td>Línea recta: <code>(costo − residual) / vida_util_meses</code>, topada para no pasarse del total depreciable en el último mes. "Aplicar" genera UNA póliza para todos los activos del mes; "Cancelar" la revierte y borra el historial de ese mes.</td></tr>
+        <tr><td class="m">cuentas_bancarias</td><td>Banco/número/CLABE ligados 1:1 a una cuenta contable ya existente (no la sustituye) — el saldo sigue siendo la suma de <code>poliza_movimientos</code> de esa cuenta.</td></tr>
+        <tr><td class="m">poliza_movimientos.conciliado, .fecha_conciliacion, .referencia_banco</td><td>Conciliación bancaria: 3 columnas sobre el libro mayor que ya existe, no una tabla aparte.</td></tr>
+        <tr><td class="m">bitacora_cambios / fn_bitacora_generica()</td><td>Trigger genérico reutilizado en <code>activos_fijos</code>, <code>devoluciones_cliente</code>, <code>devoluciones_proveedor</code>, <code>pedidos_venta</code> y <code>cuentas_bancarias</code> (antes solo cubría <code>cuentas_contables</code>, <code>isr_tarifas</code>, <code>isr_tarifa_tramos</code> y <code>periodos_contables</code>). Solo admite INSERT desde el trigger — nadie puede alterarla ni borrarla, ni el admin.</td></tr>
       </tbody>
     </table></div>
   </section>
