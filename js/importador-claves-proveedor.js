@@ -110,6 +110,11 @@ async function iclProcesarArchivos() {
                     rfcEmisor: rfc,
                     nombreEmisor: r.nombreEmisor || '',
                     regimenEmisor: r.regimenEmisor || '',
+                    cpEmisor: r.lugarExpedicion || '',
+                    formaPago: r.formaPago || '',
+                    metodoPago: r.metodoPago || '',
+                    monedaXml: r.moneda || '',
+                    usoCfdi: r.usoCfdi || '',
                     proveedorId,
                     proveedorNombre,
                     claveSat: cp.claveSat || '',
@@ -138,22 +143,37 @@ async function iclProcesarArchivos() {
 
 // Si el proveedor no se identificó por RFC (no lo tenía capturado, o venía
 // distinto) y el usuario lo elige a mano, ofrece completar su ficha con los
-// datos que sí trae el XML (RFC, razón social, régimen fiscal) — pero solo
-// los campos que hoy están vacíos, y solo tras confirmar que es el
-// proveedor correcto. Una vez ofrecido para un proveedor en esta sesión de
-// importación, no se vuelve a preguntar (aunque aparezca en otra partida).
+// datos que sí trae el XML — pero solo los campos que hoy están vacíos, y
+// solo tras confirmar que es el proveedor correcto. Una vez ofrecido para
+// un proveedor en esta sesión de importación, no se vuelve a preguntar
+// (aunque aparezca en otra partida).
+//
+// Nota: el XML del CFDI NO trae el domicilio fiscal del emisor (ni
+// versión 4.0 lo incluye) — no hay "dirección" que extraer de ahí. El
+// "Uso CFDI" del XML es el que declaró el RECEPTOR para ESA factura en
+// particular, no una preferencia propia del proveedor — se ofrece igual
+// como referencia, pero tenlo presente.
 async function iclOfrecerActualizarProveedor(proveedorId, fila) {
     if (!fila.rfcEmisor || iclProveedoresYaOfrecidos.has(proveedorId)) return;
     iclProveedoresYaOfrecidos.add(proveedorId);
 
-    const { data: prov, error } = await supabaseClient.from('proveedores').select('rfc, razon_social, regimen_fiscal').eq('id', proveedorId).single();
+    const { data: prov, error } = await supabaseClient.from('proveedores')
+        .select('rfc, razon_social, regimen_fiscal, cp, forma_pago, metodo_pago, moneda, uso_cfdi').eq('id', proveedorId).single();
     if (error || !prov) return;
 
     const cambios = {};
     const lineas = [];
-    if (!prov.rfc && fila.rfcEmisor) { cambios.rfc = fila.rfcEmisor; lineas.push(`RFC: (vacío) → ${fila.rfcEmisor}`); }
-    if (!prov.razon_social && fila.nombreEmisor) { cambios.razon_social = fila.nombreEmisor; lineas.push(`Razón social: (vacío) → ${fila.nombreEmisor}`); }
-    if (!prov.regimen_fiscal && fila.regimenEmisor) { cambios.regimen_fiscal = fila.regimenEmisor; lineas.push(`Régimen fiscal: (vacío) → ${fila.regimenEmisor}`); }
+    const ofrecer = (campo, actual, nuevo, etiqueta) => {
+        if (!actual && nuevo) { cambios[campo] = nuevo; lineas.push(`${etiqueta}: (vacío) → ${nuevo}`); }
+    };
+    ofrecer('rfc', prov.rfc, fila.rfcEmisor, 'RFC');
+    ofrecer('razon_social', prov.razon_social, fila.nombreEmisor, 'Razón social');
+    ofrecer('regimen_fiscal', prov.regimen_fiscal, fila.regimenEmisor, 'Régimen fiscal');
+    ofrecer('cp', prov.cp, fila.cpEmisor, 'C.P.');
+    ofrecer('forma_pago', prov.forma_pago, fila.formaPago, 'Forma de pago');
+    ofrecer('metodo_pago', prov.metodo_pago, fila.metodoPago, 'Método de pago');
+    ofrecer('moneda', prov.moneda, fila.monedaXml, 'Moneda');
+    ofrecer('uso_cfdi', prov.uso_cfdi, fila.usoCfdi, 'Uso CFDI (de esta factura, como referencia)');
 
     if (!lineas.length) return; // no hay nada útil que ofrecer
 
