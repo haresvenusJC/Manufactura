@@ -19,6 +19,7 @@ const normTxt = (s) => String(s || '').normalize('NFD').replace(/\p{Diacritic}/g
 let iclProductos = [];
 let iclProveedores = [];
 let iclFilas = [];
+const iclProveedoresYaOfrecidos = new Set(); // evita re-preguntar por el mismo proveedor en la misma sesión de importación
 
 export async function cargarModuloImportadorClavesProveedor() {
     const cont = document.getElementById('contenedorImportadorClavesProveedor');
@@ -107,6 +108,8 @@ async function iclProcesarArchivos() {
                 iclFilas.push({
                     archivo: file.name,
                     rfcEmisor: rfc,
+                    nombreEmisor: r.nombreEmisor || '',
+                    regimenEmisor: r.regimenEmisor || '',
                     proveedorId,
                     proveedorNombre,
                     claveSat: cp.claveSat || '',
@@ -131,6 +134,39 @@ async function iclProcesarArchivos() {
     msg.textContent = partes.join(' ');
     msg.className = 'text-xs min-h-[1rem] ' + (erroresArchivo.length ? 'text-amber-400' : 'text-emerald-400');
     iclRenderTabla();
+}
+
+// Si el proveedor no se identificó por RFC (no lo tenía capturado, o venía
+// distinto) y el usuario lo elige a mano, ofrece completar su ficha con los
+// datos que sí trae el XML (RFC, razón social, régimen fiscal) — pero solo
+// los campos que hoy están vacíos, y solo tras confirmar que es el
+// proveedor correcto. Una vez ofrecido para un proveedor en esta sesión de
+// importación, no se vuelve a preguntar (aunque aparezca en otra partida).
+async function iclOfrecerActualizarProveedor(proveedorId, fila) {
+    if (!fila.rfcEmisor || iclProveedoresYaOfrecidos.has(proveedorId)) return;
+    iclProveedoresYaOfrecidos.add(proveedorId);
+
+    const { data: prov, error } = await supabaseClient.from('proveedores').select('rfc, razon_social, regimen_fiscal').eq('id', proveedorId).single();
+    if (error || !prov) return;
+
+    const cambios = {};
+    const lineas = [];
+    if (!prov.rfc && fila.rfcEmisor) { cambios.rfc = fila.rfcEmisor; lineas.push(`RFC: (vacío) → ${fila.rfcEmisor}`); }
+    if (!prov.razon_social && fila.nombreEmisor) { cambios.razon_social = fila.nombreEmisor; lineas.push(`Razón social: (vacío) → ${fila.nombreEmisor}`); }
+    if (!prov.regimen_fiscal && fila.regimenEmisor) { cambios.regimen_fiscal = fila.regimenEmisor; lineas.push(`Régimen fiscal: (vacío) → ${fila.regimenEmisor}`); }
+
+    if (!lineas.length) return; // no hay nada útil que ofrecer
+
+    const confirmar = confirm(
+        `Este proveedor no se identificó por RFC. Elegiste "${fila.proveedorNombre}".\n\n` +
+        `Cerciórate de que sea el proveedor correcto antes de continuar.\n\n` +
+        `¿Completar su ficha con estos datos del XML?\n` + lineas.join('\n')
+    );
+    if (!confirmar) return;
+
+    const { error: eUpd } = await supabaseClient.from('proveedores').update(cambios).eq('id', proveedorId);
+    if (eUpd) { alert('No se pudo actualizar el proveedor: ' + eUpd.message); return; }
+    alert(`Ficha de "${fila.proveedorNombre}" actualizada.`);
 }
 
 function iclRenderTabla() {
@@ -192,10 +228,12 @@ function iclRenderTabla() {
     });
     cont.querySelectorAll('.icl-proveedor-manual').forEach((sel) => {
         const idx = Number(sel.closest('tr').dataset.idx);
-        sel.onchange = () => {
+        sel.onchange = async () => {
             const pid = sel.value ? Number(sel.value) : null;
-            iclFilas[idx].proveedorId = pid;
-            iclFilas[idx].proveedorNombre = pid ? (iclProveedores.find((p) => p.id === pid)?.nombre || '') : '';
+            const fila = iclFilas[idx];
+            fila.proveedorId = pid;
+            fila.proveedorNombre = pid ? (iclProveedores.find((p) => p.id === pid)?.nombre || '') : '';
+            if (pid) await iclOfrecerActualizarProveedor(pid, fila);
             iclRenderTabla();
         };
     });
