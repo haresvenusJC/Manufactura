@@ -63,6 +63,8 @@ export function parsearCfdi(text) {
             valorUnitario: toNum(A(c, 'ValorUnitario')),
             importe: toNum(A(c, 'Importe')),
             descripcion: A(c, 'Descripcion'),
+            claveUnidad: A(c, 'ClaveUnidad').trim(),
+            unidad: A(c, 'Unidad').trim(),
         })),
     };
 }

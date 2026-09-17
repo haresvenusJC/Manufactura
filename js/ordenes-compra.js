@@ -1661,7 +1661,9 @@ function rmEsConceptoCargo(descripcion) {
 
 // Separa los conceptos del CFDI en {productos, cargos}. cargos: [{concepto, monto}]
 // listos para precargar el panel de Costos adicionales, sin crear producto ni lote.
-function rmClasificarConceptos(conceptos) {
+// Exportada: la reutiliza js/importador-claves-proveedor.js para no procesar
+// flete/seguro/etc. como si fueran materia prima al leer facturas sueltas.
+export function rmClasificarConceptos(conceptos) {
     const productos = [], cargos = [];
     (conceptos || []).forEach((c) => {
         const label = rmEsConceptoCargo(c.descripcion);

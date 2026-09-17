@@ -55,6 +55,7 @@ const MANUAL_ANCHORS = {
     'isr': '#m-isr',
     'tareas': '#m-tareas',
     'requisiciones-compra': '#m-requisiciones-compra',
+    'importador-claves-proveedor': '#m-importador-claves-proveedor',
 };
 
 export const GUIAS = {
@@ -250,6 +251,21 @@ export const GUIAS = {
         errores: [
             'Autorizar sin revisar si ya hay una Orden de compra abierta con ese mismo proveedor donde te convenga meter la partida en vez de abrir una nueva.',
             'Rechazar sin dejar motivo — la próxima persona no sabrá por qué no se compró.',
+        ],
+    },
+    'importador-claves-proveedor': {
+        titulo: 'Importar claves de proveedor (XML)',
+        paraQue: 'Cargar de golpe, leyendo las facturas XML de tus proveedores, el SKU/código, la descripción y la unidad con que cada uno vende cada producto — lo mismo que capturarías a mano en Productos → "Claves de proveedor", pero de muchas facturas viejas de un jalón. No mueve inventario ni contabilidad.',
+        pasos: [
+            'Sube uno o varios archivos XML (puedes seleccionar varios de golpe) y pulsa "Procesar archivos".',
+            'Por cada partida se intenta identificar el proveedor por su RFC y el producto por su clave ya homologada, su ClaveProdServ del SAT, tu SKU o el nombre — igual que al recibir mercancía por XML.',
+            'Revisa las que no coincidieron: elige el producto correcto en el desplegable (o desmarca "Incluir" si no aplica), y si no se identificó el proveedor por RFC, elígelo a mano.',
+            'Pulsa "💾 Guardar claves de proveedor" — actualiza la clave existente para ese producto y proveedor, o crea una nueva si no había.',
+        ],
+        cuando: 'Cuando tengas varias facturas viejas de un proveedor y quieras tener ya listo su código/descripción/unidad para requisiciones y órdenes de compra, sin capturarlo producto por producto a mano.',
+        errores: [
+            'Guardar una partida emparejada con el producto equivocado — revisa antes de guardar, sobre todo las que dice "sin coincidencia".',
+            'Subir facturas de flete/seguro esperando que aparezcan aquí — esos conceptos se excluyen a propósito, igual que en Recibo de mercancía.',
         ],
     },
 };

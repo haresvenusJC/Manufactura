@@ -15,6 +15,7 @@ import { cargarVistaDocumentos } from './documentos.js';
 import { cargarModuloPlantillas } from './plantillas.js';
 import { cargarModuloEmpleados } from './empleados.js';
 import { cargarModuloImportador } from './importador.js';
+import { cargarModuloImportadorClavesProveedor } from './importador-claves-proveedor.js';
 import { cargarModuloImportadorBom } from './importador-bom.js';
 import { cargarModuloClientes } from './clientes.js';
 import { cargarModuloContabilidad, cargarModuloPolizas, cargarModuloGastos, cargarModuloReportesContables } from './contabilidad.js';
@@ -237,6 +238,9 @@ window.loadView = function(viewName) {
         case 'importador':
             cargarModuloImportador();
             cargarModuloImportadorBom();
+            break;
+        case 'importador-claves-proveedor':
+            cargarModuloImportadorClavesProveedor();
             break;
         case 'clientes':
             cargarModuloClientes();

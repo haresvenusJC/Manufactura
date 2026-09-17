@@ -984,6 +984,11 @@ costo total del granel              1,958.65
     <p><strong>Pasos.</strong> Descarga la plantilla de ejemplo, llénala respetando las columnas y súbela; el importador hace <em>upsert</em> por SKU (actualiza si ya existe, crea si no).</p>
     <p><strong>Errores comunes.</strong> Cambiar el orden de las columnas de la plantilla, o repetir un SKU apuntando a dos productos distintos.</p>
 
+    <h4 id="m-importador-claves-proveedor">Importar claves de proveedor (XML)</h4>
+    <p><strong>Para qué sirve.</strong> Cargar de golpe, leyendo las facturas XML de tus proveedores, el SKU/código, la descripción y la unidad con que cada uno vende cada producto — lo mismo que "Claves de proveedor" en <a href="#m-catalogo">Productos</a>, pero de muchas facturas viejas de un jalón. <strong>No mueve inventario ni contabilidad</strong>, a diferencia del importador de XML de <a href="#m-recibo-mercancia">Recibo de mercancía</a>, que sí recibe la mercancía.</p>
+    <p><strong>Pasos.</strong> Sube uno o varios archivos XML (selección múltiple) y pulsa "Procesar archivos". Cada partida se intenta emparejar por su clave ya homologada, su ClaveProdServ del SAT, tu SKU o el nombre — la misma cascada de emparejamiento que usa el importador de XML de Recibo de mercancía. Revisa las que no coincidieron (elige el producto correcto o desmarca "Incluir"), confirma el proveedor a mano si no se identificó por su RFC, y pulsa <strong>"💾 Guardar claves de proveedor"</strong>: actualiza la clave si ya existía para ese producto y proveedor, o la crea si no.</p>
+    <p><strong>Errores comunes.</strong> Guardar una partida emparejada con el producto equivocado sin revisarla primero. Los conceptos de flete/seguro/maniobras/aduana se excluyen a propósito, igual que en Recibo de mercancía — no vas a verlos en la tabla.</p>
+
     <h3>Operación — Compras / Abastecimiento <span style="font-weight:400;font-size:.7em;color:var(--mut)">(antes "Entradas")</span></h3>
 
     <h4 id="m-requisiciones-compra">Requisiciones de compra</h4>

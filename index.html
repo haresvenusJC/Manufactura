@@ -383,6 +383,7 @@
                             <li><button onclick="window.loadView('clientes')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Clientes y listas de precio</button></li>
                             <li><button onclick="window.loadView('empleados')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Empleados</button></li>
                             <li><button onclick="window.loadView('importador')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Importar Excel/CSV</button></li>
+                            <li><button onclick="window.loadView('importador-claves-proveedor')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Importar claves de proveedor (XML)</button></li>
                         </ul>
                     </li>
 
@@ -687,6 +688,15 @@
                 <div id="panelImportadorBom" class="hidden bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorImportadorBom">Cargando importador...</div>
                 </div>
+            </section>
+
+            <!-- Vista: Importar claves de proveedor (XML) -->
+            <section id="view-importador-claves-proveedor" class="vista-seccion hidden space-y-4">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-sky-400">Importar Claves de Proveedor (XML)</h2>
+                    <button type="button" onclick="window.abrirManual('#m-importador-claves-proveedor', 'Importar claves de proveedor')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
+                <div id="contenedorImportadorClavesProveedor">Cargando módulo...</div>
             </section>
 
             <!-- Vista: Contabilidad - Plan de cuentas -->

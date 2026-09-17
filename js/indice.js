@@ -13,6 +13,7 @@ const SECCIONES = [
             { v: 'clientes', t: 'Clientes y listas de precio', d: 'Clientes y sus listas de precio.', cfg: true },
             { v: 'empleados', t: 'Empleados', d: 'Plantilla, costo por hora y PIN para la Orden de Trabajo en el celular.', cfg: true },
             { v: 'importador', t: 'Importar Excel/CSV', d: 'Carga masiva de productos desde una plantilla.' },
+            { v: 'importador-claves-proveedor', t: 'Importar claves de proveedor (XML)', d: 'Lee facturas XML de tus proveedores y las empareja con tu catálogo, para capturar de golpe su SKU, descripción y unidad por producto — sin mover inventario ni contabilidad.' },
         ],
     },
     {
