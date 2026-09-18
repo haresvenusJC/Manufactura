@@ -1453,16 +1453,19 @@ async function rmRenderDetalle(oc) {
         const capturado = capturaOperador[d.id];
         const valorInicial = capturado != null ? capturado : pend;
         const difiere = capturado != null && capturado !== pend;
+        const yaRecibido = Number(d.cantidad_recibida || 0);
         return `
         <tr class="border-b border-slate-900" data-detid="${d.id}" data-prodid="${d.producto_id || ''}" data-reqcad="${reqCad ? 1 : 0}" data-capturado="${capturado != null ? capturado : ''}">
           <td class="p-2 text-center"><input type="checkbox" class="rm-chk accent-emerald-500 w-4 h-4" ${(capturado != null ? capturado > 0 : pend > 0) ? 'checked' : ''}></td>
           <td class="p-2 text-slate-100">${esc(nombreProd(d))}${d.producto_id ? '' : ' <span class="text-[10px] text-amber-400">(nuevo)</span>'}${reqCad ? ' <span class="text-[10px] text-amber-400">· caducidad requerida</span>' : ''}</td>
-          <td class="p-2 text-right font-mono text-slate-400">${d.cantidad}</td>
-          <td class="p-2 text-right font-mono text-slate-400">${d.cantidad_recibida}</td>
-          <td class="p-2 text-right font-mono">${pend}</td>
+          <td class="p-2 text-right font-mono text-slate-400">
+            ${d.cantidad}
+            ${yaRecibido > 0 ? `<p class="text-[10px] text-slate-500 whitespace-nowrap">ya recibiste ${yaRecibido} · pendiente ${pend}</p>` : ''}
+          </td>
+          <td class="p-2 text-right font-mono ${difiere ? 'text-rose-400 font-bold' : capturado != null ? 'text-emerald-400' : 'text-slate-600'}">${capturado != null ? capturado : '—'}</td>
           <td class="p-2">
             <input type="number" step="any" min="0" class="rm-cant w-20 bg-slate-900 border ${difiere ? 'border-rose-600' : 'border-slate-800'} rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${valorInicial}">
-            ${capturado != null ? `<p class="text-[10px] ${difiere ? 'text-rose-400 font-bold' : 'text-emerald-500'} mt-0.5 whitespace-nowrap">${difiere ? '⚠' : '✓'} operador contó ${capturado}</p>` : ''}
+            ${difiere ? `<p class="text-[10px] text-rose-400 font-bold mt-0.5 whitespace-nowrap">⚠ pre-recibo no cuadra con lo pedido</p>` : ''}
           </td>
           <td class="p-2">
             <div class="flex items-center gap-1">
@@ -1483,8 +1486,8 @@ async function rmRenderDetalle(oc) {
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
               <th class="p-2">Recibir</th><th class="p-2">Producto</th><th class="p-2 text-right">Pedido</th>
-              <th class="p-2 text-right">Ya recib.</th><th class="p-2 text-right">Pend.</th>
-              <th class="p-2">Cant. a recibir</th><th class="p-2">Costo real</th><th class="p-2">Lote del proveedor</th><th class="p-2">Caducidad</th>
+              <th class="p-2 text-right" title="Lo que contó físicamente el operador en el pre-recibo — todavía no está contabilizado">Pre-recibo</th>
+              <th class="p-2">Cant. a ingresar</th><th class="p-2">Costo real</th><th class="p-2">Lote del proveedor</th><th class="p-2">Caducidad</th>
             </tr></thead>
             <tbody id="rmDetBody">${filas}</tbody>
           </table>
@@ -1895,7 +1898,10 @@ function rmWireConversiones(root) {
             const costoFinal = Math.round((precioF / factor) * 1e6) / 1e6;
             const inpCant = mainRow.querySelector('.rm-cant');
             const inpCosto = mainRow.querySelector('.rm-costo');
-            if (inpCant) { inpCant.value = cantFinal; inpCant.dispatchEvent(new Event('input', { bubbles: true })); }
+            // Igual que al importar XML: si un operador ya contó físicamente esta
+            // partida (pre-recibo), esa cantidad manda — el conversor solo ajusta
+            // el costo a piezas, no pisa el conteo real.
+            if (inpCant && mainRow.dataset.capturado === '') { inpCant.value = cantFinal; inpCant.dispatchEvent(new Event('input', { bubbles: true })); }
             if (inpCosto) { inpCosto.value = costoFinal; inpCosto.dispatchEvent(new Event('input', { bubbles: true })); }
             mainRow.dataset.convertido = '1';   // para avisar si se reimporta el archivo y se perdería este ajuste
             const res = convRow.querySelector('.rm-conv-resultado');
