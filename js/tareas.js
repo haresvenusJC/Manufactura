@@ -107,8 +107,19 @@ function renderTareasActivas() {
         return;
     }
 
-    cont.innerHTML = `
-        ${renderBarraSeleccion()}
+    // Con selección activa, la barra "Generar requisición conjunta" se fija
+    // arriba (sticky) y la lista se vuelve su propio scroll — si no, se
+    // pierde de vista al bajar a marcar más tareas y parece que no hizo nada.
+    const haySeleccion = tareasSeleccionadas.size > 0;
+    cont.innerHTML = haySeleccion
+        ? `
+        <div class="sticky top-0 z-10 bg-slate-900 pb-2">${renderBarraSeleccion()}</div>
+        <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+            ${recordatorio ? renderRecordatorio(recordatorio) : ''}
+            ${sistema.map(renderTareaSistema).join('')}
+            ${borradores.map(renderNominaBorrador).join('')}
+        </div>`
+        : `
         <div class="space-y-3">
             ${recordatorio ? renderRecordatorio(recordatorio) : ''}
             ${sistema.map(renderTareaSistema).join('')}
