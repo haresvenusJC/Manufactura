@@ -98,7 +98,10 @@ function renderTareasActivas() {
 
     const filtro = tareasFiltroTexto.trim().toLowerCase();
     const pasaFiltro = (texto) => !filtro || (texto || '').toLowerCase().includes(filtro);
-    const sistema = tareasCacheSistema.filter((t) => pasaFiltro(t.titulo) || pasaFiltro(t.detalle));
+    // Una tarea ya seleccionada se queda visible aunque el buscador ya no la
+    // encuentre — si no, al refinar la búsqueda para marcar más tareas,
+    // las que ya habías marcado antes desaparecen de la lista.
+    const sistema = tareasCacheSistema.filter((t) => tareasSeleccionadas.has(t.id) || pasaFiltro(t.titulo) || pasaFiltro(t.detalle));
     const borradores = tareasCacheBorradores.filter((n) => pasaFiltro(`Nómina ${n.id} semana del ${n.periodo_inicio} al ${n.periodo_fin}`));
     const recordatorio = filtro && !pasaFiltro('semana lista para pre-ejecutar nómina') ? null : tareasCacheRecordatorio;
 
