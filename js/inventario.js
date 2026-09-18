@@ -52,9 +52,9 @@ let invProductosCache = [];
 let invFiltroTexto = '';
 const porPaginaResumen = 10;
 const invSeccionEstado = {
-    terminados: { pagina: 1, colapsada: false },
-    materias: { pagina: 1, colapsada: false },
-    componentes: { pagina: 1, colapsada: false },
+    terminados: { pagina: 1, colapsada: true },
+    materias: { pagina: 1, colapsada: true },
+    componentes: { pagina: 1, colapsada: true },
 };
 
 export async function cargarInventarioCompleto() {

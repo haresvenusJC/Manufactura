@@ -1115,9 +1115,12 @@ export async function cargarModuloReciboMercancia() {
 // (pendientes, con botones) y el historial (todos los estatus, solo lectura).
 function rmTarjetaPrerecibo(pr, { conBotones = true } = {}) {
     const fotos = Array.isArray(pr.fotos) ? pr.fotos : [];
+    // El folio de la OC (y, dentro de sus antecedentes, la requisición que la
+    // originó) queda consultable con un clic — reutiliza la trazabilidad ya
+    // construida (js/trazabilidad.js) en vez de duplicar la consulta aquí.
     const oc = pr.orden_compra_id
-        ? `OC ${esc(pr.ordenes_compra?.folio || '#' + pr.orden_compra_id)} · ${esc(pr.ordenes_compra?.proveedores?.nombre || 's/proveedor')}`
-        : `Sin OC · ref. ${esc(pr.referencia || '—')}`;
+        ? `<button type="button" onclick="window.abrirAntecedentesOC(${pr.orden_compra_id})" class="text-sm text-slate-200 font-semibold hover:text-sky-400 hover:underline text-left cursor-pointer">OC ${esc(pr.ordenes_compra?.folio || '#' + pr.orden_compra_id)} · ${esc(pr.ordenes_compra?.proveedores?.nombre || 's/proveedor')}</button>`
+        : `<span class="text-sm text-slate-200 font-semibold">Sin OC · ref. ${esc(pr.referencia || '—')}</span>`;
     const lineas = Array.isArray(pr.lineas) ? pr.lineas : [];
     const discrepancias = lineas.filter(l => Number(l.cantidad_capturada || 0) !== Number(l.cantidad_pendiente || 0));
     const hayDiscrepancias = discrepancias.length > 0;
@@ -1140,23 +1143,33 @@ function rmTarjetaPrerecibo(pr, { conBotones = true } = {}) {
         pendiente: '<span class="text-[10px] bg-amber-800/60 text-amber-200 border border-amber-700 rounded px-1.5 py-0.5 ml-1">Pendiente</span>',
         validado: '<span class="text-[10px] bg-emerald-800/60 text-emerald-200 border border-emerald-700 rounded px-1.5 py-0.5 ml-1">Validado</span>',
         rechazado: '<span class="text-[10px] bg-rose-800/60 text-rose-200 border border-rose-700 rounded px-1.5 py-0.5 ml-1">Rechazado</span>',
+        cancelado: '<span class="text-[10px] bg-slate-700/60 text-slate-300 border border-slate-600 rounded px-1.5 py-0.5 ml-1">Cancelado</span>',
     }[pr.estatus] || '';
 
-    const botones = conBotones ? `
-        <div class="flex gap-2 shrink-0">
+    // Validar/Rechazar solo tienen sentido mientras está pendiente. Ver es
+    // siempre. Editar (solo admin, esta pantalla nunca la usa el operador)
+    // mientras siga vivo (pendiente/validado). Cancelar en cualquier estatus
+    // salvo ya cancelado — permite anular incluso uno ya validado por error
+    // (OC equivocada, duplicado, compra que ya no aplica) y volver a capturar.
+    const accionesValidar = (conBotones && pr.estatus === 'pendiente') ? `
           <button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'validar')" class="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg">✔ Validar y recibir</button>
-          <button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'rechazar')" class="text-xs bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-3 py-1.5 rounded-lg">✕ Rechazar</button>
-        </div>` : '';
+          <button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'rechazar')" class="text-xs bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-3 py-1.5 rounded-lg">✕ Rechazar</button>` : '';
+    const accionEditar = (pr.estatus === 'pendiente' || pr.estatus === 'validado')
+        ? `<button type="button" onclick="window.prereciboEditar(${pr.id})" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg">✏ Editar</button>` : '';
+    const accionCancelar = pr.estatus !== 'cancelado'
+        ? `<button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'cancelar')" class="text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-3 py-1.5 rounded-lg">🚫 Cancelar</button>` : '';
+    const accionVer = `<button type="button" onclick="window.prereciboVer(${pr.id})" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg">👁 Ver</button>`;
+    const botones = `<div class="flex gap-2 shrink-0 flex-wrap">${accionesValidar}${accionEditar}${accionCancelar}${accionVer}</div>`;
 
     return `
       <div class="bg-slate-950 border ${hayDiscrepancias ? 'border-rose-600' : 'border-slate-800'} rounded-lg p-3">
         <div class="flex flex-wrap items-start justify-between gap-2">
           <div class="min-w-0">
-            <p class="text-sm text-slate-200 font-semibold">${oc}${estatusBadge}</p>
+            <p class="flex items-center flex-wrap">${oc}${estatusBadge}</p>
             <p class="text-[11px] text-slate-500">Operador: ${esc(pr.empleado_nombre || '?')} · ${new Date(pr.creado_en).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</p>
             ${bannerEstado}
             ${pr.observaciones ? `<p class="text-[11px] text-slate-400 mt-0.5">“${esc(pr.observaciones)}”</p>` : ''}
-            ${pr.estatus === 'rechazado' && pr.nota_validacion ? `<p class="text-[11px] text-rose-400 mt-0.5"><b>Motivo del rechazo:</b> ${esc(pr.nota_validacion)}</p>` : ''}
+            ${(pr.estatus === 'rechazado' || pr.estatus === 'cancelado') && pr.nota_validacion ? `<p class="text-[11px] text-rose-400 mt-0.5"><b>Motivo${pr.estatus === 'cancelado' ? ' de la cancelación' : ' del rechazo'}:</b> ${esc(pr.nota_validacion)}</p>` : ''}
           </div>
           ${lineas.length ? `<div class="w-full mt-1 space-y-0.5">
                 ${lineas.map(l => {
@@ -1208,19 +1221,20 @@ async function rmPreRecibos() {
         return;
     }
 
-    const linkOperador = `<a href="recibo-operador.html" target="_blank" class="text-[11px] text-sky-400 hover:underline">Abrir pantalla de operador ↗</a>`;
+    const linkOperador = `<a href="recibo-operador.html" target="_blank" class="text-[11px] text-sky-400 hover:underline">Abrir pantalla de operador ↗</a>
+        <button type="button" onclick="window.prereciboNuevoAdmin()" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg ml-2">➕ Nuevo pre-recibo (admin)</button>`;
 
     if (filas.length === 0) {
-        cont.innerHTML = `<div class="bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
-            <span class="text-xs text-slate-500">No hay pre-recibos de operadores por validar.</span>${linkOperador}</div>`;
+        cont.innerHTML = `<div class="bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-between flex-wrap gap-2">
+            <span class="text-xs text-slate-500">No hay pre-recibos de operadores por validar.</span><span>${linkOperador}</span></div>`;
         return;
     }
 
     cont.innerHTML = `
       <div class="bg-amber-950/30 border border-amber-800/50 rounded-xl p-3">
-        <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
           <h3 class="text-sm font-semibold text-amber-300">Pre-recibos por validar (${filas.length})</h3>
-          ${linkOperador}
+          <span>${linkOperador}</span>
         </div>
         <div class="space-y-2">
           ${filas.map(pr => rmTarjetaPrerecibo(pr, { conBotones: true })).join('')}
@@ -1274,6 +1288,11 @@ window.prereciboValidar = async (id, ocId, accion) => {
         nota = prompt('Motivo del rechazo (se lo verá el operador con administración):', '');
         if (nota === null) return;
     }
+    if (accion === 'cancelar') {
+        nota = prompt('¿Por qué se cancela este pre-recibo? (OC equivocada, duplicado, compra que ya no aplica, etc.)', '');
+        if (nota === null) return;
+        if (!confirm('Se cancelará este pre-recibo — se podrá capturar uno nuevo para la misma orden. ¿Continuar?')) return;
+    }
     const { error } = await supabaseClient.rpc('prerecibo_validar', { p_id: Number(id), p_accion: accion, p_nota: nota });
     if (error) { alert('No se pudo procesar: ' + (error.message || error)); return; }
     if (accion === 'validar' && ocId) {
@@ -1282,6 +1301,187 @@ window.prereciboValidar = async (id, ocId, accion) => {
         await rmPreRecibos();
         await rmHistorialPrerecibos();
     }
+};
+
+// ---- Ver el detalle completo de un pre-recibo (fotos grandes, líneas, metadatos) ----
+window.prereciboVer = async (id) => {
+    const { data: pr, error } = await supabaseClient.from('pre_recibos').select(PRERECIBO_COLUMNAS).eq('id', Number(id)).single();
+    if (error || !pr) { alert('No se pudo cargar el pre-recibo: ' + (error?.message || 'no encontrado')); return; }
+    const fotos = Array.isArray(pr.fotos) ? pr.fotos : [];
+    const lineas = Array.isArray(pr.lineas) ? pr.lineas : [];
+    const oc = pr.orden_compra_id
+        ? `OC ${esc(pr.ordenes_compra?.folio || '#' + pr.orden_compra_id)} · ${esc(pr.ordenes_compra?.proveedores?.nombre || 's/proveedor')}`
+        : `Sin OC · ref. ${esc(pr.referencia || '—')}`;
+    rmMostrarModal(`
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-lg w-full max-h-[85vh] overflow-y-auto space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-base font-bold text-slate-100">Pre-recibo #${pr.id}</h3>
+          <button type="button" onclick="rmOcultarModal()" class="text-slate-500 hover:text-slate-200 text-xl leading-none">&times;</button>
+        </div>
+        <p class="text-sm text-slate-200 font-semibold">${oc}</p>
+        <p class="text-xs text-slate-500">Operador: ${esc(pr.empleado_nombre || '?')} · ${new Date(pr.creado_en).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })} · estatus <b>${esc(pr.estatus)}</b></p>
+        ${pr.validado_en ? `<p class="text-xs text-slate-500">${pr.estatus === 'rechazado' ? 'Rechazado' : pr.estatus === 'cancelado' ? 'Cancelado' : 'Validado'} el ${new Date(pr.validado_en).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}</p>` : ''}
+        ${pr.nota_validacion ? `<p class="text-xs text-amber-400">Nota: ${esc(pr.nota_validacion)}</p>` : ''}
+        ${pr.observaciones ? `<p class="text-xs text-slate-400">Observaciones del operador: “${esc(pr.observaciones)}”</p>` : ''}
+        ${lineas.length ? `
+          <div class="space-y-1">
+            <p class="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">Partidas contadas</p>
+            ${lineas.map(l => `<div class="flex justify-between gap-2 text-xs bg-slate-950 border border-slate-800 rounded px-2 py-1">
+                <span class="text-slate-300">${esc(l.descripcion || '')}</span>
+                <span class="font-mono text-slate-200">${l.cantidad_capturada} / ${l.cantidad_pendiente} ${esc(l.unidad || '')}</span>
+              </div>`).join('')}
+          </div>` : ''}
+        ${fotos.length ? `<div class="grid grid-cols-2 gap-2">${fotos.map(f => `<a href="${f}" target="_blank"><img src="${f}" class="w-full h-32 object-cover rounded border border-slate-700"></a>`).join('')}</div>` : '<p class="text-xs text-rose-400">Sin fotos.</p>'}
+        <button type="button" onclick="rmOcultarModal()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-2 rounded-lg text-sm">Cerrar</button>
+      </div>`);
+};
+
+// ---- Editar (solo admin) las cantidades capturadas / observaciones de un pre-recibo ----
+window.prereciboEditar = async (id) => {
+    const { data: pr, error } = await supabaseClient.from('pre_recibos').select(PRERECIBO_COLUMNAS).eq('id', Number(id)).single();
+    if (error || !pr) { alert('No se pudo cargar el pre-recibo: ' + (error?.message || 'no encontrado')); return; }
+    const lineas = Array.isArray(pr.lineas) ? pr.lineas : [];
+    rmMostrarModal(`
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-lg w-full max-h-[85vh] overflow-y-auto space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-base font-bold text-slate-100">Editar pre-recibo #${pr.id}</h3>
+          <button type="button" onclick="rmOcultarModal()" class="text-slate-500 hover:text-slate-200 text-xl leading-none">&times;</button>
+        </div>
+        <p class="text-xs text-amber-400">Solo administración puede editar esto — corrige lo que el operador haya capturado mal antes de validar.</p>
+        ${lineas.length ? `
+          <div class="space-y-2" id="preEditLineas">
+            ${lineas.map((l, i) => `
+              <div class="flex items-center justify-between gap-2 text-xs bg-slate-950 border border-slate-800 rounded px-2 py-1.5" data-idx="${i}">
+                <span class="text-slate-300 truncate">${esc(l.descripcion || '')} <span class="text-slate-500">(pedían ${l.cantidad_pendiente} ${esc(l.unidad || '')})</span></span>
+                <input type="number" step="any" min="0" class="pre-edit-cant w-20 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-right font-mono text-slate-100" value="${l.cantidad_capturada}">
+              </div>`).join('')}
+          </div>` : '<p class="text-xs text-slate-500">Este pre-recibo no tiene partidas capturadas (era de referencia libre).</p>'}
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">Observaciones</label>
+          <textarea id="preEditObs" rows="2" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${esc(pr.observaciones || '')}</textarea>
+        </div>
+        <div class="flex gap-2">
+          <button type="button" id="preEditGuardar" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2 rounded-lg text-sm">Guardar cambios</button>
+          <button type="button" onclick="rmOcultarModal()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg text-sm">Cancelar</button>
+        </div>
+        <p id="preEditMsg" class="text-xs min-h-[1rem]"></p>
+      </div>`);
+
+    document.getElementById('preEditGuardar').onclick = async () => {
+        const nuevasLineas = lineas.map((l, i) => {
+            const inp = document.querySelector(`#preEditLineas [data-idx="${i}"] .pre-edit-cant`);
+            return { ...l, cantidad_capturada: inp ? (parseFloat(inp.value) || 0) : l.cantidad_capturada };
+        });
+        const obs = document.getElementById('preEditObs').value.trim();
+        const msg = document.getElementById('preEditMsg');
+        const { error: eEdit } = await supabaseClient.rpc('prerecibo_editar', { p_id: pr.id, p_lineas: nuevasLineas, p_observaciones: obs || null });
+        if (eEdit) { msg.textContent = 'No se pudo guardar: ' + eEdit.message; msg.className = 'text-xs text-rose-400'; return; }
+        rmOcultarModal();
+        await rmPreRecibos();
+        await rmHistorialPrerecibos();
+    };
+};
+
+// ---- Nuevo pre-recibo capturado por el admin (sin operador) ----
+// Ninguna orden de compra puede recibirse ni contabilizarse sin un
+// pre-recibo validado (candado en sql/2026-10-09_...). Si no hay operador
+// para contar físicamente, el admin lo hace aquí mismo: entra como
+// 'pendiente' igual que uno de operador, y se valida con el flujo normal.
+window.prereciboNuevoAdmin = async () => {
+    let ocs;
+    try {
+        const { data, error } = await supabaseClient
+            .from('ordenes_compra')
+            .select('id, folio, proveedor_id, proveedores ( nombre ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, unidad_medida_id )')
+            .in('estatus', ['abierta', 'recibida_parcial'])
+            .order('id', { ascending: false });
+        if (error) throw error;
+        ocs = data || [];
+    } catch (err) { alert('No se pudieron cargar las órdenes de compra: ' + (err.message || err)); return; }
+
+    if (!ocs.length) { alert('No hay órdenes de compra abiertas o parciales para las que capturar un pre-recibo.'); return; }
+    const optOc = '<option value="">Elige una orden...</option>' + ocs.map(o => `<option value="${o.id}">${esc(o.folio || '#' + o.id)} · ${esc(o.proveedores?.nombre || 's/proveedor')}</option>`).join('');
+
+    rmMostrarModal(`
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-lg w-full max-h-[85vh] overflow-y-auto space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-base font-bold text-slate-100">Nuevo pre-recibo (captura de admin)</h3>
+          <button type="button" onclick="rmOcultarModal()" class="text-slate-500 hover:text-slate-200 text-xl leading-none">&times;</button>
+        </div>
+        <p class="text-xs text-amber-400">Úsalo solo cuando no haya operador que cuente físicamente la mercancía — si sí lo hay, que lo capture desde recibo-operador.html (con fotos del documento).</p>
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">Orden de compra</label>
+          <select id="preAdmOc" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optOc}</select>
+        </div>
+        <div id="preAdmLineasWrap"></div>
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">Observaciones</label>
+          <textarea id="preAdmObs" rows="2" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100" placeholder="Ej. recibido en almacén sin operador presente"></textarea>
+        </div>
+        <label class="flex items-center gap-2 text-xs text-slate-300">
+          <input type="checkbox" id="preAdmTodoOk" class="accent-emerald-500"> Todo llegó correcto (según mi conteo)
+        </label>
+        <div class="flex gap-2">
+          <button type="button" id="preAdmGuardar" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2 rounded-lg text-sm">Guardar pre-recibo</button>
+          <button type="button" onclick="rmOcultarModal()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg text-sm">Cancelar</button>
+        </div>
+        <p id="preAdmMsg" class="text-xs min-h-[1rem]"></p>
+      </div>`);
+
+    const renderLineas = (ocId) => {
+        const oc = ocs.find(o => o.id === Number(ocId));
+        const wrap = document.getElementById('preAdmLineasWrap');
+        if (!oc) { wrap.innerHTML = ''; return; }
+        const dets = (oc.ordenes_compra_detalle || []).filter(d => Number(d.cantidad || 0) > Number(d.cantidad_recibida || 0));
+        if (!dets.length) { wrap.innerHTML = '<p class="text-xs text-slate-500">Esta orden no tiene partidas pendientes.</p>'; return; }
+        wrap.innerHTML = `<p class="text-[11px] uppercase tracking-wider text-slate-500 font-semibold mb-1">Cuenta lo que de verdad llegó</p>` +
+            dets.map(d => {
+                const pend = Number(d.cantidad || 0) - Number(d.cantidad_recibida || 0);
+                const nom = d.producto_id ? (ocProductos.find(p => p.id === d.producto_id)?.nombre || d.descripcion || `#${d.producto_id}`) : (d.descripcion || 'partida');
+                return `<div class="flex items-center justify-between gap-2 text-xs bg-slate-950 border border-slate-800 rounded px-2 py-1.5" data-detid="${d.id}" data-pend="${pend}">
+                    <span class="text-slate-300 truncate">${esc(nom)} <span class="text-slate-500">(pendían ${pend})</span></span>
+                    <input type="number" step="any" min="0" class="pre-adm-cant w-20 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-right font-mono text-slate-100" value="${pend}">
+                </div>`;
+            }).join('');
+    };
+    document.getElementById('preAdmOc').onchange = (e) => renderLineas(e.target.value);
+
+    document.getElementById('preAdmGuardar').onclick = async () => {
+        const msg = document.getElementById('preAdmMsg');
+        const ocId = Number(document.getElementById('preAdmOc').value) || null;
+        if (!ocId) { msg.textContent = 'Elige una orden de compra.'; msg.className = 'text-xs text-rose-400'; return; }
+        const oc = ocs.find(o => o.id === ocId);
+        const lineas = [...document.querySelectorAll('#preAdmLineasWrap [data-detid]')].map(row => {
+            const det = (oc.ordenes_compra_detalle || []).find(d => d.id === Number(row.dataset.detid));
+            const nom = det.producto_id ? (ocProductos.find(p => p.id === det.producto_id)?.nombre || det.descripcion) : det.descripcion;
+            return {
+                orden_compra_detalle_id: det.id,
+                descripcion: nom,
+                unidad: '',
+                cantidad_pedida: Number(det.cantidad || 0),
+                cantidad_pendiente: Number(row.dataset.pend),
+                cantidad_capturada: parseFloat(row.querySelector('.pre-adm-cant').value) || 0,
+            };
+        });
+        try {
+            const { error } = await supabaseClient.from('pre_recibos').insert([{
+                orden_compra_id: ocId,
+                empleado_nombre: 'Administración (autocaptura)',
+                fotos: [],
+                observaciones: document.getElementById('preAdmObs').value.trim() || null,
+                todo_correcto: document.getElementById('preAdmTodoOk').checked,
+                estatus: 'pendiente',
+                lineas,
+            }]);
+            if (error) throw error;
+            rmOcultarModal();
+            await rmPreRecibos();
+            await rmHistorialPrerecibos();
+        } catch (err) {
+            msg.textContent = 'No se pudo guardar: ' + (err.message || err);
+            msg.className = 'text-xs text-rose-400';
+        }
+    };
 };
 
 async function rmRecepciones() {
@@ -1437,6 +1637,30 @@ async function rmRenderDetalle(oc) {
         return;
     }
     rmModo = 'oc';
+
+    // Candado: ninguna OC puede recibirse sin un pre-recibo validado (además
+    // del trigger en sql/2026-10-09_..., que es el que de verdad lo impide
+    // a nivel base de datos — esto solo evita que el admin llene todo el
+    // formulario para toparse con el error hasta el final).
+    let hayPrereciboValidado = false;
+    try {
+        const { count } = await supabaseClient.from('pre_recibos').select('id', { count: 'exact', head: true })
+            .eq('orden_compra_id', oc.id).eq('estatus', 'validado');
+        hayPrereciboValidado = (count || 0) > 0;
+    } catch (_) { hayPrereciboValidado = true; }   // si el candado aún no existe en la BD, no bloquear la UI a ciegas
+    if (rmOcActual !== oc) return;
+    if (!hayPrereciboValidado) {
+        cont.innerHTML = `
+          <div class="bg-rose-950/40 border border-rose-700 rounded-xl p-4 text-sm text-rose-200">
+            🔒 Esta orden todavía no tiene un <b>pre-recibo validado</b> — no se puede recibir ni contabilizar sin uno.
+            <div class="mt-2 flex gap-2 flex-wrap">
+              <a href="recibo-operador.html" target="_blank" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg">Abrir pantalla de operador ↗</a>
+              <button type="button" onclick="window.prereciboNuevoAdmin()" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg">➕ Capturarlo yo mismo</button>
+            </div>
+          </div>`;
+        btn.classList.add('hidden');
+        return;
+    }
 
     const capturaOperador = await rmObtenerCapturaOperador(oc.id);
     if (rmOcActual !== oc) return;   // el admin ya cambió de OC mientras esto cargaba
