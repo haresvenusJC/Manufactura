@@ -32,6 +32,7 @@ const REQ_FILTROS = [
     { v: 'pendiente', t: 'Pendientes' },
     { v: 'autorizada', t: 'Autorizadas' },
     { v: 'rechazada', t: 'Rechazadas' },
+    { v: 'cancelada', t: 'Canceladas' },
     { v: 'todas', t: 'Todas' },
 ];
 
@@ -148,7 +149,7 @@ async function reqAplicarPreseleccion() {
         for (const item of preMulti) {
             const p = reqProductos.find((x) => x.id === Number(item.id));
             if (!p || !(item.cantidad > 0)) continue;
-            await reqAgregarPartida({ productoId: p.id, nombre: p.nombre, cantidad: item.cantidad, unidadId: p.unidad_medida_id || null, proveedorId: p.proveedor_id || null });
+            await reqAgregarPartida({ productoId: p.id, nombre: p.nombre, cantidad: item.cantidad, unidadId: p.unidad_medida_id || null, proveedorId: p.proveedor_id || null, tareaId: item.tareaId || null });
         }
         reqRenderPartidas();
         document.getElementById('reqNotas').value = 'Generada desde Tareas: inventario bajo mínimo (agrupada por proveedor).';
@@ -159,14 +160,9 @@ async function reqAplicarPreseleccion() {
     if (!pre || !pre.id) return;
     const p = reqProductos.find((x) => x.id === Number(pre.id));
     if (!p) return;
-    reqProdSel = p;
-    const set = (id, v) => { const el = document.getElementById(id); if (el != null && v != null && v !== '') el.value = v; };
-    set('reqProdInput', p.nombre);
-    set('reqProdUnidad', p.unidad_medida_id);
-    set('reqProdProveedor', p.proveedor_id);
-    if (pre.cantidad) set('reqProdCant', pre.cantidad);
+    await reqAgregarPartida({ productoId: p.id, nombre: p.nombre, cantidad: pre.cantidad > 0 ? pre.cantidad : 1, unidadId: p.unidad_medida_id || null, proveedorId: p.proveedor_id || null, tareaId: pre.tareaId || null });
+    reqRenderPartidas();
     document.getElementById('reqNotas').value = 'Generada desde Tareas: inventario bajo mínimo.';
-    document.getElementById('reqAddPartida').click();
 }
 
 function reqAvisarGruposRestantes() {
@@ -247,7 +243,7 @@ function reqWireFormulario() {
 // Agrega una partida a reqPartidasTemp (no repinta ni limpia el formulario —
 // eso lo hace quien la llama). Compartida entre el botón "Agregar partida" y
 // la preselección masiva desde Tareas (reqAplicarPreseleccion).
-async function reqAgregarPartida({ productoId, nombre, cantidad, unidadId, proveedorId }) {
+async function reqAgregarPartida({ productoId, nombre, cantidad, unidadId, proveedorId, tareaId = null }) {
     const prod = productoId ? reqProductos.find((x) => x.id === Number(productoId)) : null;
     const uNom = reqUnidades.find((u) => u.id === unidadId)?.nombre || '';
     const provNom = reqProveedores.find((p) => p.id === proveedorId)?.nombre || '';
@@ -281,6 +277,7 @@ async function reqAgregarPartida({ productoId, nombre, cantidad, unidadId, prove
         unidadNombre: uNom,
         proveedorId,
         proveedorNombre: provNom,
+        tareaId,
         ...datosProveedor,
     });
 }
@@ -384,6 +381,18 @@ async function reqGuardarRequisicion() {
         }
         if (e2) throw e2;
 
+        // Las tareas de "inventario bajo mínimo" que originaron estas
+        // partidas (ver tareas.js) se marcan Atendidas solas — ya se generó
+        // la requisición, no hace falta que el admin también le dé "✔
+        // Atendida" a mano en Tareas. Mejor esfuerzo: si falla, la
+        // requisición ya quedó guardada de todas formas.
+        const tareaIds = [...new Set(reqPartidasTemp.map((p) => p.tareaId).filter(Boolean))];
+        for (const tareaId of tareaIds) {
+            try {
+                await supabaseClient.rpc('tarea_resolver', { p_id: tareaId, p_accion: 'atender', p_nota: `Requisición ${req.folio} generada`, p_dias: null });
+            } catch (_) { /* no bloquea el guardado de la requisición */ }
+        }
+
         reqPartidasTemp = [];
         reqRenderPartidas();
         document.getElementById('reqNotas').value = '';
@@ -465,7 +474,9 @@ async function reqRenderLista() {
                       <td class="p-2 whitespace-nowrap">
                         ${r.estatus === 'pendiente' ? `
                             <button type="button" onclick="window.reqAutorizar(${r.id})" class="text-[11px] bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-1 rounded">Autorizar</button>
+                            <button type="button" onclick="window.reqEditar(${r.id})" class="text-[11px] bg-sky-800 hover:bg-sky-700 text-sky-200 border border-sky-700 px-2 py-1 rounded ml-1">✏ Editar</button>
                             <button type="button" onclick="window.reqRechazar(${r.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded ml-1">Rechazar</button>
+                            <button type="button" onclick="window.reqCancelar(${r.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-2 py-1 rounded ml-1">Cancelar</button>
                         ` : (r.orden_compra_id ? `
                             <button type="button" onclick="window.verDetalleOC(${r.orden_compra_id})" class="text-[11px] font-mono text-emerald-300 hover:underline">OC ${esc(r.ordenes_compra?.folio || '#' + r.orden_compra_id)}</button>
                             <button type="button" onclick="window.abrirAntecedentesOC(${r.orden_compra_id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded ml-1">🔗 Antecedentes</button>
@@ -478,7 +489,7 @@ async function reqRenderLista() {
                       <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${REQ_ESTATUS[r.estatus] || 'text-slate-400 bg-slate-800'}">${esc(r.estatus)}</span></td>
                       <td class="p-2 text-slate-500 text-[11px]">${r.origen === 'stock_bajo_minimo' ? 'Stock bajo mínimo' : 'Manual'}</td>
                     </tr>
-                    ${r.estatus === 'rechazada' && r.motivo_rechazo ? `<tr class="border-b border-slate-900"><td></td><td colspan="6" class="p-2 pt-0 text-[11px] text-rose-400/80">Motivo: ${esc(r.motivo_rechazo)}</td></tr>` : ''}
+                    ${(r.estatus === 'rechazada' || r.estatus === 'cancelada') && r.motivo_rechazo ? `<tr class="border-b border-slate-900"><td></td><td colspan="6" class="p-2 pt-0 text-[11px] ${r.estatus === 'cancelada' ? 'text-amber-400/80' : 'text-rose-400/80'}">Motivo: ${esc(r.motivo_rechazo)}</td></tr>` : ''}
               `).join('')}
             </tbody>
           </table>
@@ -627,6 +638,125 @@ window.reqRechazar = async (id) => {
     });
     if (error) { alert('No se pudo rechazar: ' + (error.message || error)); return; }
     await reqRenderLista();
+};
+
+// Cancelar: la requisición ya no aplica por algo ajeno al contenido (se
+// generó por error, se duplicó, ya no se necesita) — a diferencia de
+// Rechazar, que es un rechazo de fondo. Requiere sql/2026-10-11_requisicion_cancelar.sql.
+window.reqCancelar = async (id) => {
+    if (!confirm('¿Cancelar esta requisición? Ya no se podrá autorizar ni rechazar.')) return;
+    const motivo = prompt('Motivo de la cancelación (opcional):', '');
+    if (motivo === null) return;
+    const { error } = await supabaseClient.rpc('requisicion_cancelar', { p_requisicion_id: id, p_motivo: motivo || null });
+    if (error) {
+        alert(/does not exist|schema cache|could not find/i.test(error.message || '')
+            ? 'Falta correr sql/2026-10-11_requisicion_cancelar.sql en Supabase.'
+            : 'No se pudo cancelar: ' + (error.message || error));
+        return;
+    }
+    await reqRenderLista();
+};
+
+// Editar (solo pendiente): fecha, notas, y cantidad/costo estimado de cada
+// partida — quitar una partida también. Para agregar un producto nuevo,
+// rechaza y vuelve a capturar (mantiene el flujo simple).
+window.reqEditar = async (id) => {
+    document.getElementById('modalEditarReq')?.remove();
+
+    const { data: r, error } = await supabaseClient
+        .from('requisiciones_compra')
+        .select('id, folio, fecha, notas, estatus, requisiciones_compra_detalle ( id, cantidad, costo_estimado, productos ( nombre ), descripcion )')
+        .eq('id', id).single();
+    if (error) { alert('No se pudo cargar la requisición: ' + (error.message || error)); return; }
+    if (r.estatus !== 'pendiente') { alert('Solo se puede editar una requisición pendiente.'); return; }
+
+    const det = r.requisiciones_compra_detalle || [];
+    const modal = document.createElement('div');
+    modal.id = 'modalEditarReq';
+    modal.className = 'fixed z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]';
+    modal.style.top = '6vh'; modal.style.left = '50%'; modal.style.transform = 'translateX(-50%)';
+    modal.style.width = 'calc(100% - 2rem)'; modal.style.maxWidth = '36rem';
+    modal.innerHTML = `
+        <div class="flex justify-between items-center p-4 border-b border-slate-800">
+            <h3 class="text-base font-semibold text-slate-100">Editar requisición <span class="text-emerald-300 font-mono">${esc(r.folio || '#' + r.id)}</span></h3>
+            <button id="cerrarEditarReq" class="text-slate-400 hover:text-slate-200 text-xl leading-none">&times;</button>
+        </div>
+        <div class="p-4 overflow-y-auto flex-1 space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="block text-xs text-slate-400 mb-1">Fecha</label>
+                    <input type="date" id="editReqFecha" value="${esc(r.fecha || '')}" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+                <div><label class="block text-xs text-slate-400 mb-1">Notas</label>
+                    <input type="text" id="editReqNotas" value="${esc(r.notas || '')}" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+            </div>
+            <div class="overflow-x-auto border border-slate-800 rounded-lg">
+                <table class="w-full text-left text-xs text-slate-300">
+                    <thead class="bg-slate-950 text-slate-500 uppercase"><tr>
+                        <th class="p-2">Producto</th><th class="p-2 text-right">Cantidad</th><th class="p-2 text-right">Costo est.</th><th class="p-2"></th>
+                    </tr></thead>
+                    <tbody id="editReqPartidas">
+                        ${det.map((d) => `
+                            <tr class="border-b border-slate-900" data-id="${d.id}">
+                                <td class="p-2">${esc(d.productos?.nombre || d.descripcion || '—')}</td>
+                                <td class="p-2 text-right"><input type="number" step="any" min="0" class="edit-req-cant w-20 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-right font-mono text-slate-100" value="${d.cantidad}"></td>
+                                <td class="p-2 text-right"><input type="number" step="any" min="0" class="edit-req-costo w-24 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-right font-mono text-slate-100" value="${Number(d.costo_estimado || 0)}"></td>
+                                <td class="p-2 text-right"><button type="button" class="edit-req-quitar text-rose-400 hover:text-rose-300">✕</button></td>
+                            </tr>`).join('') || '<tr><td colspan="4" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-[10px] text-slate-500">Para agregar un producto nuevo, cancela esta requisición y captura una nueva — aquí solo se ajustan cantidades/costos o se quitan partidas.</p>
+            <button type="button" id="btnGuardarEditarReq" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Guardar cambios</button>
+            <p id="editReqMsg" class="text-xs min-h-[1rem]"></p>
+        </div>`;
+    document.body.appendChild(modal);
+
+    const cerrarFuera = (e) => { if (!modal.contains(e.target)) cerrar(); };
+    const cerrarEsc = (e) => { if (e.key === 'Escape') cerrar(); };
+    function cerrar() {
+        modal.remove();
+        document.removeEventListener('click', cerrarFuera);
+        document.removeEventListener('keydown', cerrarEsc);
+    }
+    document.getElementById('cerrarEditarReq').onclick = cerrar;
+    setTimeout(() => {
+        document.addEventListener('click', cerrarFuera);
+        document.addEventListener('keydown', cerrarEsc);
+    }, 0);
+
+    modal.querySelectorAll('.edit-req-quitar').forEach((b) => b.onclick = () => b.closest('tr').remove());
+
+    document.getElementById('btnGuardarEditarReq').onclick = async () => {
+        const msg = document.getElementById('editReqMsg');
+        const filas = [...modal.querySelectorAll('#editReqPartidas tr[data-id]')];
+        const idsRestantes = filas.map((tr) => Number(tr.dataset.id));
+        const idsQuitados = det.map((d) => d.id).filter((dId) => !idsRestantes.includes(dId));
+        if (!filas.length) { msg.textContent = 'La requisición debe tener al menos una partida.'; msg.className = 'text-xs min-h-[1rem] text-rose-400'; return; }
+
+        try {
+            const { error: eHead } = await supabaseClient.from('requisiciones_compra')
+                .update({ fecha: document.getElementById('editReqFecha').value || r.fecha, notas: document.getElementById('editReqNotas').value.trim() || null })
+                .eq('id', id);
+            if (eHead) throw eHead;
+
+            for (const tr of filas) {
+                const cantidad = parseFloat(tr.querySelector('.edit-req-cant').value) || 0;
+                const costo = parseFloat(tr.querySelector('.edit-req-costo').value) || 0;
+                if (cantidad <= 0) throw new Error('Cada partida necesita una cantidad mayor a 0.');
+                const { error: eDet } = await supabaseClient.from('requisiciones_compra_detalle')
+                    .update({ cantidad, costo_estimado: costo }).eq('id', Number(tr.dataset.id));
+                if (eDet) throw eDet;
+            }
+            if (idsQuitados.length) {
+                const { error: eDel } = await supabaseClient.from('requisiciones_compra_detalle').delete().in('id', idsQuitados);
+                if (eDel) throw eDel;
+            }
+            cerrar();
+            await reqRenderLista();
+        } catch (err) {
+            msg.textContent = 'No se pudo guardar: ' + (err.message || err);
+            msg.className = 'text-xs min-h-[1rem] text-rose-400';
+        }
+    };
 };
 
 window.reqAutorizar = async (id) => {

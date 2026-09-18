@@ -147,6 +147,7 @@ function renderTareasActivas() {
         window.__reqPreProducto = {
             id: Number(b.dataset.prod),
             cantidad: b.dataset.sug ? parseFloat(b.dataset.sug) : null,
+            tareaId: Number(b.dataset.tarea),
         };
         window.loadView('requisiciones-compra');
     }));
@@ -256,6 +257,7 @@ function tareasGenerarRequisicionConjunta() {
     const listaGrupos = [...grupos.values()].map((ts) => ts.map((t) => ({
         id: Number(t.entidad_id),
         cantidad: t.datos && t.datos.sugerido_pedir != null ? t.datos.sugerido_pedir : null,
+        tareaId: t.id,
     })));
     window.__reqPreProductos = listaGrupos[0];
     window.__reqPreGruposRestantes = listaGrupos.slice(1);
@@ -274,7 +276,7 @@ function renderTareaSistema(t) {
         ? `<input type="checkbox" class="tarea-check accent-sky-500 w-4 h-4 mt-0.5 shrink-0" data-tarea="${t.id}" ${tareasSeleccionadas.has(t.id) ? 'checked' : ''} title="Seleccionar para agrupar en una requisición conjunta">`
         : '';
     const botonOc = seleccionable
-        ? `<button type="button" data-prod="${t.entidad_id}" data-sug="${sug}" class="tarea-ir-oc text-xs bg-emerald-700 hover:bg-emerald-600 text-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-600 cursor-pointer">📝 Generar requisición</button>`
+        ? `<button type="button" data-prod="${t.entidad_id}" data-sug="${sug}" data-tarea="${t.id}" class="tarea-ir-oc text-xs bg-emerald-700 hover:bg-emerald-600 text-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-600 cursor-pointer">📝 Generar requisición</button>`
         : '';
     const botonLote = t.accion_sugerida === 'revisar_lote'
         ? `<button type="button" class="tarea-ir-lote text-xs bg-sky-800 hover:bg-sky-700 text-sky-100 px-3 py-1.5 rounded-lg border border-sky-600 cursor-pointer">📦 Ver en inventario</button>`
