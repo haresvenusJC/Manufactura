@@ -3,11 +3,10 @@ import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-
 import { montarGuia } from './asistente-contable.js';
 
 // =====================================================================
-//  Devoluciones a proveedor y de cliente. No existía ningún módulo de
-//  esto — las cuentas 402/402.01 estaban sembradas desde el plan de
-//  cuentas inicial sin usarse. Simplificación consciente: no recalcula
-//  IVA/IEPS ni emite CFDI de nota de crédito, solo el efecto de
-//  inventario + el asiento base (ver comentario en el SQL).
+//  Devoluciones a proveedor y de cliente. El IVA se calcula solo con la
+//  tasa_iva del producto (sql/2026-10-08_devoluciones_iva.sql) — sigue
+//  sin emitir CFDI de nota de crédito, eso se gestiona aparte con el
+//  proveedor/cliente.
 // =====================================================================
 
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -98,6 +97,9 @@ function devRenderPanelCliente() {
             <input type="date" id="devcFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
           <div><label class="block text-xs text-slate-400 mb-1">Motivo</label>
             <input type="text" id="devcMotivo" placeholder="Ej. producto dañado" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+          <div><label class="block text-xs text-slate-400 mb-1">Condición de la venta original</label>
+            <select id="devcCondicion" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+              <option value="contado">Contado</option><option value="credito">Crédito</option></select></div>
         </div>
         <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-3 mb-3">
           <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
@@ -203,13 +205,14 @@ async function devGuardarCliente() {
                 fecha: document.getElementById('devcFecha').value || hoyISO(),
                 cliente_id: clienteId,
                 motivo: document.getElementById('devcMotivo').value.trim() || null,
+                condicion: document.getElementById('devcCondicion').value,
                 partidas: devPartidasCliente.map((p) => ({
                     producto_id: p.productoId, cantidad: p.cantidad, costo_unitario: p.costo, precio_unitario: p.precio, unidad_medida_id: p.unidadMedidaId,
                 })),
             },
         });
         if (error) throw error;
-        msg.textContent = `Devolución registrada (póliza #${data.poliza_id}).`;
+        msg.textContent = `Devolución registrada (póliza #${data.poliza_id}) — Subtotal ${money(data.subtotal)} + IVA ${money(data.iva)} = ${money(data.total)}.`;
         msg.className = 'text-xs mt-2 text-emerald-400';
         devPartidasCliente = [];
         devRenderPartidasCliente();
@@ -229,11 +232,16 @@ async function devRenderHistCliente() {
     try {
         const { data, error } = await supabaseClient
             .from('devoluciones_cliente')
-            .select('id, folio, fecha, motivo, estatus, poliza_id, clientes ( nombre ), devoluciones_cliente_detalle ( cantidad, precio_unitario )')
+            .select('id, folio, fecha, motivo, estatus, poliza_id, clientes ( nombre ), devoluciones_cliente_detalle ( cantidad, precio_unitario ), documentos!documento_id ( subtotal, iva, total )')
             .order('id', { ascending: false }).limit(200);
         if (error) throw error;
         if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin devoluciones de cliente registradas.</p>'; return; }
-        data.forEach((d) => { d._total = (d.devoluciones_cliente_detalle || []).reduce((a, l) => a + Number(l.cantidad || 0) * Number(l.precio_unitario || 0), 0); });
+        data.forEach((d) => {
+            const bruto = (d.devoluciones_cliente_detalle || []).reduce((a, l) => a + Number(l.cantidad || 0) * Number(l.precio_unitario || 0), 0);
+            d._subtotal = d.documentos?.subtotal != null ? Number(d.documentos.subtotal) : bruto;
+            d._iva = Number(d.documentos?.iva || 0);
+            d._total = d.documentos?.total != null ? Number(d.documentos.total) : bruto;
+        });
         aplicarOrden(devHistOrdenCliente, data, (d, campo) => (campo === 'fecha' ? d.fecha || '' : campo === 'total' ? d._total : d.id));
 
         cont.innerHTML = `
@@ -241,6 +249,7 @@ async function devRenderHistCliente() {
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
               <th class="p-2">Folio</th>${thOrden(devHistOrdenCliente, 'fecha', 'Fecha')}<th class="p-2">Cliente</th>
+              <th class="p-2 text-right">Subtotal</th><th class="p-2 text-right">IVA</th>
               ${thOrden(devHistOrdenCliente, 'total', 'Total', 'text-right justify-end')}<th class="p-2">Estatus</th><th class="p-2"></th>
             </tr></thead>
             <tbody>
@@ -249,6 +258,8 @@ async function devRenderHistCliente() {
                   <td class="p-2 font-mono text-emerald-300">${esc(d.folio)}</td>
                   <td class="p-2 whitespace-nowrap text-slate-400">${d.fecha || ''}</td>
                   <td class="p-2">${esc(d.clientes?.nombre || '—')}</td>
+                  <td class="p-2 text-right font-mono text-slate-400">${money(d._subtotal)}</td>
+                  <td class="p-2 text-right font-mono text-slate-400">${money(d._iva)}</td>
                   <td class="p-2 text-right font-mono">${money(d._total)}</td>
                   <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${d.estatus === 'cancelada' ? 'text-rose-300 bg-rose-950/40' : 'text-emerald-300 bg-emerald-950/40'}">${esc(d.estatus)}</span></td>
                   <td class="p-2 text-right">${d.estatus === 'registrada' ? `<button type="button" onclick="window.devCancelarCliente(${d.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded">Cancelar</button>` : ''}</td>
@@ -287,6 +298,9 @@ function devRenderPanelProveedor() {
             <input type="date" id="devpFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
           <div><label class="block text-xs text-slate-400 mb-1">Motivo</label>
             <input type="text" id="devpMotivo" placeholder="Ej. mercancía en mal estado" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+          <div><label class="block text-xs text-slate-400 mb-1">Condición de la compra original</label>
+            <select id="devpCondicion" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+              <option value="credito">Crédito</option><option value="contado">Contado</option></select></div>
         </div>
         <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-3 mb-3">
           <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -397,13 +411,14 @@ async function devGuardarProveedor() {
                 fecha: document.getElementById('devpFecha').value || hoyISO(),
                 proveedor_id: proveedorId,
                 motivo: document.getElementById('devpMotivo').value.trim() || null,
+                condicion: document.getElementById('devpCondicion').value,
                 partidas: devPartidasProveedor.map((p) => ({
                     producto_id: p.productoId, lote_id: p.loteId, cantidad: p.cantidad, unidad_medida_id: p.unidadMedidaId,
                 })),
             },
         });
         if (error) throw error;
-        msg.textContent = `Devolución registrada (póliza #${data.poliza_id}).`;
+        msg.textContent = `Devolución registrada (póliza #${data.poliza_id}) — Subtotal ${money(data.subtotal)} + IVA ${money(data.iva)} = ${money(data.total)}.`;
         msg.className = 'text-xs mt-2 text-emerald-400';
         devPartidasProveedor = [];
         devRenderPartidasProveedor();
@@ -423,11 +438,16 @@ async function devRenderHistProveedor() {
     try {
         const { data, error } = await supabaseClient
             .from('devoluciones_proveedor')
-            .select('id, folio, fecha, motivo, estatus, poliza_id, proveedores ( nombre ), devoluciones_proveedor_detalle ( cantidad, costo_unitario )')
+            .select('id, folio, fecha, motivo, estatus, poliza_id, proveedores ( nombre ), devoluciones_proveedor_detalle ( cantidad, costo_unitario ), documentos!documento_id ( subtotal, iva, total )')
             .order('id', { ascending: false }).limit(200);
         if (error) throw error;
         if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin devoluciones a proveedor registradas.</p>'; return; }
-        data.forEach((d) => { d._total = (d.devoluciones_proveedor_detalle || []).reduce((a, l) => a + Number(l.cantidad || 0) * Number(l.costo_unitario || 0), 0); });
+        data.forEach((d) => {
+            const bruto = (d.devoluciones_proveedor_detalle || []).reduce((a, l) => a + Number(l.cantidad || 0) * Number(l.costo_unitario || 0), 0);
+            d._subtotal = d.documentos?.subtotal != null ? Number(d.documentos.subtotal) : bruto;
+            d._iva = Number(d.documentos?.iva || 0);
+            d._total = d.documentos?.total != null ? Number(d.documentos.total) : bruto;
+        });
         aplicarOrden(devHistOrdenProveedor, data, (d, campo) => (campo === 'fecha' ? d.fecha || '' : campo === 'total' ? d._total : d.id));
 
         cont.innerHTML = `
@@ -435,6 +455,7 @@ async function devRenderHistProveedor() {
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
               <th class="p-2">Folio</th>${thOrden(devHistOrdenProveedor, 'fecha', 'Fecha')}<th class="p-2">Proveedor</th>
+              <th class="p-2 text-right">Subtotal</th><th class="p-2 text-right">IVA</th>
               ${thOrden(devHistOrdenProveedor, 'total', 'Total', 'text-right justify-end')}<th class="p-2">Estatus</th><th class="p-2"></th>
             </tr></thead>
             <tbody>
@@ -443,6 +464,8 @@ async function devRenderHistProveedor() {
                   <td class="p-2 font-mono text-emerald-300">${esc(d.folio)}</td>
                   <td class="p-2 whitespace-nowrap text-slate-400">${d.fecha || ''}</td>
                   <td class="p-2">${esc(d.proveedores?.nombre || '—')}</td>
+                  <td class="p-2 text-right font-mono text-slate-400">${money(d._subtotal)}</td>
+                  <td class="p-2 text-right font-mono text-slate-400">${money(d._iva)}</td>
                   <td class="p-2 text-right font-mono">${money(d._total)}</td>
                   <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${d.estatus === 'cancelada' ? 'text-rose-300 bg-rose-950/40' : 'text-emerald-300 bg-emerald-950/40'}">${esc(d.estatus)}</span></td>
                   <td class="p-2 text-right">${d.estatus === 'registrada' ? `<button type="button" onclick="window.devCancelarProveedor(${d.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded">Cancelar</button>` : ''}</td>

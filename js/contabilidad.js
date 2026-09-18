@@ -1,7 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { imprimirConPlantilla } from './impresion.js';
 import { montarGuia, crearPanelAsistente, abrirManual } from './asistente-contable.js';
-import { parsearCfdi, formaPagoSimple } from './cfdi.js';
+import { parsearCfdi, formaPagoSimple, extraerTextoPdf, parsearCfdiPdf } from './cfdi.js';
 import { REGIMENES } from './proveedores.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
@@ -655,7 +655,7 @@ function renderFilaPoliza(p) {
     let html = `
         <tr class="pol-row border-b border-slate-900 hover:bg-slate-900/40 cursor-pointer ${p.estatus === 'cancelada' ? 'opacity-50' : ''}" data-id="${p.id}">
             <td class="p-2 whitespace-nowrap">${p.fecha}</td>
-            <td class="p-2 font-mono">${p.tipo} #${p.numero}</td>
+            <td class="p-2 font-mono">${p.tipo} #${p.numero} <span class="text-slate-600">(id ${p.id})</span></td>
             <td class="p-2">${p.concepto || ''}</td>
             <td class="p-2 text-right font-mono">${money(total)}</td>
             <td class="p-2 ${estColor}">${p.estatus}</td>
@@ -752,6 +752,8 @@ let gaPlantillas = [];  // plantillas de reparto (Tanda 2)
 let gaBases = [];       // v_bases_prorrateo, para la vista previa del reparto
 let gaUmbral = 0;       // umbral de materialidad (costos_config)
 let gaCfdiActual = null; // último CFDI importado (para que el asistente sugiera cuenta)
+let gaCfdiProveedorAutoMatched = false; // ¿el proveedor de gaCfdiActual se identificó solo por RFC?
+const gaProveedoresYaOfrecidos = new Set(); // no volver a ofrecer completar la ficha del mismo proveedor en esta sesión
 let gaWizGrupo = null;   // grupo del asistente ('prod'|'admin'|'venta'|'fin') para re-sugerir tras importar XML
 
 // globo de ayuda al pasar por encima. Los textos son literales controlados (sin < > " &).
@@ -772,9 +774,13 @@ export async function cargarModuloGastos() {
             <form id="gaForm" class="space-y-3">
                 <div class="flex items-center gap-2 flex-wrap">
                     <input type="file" id="gaXmlFile" accept=".xml,text/xml,application/xml" class="hidden">
-                    <button type="button" id="gaBtnXml" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-2 rounded-lg cursor-pointer">📄 Importar XML del CFDI</button>
-                    <span id="gaCfdiInfo" class="text-[11px] text-slate-400"></span>
+                    <input type="file" id="gaPdfFile" accept=".pdf,application/pdf" class="hidden">
+                    <input type="file" id="gaQrFile" accept="image/*" class="hidden">
+                    <button type="button" id="gaBtnXml" title="Cargar el XML del CFDI para prellenar impuestos y datos del proveedor" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-2 rounded-lg cursor-pointer">📄 Importar XML</button>
+                    <button type="button" id="gaBtnPdf" title="Cargar el PDF de la factura cuando no tengas el XML — mismos campos, mejor esfuerzo (revisa lo que se precargue)" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-2 rounded-lg cursor-pointer">📕 Importar PDF</button>
+                    <button type="button" id="gaBtnQr" title="Leer una foto del QR del CFDI (UUID, RFC)" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-2 rounded-lg cursor-pointer">🔳 Leer QR</button>
                 </div>
+                <p id="gaCfdiInfo" class="text-[11px] text-slate-400"></p>
                 <div class="grid grid-cols-2 gap-2">
                     <div><label class="block text-[11px] text-slate-400 mb-1">Fecha${gHint('La fecha de la factura. Define en qué mes se prorratea el gasto.')}</label>
                         <input type="date" id="gaFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
@@ -890,6 +896,7 @@ function gaMontarAsistente() {
     const { wrap, body } = crearPanelAsistente({
         clave: 'gastos-wizard', titulo: 'Captura de gastos',
         subtitulo: 'te dice qué campos poner', abiertoPorDefecto: true,
+        manualHash: '#m-gastos',
     });
     gaAsistBody = body;
     cont.prepend(wrap);
@@ -1045,11 +1052,19 @@ function gaCablear() {
         gaSugerirPlantilla();
         gaResumen();
     });
-    $('gaProveedor').addEventListener('change', () => { gaSugerirPlantilla(); gaResumen(); });
+    $('gaProveedor').addEventListener('change', () => {
+        gaSugerirPlantilla(); gaResumen();
+        const id = Number($('gaProveedor').value) || null;
+        if (id) gaOfrecerActualizarProveedor(id);
+    });
     $('gaForm').addEventListener('submit', gaGuardar);
     $('gaBuscar').addEventListener('click', gaBuscar);
     const xmlIn = $('gaXmlFile');
+    const pdfIn = $('gaPdfFile');
+    const qrIn = $('gaQrFile');
     $('gaBtnXml').addEventListener('click', () => xmlIn.click());
+    $('gaBtnPdf').addEventListener('click', () => pdfIn.click());
+    $('gaBtnQr').addEventListener('click', () => qrIn.click());
     $('gaManualBtn').addEventListener('click', () => gaAbrirManual('#p4'));
     xmlIn.addEventListener('change', () => {
         const f = xmlIn.files && xmlIn.files[0];
@@ -1058,16 +1073,85 @@ function gaCablear() {
         r.onload = () => { gaImportarCfdi(String(r.result || '')); xmlIn.value = ''; };
         r.readAsText(f);
     });
+    pdfIn.addEventListener('change', () => {
+        const f = pdfIn.files && pdfIn.files[0];
+        if (f) gaImportarPdf(f);
+        pdfIn.value = '';
+    });
+    qrIn.addEventListener('change', () => {
+        const f = qrIn.files && qrIn.files[0];
+        if (f) gaImportarQr(f);
+        qrIn.value = '';
+    });
     gaAplicarClasif();
 }
 
 // --- Importar XML del CFDI: prellena los campos fiscales del gasto ---
 async function gaImportarCfdi(text) {
     const info = document.getElementById('gaCfdiInfo');
-    const $ = (id) => document.getElementById(id);
     const c = parsearCfdi(text);
     if (c.error) { info.textContent = c.error; info.className = 'text-[11px] text-rose-400'; return; }
+    await gaProcesarDatosFactura(c, { icono: '📄' });
+}
+
+// --- Importar PDF de la factura: mismos campos, mejor esfuerzo (sin XML) ---
+async function gaImportarPdf(file) {
+    const info = document.getElementById('gaCfdiInfo');
+    if (info) { info.textContent = 'Leyendo el PDF…'; info.className = 'text-[11px] text-slate-400'; }
+    try {
+        const texto = await extraerTextoPdf(file);
+        const c = parsearCfdiPdf(texto);
+        if (c.error) { info.textContent = c.error; info.className = 'text-[11px] text-rose-400'; return; }
+        await gaProcesarDatosFactura(c, { icono: '📕' });
+    } catch (e) {
+        alert('No se pudo leer el PDF: ' + (e.message || e));
+    }
+}
+
+// --- Leer QR del CFDI (foto): solo trae UUID/RFC — subtotal/IVA se capturan a mano o con el XML ---
+async function gaImportarQr(file) {
+    const info = document.getElementById('gaCfdiInfo');
+    if (!('BarcodeDetector' in window)) {
+        alert('Este navegador no puede leer códigos QR. Usa "Importar XML", o abre el sistema en Chrome / Edge.');
+        return;
+    }
+    try {
+        const bitmap = await createImageBitmap(file);
+        const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+        const codes = await detector.detect(bitmap);
+        if (!codes || !codes.length) { alert('No se detectó ningún QR en la imagen.'); return; }
+        const raw = codes[0].rawValue || '';
+
+        let uuid = '', rfc = '', total = '';
+        try {
+            const u = new URL(raw);
+            uuid = u.searchParams.get('id') || u.searchParams.get('Id') || '';
+            rfc = u.searchParams.get('re') || '';
+            total = u.searchParams.get('tt') || '';
+        } catch (_) {
+            const m = raw.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
+            if (m) uuid = m[0];
+        }
+        if (!uuid && !rfc) { alert('El QR no parece de un CFDI (no trae UUID ni RFC).'); return; }
+
+        const elUuid = document.getElementById('gaUuid'); if (elUuid && uuid) elUuid.value = uuid;
+        const elRfc = document.getElementById('gaRfc'); if (elRfc && rfc) elRfc.value = rfc;
+        if (info) {
+            info.innerHTML = `🔳 QR leído · UUID ${esc(uuid || '—')} · RFC ${esc(rfc || '—')}${total ? ` · Total del CFDI $${esc(total)}` : ''}`
+                + `<br><span class="text-[10px] text-slate-500">El QR no trae las partidas ni el desglose de impuestos: captura Subtotal / IVA a mano o usa el XML/PDF.</span>`;
+            info.className = 'text-[11px] text-emerald-400';
+        }
+    } catch (e) {
+        alert('No se pudo leer el QR: ' + (e.message || e));
+    }
+}
+
+// --- Aplica a la pantalla los datos ya interpretados (de XML o de PDF) ---
+async function gaProcesarDatosFactura(c, { icono = '📄' } = {}) {
+    const info = document.getElementById('gaCfdiInfo');
+    const $ = (id) => document.getElementById(id);
     gaCfdiActual = c;
+    gaCfdiProveedorAutoMatched = false;
 
     const setV = (id, v) => { if ($(id)) $(id).value = Number(v || 0).toFixed(2); };
     if (c.fecha) $('gaFecha').value = c.fecha;
@@ -1102,9 +1186,10 @@ async function gaImportarCfdi(text) {
             }
         } catch (_) { /* proveedores sin columna rfc */ }
     }
+    gaCfdiProveedorAutoMatched = provFound;
 
     const calc = (c.subtotal - (c.descuento || 0)) + c.iva + c.ieps - c.retIva - c.retIsr;
-    const warns = [];
+    const warns = (c.avisos || []).slice();
     if (c.tipoComprobante && c.tipoComprobante !== 'I') warns.push(`el CFDI es tipo "${esc(c.tipoComprobante)}", no de Ingreso (I)`);
     if (c.moneda && c.moneda !== 'MXN') warns.push(`moneda ${esc(c.moneda)}: captura los montos en pesos`);
     if (Math.abs(calc - c.total) > 0.05) warns.push(`el total del CFDI ($${c.total.toFixed(2)}) no cuadra con el desglose ($${calc.toFixed(2)})`);
@@ -1112,7 +1197,7 @@ async function gaImportarCfdi(text) {
     const altaBtn = (!provFound && c.rfcEmisor) ? ` &middot; <button type="button" id="gaAltaProv" class="text-sky-400 hover:underline">+ dar de alta el proveedor</button>` : '';
 
     info.className = 'text-[11px] text-emerald-400';
-    info.innerHTML = `📄 CFDI de <b>${esc(c.nombreEmisor || c.rfcEmisor || '—')}</b> &middot; Folio ${esc(c.folio || '—')} &middot; Total $${c.total.toFixed(2)}${provTxt}${warnTxt}${altaBtn}`;
+    info.innerHTML = `${icono} CFDI de <b>${esc(c.nombreEmisor || c.rfcEmisor || '—')}</b> &middot; Folio ${esc(c.folio || '—')} &middot; Total $${c.total.toFixed(2)}${provTxt}${warnTxt}${altaBtn}`;
     if (!provFound && c.rfcEmisor) {
         const b = document.getElementById('gaAltaProv');
         if (b) b.onclick = () => gaAbrirAltaProveedor(c);
@@ -1124,6 +1209,49 @@ async function gaImportarCfdi(text) {
         if ($('gaReparto') && $('gaReparto').value === 'plantilla') gaSugerirPlantilla(true);
     }
     gaResumen();
+}
+
+// Si el proveedor del CFDI no se identificó solo por RFC (no lo tenía
+// capturado, o venía distinto) y el usuario elige uno a mano del catálogo,
+// ofrece completar su ficha con los datos que sí trae el XML/PDF — solo
+// los campos que hoy están vacíos, y solo tras confirmar que es el
+// proveedor correcto. Una vez ofrecido para un proveedor en esta sesión,
+// no se vuelve a preguntar.
+async function gaOfrecerActualizarProveedor(proveedorId) {
+    const c = gaCfdiActual;
+    if (!c || gaCfdiProveedorAutoMatched || !c.rfcEmisor || gaProveedoresYaOfrecidos.has(proveedorId)) return;
+    gaProveedoresYaOfrecidos.add(proveedorId);
+
+    const { data: prov, error } = await supabaseClient.from('proveedores')
+        .select('nombre, rfc, razon_social, regimen_fiscal, cp, forma_pago, metodo_pago, moneda, uso_cfdi').eq('id', proveedorId).single();
+    if (error || !prov) return;
+
+    const cambios = {};
+    const lineas = [];
+    const ofrecer = (campo, actual, nuevo, etiqueta) => {
+        if (!actual && nuevo) { cambios[campo] = nuevo; lineas.push(`${etiqueta}: (vacío) → ${nuevo}`); }
+    };
+    ofrecer('rfc', prov.rfc, c.rfcEmisor, 'RFC');
+    ofrecer('razon_social', prov.razon_social, c.nombreEmisor, 'Razón social');
+    ofrecer('regimen_fiscal', prov.regimen_fiscal, c.regimenEmisor, 'Régimen fiscal');
+    ofrecer('cp', prov.cp, c.lugarExpedicion, 'C.P.');
+    ofrecer('forma_pago', prov.forma_pago, c.formaPago, 'Forma de pago');
+    ofrecer('metodo_pago', prov.metodo_pago, c.metodoPago, 'Método de pago');
+    ofrecer('moneda', prov.moneda, c.moneda, 'Moneda');
+    ofrecer('uso_cfdi', prov.uso_cfdi, c.usoCfdi, 'Uso CFDI (de esta factura, como referencia)');
+
+    if (!lineas.length) return; // no hay nada útil que ofrecer
+
+    const confirmar = confirm(
+        `Este proveedor no se identificó por RFC. Elegiste "${prov.nombre}".\n\n` +
+        `Cerciórate de que sea el proveedor correcto antes de continuar.\n\n` +
+        `¿Completar su ficha con estos datos del CFDI?\n` + lineas.join('\n')
+    );
+    if (!confirmar) return;
+
+    const { error: eUpd } = await supabaseClient.from('proveedores').update(cambios).eq('id', proveedorId);
+    if (eUpd) { alert('No se pudo actualizar el proveedor: ' + eUpd.message); return; }
+    alert(`Ficha de "${prov.nombre}" actualizada.`);
 }
 
 // --- Manual en subventana: usa el helper compartido de asistente-contable.js ---

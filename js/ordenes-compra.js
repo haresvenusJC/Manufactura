@@ -978,6 +978,7 @@ export async function cargarModuloReciboMercancia() {
 
         <div>
           <h3 class="text-md font-semibold text-slate-300 mb-2">Órdenes con recepción pendiente</h3>
+          <p class="text-[11px] text-slate-500 mb-1">Haz clic en una orden para recibirla arriba.</p>
           <div id="rmLista" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-500"></div>
         </div>
       </div>
@@ -1382,11 +1383,25 @@ function rmLista(ocs) {
         const det = o.ordenes_compra_detalle || [];
         const ped = det.reduce((a, d) => a + Number(d.cantidad || 0), 0);
         const rec = det.reduce((a, d) => a + Number(d.cantidad_recibida || 0), 0);
-        return `<div class="flex justify-between items-center py-1.5 border-b border-slate-900 last:border-0 text-xs">
+        return `<button type="button" data-ocid="${o.id}" class="rm-lista-oc w-full flex justify-between items-center py-1.5 border-b border-slate-900 last:border-0 text-xs hover:bg-slate-900/60 rounded px-1 -mx-1 text-left">
             <span><span class="font-mono text-emerald-300">${esc(o.folio || '#' + o.id)}</span> · ${esc(o.proveedores?.nombre || '—')}</span>
-            <span class="text-slate-400 font-mono">${rec}/${ped}</span>
-        </div>`;
+            <span class="flex items-center gap-2 shrink-0">
+                <span class="text-slate-400 font-mono">${rec}/${ped}</span>
+                <span class="text-sky-400">Recibir →</span>
+            </span>
+        </button>`;
     }).join('');
+    // Click en una fila = seleccionarla arriba en "Orden de compra" y disparar
+    // el mismo onchange que ya arma el detalle a capturar (rmRenderDetalle).
+    cont.querySelectorAll('.rm-lista-oc').forEach(btn => {
+        btn.onclick = () => {
+            const sel = document.getElementById('rmOC');
+            if (!sel) return;
+            sel.value = btn.dataset.ocid;
+            sel.dispatchEvent(new Event('change'));
+            sel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        };
+    });
 }
 
 // Trae lo que el operador contó (pre-recibo más reciente, pendiente o ya
@@ -1439,7 +1454,7 @@ async function rmRenderDetalle(oc) {
         const valorInicial = capturado != null ? capturado : pend;
         const difiere = capturado != null && capturado !== pend;
         return `
-        <tr class="border-b border-slate-900" data-detid="${d.id}" data-prodid="${d.producto_id || ''}" data-reqcad="${reqCad ? 1 : 0}">
+        <tr class="border-b border-slate-900" data-detid="${d.id}" data-prodid="${d.producto_id || ''}" data-reqcad="${reqCad ? 1 : 0}" data-capturado="${capturado != null ? capturado : ''}">
           <td class="p-2 text-center"><input type="checkbox" class="rm-chk accent-emerald-500 w-4 h-4" ${(capturado != null ? capturado > 0 : pend > 0) ? 'checked' : ''}></td>
           <td class="p-2 text-slate-100">${esc(nombreProd(d))}${d.producto_id ? '' : ' <span class="text-[10px] text-amber-400">(nuevo)</span>'}${reqCad ? ' <span class="text-[10px] text-amber-400">· caducidad requerida</span>' : ''}</td>
           <td class="p-2 text-right font-mono text-slate-400">${d.cantidad}</td>
@@ -2418,7 +2433,13 @@ async function rmProcesarDatosFactura(datos, { icono = '📄', fuente = 'XML' } 
             if (tr) {
                 tr.querySelector('.rm-chk').checked = true;
                 if (tr.dataset.convertido !== '1') {
-                    if (cp.cantidad > 0) tr.querySelector('.rm-cant').value = cp.cantidad;
+                    // Si un operador ya contó físicamente esta partida (pre-recibo),
+                    // esa cantidad manda — el XML no la pisa. La factura puede traer
+                    // lo pedido/facturado, no necesariamente lo que de verdad llegó;
+                    // por eso existe el aviso "⚠ operador contó X" (ver rmRenderDetalle).
+                    // El costo sí se toma del XML: de eso no tiene forma de enterarse
+                    // un conteo físico.
+                    if (tr.dataset.capturado === '' && cp.cantidad > 0) tr.querySelector('.rm-cant').value = cp.cantidad;
                     if (cp.valorUnitario > 0) tr.querySelector('.rm-costo').value = cp.valorUnitario.toFixed(4);
                 }
                 conc++;

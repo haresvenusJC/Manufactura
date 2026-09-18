@@ -46,13 +46,24 @@ const porPaginaLotes = 50;
 let fechaInicioFiltro = '';
 let fechaFinFiltro = '';
 
+// Cache del resumen (productos) para poder filtrar/paginar/colapsar en
+// cliente sin volver a golpear Supabase en cada tecleo del buscador.
+let invProductosCache = [];
+let invFiltroTexto = '';
+const porPaginaResumen = 10;
+const invSeccionEstado = {
+    terminados: { pagina: 1, colapsada: false },
+    materias: { pagina: 1, colapsada: false },
+    componentes: { pagina: 1, colapsada: false },
+};
+
 export async function cargarInventarioCompleto() {
     const contenedorInv = document.getElementById('contenedorInventario');
     const contenedorLotes = document.getElementById('contenedorExistenciasLote');
-    
+
     try {
         if (!supabaseClient) return;
-        
+
         if (contenedorInv) {
             const { data: productos, error: errProd } = await supabaseClient
                 .from('productos')
@@ -62,64 +73,22 @@ export async function cargarInventarioCompleto() {
                     monedas ( codigo )
                 `)
                 .order('id', { ascending: true });
-            
+
             if (errProd) throw errProd;
 
-            const productosTerminados = (productos || []).filter(p => p.tipo === 'producto');
-            const materiasPrimas = (productos || []).filter(p => p.tipo === 'materia_prima' || !p.tipo);
-            const componentes = (productos || []).filter(p => p.tipo === 'componente' || p.tipo === 'refaccion' || p.tipo === 'insumo');
+            invProductosCache = productos || [];
 
-            let html = ``;
+            const inputBuscar = document.getElementById('invBuscador');
+            if (inputBuscar) {
+                inputBuscar.value = invFiltroTexto;
+                inputBuscar.oninput = () => {
+                    invFiltroTexto = inputBuscar.value;
+                    Object.keys(invSeccionEstado).forEach(k => { invSeccionEstado[k].pagina = 1; });
+                    renderInventarioResumen();
+                };
+            }
 
-            // Renderizado optimizado de secciones
-            const renderSeccion = (titulo, colorClass, lista) => {
-                if (lista.length === 0) return '';
-                aplicarOrden(invResumenOrden, lista, (item, campo) => {
-                    switch (campo) {
-                        case 'nombre': return (item.nombre || '').toLowerCase();
-                        case 'unidad': return (item.unidades_medida?.nombre || '').toLowerCase();
-                        case 'stock': return Number(item.stock_actual || 0);
-                        case 'costo': return Number(item.costo_unitario || 0);
-                        default: return item.id;
-                    }
-                });
-                let sectionHtml = `
-                    <div class="mb-6">
-                        <h4 class="text-xs font-bold ${colorClass} uppercase tracking-wider mb-2">${titulo}</h4>
-                        <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-950">
-                            <table class="w-full text-left text-sm text-slate-300">
-                                <thead class="bg-slate-900 ${colorClass} border-b border-slate-800 text-xs uppercase">
-                                    <tr>
-                                        ${thOrden(invResumenOrden, 'nombre', 'Elemento / SKU')}
-                                        ${thOrden(invResumenOrden, 'unidad', 'Unidad')}
-                                        ${thOrden(invResumenOrden, 'stock', 'Stock Disponible')}
-                                        ${thOrden(invResumenOrden, 'costo', 'Costo Unitario')}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                `;
-                lista.forEach(item => {
-                    const nombreUnidad = item.unidades_medida?.nombre || 'N/D';
-                    const codigoMoneda = item.monedas?.codigo || 'MXN';
-                    sectionHtml += `
-                        <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition">
-                            <td class="p-3 font-medium text-slate-100">${item.nombre} <span class="text-xs text-slate-500 font-mono">(${item.sku || 'N/D'})</span></td>
-                            <td class="p-3 text-slate-400 text-xs">${nombreUnidad}</td>
-                            <td class="p-3 font-mono font-semibold">${item.stock_actual || 0}</td>
-                            <td class="p-3 font-mono text-slate-300">$${Number(item.costo_unitario || 0).toFixed(2)} <span class="text-[10px] text-slate-500">${codigoMoneda}</span></td>
-                        </tr>
-                    `;
-                });
-                sectionHtml += `</tbody></table></div></div>`;
-                return sectionHtml;
-            };
-
-            html += renderSeccion('📦 Productos Terminados', 'text-amber-400', productosTerminados);
-            html += renderSeccion('🧪 Materias Primas e Insumos', 'text-sky-400', materiasPrimas);
-            html += renderSeccion('⚙️ Componentes y Refacciones', 'text-emerald-400', componentes);
-
-            contenedorInv.innerHTML = html;
-            wireOrdenTabla(contenedorInv, invResumenOrden, () => cargarInventarioCompleto());
+            renderInventarioResumen();
         }
 
         if (contenedorLotes) {
@@ -129,6 +98,113 @@ export async function cargarInventarioCompleto() {
     } catch (err) {
         console.error("Error al cargar inventario o lotes:", err);
     }
+}
+
+function renderInventarioResumen() {
+    const contenedorInv = document.getElementById('contenedorInventario');
+    if (!contenedorInv) return;
+
+    const filtro = invFiltroTexto.trim().toLowerCase();
+    const pasaFiltro = (p) => !filtro
+        || (p.nombre || '').toLowerCase().includes(filtro)
+        || (p.sku || '').toLowerCase().includes(filtro);
+
+    const productosTerminados = invProductosCache.filter(p => p.tipo === 'producto' && pasaFiltro(p));
+    const materiasPrimas = invProductosCache.filter(p => (p.tipo === 'materia_prima' || !p.tipo) && pasaFiltro(p));
+    const componentes = invProductosCache.filter(p => (p.tipo === 'componente' || p.tipo === 'refaccion' || p.tipo === 'insumo') && pasaFiltro(p));
+
+    // Renderizado de sección: colapsable y paginada de 10 en 10.
+    const renderSeccion = (titulo, colorClass, lista, key) => {
+        if (lista.length === 0) return '';
+        aplicarOrden(invResumenOrden, lista, (item, campo) => {
+            switch (campo) {
+                case 'nombre': return (item.nombre || '').toLowerCase();
+                case 'unidad': return (item.unidades_medida?.nombre || '').toLowerCase();
+                case 'stock': return Number(item.stock_actual || 0);
+                case 'costo': return Number(item.costo_unitario || 0);
+                default: return item.id;
+            }
+        });
+
+        const estado = invSeccionEstado[key];
+        const totalPaginas = Math.ceil(lista.length / porPaginaResumen) || 1;
+        if (estado.pagina > totalPaginas) estado.pagina = totalPaginas;
+        const desde = (estado.pagina - 1) * porPaginaResumen;
+        const pagina = lista.slice(desde, desde + porPaginaResumen);
+
+        let sectionHtml = `
+            <div class="mb-6">
+                <button type="button" class="inv-sec-toggle w-full flex items-center justify-between gap-2 mb-2 cursor-pointer" data-seccion="${key}">
+                    <h4 class="text-xs font-bold ${colorClass} uppercase tracking-wider">${titulo} <span class="text-slate-500 normal-case font-normal">(${lista.length})</span></h4>
+                    <span class="text-slate-500 text-xs">${estado.colapsada ? '▸ mostrar' : '▾ ocultar'}</span>
+                </button>
+        `;
+        if (!estado.colapsada) {
+            sectionHtml += `
+                <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-950">
+                    <table class="w-full text-left text-sm text-slate-300">
+                        <thead class="bg-slate-900 ${colorClass} border-b border-slate-800 text-xs uppercase">
+                            <tr>
+                                ${thOrden(invResumenOrden, 'nombre', 'Elemento / SKU')}
+                                ${thOrden(invResumenOrden, 'unidad', 'Unidad')}
+                                ${thOrden(invResumenOrden, 'stock', 'Stock Disponible')}
+                                ${thOrden(invResumenOrden, 'costo', 'Costo Unitario')}
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            pagina.forEach(item => {
+                const nombreUnidad = item.unidades_medida?.nombre || 'N/D';
+                const codigoMoneda = item.monedas?.codigo || 'MXN';
+                sectionHtml += `
+                    <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition">
+                        <td class="p-3 font-medium text-slate-100">${item.nombre} <span class="text-xs text-slate-500 font-mono">(${item.sku || 'N/D'})</span></td>
+                        <td class="p-3 text-slate-400 text-xs">${nombreUnidad}</td>
+                        <td class="p-3 font-mono font-semibold">${item.stock_actual || 0}</td>
+                        <td class="p-3 font-mono text-slate-300">$${Number(item.costo_unitario || 0).toFixed(2)} <span class="text-[10px] text-slate-500">${codigoMoneda}</span></td>
+                    </tr>
+                `;
+            });
+            sectionHtml += `</tbody></table></div>`;
+
+            if (totalPaginas > 1) {
+                sectionHtml += `
+                    <div class="flex items-center justify-between mt-2 px-1">
+                        <span class="text-[11px] text-slate-500">Página ${estado.pagina} de ${totalPaginas}</span>
+                        <div class="flex gap-1.5">
+                            <button type="button" class="inv-sec-pag text-[11px] ${estado.pagina <= 1 ? 'opacity-40 pointer-events-none' : ''} bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-2.5 py-1 rounded" data-seccion="${key}" data-pagina="${estado.pagina - 1}">← Anterior</button>
+                            <button type="button" class="inv-sec-pag text-[11px] ${estado.pagina >= totalPaginas ? 'opacity-40 pointer-events-none' : ''} bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-2.5 py-1 rounded" data-seccion="${key}" data-pagina="${estado.pagina + 1}">Siguiente →</button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        sectionHtml += `</div>`;
+        return sectionHtml;
+    };
+
+    let html = '';
+    html += renderSeccion('📦 Productos Terminados', 'text-amber-400', productosTerminados, 'terminados');
+    html += renderSeccion('🧪 Materias Primas e Insumos', 'text-sky-400', materiasPrimas, 'materias');
+    html += renderSeccion('⚙️ Componentes y Refacciones', 'text-emerald-400', componentes, 'componentes');
+
+    contenedorInv.innerHTML = html || '<p class="text-sm text-slate-500">No se encontraron artículos con ese criterio.</p>';
+
+    wireOrdenTabla(contenedorInv, invResumenOrden, () => renderInventarioResumen());
+    contenedorInv.querySelectorAll('.inv-sec-toggle').forEach(btn => {
+        btn.onclick = () => {
+            const key = btn.dataset.seccion;
+            invSeccionEstado[key].colapsada = !invSeccionEstado[key].colapsada;
+            renderInventarioResumen();
+        };
+    });
+    contenedorInv.querySelectorAll('.inv-sec-pag').forEach(btn => {
+        btn.onclick = () => {
+            const key = btn.dataset.seccion;
+            invSeccionEstado[key].pagina = Number(btn.dataset.pagina);
+            renderInventarioResumen();
+        };
+    });
 }
 
 async function renderizarTablaLotes(contenedorLotes) {

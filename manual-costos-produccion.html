@@ -939,7 +939,16 @@ costo total del granel              1,958.65
       <p>La póliza exacta y los objetos de base de datos (<code>recibo_costos_adicionales</code>, <code>lotes_inventario.costo_adicional_unitario</code>, <code>recibo_reversible</code>, <code>cancelar_recibo_inventario</code>) están en el <a href="#ap">Apéndice — El porqué contable</a>.</p>
     </div>
 
-    <h3>4. Corregir una recepción ya capturada</h3>
+    <h3>4. Si lo que contó el operador no cuadra con lo facturado</h3>
+    <p>Cuando un operador ya capturó un <strong>pre-recibo</strong> desde su celular (contó físicamente lo que llegó) y tú importas después el XML de esa misma orden de compra, la <strong>cantidad manda la que contó el operador, no la que trae la factura</strong> — el aviso "⚠ operador contó X" que ya viste al elegir la orden no se pisa solo. Tiene su lógica: la factura dice lo que el proveedor dice que envió, no necesariamente lo que de verdad llegó al almacén. El <strong>costo unitario sí se toma del XML</strong>, porque de eso el conteo físico no tiene forma de enterarse.</p>
+    <p>Aquí es donde <strong>inventario y contabilidad se separan a propósito</strong>: a nivel de existencias, solo entra lo que de verdad llegó (810 piezas, siguiendo el ejemplo del aviso). Pero la <strong>factura se contabiliza tal como el proveedor la emitió</strong> (el Subtotal/IVA que ves en esta pantalla, tomado del XML) — es un documento fiscal real, no algo que el sistema deba "corregir" por su cuenta. Si confirmas el recibo con el Subtotal de la factura completo (910 piezas) mientras a inventario solo entraron 810, el sistema <strong>ya no absorbe esa diferencia en silencio</strong> hacia la cuenta de inventario — se detiene con un mensaje explicando dos salidas:</p>
+    <ol class="steps">
+      <li><strong>Ajustar el Subtotal de esta pantalla</strong> al valor de lo que sí vas a contabilizar ahora (lo que de verdad entró), y resolver la diferencia con el proveedor aparte — normalmente <strong>pidiéndole una nota de crédito</strong> por la merma; cuando llegue (o llegue el resto de la mercancía), se contabiliza por separado en su momento.</li>
+      <li>Si el proveedor ya confirmó que no va a reponer ni descontar la diferencia, captúrala aparte como <strong>Gasto</strong> (merma) en vez de forzarla en esta compra.</li>
+    </ol>
+    <p><strong>Errores comunes.</strong> Dejar pasar el aviso "⚠ operador contó X" sin investigar por qué no cuadra antes de confirmar el recibo — puede ser un error de conteo, no necesariamente una merma real.</p>
+
+    <h3>5. Corregir una recepción ya capturada</h3>
     <p>Si una partida se recibió con una cantidad o un costo mal tecleado, no hace falta cancelar todo el recibo: en el historial de recepciones de la orden de compra, el botón <strong>"✎ Editar"</strong> abre una ventana para corregir cantidad y/o costo de una o más líneas ya capturadas. Ajusta el lote, el stock del producto y la orden de compra, y deja su propio movimiento de inventario como rastro (no reescribe el histórico). Solo funciona mientras la recepción <strong>no esté contabilizada</strong> (sin póliza) — si ya tiene póliza, primero se cancela el recibo y se vuelve a capturar.</p>
     <p><strong>Errores comunes.</strong> Capturar dos veces la misma recepción de una orden de compra (mismo folio del proveedor) por no revisar antes si ya tenía una — el sistema avisa al elegir una OC que ya tiene una recepción capturada, pero el aviso es solo informativo, no bloquea.</p>
 
@@ -1288,6 +1297,7 @@ Cierre de orden (consumo):  Cargo cuenta del producto (115.04 / 115.02 si es gra
         <tr><td class="m">cuentas_bancarias</td><td>Banco/número/CLABE ligados 1:1 a una cuenta contable ya existente (no la sustituye) — el saldo sigue siendo la suma de <code>poliza_movimientos</code> de esa cuenta.</td></tr>
         <tr><td class="m">poliza_movimientos.conciliado, .fecha_conciliacion, .referencia_banco</td><td>Conciliación bancaria: 3 columnas sobre el libro mayor que ya existe, no una tabla aparte.</td></tr>
         <tr><td class="m">bitacora_cambios / fn_bitacora_generica()</td><td>Trigger genérico reutilizado en <code>activos_fijos</code>, <code>devoluciones_cliente</code>, <code>devoluciones_proveedor</code>, <code>pedidos_venta</code> y <code>cuentas_bancarias</code> (antes solo cubría <code>cuentas_contables</code>, <code>isr_tarifas</code>, <code>isr_tarifa_tramos</code> y <code>periodos_contables</code>). Solo admite INSERT desde el trigger — nadie puede alterarla ni borrarla, ni el admin.</td></tr>
+        <tr><td class="m">contabilizar_compra — tolerancia de $5.00</td><td>El "reparto real" que reconcilia el cargo a inventario contra el Subtotal facturado solo absorbe automáticamente hasta $5.00 de diferencia (redondeo entre lotes). Por arriba de eso, <code>raise exception</code> explicando que hay que ajustar el Subtotal o capturar la diferencia como Gasto — antes lo absorbía sin límite, inflando el valor en libros del inventario cuando lo recibido físicamente (pre-recibo del operador) era menor a lo facturado.</td></tr>
       </tbody>
     </table></div>
   </section>

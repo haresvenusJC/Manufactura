@@ -116,38 +116,6 @@ window.fijarSidebar = function(valor) {
     }
 };
 
-// Iconos del riel: abren el cajón y despliegan esa sección (o navegan directo).
-window.railNav = function(clave) {
-    const submenus = {
-        catalogos: 'submenu-catalogos', inventario: 'submenu-inventario',
-        entradas: 'submenu-entradas', salidas: 'submenu-salidas',
-        contabilidad: 'submenu-contabilidad', configuracion: 'submenu-configuracion'
-    };
-    const vistas = { documentos: 'documentos', produccion: 'produccion', auditoria: 'auditoria', reportes: 'reportes' };
-
-    document.querySelectorAll('#iconRail [data-rail]').forEach(el =>
-        el.classList.toggle('rail-activo', el.getAttribute('data-rail') === clave));
-
-    if (vistas[clave]) { window.loadView(vistas[clave]); return; }
-
-    const smId = submenus[clave];
-    if (!smId) return;
-    window.abrirCajon();
-    const sm = document.getElementById(smId);
-    if (!sm) return;
-    document.querySelectorAll('#sidebar ul[id^="submenu-"]').forEach(u => {
-        const flecha = document.getElementById(u.id.replace('submenu-', 'flecha-'));
-        if (u === sm) {
-            u.classList.remove('hidden');
-            if (flecha) flecha.style.transform = 'rotate(180deg)';
-        } else {
-            u.classList.add('hidden');
-            if (flecha) flecha.style.transform = 'rotate(0deg)';
-        }
-    });
-    sm.scrollIntoView({ block: 'nearest' });
-};
-
 // Al CRUZAR el punto de quiebre móvil/escritorio, deja el estado limpio
 // (no en cada resize, para no molestar al scroll en celulares).
 let _navEscritorio = esEscritorio();

@@ -16,8 +16,18 @@ function filaEncabezadoDocumentos() {
         ${thOrden(docOrden, 'tipo', 'Tipo Movimiento / Consecutivo')}
         ${thOrden(docOrden, 'fecha', 'Fecha de Emisión')}
         ${thOrden(docOrden, 'tercero', 'Proveedor / Cliente')}
+        ${thOrden(docOrden, 'total', 'Subtotal / IVA / Total', 'justify-end text-right')}
         ${thOrden(docOrden, 'estado', 'Estado', 'text-center justify-center')}
     `;
+}
+
+// Un documento de venta guarda sus importes en venta_subtotal/venta_iva/
+// venta_total; el resto (compra, entrada, devolución...) en subtotal/iva/total.
+function importesDeDoc(doc) {
+    const esVenta = doc.tipo_movimiento === 'salida_venta';
+    return esVenta
+        ? { subtotal: Number(doc.venta_subtotal || 0), iva: Number(doc.venta_iva || 0), total: Number(doc.venta_total || 0) }
+        : { subtotal: Number(doc.subtotal || 0), iva: Number(doc.iva || 0), total: Number(doc.total || 0) };
 }
 
 export async function cargarVistaDocumentos() {
@@ -72,7 +82,7 @@ export async function cargarVistaDocumentos() {
                         </thead>
                         <tbody id="tablaDocumentosCuerpo">
                             <tr>
-                                <td colspan="8" class="p-8 text-center text-slate-500">Cargando registros de documentos...</td>
+                                <td colspan="9" class="p-8 text-center text-slate-500">Cargando registros de documentos...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -139,12 +149,14 @@ window.cargarListaDocumentos = async function() {
                 descripcion,
                 created_at,
                 poliza_id,
+                subtotal, iva, total,
+                venta_subtotal, venta_iva, venta_total,
                 proveedores ( id, nombre )
             `)
             .order('id', { ascending: false });
 
         if (error) {
-            // consecutivo / poliza_id aún no existen (falta correr migración): cae al select sin ellos.
+            // consecutivo / poliza_id / los importes aún no existen (falta correr migración): cae al select sin ellos.
             ({ data: documentos, error } = await supabaseClient
                 .from('documentos')
                 .select(`
@@ -163,7 +175,7 @@ window.cargarListaDocumentos = async function() {
         console.error("Error al cargar documentos:", err);
         const cuerpo = document.getElementById('tablaDocumentosCuerpo');
         if (cuerpo) {
-            cuerpo.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-rose-400">Error al consultar la tabla 'documentos' en Supabase.</td></tr>`;
+            cuerpo.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-rose-400">Error al consultar la tabla 'documentos' en Supabase.</td></tr>`;
         }
     }
 };
@@ -179,7 +191,7 @@ window.renderizarTablaDocumentos = function(lista) {
     }
 
     if (!lista || lista.length === 0) {
-        cuerpo.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-500">No hay documentos registrados en el sistema.</td></tr>`;
+        cuerpo.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-slate-500">No hay documentos registrados en el sistema.</td></tr>`;
         return;
     }
 
@@ -191,6 +203,7 @@ window.renderizarTablaDocumentos = function(lista) {
             case 'fecha': return doc.fecha_emision ? new Date(doc.fecha_emision).getTime() : 0;
             case 'tercero': return (doc.proveedores?.nombre || doc.proveedor_cliente || doc.cliente_nombre || '').toLowerCase();
             case 'estado': return (doc.estado || '').toLowerCase();
+            case 'total': return importesDeDoc(doc).total;
             default: return doc.id;
         }
     });
@@ -226,6 +239,11 @@ window.renderizarTablaDocumentos = function(lista) {
                 </td>
                 <td class="p-4 text-xs font-mono text-slate-400">${fecha}</td>
                 <td class="p-4 text-xs text-slate-300 font-medium">${tercero}</td>
+                <td class="p-4 text-right font-mono text-[11px]">${(() => {
+                    const im = importesDeDoc(doc);
+                    if (!im.subtotal && !im.iva && !im.total) return '<span class="text-slate-600">—</span>';
+                    return `<div class="text-slate-500">Sub $${im.subtotal.toFixed(2)} · IVA $${im.iva.toFixed(2)}</div><div class="text-emerald-400 font-semibold">$${im.total.toFixed(2)}</div>`;
+                })()}</td>
                 <td class="p-4 text-center">
                     <span class="text-[10px] font-mono uppercase px-2.5 py-1 rounded-full border ${estadoClase}">${doc.estado || 'N/D'}</span>
                 </td>
@@ -467,21 +485,38 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
 
         html += `</div>`;
 
-        if (esVenta && detalles && detalles.length) {
-            let subFinal = Number(docInfo.venta_subtotal || 0);
-            if (!subFinal) subFinal = ventaSubtotalCalc;
-            let ivaFinal = Number(docInfo.venta_iva || 0);
-            if (!ivaFinal) ivaFinal = ventaIvaCalc;
-            let totFinal = Number(docInfo.venta_total || 0);
-            if (!totFinal) totFinal = subFinal + ivaFinal;
+        // Importes del documento: venta usa venta_subtotal/venta_iva/venta_total;
+        // compra/entrada/devolución usan subtotal/iva/(ieps/retenciones)/total —
+        // se muestran para cualquier tipo que los tenga, no solo ventas. No
+        // depende de que haya partidas en documento_detalles (las devoluciones,
+        // por ejemplo, guardan sus partidas en su propia tabla, no ahí).
+        {
+            let subFinal, ivaFinal, totFinal;
+            if (esVenta) {
+                subFinal = Number(docInfo.venta_subtotal || 0) || ventaSubtotalCalc;
+                ivaFinal = Number(docInfo.venta_iva || 0) || ventaIvaCalc;
+                totFinal = Number(docInfo.venta_total || 0) || (subFinal + ivaFinal);
+            } else {
+                subFinal = Number(docInfo.subtotal || 0);
+                ivaFinal = Number(docInfo.iva || 0);
+                totFinal = Number(docInfo.total || 0) || (subFinal + ivaFinal);
+            }
+            const ieps = Number(docInfo.ieps || 0);
+            const retIva = Number(docInfo.ret_iva || 0);
+            const retIsr = Number(docInfo.ret_isr || 0);
 
-            html += `
-                <div class="mt-4 ml-auto w-full sm:w-72 border-t-2 border-slate-700 pt-3 space-y-1.5 font-mono print:border-black print:text-black">
-                    <div class="flex justify-between text-xs"><span class="text-slate-400 print:text-gray-700">Subtotal</span><strong class="text-slate-200 print:text-black">$${subFinal.toFixed(2)}</strong></div>
-                    <div class="flex justify-between text-xs"><span class="text-slate-400 print:text-gray-700">IVA</span><strong class="text-slate-200 print:text-black">$${ivaFinal.toFixed(2)}</strong></div>
-                    <div class="flex justify-between text-base border-t border-slate-700 pt-1.5 print:border-gray-400"><span class="font-bold text-slate-100 print:text-black">TOTAL</span><strong class="text-emerald-400 print:text-black">$${totFinal.toFixed(2)}</strong></div>
-                </div>
-            `;
+            if (subFinal || ivaFinal || totFinal) {
+                html += `
+                    <div class="mt-4 ml-auto w-full sm:w-72 border-t-2 border-slate-700 pt-3 space-y-1.5 font-mono print:border-black print:text-black">
+                        <div class="flex justify-between text-xs"><span class="text-slate-400 print:text-gray-700">Subtotal</span><strong class="text-slate-200 print:text-black">$${subFinal.toFixed(2)}</strong></div>
+                        <div class="flex justify-between text-xs"><span class="text-slate-400 print:text-gray-700">IVA</span><strong class="text-slate-200 print:text-black">$${ivaFinal.toFixed(2)}</strong></div>
+                        ${ieps ? `<div class="flex justify-between text-xs"><span class="text-slate-400 print:text-gray-700">IEPS</span><strong class="text-slate-200 print:text-black">$${ieps.toFixed(2)}</strong></div>` : ''}
+                        ${retIva ? `<div class="flex justify-between text-xs"><span class="text-slate-400 print:text-gray-700">Ret. IVA</span><strong class="text-rose-300 print:text-black">-$${retIva.toFixed(2)}</strong></div>` : ''}
+                        ${retIsr ? `<div class="flex justify-between text-xs"><span class="text-slate-400 print:text-gray-700">Ret. ISR</span><strong class="text-rose-300 print:text-black">-$${retIsr.toFixed(2)}</strong></div>` : ''}
+                        <div class="flex justify-between text-base border-t border-slate-700 pt-1.5 print:border-gray-400"><span class="font-bold text-slate-100 print:text-black">TOTAL</span><strong class="text-emerald-400 print:text-black">$${totFinal.toFixed(2)}</strong></div>
+                    </div>
+                `;
+            }
         }
 
         html += `</div>`;
