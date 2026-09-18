@@ -786,7 +786,7 @@ export async function cargarModuloGastos() {
                         <input type="date" id="gaFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
                     <div><label class="block text-[11px] text-slate-400 mb-1">Condicion${gHint('Contado = ya lo pagaste. Crédito = queda por pagar (aparece en Cuentas por pagar).')}</label>
                         <select id="gaCondicion" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-                            <option value="contado">Contado</option><option value="credito">Credito (por pagar)</option>
+                            <option value="credito">Credito (por pagar)</option><option value="contado">Contado</option>
                         </select></div>
                 </div>
                 <div><label class="block text-[11px] text-slate-400 mb-1">Concepto <span class="text-rose-400">*</span>${gHint('Descripción corta y clara. Ej. Renta nave — septiembre, Mantenimiento correctivo mezcladora.')}</label>
@@ -839,7 +839,7 @@ export async function cargarModuloGastos() {
                         <input type="text" id="gaTotal" readonly class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-emerald-400 text-right font-mono" value="$0.00"></div>
                 </div>
 
-                <div id="gaPagoWrap">
+                <div id="gaPagoWrap" style="display:none">
                     <label class="block text-[11px] text-slate-400 mb-1">Pagado desde (caja / banco)${gHint('La cuenta de caja o banco de donde salió el pago. Solo aplica si la condición es Contado.')}</label>
                     <select id="gaCuentaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select>
                 </div>
@@ -1161,8 +1161,13 @@ async function gaProcesarDatosFactura(c, { icono = '📄' } = {}) {
     if (c.uuid) $('gaUuid').value = c.uuid;
     if (c.rfcEmisor) $('gaRfc').value = c.rfcEmisor;
 
-    $('gaCondicion').value = c.metodoPago === 'PPD' ? 'credito' : 'contado';
-    $('gaPagoWrap').style.display = $('gaCondicion').value === 'contado' ? '' : 'none';
+    // El método de pago del CFDI (PUE/PPD) es una clasificación fiscal del
+    // SAT, no un aviso de que ya se pagó — muchos proveedores facturan PUE
+    // aunque el pago real ocurra días o semanas después. Por eso NUNCA se
+    // infiere "Contado" de ahí: siempre entra como "Crédito (por pagar)"
+    // salvo que el admin confirme a mano que ya está pagado.
+    $('gaCondicion').value = 'credito';
+    $('gaPagoWrap').style.display = 'none';
     const fp = formaPagoSimple(c.formaPago);
     if (fp && $('gaFormaPago')) $('gaFormaPago').value = fp;
 
@@ -1260,7 +1265,10 @@ function gaAbrirManual(hash) { abrirManual(hash, 'Capturar un gasto'); }
 // --- Alta rápida de proveedor desde el CFDI (subventana modal) ---
 function gaAbrirAltaProveedor(c) {
     if (document.getElementById('gaAltaModal')) return;
-    const cond = c.metodoPago === 'PPD' ? 'credito' : 'contado';
+    // Mismo criterio que gaProcesarDatosFactura: PUE/PPD es una clasificación
+    // fiscal, no evidencia de pago — el default del proveedor nuevo también
+    // parte de "Crédito".
+    const cond = 'credito';
     const optReg = '<option value="">— régimen —</option>' + REGIMENES.map(([k, v]) =>
         `<option value="${esc(k)}"${k === (c.regimenEmisor || '') ? ' selected' : ''}>${esc(k)} · ${esc(v)}</option>`).join('');
     const ov = document.createElement('div');
