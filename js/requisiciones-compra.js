@@ -122,17 +122,40 @@ export async function cargarModuloRequisicionesCompra() {
     document.getElementById('reqFecha').value = hoyISO();
 
     reqWireFormulario();
-    reqAplicarPreseleccion();
+    await reqAplicarPreseleccion();
     reqPintarFiltros();
     await reqRenderLista();
     montarGuia(cont, 'requisiciones-compra');
 }
 
 // Preselección al entrar desde Tareas ("📝 Generar requisición" en
-// Contabilidad · Tareas). window.__reqPreProducto = { id, cantidad }.
-function reqAplicarPreseleccion() {
+// Contabilidad · Tareas):
+//   · window.__reqPreProducto = { id, cantidad } — una sola partida (legado).
+//   · window.__reqPreProductos = [{ id, cantidad }, ...] — varias tareas
+//     seleccionadas del MISMO proveedor, agregadas de una vez como partidas.
+//   · window.__reqPreGruposRestantes = [[{id,cantidad}, ...], ...] — cuando
+//     las tareas seleccionadas eran de proveedores distintos, el resto de
+//     los grupos quedan aquí; reqCargarSiguienteGrupoPendiente() los va
+//     metiendo uno a uno después de guardar cada requisición (una
+//     requisición es siempre de un solo proveedor).
+async function reqAplicarPreseleccion() {
+    const preMulti = window.__reqPreProductos;
     const pre = window.__reqPreProducto;
+    window.__reqPreProductos = null;
     window.__reqPreProducto = null;
+
+    if (Array.isArray(preMulti) && preMulti.length) {
+        for (const item of preMulti) {
+            const p = reqProductos.find((x) => x.id === Number(item.id));
+            if (!p || !(item.cantidad > 0)) continue;
+            await reqAgregarPartida({ productoId: p.id, nombre: p.nombre, cantidad: item.cantidad, unidadId: p.unidad_medida_id || null, proveedorId: p.proveedor_id || null });
+        }
+        reqRenderPartidas();
+        document.getElementById('reqNotas').value = 'Generada desde Tareas: inventario bajo mínimo (agrupada por proveedor).';
+        reqAvisarGruposRestantes();
+        return;
+    }
+
     if (!pre || !pre.id) return;
     const p = reqProductos.find((x) => x.id === Number(pre.id));
     if (!p) return;
@@ -144,6 +167,28 @@ function reqAplicarPreseleccion() {
     if (pre.cantidad) set('reqProdCant', pre.cantidad);
     document.getElementById('reqNotas').value = 'Generada desde Tareas: inventario bajo mínimo.';
     document.getElementById('reqAddPartida').click();
+}
+
+function reqAvisarGruposRestantes() {
+    const restantes = window.__reqPreGruposRestantes;
+    const msg = document.getElementById('reqMsg');
+    if (!msg) return;
+    if (Array.isArray(restantes) && restantes.length) {
+        msg.textContent = `Guarda esta requisición y se va a abrir la del siguiente proveedor automáticamente (quedan ${restantes.length}).`;
+        msg.className = 'text-xs mt-2 text-sky-400';
+    }
+}
+
+// Después de guardar una requisición, si venían más grupos de proveedor
+// pendientes (tareas seleccionadas de distintos proveedores), carga el
+// siguiente como una nueva requisición en el mismo formulario.
+async function reqCargarSiguienteGrupoPendiente() {
+    const restantes = window.__reqPreGruposRestantes;
+    if (!Array.isArray(restantes) || !restantes.length) return false;
+    window.__reqPreProductos = restantes.shift();
+    window.__reqPreGruposRestantes = restantes;
+    await reqAplicarPreseleccion();
+    return true;
 }
 
 function reqWireFormulario() {
@@ -187,40 +232,8 @@ function reqWireFormulario() {
         const unidadId = document.getElementById('reqProdUnidad').value ? parseInt(document.getElementById('reqProdUnidad').value) : null;
         const proveedorId = document.getElementById('reqProdProveedor').value ? parseInt(document.getElementById('reqProdProveedor').value) : null;
         if (!nombre || cantidad <= 0) { alert('Indica el producto y una cantidad mayor a 0.'); return; }
-        const uNom = reqUnidades.find(u => u.id === unidadId)?.nombre || '';
-        const provNom = reqProveedores.find(p => p.id === proveedorId)?.nombre || '';
 
-        // Congela el SKU/descripción/unidad del proveedor al momento de
-        // capturar (igual que el costo estimado) — así, al analizar la
-        // requisición o al pasarla a Orden de compra, quedan lado a lado
-        // tu SKU interno y el dato del proveedor, que es el que él entiende.
-        let datosProveedor = { skuProveedor: null, descripcionProveedor: null, unidadProveedor: null, factorConversion: null };
-        if (reqProdSel && proveedorId) {
-            try {
-                const info = await obtenerInfoProveedorProducto(reqProdSel.id, proveedorId);
-                if (info) {
-                    datosProveedor = {
-                        skuProveedor: info.claveProveedor,
-                        descripcionProveedor: info.descripcionProveedor,
-                        unidadProveedor: info.unidadProveedor,
-                        factorConversion: info.factorConversion,
-                    };
-                }
-            } catch (_) { /* sin datos del proveedor: la partida se agrega igual */ }
-        }
-
-        reqPartidasTemp.push({
-            productoId: reqProdSel ? reqProdSel.id : null,
-            skuInterno: reqProdSel ? (reqProdSel.sku || '') : '',
-            nombre,
-            cantidad,
-            costo: reqProdSel ? Number(reqProdSel.costo_unitario || 0) : 0,
-            unidadId,
-            unidadNombre: uNom,
-            proveedorId,
-            proveedorNombre: provNom,
-            ...datosProveedor,
-        });
+        await reqAgregarPartida({ productoId: reqProdSel ? reqProdSel.id : null, nombre, cantidad, unidadId, proveedorId });
         reqRenderPartidas();
         inp.value = ''; document.getElementById('reqProdCant').value = '';
         document.getElementById('reqProdUnidad').value = ''; document.getElementById('reqProdProveedor').value = '';
@@ -229,6 +242,47 @@ function reqWireFormulario() {
     };
 
     document.getElementById('reqGuardar').onclick = reqGuardarRequisicion;
+}
+
+// Agrega una partida a reqPartidasTemp (no repinta ni limpia el formulario —
+// eso lo hace quien la llama). Compartida entre el botón "Agregar partida" y
+// la preselección masiva desde Tareas (reqAplicarPreseleccion).
+async function reqAgregarPartida({ productoId, nombre, cantidad, unidadId, proveedorId }) {
+    const prod = productoId ? reqProductos.find((x) => x.id === Number(productoId)) : null;
+    const uNom = reqUnidades.find((u) => u.id === unidadId)?.nombre || '';
+    const provNom = reqProveedores.find((p) => p.id === proveedorId)?.nombre || '';
+
+    // Congela el SKU/descripción/unidad del proveedor al momento de
+    // capturar (igual que el costo estimado) — así, al analizar la
+    // requisición o al pasarla a Orden de compra, quedan lado a lado
+    // tu SKU interno y el dato del proveedor, que es el que él entiende.
+    let datosProveedor = { skuProveedor: null, descripcionProveedor: null, unidadProveedor: null, factorConversion: null };
+    if (prod && proveedorId) {
+        try {
+            const info = await obtenerInfoProveedorProducto(prod.id, proveedorId);
+            if (info) {
+                datosProveedor = {
+                    skuProveedor: info.claveProveedor,
+                    descripcionProveedor: info.descripcionProveedor,
+                    unidadProveedor: info.unidadProveedor,
+                    factorConversion: info.factorConversion,
+                };
+            }
+        } catch (_) { /* sin datos del proveedor: la partida se agrega igual */ }
+    }
+
+    reqPartidasTemp.push({
+        productoId: prod ? prod.id : null,
+        skuInterno: prod ? (prod.sku || '') : '',
+        nombre,
+        cantidad,
+        costo: prod ? Number(prod.costo_unitario || 0) : 0,
+        unidadId,
+        unidadNombre: uNom,
+        proveedorId,
+        proveedorNombre: provNom,
+        ...datosProveedor,
+    });
 }
 
 // Refleja, para el producto y proveedor elegidos en la fila de captura, cómo
@@ -330,14 +384,22 @@ async function reqGuardarRequisicion() {
         }
         if (e2) throw e2;
 
-        msg.textContent = `Requisición ${req.folio} guardada, pendiente de autorización.`;
-        msg.className = 'text-xs mt-2 text-emerald-400';
         reqPartidasTemp = [];
         reqRenderPartidas();
         document.getElementById('reqNotas').value = '';
         reqFiltro = 'pendiente';
         reqPintarFiltros();
         await reqRenderLista();
+
+        const siguiente = await reqCargarSiguienteGrupoPendiente();
+        if (!siguiente) {
+            msg.textContent = `Requisición ${req.folio} guardada, pendiente de autorización.`;
+            msg.className = 'text-xs mt-2 text-emerald-400';
+        } else {
+            msg.textContent = `Requisición ${req.folio} guardada. Cargué la del siguiente proveedor — revisa y guarda esta también.`;
+            msg.className = 'text-xs mt-2 text-emerald-400';
+            document.getElementById('reqPartidasBody')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
     } catch (err) {
         const m = err?.message || String(err);
         msg.textContent = TABLA_FALTA.test(m)

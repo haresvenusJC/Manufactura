@@ -21,6 +21,18 @@ const hoyISO = () => new Date().toISOString().slice(0, 10);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const TABLA_FALTA = /does not exist|schema cache|could not find|relation .* does not exist/i;
 
+// Cache de las tareas activas ya traídas, para poder filtrar por texto en
+// cliente sin volver a golpear Supabase en cada tecleo del buscador.
+let tareasCacheSistema = [];
+let tareasCacheBorradores = [];
+let tareasCacheRecordatorio = null;
+let tareasFiltroTexto = '';
+
+// Selección de tareas "inventario bajo mínimo" para agrupar en una sola
+// requisición cuando comparten proveedor (ver reqSeleccionadasBarra()).
+let tareasSeleccionadas = new Set();
+let tareasProductosMapa = new Map();   // producto_id -> { nombre, proveedorId, proveedorNombre }
+
 export async function cargarModuloTareas() {
     cargarConfigCaducidad();   // panel de umbrales de caducidad (independiente)
     cargarHistorialTareas();   // independiente: se ve aunque no haya pendientes
@@ -35,48 +47,106 @@ export async function cargarModuloTareas() {
             fetchNominasBorrador(),
             fetchRecordatorioViernes(),
         ]);
+        tareasCacheSistema = sistema;
+        tareasCacheBorradores = borradores;
+        tareasCacheRecordatorio = recordatorio;
+        tareasSeleccionadas = new Set();
+        await cargarProductosDeTareas(sistema);
 
-        if (sistema.length === 0 && borradores.length === 0 && !recordatorio) {
-            cont.innerHTML = `<p class="text-emerald-400 text-sm">✔ No hay tareas pendientes.</p>`;
-            return;
+        const buscador = document.getElementById('tareasBuscador');
+        if (buscador) {
+            buscador.value = tareasFiltroTexto;
+            buscador.oninput = () => { tareasFiltroTexto = buscador.value; renderTareasActivas(); };
         }
-
-        cont.innerHTML = `
-            <div class="space-y-3">
-                ${recordatorio ? renderRecordatorio(recordatorio) : ''}
-                ${sistema.map(renderTareaSistema).join('')}
-                ${borradores.map(renderNominaBorrador).join('')}
-            </div>`;
-
-        cont.querySelectorAll('.tarea-atender').forEach((b) => b.addEventListener('click', () => resolverTarea(b, 'atender', null, 'Marcada como atendida')));
-        cont.querySelectorAll('.tarea-descartar').forEach((b) => b.addEventListener('click', () => {
-            const d = prompt('¿En cuántos días quieres que vuelva a aparecer si sigue aplicando?', '7');
-            if (d === null) return;
-            resolverTarea(b, 'posponer', Math.max(1, parseInt(d, 10) || 7), 'No aceptada por el usuario');
-        }));
-        cont.querySelectorAll('.tarea-ir-oc').forEach((b) => b.addEventListener('click', () => {
-            window.__reqPreProducto = {
-                id: Number(b.dataset.prod),
-                cantidad: b.dataset.sug ? parseFloat(b.dataset.sug) : null,
-            };
-            window.loadView('requisiciones-compra');
-        }));
-        cont.querySelectorAll('.tarea-ir-lote').forEach((b) => b.addEventListener('click', () => window.loadView('inventario')));
-
-        cont.querySelectorAll('.tarea-autorizar').forEach((b) => b.addEventListener('click', async () => {
-            await nomAutorizar(Number(b.dataset.id), b);
-            await cargarModuloTareas();
-        }));
-        cont.querySelectorAll('.tarea-cancelar').forEach((b) => b.addEventListener('click', async () => {
-            await nomCancelar(Number(b.dataset.id));
-            await cargarModuloTareas();
-        }));
-        cont.querySelectorAll('.tarea-ir-nomina').forEach((b) => b.addEventListener('click', () => window.loadView('nomina')));
+        renderTareasActivas();
     } catch (err) {
         cont.innerHTML = `<p class="text-rose-400 text-xs">Error al consultar tareas: ${err.message || err}</p>`;
     } finally {
         montarGuia(cont, 'tareas');
     }
+}
+
+// Para poder agrupar por proveedor en una sola requisición (ver
+// tareasGenerarRequisicionConjunta), se necesita saber el proveedor de cada
+// producto con alerta de "inventario bajo mínimo" — la tarea en sí no lo trae.
+async function cargarProductosDeTareas(sistema) {
+    tareasProductosMapa = new Map();
+    const ids = [...new Set(sistema
+        .filter((t) => t.accion_sugerida === 'crear_orden_compra' && t.entidad_id)
+        .map((t) => Number(t.entidad_id)))];
+    if (!ids.length) return;
+    try {
+        const { data, error } = await supabaseClient
+            .from('productos')
+            .select('id, nombre, proveedor_id, proveedores ( nombre )')
+            .in('id', ids);
+        if (error) throw error;
+        (data || []).forEach((p) => tareasProductosMapa.set(p.id, {
+            nombre: p.nombre, proveedorId: p.proveedor_id || null, proveedorNombre: p.proveedores?.nombre || null,
+        }));
+    } catch (_) { /* si falla, el selector conjunto simplemente no agrupará por proveedor */ }
+}
+
+function renderTareasActivas() {
+    const cont = document.getElementById('contenedorTareas');
+    if (!cont) return;
+
+    if (tareasCacheSistema.length === 0 && tareasCacheBorradores.length === 0 && !tareasCacheRecordatorio) {
+        cont.innerHTML = `<p class="text-emerald-400 text-sm">✔ No hay tareas pendientes.</p>`;
+        return;
+    }
+
+    const filtro = tareasFiltroTexto.trim().toLowerCase();
+    const pasaFiltro = (texto) => !filtro || (texto || '').toLowerCase().includes(filtro);
+    const sistema = tareasCacheSistema.filter((t) => pasaFiltro(t.titulo) || pasaFiltro(t.detalle));
+    const borradores = tareasCacheBorradores.filter((n) => pasaFiltro(`Nómina ${n.id} semana del ${n.periodo_inicio} al ${n.periodo_fin}`));
+    const recordatorio = filtro && !pasaFiltro('semana lista para pre-ejecutar nómina') ? null : tareasCacheRecordatorio;
+
+    if (sistema.length === 0 && borradores.length === 0 && !recordatorio) {
+        cont.innerHTML = `<p class="text-slate-500 text-sm">Ninguna tarea coincide con "${esc(tareasFiltroTexto)}".</p>`;
+        return;
+    }
+
+    cont.innerHTML = `
+        ${renderBarraSeleccion()}
+        <div class="space-y-3">
+            ${recordatorio ? renderRecordatorio(recordatorio) : ''}
+            ${sistema.map(renderTareaSistema).join('')}
+            ${borradores.map(renderNominaBorrador).join('')}
+        </div>`;
+
+    cont.querySelectorAll('.tarea-check').forEach((chk) => chk.addEventListener('change', () => {
+        const id = Number(chk.dataset.tarea);
+        if (chk.checked) tareasSeleccionadas.add(id); else tareasSeleccionadas.delete(id);
+        renderTareasActivas();
+    }));
+    document.getElementById('tareasGenerarConjunta')?.addEventListener('click', tareasGenerarRequisicionConjunta);
+    document.getElementById('tareasLimpiarSeleccion')?.addEventListener('click', () => { tareasSeleccionadas.clear(); renderTareasActivas(); });
+
+    cont.querySelectorAll('.tarea-atender').forEach((b) => b.addEventListener('click', () => resolverTarea(b, 'atender', null, 'Marcada como atendida')));
+    cont.querySelectorAll('.tarea-descartar').forEach((b) => b.addEventListener('click', () => {
+        const d = prompt('¿En cuántos días quieres que vuelva a aparecer si sigue aplicando?', '7');
+        if (d === null) return;
+        resolverTarea(b, 'posponer', Math.max(1, parseInt(d, 10) || 7), 'No aceptada por el usuario');
+    }));
+    cont.querySelectorAll('.tarea-ir-oc').forEach((b) => b.addEventListener('click', () => {
+        window.__reqPreProducto = {
+            id: Number(b.dataset.prod),
+            cantidad: b.dataset.sug ? parseFloat(b.dataset.sug) : null,
+        };
+        window.loadView('requisiciones-compra');
+    }));
+    cont.querySelectorAll('.tarea-ir-lote').forEach((b) => b.addEventListener('click', () => window.loadView('inventario')));
+
+    cont.querySelectorAll('.tarea-autorizar').forEach((b) => b.addEventListener('click', async () => {
+        await nomAutorizar(Number(b.dataset.id), b);
+        await cargarModuloTareas();
+    }));
+    cont.querySelectorAll('.tarea-cancelar').forEach((b) => b.addEventListener('click', async () => {
+        await nomCancelar(Number(b.dataset.id));
+        await cargarModuloTareas();
+    }));
+    cont.querySelectorAll('.tarea-ir-nomina').forEach((b) => b.addEventListener('click', () => window.loadView('nomina')));
 }
 
 // --- Tareas persistentes (tabla public.tareas) --------------------------
@@ -112,6 +182,72 @@ async function resolverTarea(btn, accion, dias, nota) {
     await cargarModuloTareas();
 }
 
+// Barra que aparece arriba de la lista cuando hay 1+ tareas seleccionadas
+// con casilla ("inventario bajo mínimo" con acción "crear_orden_compra").
+// Agrupa por proveedor del producto para ofrecer una requisición conjunta
+// solo cuando de verdad comparten proveedor.
+function renderBarraSeleccion() {
+    if (!tareasSeleccionadas.size) return '';
+    const seleccion = tareasCacheSistema.filter((t) => tareasSeleccionadas.has(t.id));
+    const grupos = new Map();   // proveedorId (o 'sin' / null real) -> [tarea...]
+    seleccion.forEach((t) => {
+        const info = tareasProductosMapa.get(Number(t.entidad_id));
+        const clave = info?.proveedorId ? String(info.proveedorId) : 'sin';
+        if (!grupos.has(clave)) grupos.set(clave, []);
+        grupos.get(clave).push(t);
+    });
+    const nombreDeGrupo = (clave, ts) => clave === 'sin' ? 'sin proveedor asignado' : (tareasProductosMapa.get(Number(ts[0].entidad_id))?.proveedorNombre || `proveedor #${clave}`);
+    const resumenGrupos = [...grupos.entries()].map(([clave, ts]) => `${ts.length} de ${nombreDeGrupo(clave, ts)}`).join(' · ');
+    const unSoloProveedor = grupos.size === 1 && ![...grupos.keys()].includes('sin');
+
+    return `
+      <div class="bg-sky-950/40 border border-sky-700 rounded-lg p-3 mb-3 flex items-center justify-between flex-wrap gap-2">
+        <div class="text-xs text-sky-200">
+          <b>${tareasSeleccionadas.size}</b> tarea(s) seleccionada(s) — ${esc(resumenGrupos)}
+          ${!unSoloProveedor ? '<p class="text-[11px] text-amber-300 mt-0.5">⚠ No todas comparten el mismo proveedor — al generar, se agrupan por su proveedor real y se abre una requisición por cada grupo.</p>' : ''}
+        </div>
+        <div class="flex gap-2 shrink-0">
+          <button type="button" id="tareasGenerarConjunta" class="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg">📝 Generar requisición${grupos.size > 1 ? ' por proveedor' : ' conjunta'}</button>
+          <button type="button" id="tareasLimpiarSeleccion" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg">Quitar selección</button>
+        </div>
+      </div>`;
+}
+
+// Junta las tareas seleccionadas por proveedor real del producto y manda a
+// Requisiciones de compra una preselección por cada grupo (una requisición
+// por proveedor, ya que una requisición es para un solo proveedor).
+function tareasGenerarRequisicionConjunta() {
+    const seleccion = tareasCacheSistema.filter((t) => tareasSeleccionadas.has(t.id) && t.entidad_id);
+    if (!seleccion.length) return;
+    const grupos = new Map();
+    seleccion.forEach((t) => {
+        const info = tareasProductosMapa.get(Number(t.entidad_id));
+        const clave = info?.proveedorId ? String(info.proveedorId) : 'sin';
+        if (!grupos.has(clave)) grupos.set(clave, []);
+        grupos.get(clave).push(t);
+    });
+
+    if (grupos.size > 1) {
+        const detalle = [...grupos.entries()].map(([clave, ts]) => {
+            const nombre = clave === 'sin' ? 'sin proveedor asignado' : (tareasProductosMapa.get(Number(ts[0].entidad_id))?.proveedorNombre || `proveedor #${clave}`);
+            return `· ${nombre}: ${ts.map((t) => t.titulo.replace(/^Comprar:\s*/, '')).join(', ')}`;
+        }).join('\n');
+        if (!confirm(`Las tareas seleccionadas son de proveedores distintos — se va a abrir una requisición separada por cada grupo:\n\n${detalle}\n\n¿Continuar?`)) return;
+    }
+
+    // window.__reqPreGrupos: una requisición (una llamada a Requisiciones de
+    // compra) por proveedor. Solo el primer grupo se abre de una vez; el
+    // resto queda anotado para que el admin repita "Generar requisición" ya
+    // dentro de esa pantalla (una requisición siempre es de un proveedor).
+    const listaGrupos = [...grupos.values()].map((ts) => ts.map((t) => ({
+        id: Number(t.entidad_id),
+        cantidad: t.datos && t.datos.sugerido_pedir != null ? t.datos.sugerido_pedir : null,
+    })));
+    window.__reqPreProductos = listaGrupos[0];
+    window.__reqPreGruposRestantes = listaGrupos.slice(1);
+    window.loadView('requisiciones-compra');
+}
+
 function renderTareaSistema(t) {
     const chip = t.prioridad === 1
         ? '<span class="text-[10px] bg-rose-900/60 text-rose-300 border border-rose-700 rounded px-1.5 py-0.5">Alta</span>'
@@ -119,7 +255,11 @@ function renderTareaSistema(t) {
             ? '<span class="text-[10px] bg-slate-800 text-slate-400 border border-slate-700 rounded px-1.5 py-0.5">Baja</span>'
             : '<span class="text-[10px] bg-amber-900/50 text-amber-300 border border-amber-700 rounded px-1.5 py-0.5">Normal</span>';
     const sug = t.datos && t.datos.sugerido_pedir != null ? t.datos.sugerido_pedir : '';
-    const botonOc = t.accion_sugerida === 'crear_orden_compra' && t.entidad_id
+    const seleccionable = t.accion_sugerida === 'crear_orden_compra' && t.entidad_id;
+    const checkbox = seleccionable
+        ? `<input type="checkbox" class="tarea-check accent-sky-500 w-4 h-4 mt-0.5 shrink-0" data-tarea="${t.id}" ${tareasSeleccionadas.has(t.id) ? 'checked' : ''} title="Seleccionar para agrupar en una requisición conjunta">`
+        : '';
+    const botonOc = seleccionable
         ? `<button type="button" data-prod="${t.entidad_id}" data-sug="${sug}" class="tarea-ir-oc text-xs bg-emerald-700 hover:bg-emerald-600 text-emerald-100 px-3 py-1.5 rounded-lg border border-emerald-600 cursor-pointer">📝 Generar requisición</button>`
         : '';
     const botonLote = t.accion_sugerida === 'revisar_lote'
@@ -130,10 +270,13 @@ function renderTareaSistema(t) {
     return `
         <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 space-y-2">
             <div class="flex items-start justify-between flex-wrap gap-2">
-                <div class="min-w-0">
-                    <p class="text-sm text-slate-200 font-semibold flex items-center gap-2">${chip} ${esc(t.titulo)}</p>
-                    ${t.detalle ? `<p class="text-[11px] text-slate-500 mt-0.5">${esc(t.detalle)}</p>` : ''}
-                    ${revivida}
+                <div class="min-w-0 flex items-start gap-2">
+                    ${checkbox}
+                    <div class="min-w-0">
+                        <p class="text-sm text-slate-200 font-semibold flex items-center gap-2">${chip} ${esc(t.titulo)}</p>
+                        ${t.detalle ? `<p class="text-[11px] text-slate-500 mt-0.5">${esc(t.detalle)}</p>` : ''}
+                        ${revivida}
+                    </div>
                 </div>
                 <div class="flex gap-2 flex-wrap justify-end shrink-0">
                     ${botonOc}
@@ -255,6 +398,7 @@ async function cargarHistorialTareas() {
 
     cont.innerHTML = `
         <h3 class="text-sm font-semibold text-slate-300 mb-3">Historial de tareas</h3>
+        <input type="text" id="histBuscar" placeholder="🔍 Buscar por título..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 mb-2">
         <div class="flex flex-wrap items-end gap-2 mb-3 text-xs">
             <div>
                 <label class="block text-slate-500 mb-1">Estatus</label>
@@ -299,6 +443,7 @@ async function cargarHistorialTareas() {
 
     renderTablaQuienYCuerpo();
     wireOrdenTabla(document.getElementById('histCabecera'), histTareasOrden, pintarCuerpoHistorial);
+    document.getElementById('histBuscar').addEventListener('input', pintarCuerpoHistorial);
 
     document.getElementById('histFiltrar').addEventListener('click', async () => {
         const cuerpo = document.getElementById('histCuerpo');
@@ -337,9 +482,11 @@ function renderTablaQuienYCuerpo() {
 
 function pintarCuerpoHistorial() {
     const quien = document.getElementById('histQuien').value;
-    const filas = quien
+    const texto = (document.getElementById('histBuscar')?.value || '').trim().toLowerCase();
+    let filas = quien
         ? histFilasCache.filter((r) => (r.resuelta_por_email || '__auto__') === quien)
         : histFilasCache;
+    if (texto) filas = filas.filter((r) => (r.titulo || '').toLowerCase().includes(texto));
 
     const cuerpo = document.getElementById('histCuerpo');
     if (filas.length === 0) {
