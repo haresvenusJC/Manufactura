@@ -438,7 +438,7 @@ async function reqRenderLista() {
     try {
         let q = supabaseClient
             .from('requisiciones_compra')
-            .select('id, folio, fecha, estatus, origen, notas, revisada_por, revisada_en, motivo_rechazo, orden_compra_id, ordenes_compra ( folio ), requisiciones_compra_detalle ( cantidad, costo_estimado, productos ( nombre ) )')
+            .select('id, folio, fecha, estatus, origen, notas, revisada_por, revisada_en, motivo_rechazo, orden_compra_id, ordenes_compra ( folio, estatus ), requisiciones_compra_detalle ( cantidad, costo_estimado, productos ( nombre ) )')
             .order('id', { ascending: false })
             .limit(200);
         if (reqFiltro !== 'todas') q = q.eq('estatus', reqFiltro);
@@ -480,6 +480,7 @@ async function reqRenderLista() {
                         ` : (r.orden_compra_id ? `
                             <button type="button" onclick="window.verDetalleOC(${r.orden_compra_id})" class="text-[11px] font-mono text-emerald-300 hover:underline">OC ${esc(r.ordenes_compra?.folio || '#' + r.orden_compra_id)}</button>
                             <button type="button" onclick="window.abrirAntecedentesOC(${r.orden_compra_id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded ml-1">🔗 Antecedentes</button>
+                            ${r.estatus === 'autorizada' && r.ordenes_compra?.estatus === 'cancelada' ? `<button type="button" onclick="window.reqSincronizarCancelacion(${r.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-2 py-1 rounded ml-1" title="La orden de compra de esta requisición ya está cancelada">⚠ Marcar cancelada</button>` : ''}
                         ` : '')}
                       </td>
                       <td class="p-2"><button type="button" onclick="window.abrirDetalleReq(${r.id})" class="font-mono text-emerald-300 hover:underline hover:text-emerald-200 text-left">${esc(r.folio || '#' + r.id)}</button></td>
@@ -654,6 +655,19 @@ window.reqCancelar = async (id) => {
             : 'No se pudo cancelar: ' + (error.message || error));
         return;
     }
+    await reqRenderLista();
+};
+
+// Requisiciones autorizadas antes de que ocCancelar() propagara la
+// cancelación a su requisición (o si por lo que sea no se sincronizó):
+// deja marcar la requisición como cancelada a mano cuando su OC ya está
+// cancelada. No usa requisicion_cancelar (esa es solo para "pendiente").
+window.reqSincronizarCancelacion = async (id) => {
+    if (!confirm('La orden de compra de esta requisición ya está cancelada. ¿Marcar también la requisición como cancelada?')) return;
+    const { error } = await supabaseClient.from('requisiciones_compra')
+        .update({ estatus: 'cancelada', motivo_rechazo: 'Se canceló la orden de compra generada.' })
+        .eq('id', id);
+    if (error) { alert('No se pudo actualizar: ' + (error.message || error)); return; }
     await reqRenderLista();
 };
 

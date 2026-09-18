@@ -760,6 +760,18 @@ window.ocCancelar = async (id) => {
     if (!confirm('¿Cancelar esta orden de compra?')) return;
     const { error } = await supabaseClient.from('ordenes_compra').update({ estatus: 'cancelada' }).eq('id', id);
     if (error) { alert('No se pudo cancelar: ' + error.message); return; }
+
+    // Si esta OC nació de autorizar una requisición, esa requisición se
+    // marca cancelada también — si no, se queda "autorizada" apuntando a
+    // una OC que ya no existe, sin ningún botón para corregirlo (Cancelar
+    // solo aplica a una requisición pendiente).
+    try {
+        await supabaseClient.from('requisiciones_compra')
+            .update({ estatus: 'cancelada', motivo_rechazo: 'Se canceló la orden de compra generada.' })
+            .eq('orden_compra_id', id)
+            .eq('estatus', 'autorizada');
+    } catch (_) { /* módulo de requisiciones no instalado: no bloquea la cancelación de la OC */ }
+
     await ocRenderLista();
 };
 
