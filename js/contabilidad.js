@@ -2122,7 +2122,17 @@ function rcPintarBalanceGeneral() {
     const activo = seccion(['activo'], 'ACTIVO');
     const pasivo = seccion(['pasivo'], 'PASIVO');
     const capital = seccion(['capital'], 'CAPITAL');
-    const diferencia = activo.total - (pasivo.total + capital.total);
+    // El capital contable de un balance acumulado debe incluir el resultado
+    // (utilidad o pérdida) de ejercicios acumulado hasta "Hasta": ingresos,
+    // costos y gastos no tienen cuenta propia en el balance, pero su efecto
+    // neto sí es parte del capital. Sin esto, Activo nunca cuadra contra
+    // Pasivo + Capital en cuanto hay alguna venta o gasto contabilizado.
+    const ingresos = seccion(['ingreso'], 'INGRESOS');
+    const costos = seccion(['costo'], 'COSTOS');
+    const gastos = seccion(['gasto'], 'GASTOS');
+    const resultadoEjercicio = ingresos.total - costos.total - gastos.total;
+    const capitalTotal = capital.total + resultadoEjercicio;
+    const diferencia = activo.total - (pasivo.total + capitalTotal);
 
     res.innerHTML = `
         <div id="rcTabla" class="overflow-x-auto">
@@ -2141,9 +2151,10 @@ function rcPintarBalanceGeneral() {
 
                     <tr class="bg-slate-800/60"><td class="p-2 font-bold text-sky-400" colspan="2">CAPITAL</td></tr>
                     ${capital.filas || '<tr><td class="p-2 pl-6 text-slate-600" colspan="2">(sin cuentas de capital con saldo)</td></tr>'}
-                    <tr class="border-t border-slate-800 font-semibold bg-slate-900/60"><td class="p-2">Total capital</td><td class="p-2 text-right font-mono">${rcFmt(capital.total)}</td></tr>
+                    ${Math.abs(resultadoEjercicio) > 0.005 ? `<tr class="border-b border-slate-900"><td class="p-2" style="padding-left:8px">Resultado de ejercicios (acumulado)</td><td class="p-2 text-right font-mono ${resultadoEjercicio < 0 ? 'text-rose-400' : ''}">${rcFmt(resultadoEjercicio)}</td></tr>` : ''}
+                    <tr class="border-t border-slate-800 font-semibold bg-slate-900/60"><td class="p-2">Total capital</td><td class="p-2 text-right font-mono">${rcFmt(capitalTotal)}</td></tr>
 
-                    <tr class="border-t-2 border-slate-700 bg-slate-800 text-sm font-bold"><td class="p-3">Total pasivo + capital</td><td class="p-3 text-right font-mono">${rcFmt(pasivo.total + capital.total)}</td></tr>
+                    <tr class="border-t-2 border-slate-700 bg-slate-800 text-sm font-bold"><td class="p-3">Total pasivo + capital</td><td class="p-3 text-right font-mono">${rcFmt(pasivo.total + capitalTotal)}</td></tr>
                 </tbody>
             </table>
         </div>
