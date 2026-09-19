@@ -1725,7 +1725,7 @@ async function rmRenderDetalle(oc) {
           <td class="p-2"><input type="text" class="rm-lote w-28 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" placeholder="lote del proveedor"></td>
           <td class="p-2"><input type="date" class="rm-cad w-32 bg-slate-900 border ${reqCad ? 'border-amber-600' : 'border-slate-800'} rounded px-2 py-1 text-xs text-slate-100 font-mono"></td>
         </tr>
-        ${rmFilaConversion(pend, d.costo_unitario_estimado)}`;
+        ${rmFilaConversion(pend, d.costo_unitario_estimado, capturado != null)}`;
     }).join('');
 
     cont.innerHTML = `
@@ -2076,11 +2076,12 @@ function rmLeerExtras() {
 // ---- Conversión de presentación por partida (millar, gruesa, docena...) ----
 // Evita el error de teclear la cantidad ya convertida (ej. 40,000 piezas) pero
 // dejar el costo tal cual venía en la factura (ej. $241.38 por MILLAR, no por pieza).
-function rmFilaConversion(cantidadActual, precioActual) {
+function rmFilaConversion(cantidadActual, precioActual, protegida = false) {
     const cantVal = Number(cantidadActual) > 0 ? Number(cantidadActual) : '';
     const precioVal = Number(precioActual) > 0 ? Number(precioActual) : '';
     return `<tr class="rm-conv-row hidden bg-slate-900/60">
       <td colspan="12" class="p-2">
+        ${protegida ? `<p class="text-[10px] text-amber-400 mb-1">🔒 Esta partida ya tiene conteo del operador — "Aplicar →" aquí solo corrige el <b>Costo real</b>; la <b>Cant. a ingresar</b> se queda protegida en lo que contó el operador. No escribas la cantidad de la factura ahí, solo aquí abajo en "Cant. en factura".</p>` : ''}
         <div class="flex flex-wrap items-end gap-2 text-[11px]">
           <span class="text-slate-400">Convertir desde la presentación de la factura:</span>
           <div><label class="block text-slate-500 mb-0.5">Cant. en factura</label>
@@ -2688,31 +2689,38 @@ async function rmProcesarDatosFactura(datos, { icono = '📄', fuente = 'XML' } 
             if (tr) {
                 tr.querySelector('.rm-chk').checked = true;
                 if (tr.dataset.convertido !== '1') {
+                    // Si la unidad de compra del CFDI es una presentación de
+                    // conteo (millar/gruesa/docena), la conversión se aplica
+                    // de una vez sobre lo que trae el XML — cantidad y precio
+                    // quedan ya en piezas, sin depender de que alguien le dé
+                    // "Aplicar" o reteclée algo a mano (fuente típica de
+                    // errores: escribir el 0.2 de la factura donde ya se
+                    // había puesto 200, o multiplicar el precio dos veces).
+                    const preset = sugerirPresetPorUnidadCfdi(cp.claveUnidad, cp.unidad);
+                    const factorDetectado = preset ? preset.factor : 1;
+
                     // Si un operador ya contó físicamente esta partida (pre-recibo),
                     // esa cantidad manda — el XML no la pisa. La factura puede traer
                     // lo pedido/facturado, no necesariamente lo que de verdad llegó;
                     // por eso existe el aviso "⚠ operador contó X" (ver rmRenderDetalle).
                     // El costo sí se toma del XML: de eso no tiene forma de enterarse
                     // un conteo físico.
-                    if (tr.dataset.capturado === '' && cp.cantidad > 0) tr.querySelector('.rm-cant').value = cp.cantidad;
-                    if (cp.valorUnitario > 0) tr.querySelector('.rm-costo').value = cp.valorUnitario.toFixed(4);
+                    if (tr.dataset.capturado === '' && cp.cantidad > 0) tr.querySelector('.rm-cant').value = cp.cantidad * factorDetectado;
+                    if (cp.valorUnitario > 0) tr.querySelector('.rm-costo').value = (cp.valorUnitario / factorDetectado).toFixed(4);
 
-                    // La unidad de compra que trae el propio CFDI (claveUnidad
-                    // SAT / texto libre) precarga el conversor: cantidad y
-                    // precio tal como los factura el proveedor, y si es una
-                    // presentación de conteo (millar/gruesa/docena) también
-                    // el preset y el factor, listo para solo darle "Aplicar".
+                    // El conversor se deja precargado con los datos crudos de
+                    // la factura solo por si el factor detectado no es el
+                    // correcto (o no se detectó ninguno) y hay que corregirlo
+                    // a mano — ya no hace falta usarlo si todo salió bien arriba.
                     const convRow = tr.nextElementSibling;
                     if (convRow && convRow.classList.contains('rm-conv-row')) {
                         if (cp.cantidad > 0) convRow.querySelector('.rm-conv-cant').value = cp.cantidad;
                         if (cp.valorUnitario > 0) convRow.querySelector('.rm-conv-precio').value = cp.valorUnitario;
-                        const preset = sugerirPresetPorUnidadCfdi(cp.claveUnidad, cp.unidad);
                         if (preset) {
                             convRow.querySelector('.rm-conv-preset').value = String(preset.factor);
                             convRow.querySelector('.rm-conv-factor').value = preset.factor;
                             const sug = convRow.querySelector('.rm-conv-sugerido');
-                            if (sug) sug.textContent = `Del XML: unidad de compra "${cp.unidad || cp.claveUnidad}" → ${preset.etiqueta}`;
-                            convRow.classList.remove('hidden');
+                            if (sug) sug.textContent = `Del XML: unidad de compra "${cp.unidad || cp.claveUnidad}" → ${preset.etiqueta} (ya aplicado arriba en Cant. a ingresar / Costo real — usa "Aplicar →" solo si necesitas corregirlo)`;
                         }
                     }
                 }
