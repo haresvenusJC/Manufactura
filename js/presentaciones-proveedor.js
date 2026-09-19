@@ -36,3 +36,25 @@ export function opcionesPresentacionHtml() {
         g.opciones.map((o) => `<option value="${o.factor}" data-etiqueta="${o.etiqueta}">${o.etiqueta}</option>`).join('') +
         `</optgroup>`).join('');
 }
+
+// Unidad de compra que trae el propio CFDI (claveUnidad SAT y/o el texto
+// libre) -> preset de conteo. Solo para presentaciones "de conteo"
+// (millar/gruesa/docena): si el CFDI ya trae la partida en kilogramo o
+// litro, esa YA es la unidad base — no hay nada que convertir, y sugerir
+// un factor ahí sería inventar una conversión que no aplica.
+const MAPA_UNIDAD_CFDI = [
+    { clave: /^mil$/i, texto: /millar/i, factor: 1000, etiqueta: 'Millar (×1000 piezas)' },
+    { clave: /^gro$/i, texto: /gruesa/i, factor: 144, etiqueta: 'Gruesa (×144 piezas)' },
+    { clave: /^(dzn|dzp)$/i, texto: /docena/i, factor: 12, etiqueta: 'Docena (×12 piezas)' },
+];
+
+export function sugerirPresetPorUnidadCfdi(claveUnidad, unidadTexto) {
+    const clave = (claveUnidad || '').trim();
+    const texto = (unidadTexto || '').trim();
+    for (const m of MAPA_UNIDAD_CFDI) {
+        if ((clave && m.clave.test(clave)) || (texto && m.texto.test(texto))) {
+            return { factor: m.factor, etiqueta: m.etiqueta };
+        }
+    }
+    return null;
+}

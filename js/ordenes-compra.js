@@ -5,7 +5,7 @@ import { parsearCfdi, extraerTextoPdf, parsearCfdiPdf } from './cfdi.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { imprimirConPlantilla } from './impresion.js';
 import { obtenerInfoProveedorProducto } from './info-proveedor-producto.js';
-import { opcionesPresentacionHtml } from './presentaciones-proveedor.js';
+import { opcionesPresentacionHtml, sugerirPresetPorUnidadCfdi } from './presentaciones-proveedor.js';
 import './trazabilidad.js';
 
 // =====================================================================
@@ -348,6 +348,19 @@ async function ocRenderLista() {
         if (error) throw error;
         if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin órdenes de compra.</p>'; return; }
 
+        // El botón "Pagar" solo debe verse si de verdad hay saldo pendiente
+        // (crédito, sin liquidar) — antes se mostraba con solo que la OC
+        // estuviera recibida, aunque ya estuviera pagada o fuera de contado.
+        let ocsConSaldo = new Set();
+        try {
+            const { data: cxp } = await supabaseClient
+                .from('v_cuentas_por_pagar')
+                .select('orden_compra_id')
+                .eq('estatus_cxp', 'pendiente')
+                .in('orden_compra_id', data.map(o => o.id));
+            ocsConSaldo = new Set((cxp || []).map(x => x.orden_compra_id));
+        } catch (_) { /* si la vista no existe, no se oculta el botón (mejor mostrarlo de más que de menos) */ }
+
         data.forEach(o => {
             const det = o.ordenes_compra_detalle || [];
             o._total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0), 0);
@@ -383,7 +396,7 @@ async function ocRenderLista() {
                     <tr class="border-b border-slate-900">
                       <td class="p-2 whitespace-nowrap">
                         ${puedeRecibir ? `<button type="button" onclick="window.irARecibirOC(${o.id})" class="text-[11px] bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-1 rounded">Recibir</button>` : ''}
-                        ${(o.estatus === 'recibida' || o.estatus === 'recibida_parcial') ? `<button type="button" onclick="window.ocPagar(${o.id})" class="text-[11px] bg-sky-700 hover:bg-sky-600 text-white px-2 py-1 rounded ml-1">Pagar</button>` : ''}
+                        ${(o.estatus === 'recibida' || o.estatus === 'recibida_parcial') && ocsConSaldo.has(o.id) ? `<button type="button" onclick="window.ocPagar(${o.id})" class="text-[11px] bg-sky-700 hover:bg-sky-600 text-white px-2 py-1 rounded ml-1">Pagar</button>` : ''}
                         ${o.estatus === 'abierta' ? `<button type="button" onclick="window.ocCancelar(${o.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded ml-1">Cancelar</button>` : ''}
                       </td>
                       <td class="p-2"><button type="button" onclick="window.verDetalleOC(${o.id})" class="font-mono text-emerald-300 hover:underline hover:text-emerald-200 text-left">${esc(o.folio || '#' + o.id)}</button></td>
@@ -2683,6 +2696,25 @@ async function rmProcesarDatosFactura(datos, { icono = '📄', fuente = 'XML' } 
                     // un conteo físico.
                     if (tr.dataset.capturado === '' && cp.cantidad > 0) tr.querySelector('.rm-cant').value = cp.cantidad;
                     if (cp.valorUnitario > 0) tr.querySelector('.rm-costo').value = cp.valorUnitario.toFixed(4);
+
+                    // La unidad de compra que trae el propio CFDI (claveUnidad
+                    // SAT / texto libre) precarga el conversor: cantidad y
+                    // precio tal como los factura el proveedor, y si es una
+                    // presentación de conteo (millar/gruesa/docena) también
+                    // el preset y el factor, listo para solo darle "Aplicar".
+                    const convRow = tr.nextElementSibling;
+                    if (convRow && convRow.classList.contains('rm-conv-row')) {
+                        if (cp.cantidad > 0) convRow.querySelector('.rm-conv-cant').value = cp.cantidad;
+                        if (cp.valorUnitario > 0) convRow.querySelector('.rm-conv-precio').value = cp.valorUnitario;
+                        const preset = sugerirPresetPorUnidadCfdi(cp.claveUnidad, cp.unidad);
+                        if (preset) {
+                            convRow.querySelector('.rm-conv-preset').value = String(preset.factor);
+                            convRow.querySelector('.rm-conv-factor').value = preset.factor;
+                            const sug = convRow.querySelector('.rm-conv-sugerido');
+                            if (sug) sug.textContent = `Del XML: unidad de compra "${cp.unidad || cp.claveUnidad}" → ${preset.etiqueta}`;
+                            convRow.classList.remove('hidden');
+                        }
+                    }
                 }
                 conc++;
             } else {

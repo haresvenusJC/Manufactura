@@ -104,9 +104,10 @@ export async function cargarModuloRequisicionesCompra() {
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
               <th class="p-2">Mi catálogo (interno)</th><th class="p-2 text-right">Cantidad</th>
-              <th class="p-2">Datos del proveedor (para la OC)</th><th class="p-2"></th>
+              <th class="p-2">Datos del proveedor (para la OC)</th>
+              <th class="p-2 text-right">Costo est.</th><th class="p-2 text-right">Importe</th><th class="p-2"></th>
             </tr></thead>
-            <tbody id="reqPartidasBody"><tr><td colspan="4" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr></tbody>
+            <tbody id="reqPartidasBody"><tr><td colspan="6" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr></tbody>
           </table>
         </div>
         <button type="button" id="reqGuardar" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Guardar requisición</button>
@@ -314,19 +315,22 @@ async function reqActualizarInfoProveedor() {
 function reqRenderPartidas() {
     const b = document.getElementById('reqPartidasBody');
     if (!reqPartidasTemp.length) {
-        b.innerHTML = '<tr><td colspan="4" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr>';
+        b.innerHTML = '<tr><td colspan="6" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr>';
         return;
     }
     b.innerHTML = reqPartidasTemp.map((p, i) => {
         const tieneDatosProv = p.skuProveedor || p.descripcionProveedor || p.unidadProveedor;
+        const importe = Number(p.cantidad || 0) * Number(p.costo || 0);
         return `
-        <tr class="border-b border-slate-900 align-top">
+        <tr class="border-b border-slate-900 align-top" data-idx="${i}">
             <td class="p-2 text-slate-100">
                 ${esc(p.nombre)}${p.productoId ? '' : ' <span class="text-[10px] text-amber-400">(nuevo)</span>'}
                 ${p.skuInterno ? `<span class="block text-[10px] text-slate-500 font-mono">SKU ${esc(p.skuInterno)}</span>` : ''}
-                <span class="block text-[10px] text-slate-500">${p.cantidad} ${esc(p.unidadNombre)}</span>
             </td>
-            <td class="p-2 text-right font-mono">${money(p.costo)}<span class="block text-[10px] text-slate-500 font-normal">c/u</span></td>
+            <td class="p-2 text-right">
+                <input type="number" step="any" min="0" class="req-part-cant w-20 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-right font-mono text-slate-100" value="${p.cantidad}">
+                <span class="block text-[10px] text-slate-500 font-normal">${esc(p.unidadNombre || '')}</span>
+            </td>
             <td class="p-2 text-slate-400 text-[11px]">
                 ${p.proveedorNombre ? `<span class="text-slate-300">${esc(p.proveedorNombre)}</span>` : '<span class="italic text-slate-600">sin proveedor sugerido</span>'}
                 ${tieneDatosProv ? `<span class="block">${p.skuProveedor ? `SKU proveedor: <span class="font-mono">${esc(p.skuProveedor)}</span>` : ''}</span>
@@ -334,9 +338,27 @@ function reqRenderPartidas() {
                     ${p.unidadProveedor ? `<span class="block">Unidad: ${esc(p.unidadProveedor)}${p.factorConversion ? ` (×${p.factorConversion})` : ''}</span>` : ''}`
                     : (p.proveedorNombre ? '<span class="block italic text-slate-600">sin claves capturadas para este proveedor</span>' : '')}
             </td>
+            <td class="p-2 text-right"><input type="number" step="any" min="0" class="req-part-costo w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-right font-mono text-slate-100" value="${Number(p.costo || 0)}"></td>
+            <td class="p-2 text-right font-mono req-part-importe">${money(importe)}</td>
             <td class="p-2 text-right"><button type="button" onclick="window.reqQuitarPartida(${i})" class="text-rose-400 hover:text-rose-300 text-xs px-2 py-1 bg-rose-950/40 rounded border border-rose-900/50">✕</button></td>
         </tr>`;
     }).join('');
+
+    b.querySelectorAll('tr[data-idx]').forEach((tr) => {
+        const i = Number(tr.dataset.idx);
+        const cantInp = tr.querySelector('.req-part-cant');
+        const costoInp = tr.querySelector('.req-part-costo');
+        const importeCelda = tr.querySelector('.req-part-importe');
+        const actualizarImporte = () => {
+            const c = parseFloat(cantInp.value) || 0;
+            const co = parseFloat(costoInp.value) || 0;
+            importeCelda.textContent = money(c * co);
+        };
+        cantInp.addEventListener('input', actualizarImporte);
+        costoInp.addEventListener('input', actualizarImporte);
+        cantInp.addEventListener('change', () => { reqPartidasTemp[i].cantidad = parseFloat(cantInp.value) || 0; });
+        costoInp.addEventListener('change', () => { reqPartidasTemp[i].costo = parseFloat(costoInp.value) || 0; });
+    });
 }
 window.reqQuitarPartida = (i) => { reqPartidasTemp.splice(i, 1); reqRenderPartidas(); };
 
