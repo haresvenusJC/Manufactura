@@ -43,9 +43,11 @@ export function opcionesPresentacionHtml() {
 // litro, esa YA es la unidad base — no hay nada que convertir, y sugerir
 // un factor ahí sería inventar una conversión que no aplica.
 const MAPA_UNIDAD_CFDI = [
-    { clave: /^mil$/i, texto: /millar/i, factor: 1000, etiqueta: 'Millar (×1000 piezas)' },
-    { clave: /^gro$/i, texto: /gruesa/i, factor: 144, etiqueta: 'Gruesa (×144 piezas)' },
-    { clave: /^(dzn|dzp)$/i, texto: /docena/i, factor: 12, etiqueta: 'Docena (×12 piezas)' },
+    // Mismo proveedor, misma factura: a veces pone "Millar" completo y a
+    // veces la abrevia "MI" — ambas deben apuntar al mismo preset.
+    { clave: /^mil$/i, texto: /^(millar|mi)$/i, factor: 1000, etiqueta: 'Millar (×1000 piezas)' },
+    { clave: /^gro$/i, texto: /^gruesa$/i, factor: 144, etiqueta: 'Gruesa (×144 piezas)' },
+    { clave: /^(dzn|dzp)$/i, texto: /^docena$/i, factor: 12, etiqueta: 'Docena (×12 piezas)' },
 ];
 
 export function sugerirPresetPorUnidadCfdi(claveUnidad, unidadTexto) {
