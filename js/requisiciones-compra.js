@@ -146,6 +146,11 @@ async function reqAplicarPreseleccion() {
     window.__reqPreProductos = null;
     window.__reqPreProducto = null;
 
+    // Nota con la que llega la preselección (p. ej. desde Producción: "Faltantes para producir…").
+    // Se conserva mientras queden grupos de otros proveedores por cargar.
+    const notasPre = window.__reqPreNotas;
+    if (!Array.isArray(window.__reqPreGruposRestantes) || !window.__reqPreGruposRestantes.length) window.__reqPreNotas = null;
+
     if (Array.isArray(preMulti) && preMulti.length) {
         for (const item of preMulti) {
             const p = reqProductos.find((x) => x.id === Number(item.id));
@@ -153,7 +158,7 @@ async function reqAplicarPreseleccion() {
             await reqAgregarPartida({ productoId: p.id, nombre: p.nombre, cantidad: item.cantidad, unidadId: p.unidad_medida_id || null, proveedorId: p.proveedor_id || null, tareaId: item.tareaId || null });
         }
         reqRenderPartidas();
-        document.getElementById('reqNotas').value = 'Generada desde Tareas: inventario bajo mínimo (agrupada por proveedor).';
+        document.getElementById('reqNotas').value = notasPre || 'Generada desde Tareas: inventario bajo mínimo (agrupada por proveedor).';
         reqAvisarGruposRestantes();
         return;
     }

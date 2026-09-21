@@ -100,6 +100,74 @@ export async function calcularRequerimientosProduccion(productoId, cantidadProdu
     return { error: null, filas };
 }
 
+/**
+ * Abre "Requisiciones de compra" con lo que falta para producir, ya cargado como partidas.
+ *  - Una requisición es de UN proveedor: si lo faltante es de varios, se abre una por proveedor
+ *    (la primera de una vez; las demás se cargan solas al guardar cada una).
+ *  - Lo que se fabrica en casa (semiterminados como el granel) NO se compra: se deja fuera y se
+ *    avisa, porque lo que hay que hacer es producirlo primero.
+ * Reusa la preselección que ya usa Tareas (window.__reqPre*).
+ */
+async function generarRequisicionFaltantes(faltan, nombreProducto, cantidadProducir) {
+    if (!faltan || !faltan.length) return;
+
+    const ids = faltan.map((f) => f.componenteId);
+    let { data: info, error } = await supabaseClient.from('productos')
+        .select('id, nombre, tipo, proveedor_id, abastecimiento').in('id', ids);
+    if (error) {   // aún sin la migración 2026-10-18
+        ({ data: info, error } = await supabaseClient.from('productos').select('id, nombre, tipo, proveedor_id').in('id', ids));
+    }
+    if (error) { alert('No se pudo consultar los insumos: ' + error.message); return; }
+    const porId = new Map((info || []).map((p) => [p.id, p]));
+
+    const seFabrican = [];
+    const comprables = [];
+    for (const f of faltan) {
+        const p = porId.get(f.componenteId) || {};
+        const cantidad = Number((f.requerido - f.disponible).toFixed(3));
+        if (!(cantidad > 0)) continue;
+        const item = { id: f.componenteId, nombre: f.nombre, unidad: f.unidad, cantidad, proveedorId: p.proveedor_id || null };
+        // un producto fabricado en casa (granel, terminado) se produce, no se compra
+        if (p.tipo === 'producto' && p.abastecimiento !== 'comprado') seFabrican.push(item); else comprables.push(item);
+    }
+
+    const linea = (i) => `${i.nombre}: ${formatoCantidad(i.cantidad)}${i.unidad ? ' ' + i.unidad : ''}`;
+    if (!comprables.length) {
+        alert('Lo que falta se fabrica en la planta, no se compra:\n\n' + seFabrican.map((i) => '• ' + linea(i)).join('\n')
+            + '\n\nProduce primero esos semiterminados y después esta orden.');
+        return;
+    }
+
+    const grupos = new Map();
+    for (const i of comprables) {
+        const clave = i.proveedorId ? String(i.proveedorId) : 'sin';
+        if (!grupos.has(clave)) grupos.set(clave, []);
+        grupos.get(clave).push(i);
+    }
+
+    // Se avisa si hay algo que confirmar: varias requisiciones, o insumos que se dejan fuera.
+    if (grupos.size > 1 || seFabrican.length) {
+        const idsProv = [...grupos.keys()].filter((k) => k !== 'sin').map(Number);
+        const { data: provs } = idsProv.length
+            ? await supabaseClient.from('proveedores').select('id, nombre').in('id', idsProv)
+            : { data: [] };
+        const nombreProv = new Map((provs || []).map((p) => [p.id, p.nombre]));
+        const detalle = [...grupos.entries()].map(([clave, items]) =>
+            `· ${clave === 'sin' ? 'Sin proveedor asignado' : (nombreProv.get(Number(clave)) || 'Proveedor #' + clave)}: ${items.map(linea).join(', ')}`).join('\n');
+        let texto = '';
+        if (grupos.size > 1) texto += `Lo faltante es de proveedores distintos: se va a abrir una requisición por cada uno.\n\n${detalle}\n\n`;
+        else texto += `Se va a abrir una requisición con:\n\n${detalle}\n\n`;
+        if (seFabrican.length) texto += `Se dejan fuera porque se fabrican (produce primero):\n${seFabrican.map((i) => '• ' + linea(i)).join('\n')}\n\n`;
+        if (!confirm(texto + '¿Continuar?')) return;
+    }
+
+    const listaGrupos = [...grupos.values()].map((items) => items.map((i) => ({ id: i.id, cantidad: i.cantidad })));
+    window.__reqPreProductos = listaGrupos[0];
+    window.__reqPreGruposRestantes = listaGrupos.slice(1);
+    window.__reqPreNotas = `Faltantes para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}.`;
+    window.loadView('requisiciones-compra');
+}
+
 // Cronómetros del panel "Órdenes en Proceso" (viven mientras la vista está montada).
 let tickerEnProceso = null;
 let refetchEnProceso = null;
@@ -162,6 +230,10 @@ export async function cargarModuloProduccion() {
                                 <span id="resumenExistenciasBOM" class="text-[11px] font-mono"></span>
                             </div>
                             <div id="tablaExistenciasBOM" class="space-y-1"></div>
+                            <div id="accionesExistenciasBOM" class="hidden mt-3 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                                <span class="text-[11px] text-slate-500">Abre una requisición de compra con lo que falta, agrupada por proveedor.</span>
+                                <button type="button" id="btnReqFaltantes" class="text-xs bg-emerald-700 hover:bg-emerald-600 text-white font-medium px-3 py-1.5 rounded-lg cursor-pointer">📝 Generar requisición de lo faltante</button>
+                            </div>
                         </div>
                         <div>
                             <div class="flex justify-between items-center mb-2">
@@ -236,11 +308,21 @@ export async function cargarModuloProduccion() {
         const tablaExistencias = document.getElementById('tablaExistenciasBOM');
         const resumenExistencias = document.getElementById('resumenExistenciasBOM');
         let tokenPanelExistencias = 0;
+        const contAccionesReq = document.getElementById('accionesExistenciasBOM');
+        const btnReqFaltantes = document.getElementById('btnReqFaltantes');
+        let faltantesActuales = [];      // insumos que no alcanzan para lo que está capturado
+
+        btnReqFaltantes.addEventListener('click', () => {
+            const etiqueta = selectProd.options[selectProd.selectedIndex]?.textContent.trim() || '';
+            generarRequisicionFaltantes(faltantesActuales, etiqueta, parseFloat(inputCantidadProd.value));
+        });
 
         async function actualizarPanelExistencias() {
             const idProd = selectProd.value;
             const cant = parseFloat(inputCantidadProd.value);
             const miToken = ++tokenPanelExistencias;
+            faltantesActuales = [];
+            contAccionesReq.classList.add('hidden');
 
             if (!idProd || !cant || cant <= 0) {
                 panelExistencias.classList.add('hidden');
@@ -261,6 +343,8 @@ export async function cargarModuloProduccion() {
             }
 
             const faltan = filas.filter(f => !f.suficiente);
+            faltantesActuales = faltan;
+            contAccionesReq.classList.toggle('hidden', !faltan.length);
             resumenExistencias.textContent = faltan.length ? `⛔ Faltan ${faltan.length} insumo(s)` : '✅ Existencias suficientes';
             resumenExistencias.className = `text-[11px] font-mono ${faltan.length ? 'text-rose-400' : 'text-emerald-400'}`;
 
