@@ -202,10 +202,19 @@ export async function cargarModuloProduccion() {
             </div>
         `;
 
-        const { data: productos, error: errProd } = await supabaseClient
+        // Solo lo que se fabrica: un producto "comprado para reventa" (migración
+        // 2026-10-18) no se produce. Si la columna aún no existe, va sin ese filtro.
+        let { data: productos, error: errProd } = await supabaseClient
             .from('productos')
             .select('id, nombre, sku, tipo')
-            .eq('tipo', 'producto');
+            .eq('tipo', 'producto')
+            .or('abastecimiento.is.null,abastecimiento.eq.fabricado');
+        if (errProd) {
+            ({ data: productos, error: errProd } = await supabaseClient
+                .from('productos')
+                .select('id, nombre, sku, tipo')
+                .eq('tipo', 'producto'));
+        }
 
         const selectProd = document.getElementById('productoProducirId');
         if (!errProd && productos) {

@@ -31,8 +31,8 @@ Ninguna columna tiene que llamarse exactamente así: el importador detecta el en
 | **Proveedor** | No | Nombre del proveedor. Si no existe, se crea. |
 | **Precio** | No | Costo unitario (de compra). Va a `costo_unitario`. Acepta `1234.56` o `$ 1,234.56`. |
 | **Precio de venta** | No | Precio de lista de venta **sin IVA**. Va a `productos.precio_venta`. Se usa para calcular el ingreso al registrar una venta. |
-| **Moneda** | No | `MXN` / `USD`. Vacío = la de por defecto. |
-| **Unidad** | No | Litros, Kilogramos, Piezas… Si no coincide, se usa la de por defecto. |
+| **Moneda** | No | `MXN` / `USD`. Vacío = la de por defecto, **solo al crear**; al actualizar un producto que ya existe no se toca su moneda si la celda va vacía. |
+| **Unidad** | No | Litros, Kilogramos, Piezas… Si no coincide con el catálogo, la fila queda marcada para revisión. La unidad "por defecto" se usa solo al crear. |
 | **Notas** | No | Texto libre (descripción). |
 
 ### Contable *(necesitas el módulo de contabilidad instalado)*
@@ -54,12 +54,24 @@ Ninguna columna tiene que llamarse exactamente así: el importador detecta el en
 | **Activo** | `si` / `no` (también `1`/`0`, `vigente`, `baja`…). |
 | **Requiere caducidad** | `1` = sí (al recibir cada lote se pide la fecha de vencimiento y ese lote entra a las alertas de caducidad). `0` o vacío = no. También acepta `si` / `no`. Déjalo en `0` para materias primas / insumos que no caducan. |
 
+### Clasificación *(requiere `sql/2026-10-18_producto_abastecimiento_semiterminado.sql`)*
+
+| Columna | Qué poner |
+|---|---|
+| **Abastecimiento** | `fabricado` (se transforma en planta, lleva BOM) o `comprado` (se compra y se revende, o es materia prima / insumo; no lleva BOM). También acepta `lo fabrico`, `reventa`… |
+| **Semiterminado** | `si` / `no`. `si` = se fabrica y se usa como componente de otros productos (granel y similares). Un semiterminado no puede ser `comprado`, y solo un producto (no MP ni insumo) puede serlo. |
+
+Sin la migración, el importador no importa estas dos columnas y te avisa. La marca de semiterminado **no** cambia la cuenta contable: esa sigue saliendo de "Cuenta inventario" (semiterminado → `115.02`).
+
+**Clasificar lo que ya tienes:** en el importador, el botón **⬇ Descargar mis productos para clasificar** baja un Excel con tus productos, las columnas informativas *Tiene BOM* y *Usado en otros*, y las columnas *Abastecimiento* y *Semiterminado* ya con una sugerencia (semiterminado = tiene BOM propio y se usa dentro de otro producto). Corrígela y súbela aquí mismo; solo se escriben esas dos columnas.
+
 ## Reglas de importación
 
 - **Ya existe** (por SKU, o por Nombre si no hay SKU) → se **actualiza** con las columnas que hayas mapeado (precio, moneda, unidad, proveedor, notas, tasas, stock mínimo, MOQ, activo, requiere caducidad… y **tipo** si mapeaste esa columna).
 - **No existe** → se **crea**. El tipo sale de la columna `Tipo` si la mapeaste; si no, del selector "Tipo para productos nuevos" (ajustable fila por fila en la vista previa).
 - Valores que no se entienden (IVA no numérico, `activo` distinto de si/no, tipo desconocido) se marcan como aviso en la fila y ese campo no se toca; el resto de la fila sí entra.
-- En la vista previa marcas qué filas entran. **Nada se guarda hasta pulsar "Importar".**
+- Solo se escriben las columnas que mapeaste **y** que traen valor en la celda; el resto del producto no se toca (nunca se manda un 0 por una columna ausente).
+- En la vista previa, encima de la tabla, "Campos que se escribirán" resume qué campos y en cuántas filas, y cada fila trae su columna "Se escribirá". Marcas qué filas entran. **Nada se guarda hasta pulsar "Importar".**
 
 ## Consejo para las materias primas de LOVLUB
 

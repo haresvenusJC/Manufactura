@@ -250,7 +250,8 @@ table thead th { letter-spacing: .05em; font-weight: 600; }
 table tbody tr { transition: background-color .12s ease; }
 table tbody tr:not([class*="bg-"]):hover { background-color: color-mix(in srgb, var(--acc) 6%, transparent); }
 table tbody tr:not([class*="bg-"]):hover > td:first-child { box-shadow: inset 3px 0 0 var(--acc); }
-.overflow-x-auto.border { overflow-y: hidden; }
+/* Recorta las esquinas redondeadas de las tablas, pero NO donde la tabla tiene su propio scroll vertical (max-h-* / overflow-y-auto). */
+.overflow-x-auto.border:not(.overflow-y-auto):not([class*="max-h-"]) { overflow-y: hidden; }
 
 /* ---------- Chips de estatus ---------- */
 span.rounded-full, span.rounded { letter-spacing: .01em; }

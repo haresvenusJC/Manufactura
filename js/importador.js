@@ -21,7 +21,7 @@ import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs';
 // =====================================================================
 
 // Campos destino y las "pistas" para autodetectar la columna del archivo.
-// grupo: 'basico' | 'contable' | 'compras'  (solo para agrupar en la UI)
+// grupo: 'basico' | 'contable' | 'compras' | 'clasif'  (solo para agrupar en la UI)
 const CAMPOS = [
     { key: 'proveedor',      label: 'Proveedor',            grupo: 'basico',   hints: ['proveedor', 'supplier', 'fabricante', 'marca', 'vendor'] },
     { key: 'nombre',         label: 'Nombre del producto',  grupo: 'basico',   hints: ['producto', 'nombre', 'articulo', 'item', 'material', 'insumo'] },
@@ -45,6 +45,10 @@ const CAMPOS = [
     { key: 'cantidad_minima_compra', label: 'Cantidad minima de compra (MOQ)', grupo: 'compras', hints: ['moq', 'minima compra', 'minimo de compra', 'lote minimo', 'pedido minimo', 'compra minima', 'cantidad minima', 'multiplo de compra'] },
     { key: 'activo',         label: 'Activo / vigente',     grupo: 'compras',  hints: ['activo', 'vigente', 'habilitado', 'enabled', 'estatus', 'status', 'estado', 'alta'] },
     { key: 'requiere_caducidad', label: 'Requiere control de caducidad', grupo: 'compras', hints: ['requiere caducidad', 'control de caducidad', 'caducidad', 'caduca', 'perecedero', 'vencimiento', 'requiere vencimiento', 'controla caducidad', 'fecha de caducidad', 'lote con caducidad', 'con caducidad'] },
+
+    // Clasificación (requiere sql/2026-10-18_producto_abastecimiento_semiterminado.sql)
+    { key: 'abastecimiento', label: 'Cómo se obtiene (fabricado / comprado)', grupo: 'clasif', hints: ['abastecimiento', 'como se obtiene', 'se fabrica o se compra', 'fabricado o comprado', 'make or buy'] },
+    { key: 'semiterminado',  label: 'Es semiterminado (si / no)',            grupo: 'clasif', hints: ['semiterminado', 'semi terminado', 'semielaborado', 'semi elaborado'] },
 ];
 
 // --------- parsers de los campos nuevos ---------
@@ -66,6 +70,15 @@ function parseBooleano(raw) {
     if (['si', 'sí', 's', 'yes', 'y', '1', 'true', 'x', 'activo', 'vigente', 'alta', 'verdadero'].includes(s)) return true;
     if (['no', 'n', '0', 'false', 'inactivo', 'baja', 'descontinuado', 'falso'].includes(s)) return false;
     return undefined; // no reconocido -> no tocar
+}
+
+// 'fabricado' / 'lo fabrico' / 'produccion propia' -> 'fabricado'; 'comprado' / 'reventa' -> 'comprado'; otro -> ''
+function parseAbastecimiento(raw) {
+    const s = norm(raw);
+    if (!s) return '';
+    if (/compr|revent|revend|comerci|buy|tercero|extern/.test(s)) return 'comprado';
+    if (/fabric|elabor|manufactur|make|propi|transform|produc/.test(s)) return 'fabricado';
+    return '';
 }
 
 function parseTipoProducto(raw) {
@@ -139,7 +152,12 @@ export async function cargarModuloImportador() {
                     Plantilla de ejemplo:
                     <a href="ejemplos/plantilla_materias_primas.xlsx" download class="text-sky-400 hover:underline">Excel</a> ·
                     <a href="ejemplos/plantilla_materias_primas.csv" download class="text-sky-400 hover:underline">CSV</a>
-                    <span class="text-slate-600 block mt-1">Encabezados: Nombre · SKU · Tipo · Proveedor · Precio (costo) · Precio de venta · Moneda · Unidad · Tasa IVA · Tasa IEPS · Stock minimo · Tiempo entrega dias · Cantidad minima compra · Activo · Requiere caducidad (1/0) · Notas</span>
+                    <span class="text-slate-600 block mt-1">Encabezados: Nombre · SKU · Tipo · Proveedor · Precio (costo) · Precio de venta · Moneda · Unidad · Tasa IVA · Tasa IEPS · Stock minimo · Tiempo entrega dias · Cantidad minima compra · Activo · Requiere caducidad (1/0) · Abastecimiento (fabricado/comprado) · Semiterminado (si/no) · Notas</span>
+                </div>
+                <div class="text-[11px] text-slate-400 pt-2 border-t border-slate-800 mt-2 space-y-1.5">
+                    <span class="block text-slate-300 font-medium">¿Clasificar los productos que ya tienes?</span>
+                    <button type="button" id="impDescClasif" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 px-2.5 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇ Descargar mis productos para clasificar</button>
+                    <span class="text-slate-600 block">Baja tus productos con una sugerencia (semiterminado = tiene BOM y se usa dentro de otros). Corrige las columnas Abastecimiento y Semiterminado, guarda el Excel y súbelo aquí mismo.</span>
                 </div>
             </div>
         </div>
@@ -244,6 +262,71 @@ function cablearEventos() {
 
     $('impValidar').addEventListener('click', validar);
     $('impImportar').addEventListener('click', importar);
+    $('impDescClasif').addEventListener('click', descargarHojaClasificacion);
+}
+
+// Baja los productos (tipo "producto") en un Excel ya listo para clasificar:
+// sugiere "semiterminado" cuando el producto tiene BOM propio y se usa como
+// componente de otro. Se corrige a mano y se sube en este mismo importador
+// (las columnas Abastecimiento / Semiterminado se detectan solas).
+async function descargarHojaClasificacion() {
+    const btn = document.getElementById('impDescClasif');
+    const textoOriginal = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Preparando...';
+    try {
+        // PostgREST devuelve máximo 1000 filas por consulta: se pide por páginas.
+        const paginar = async (armar) => {
+            const todo = [];
+            for (let desde = 0; ; desde += 1000) {
+                const { data, error } = await armar().range(desde, desde + 999);
+                if (error) throw error;
+                todo.push(...(data || []));
+                if (!data || data.length < 1000) break;
+            }
+            return todo;
+        };
+
+        let prods;
+        let conColumnas = true;
+        try {
+            prods = await paginar(() => supabaseClient.from('productos')
+                .select('id, sku, nombre, abastecimiento, es_semiterminado').eq('tipo', 'producto').order('id'));
+        } catch (_) {
+            conColumnas = false;   // aún no está la migración 2026-10-18
+            prods = await paginar(() => supabaseClient.from('productos')
+                .select('id, sku, nombre').eq('tipo', 'producto').order('id'));
+        }
+        const bom = await paginar(() => supabaseClient.from('bom').select('producto_id, componente_id').order('id'));
+
+        const conBom = new Set(bom.map((b) => b.producto_id));
+        const usado = new Set(bom.map((b) => b.componente_id));
+
+        const aoa = [['SKU', 'Nombre', 'Tiene BOM', 'Usado en otros', 'Abastecimiento', 'Semiterminado']];
+        prods.sort((a, b) => String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'));
+        for (const p of prods) {
+            const tiene = conBom.has(p.id);
+            const usaOtros = usado.has(p.id);
+            const semi = (conColumnas && p.es_semiterminado === true) || (tiene && usaOtros);
+            aoa.push([
+                p.sku || '', p.nombre || '',
+                tiene ? 'si' : 'no', usaOtros ? 'si' : 'no',
+                (conColumnas && p.abastecimiento) || 'fabricado',
+                semi ? 'si' : 'no',
+            ]);
+        }
+
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        ws['!cols'] = [{ wch: 16 }, { wch: 44 }, { wch: 11 }, { wch: 15 }, { wch: 16 }, { wch: 14 }];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Clasificacion');
+        XLSX.writeFile(wb, 'clasificacion_productos.xlsx');
+    } catch (err) {
+        alert('No se pudo preparar la hoja: ' + (err.message || err));
+    } finally {
+        btn.disabled = false;
+        btn.textContent = textoOriginal;
+    }
 }
 
 // --------------------------- parseo del archivo ---------------------------
@@ -378,6 +461,7 @@ const GRUPOS = [
     { id: 'basico',   t: 'Básico' },
     { id: 'contable', t: 'Contable (requiere módulo de contabilidad)' },
     { id: 'compras',  t: 'Compras / abasto' },
+    { id: 'clasif',   t: 'Clasificación (requiere la migración 2026-10-18)' },
 ];
 
 function renderMapeo() {
@@ -515,7 +599,7 @@ async function cargarReferencias() {
             supabaseClient.from('proveedores').select('id, nombre'),
             supabaseClient.from('unidades_medida').select('id, nombre'),
             supabaseClient.from('monedas').select('id, codigo'),
-            supabaseClient.from('productos').select('id, nombre, sku'),
+            supabaseClient.from('productos').select('id, nombre, sku, tipo'),
         ]);
         for (const r of [prov, um, mon, prod]) if (r.error) throw r.error;
 
@@ -638,20 +722,22 @@ function validar() {
         }
 
         // moneda
-        let monedaId = monedaDef, monedaTxt = '';
+        // *DeArchivo: el valor vino del archivo. Si no, es el "por defecto" y solo se
+        // usa al CREAR — al actualizar no se pisa la moneda/unidad que ya tiene el producto.
+        let monedaId = monedaDef, monedaTxt = '', monedaDeArchivo = false;
         const monRaw = String(celda(fila, 'moneda')).trim();
         if (monRaw) {
             const hit = R.monPorCodigo.get(norm(monRaw));
-            if (hit) { monedaId = hit; monedaTxt = monRaw.toUpperCase(); }
+            if (hit) { monedaId = hit; monedaTxt = monRaw.toUpperCase(); monedaDeArchivo = true; }
             else { monedaTxt = monRaw.toUpperCase() + ' → def'; problemas.push('moneda "' + monRaw + '" desconocida, revisa antes de incluir esta fila'); requiereRevision = true; }
         }
 
         // unidad
-        let unidadId = unidadDef, unidadTxt = '';
+        let unidadId = unidadDef, unidadTxt = '', unidadDeArchivo = false;
         const uniRaw = String(celda(fila, 'unidad')).trim();
         if (uniRaw) {
             const hit = R.umPorNombre.get(norm(uniRaw));
-            if (hit) { unidadId = hit; unidadTxt = uniRaw; }
+            if (hit) { unidadId = hit; unidadTxt = uniRaw; unidadDeArchivo = true; }
             else { unidadTxt = uniRaw + ' → def'; problemas.push('unidad "' + uniRaw + '" no existe, revisa antes de incluir esta fila'); requiereRevision = true; }
         }
 
@@ -667,6 +753,7 @@ function validar() {
         let accion = 'crear', prodId = null, via = '';
         if (sku && R.prodPorSku.has(norm(sku))) { accion = 'actualizar'; prodId = R.prodPorSku.get(norm(sku)).id; via = 'SKU'; }
         else if (!sku && !soloPorSku && R.prodPorNombre.has(norm(nombre))) { accion = 'actualizar'; prodId = R.prodPorNombre.get(norm(nombre)).id; via = 'nombre'; }
+        const existente = prodId ? (via === 'SKU' ? R.prodPorSku.get(norm(sku)) : R.prodPorNombre.get(norm(nombre))) : null;
 
         // SKU repetido dentro del propio archivo: si se deja pasar, la
         // segunda fila "actualizaria" lo que la primera acaba de crear en
@@ -748,11 +835,40 @@ function validar() {
             }
         }
 
+        // ---- clasificación: cómo se obtiene + semiterminado ----
+        if (estado.mapeo.abastecimiento || estado.mapeo.semiterminado) {
+            let abast = '';
+            let semi;
+            const rawAb = String(celda(fila, 'abastecimiento')).trim();
+            if (rawAb) {
+                abast = parseAbastecimiento(rawAb);
+                if (!abast) { problemas.push('abastecimiento "' + rawAb + '" no reconocido (usa fabricado / comprado), revisa antes de incluir esta fila'); requiereRevision = true; }
+            }
+            const rawSm = String(celda(fila, 'semiterminado')).trim();
+            if (rawSm) {
+                semi = parseBooleano(rawSm);
+                if (semi === undefined) { problemas.push('semiterminado "' + rawSm + '" no reconocido (usa si / no), revisa antes de incluir esta fila'); requiereRevision = true; }
+            }
+            const tipoEf = tipoCol || (existente && existente.tipo) || document.getElementById('impTipo').value;
+            if (semi === true && abast === 'comprado') {
+                problemas.push('un semiterminado se fabrica: no puede ser "comprado"');
+                requiereRevision = true;
+            } else if (semi === true && tipoEf && tipoEf !== 'producto') {
+                problemas.push('solo un producto puede ser semiterminado (este es "' + tipoEf + '")');
+                requiereRevision = true;
+            } else {
+                if (abast) extras.abastecimiento = abast;
+                if (semi === true) { extras.es_semiterminado = true; extras.abastecimiento = 'fabricado'; }
+                else if (semi === false) extras.es_semiterminado = false;
+                else if (abast === 'comprado') extras.es_semiterminado = false;
+            }
+        }
+
         if (!nombre) { accion = 'error'; problemas.push('sin nombre'); }
 
         return {
             fila: estado.filaDatos + idx, nombre, sku, descripcion, provNombre, provId, provNuevo,
-            precio, monedaId, monedaTxt, unidadId, unidadTxt, accion, prodId, via, dupDe, problemas,
+            precio, monedaId, monedaTxt, monedaDeArchivo, unidadId, unidadTxt, unidadDeArchivo, accion, prodId, via, dupDe, problemas,
             extras, tipoCol, requiereRevision,
             // control del usuario: si hubo un dato de catálogo (moneda/unidad/tipo)
             // que no matcheó, arranca desmarcada para forzar una decisión consciente.
@@ -794,6 +910,23 @@ function renderPreview(plan) {
             ? `<span class="text-sky-400">actualizar</span>`
             : `<span class="text-rose-400">error</span>`;
 
+    // Resumen: qué campos se escribirán y en cuántas filas (solo filas marcadas al validar).
+    const conteoCampos = {};
+    plan.filter((p) => p.incluir && p.accion !== 'error').forEach((p) => {
+        listaCampos(p).forEach(([k]) => { conteoCampos[k] = (conteoCampos[k] || 0) + 1; });
+    });
+    const resumenCampos = Object.keys(conteoCampos).length
+        ? Object.entries(conteoCampos).map(([k, n]) => `<span class="text-sky-300">${ETIQ_CAMPO[k] || k}</span> <span class="text-slate-500">(${n})</span>`).join(' · ')
+        : '<span class="text-amber-400">ninguno — revisa el mapeo de columnas</span>';
+
+    const clasifTag = (p) => {
+        const x = p.extras || {};
+        if (x.es_semiterminado === true) return ' <span class="text-indigo-400 text-[10px]">· semiterminado</span>';
+        if (x.abastecimiento === 'comprado') return ' <span class="text-rose-400 text-[10px]">· comprado</span>';
+        if (x.abastecimiento === 'fabricado') return ' <span class="text-slate-400 text-[10px]">· fabricado</span>';
+        return '';
+    };
+
     const selTipo = (p, i) => {
         if (p.accion !== 'crear') return '<span class="text-slate-600">—</span>';
         if (p.tipoCol) {
@@ -815,6 +948,11 @@ function renderPreview(plan) {
             <span class="px-2 py-1 rounded bg-slate-900 border border-slate-700 text-slate-300">${provNuevos} proveedor(es) nuevo(s)</span>
         </div>
 
+        <p class="text-[11px] text-slate-400 mb-3 leading-relaxed">
+            <strong class="text-slate-200">Campos que se escribirán</strong> (filas marcadas): ${resumenCampos}.
+            <span class="text-slate-500">Cualquier otro dato del producto no se toca.</span>
+        </p>
+
         <div class="flex flex-wrap items-center gap-2 mb-2">
             <input type="text" id="impFiltro" placeholder="filtrar por nombre o SKU..."
                 class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-[11px] text-slate-100 w-52 focus:outline-none focus:border-sky-500">
@@ -826,13 +964,13 @@ function renderPreview(plan) {
             <button type="button" data-sel="filtrados"  class="imp-sel text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded border border-slate-700 cursor-pointer">Marcar filtrados</button>
         </div>
 
-        <div class="overflow-x-auto max-h-80 overflow-y-auto border border-slate-800 rounded-lg">
+        <div class="overflow-x-auto max-h-[75vh] overflow-y-auto border border-slate-800 rounded-lg">
             <table class="w-full text-left text-[11px] text-slate-300">
                 <thead class="bg-slate-900 text-sky-400 uppercase border-b border-slate-800 sticky top-0">
                     <tr>
                         <th class="p-2"><input type="checkbox" id="impChkTodos" class="accent-sky-500"></th>
                         <th class="p-2">#</th><th class="p-2">Accion</th><th class="p-2">Tipo (nuevos)</th><th class="p-2">Nombre</th><th class="p-2">SKU</th>
-                        <th class="p-2">Precio</th><th class="p-2">Mon.</th><th class="p-2">Unid.</th><th class="p-2">Proveedor</th><th class="p-2">Notas</th>
+                        <th class="p-2">Precio</th><th class="p-2">Mon.</th><th class="p-2">Unid.</th><th class="p-2">Proveedor</th><th class="p-2">Se escribirá</th><th class="p-2">Notas</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -846,12 +984,13 @@ function renderPreview(plan) {
                             <td class="p-2 text-slate-500">${p.fila}</td>
                             <td class="p-2">${badge(p.accion)}${p.via ? ` <span class="text-slate-600">(${p.via})</span>` : ''}${p.requiereRevision ? ' <span class="text-amber-400" title="Dato de catálogo sin match, revisa antes de incluir">⚠</span>' : ''}</td>
                             <td class="p-2">${selTipo(p, i)}</td>
-                            <td class="p-2 text-slate-100">${p.nombre || '<span class="text-rose-400">—</span>'}</td>
+                            <td class="p-2 text-slate-100">${p.nombre || '<span class="text-rose-400">—</span>'}${clasifTag(p)}</td>
                             <td class="p-2 font-mono text-slate-400">${p.sku || ''}</td>
                             <td class="p-2 font-mono">${p.precio ?? ''}</td>
                             <td class="p-2 text-slate-400">${p.monedaTxt || ''}</td>
                             <td class="p-2 text-slate-400">${p.unidadTxt || ''}</td>
                             <td class="p-2 text-slate-400">${p.provNombre || ''}${p.provNuevo ? ' <span class="text-emerald-500">+nuevo</span>' : ''}</td>
+                            <td class="p-2 text-[10px] text-sky-300/90">${listaCampos(p).map(([, t]) => t).join(' · ') || '<span class="text-slate-600">—</span>'}</td>
                             <td class="p-2 text-amber-400/80">${p.problemas.join('; ')}</td>
                         </tr>`).join('')}
                 </tbody>
@@ -919,11 +1058,62 @@ function aplicarSeleccion(modo) {
 
 // --------------------------- importacion ---------------------------
 
+// Los campos que se escribirán en `productos` para una fila. Lo usan tanto la
+// importación como la vista previa, así lo que se ve es exactamente lo que se guarda.
+// Lo que no está aquí no se toca.
+function camposDeFila(p, provId) {
+    const campos = {};
+    if (estado.mapeo.sku && p.sku) campos.sku = p.sku;
+    const esCrear = p.accion !== 'actualizar';
+    // moneda / unidad "por defecto" solo al crear; al actualizar, solo si vienen en el archivo
+    if (p.unidadId && (esCrear || p.unidadDeArchivo)) campos.unidad_medida_id = p.unidadId;
+    if (p.precio !== null && p.precio !== undefined) campos.costo_unitario = p.precio;
+    if (p.monedaId && (esCrear || p.monedaDeArchivo)) campos.moneda_id = p.monedaId;
+    if (provId) campos.proveedor_id = provId;
+    if (estado.mapeo.descripcion && p.descripcion) campos.descripcion = p.descripcion;
+    // campos nuevos mapeados (tasas, stock minimo, entrega, MOQ, activo, clasificación)
+    Object.assign(campos, p.extras || {});
+    // el tipo tomado de una columna manda sobre el default / override
+    if (p.tipoCol) campos.tipo = p.tipoCol;
+    return campos;
+}
+
+const ETIQ_CAMPO = {
+    sku: 'SKU', tipo: 'tipo', unidad_medida_id: 'unidad', costo_unitario: 'costo', moneda_id: 'moneda',
+    proveedor_id: 'proveedor', descripcion: 'descripción', precio_venta: 'precio venta',
+    tasa_iva: 'IVA', tasa_ieps: 'IEPS', cuenta_inventario_id: 'cta. inventario', cuenta_costo_id: 'cta. costo',
+    stock_minimo: 'stock mín.', tiempo_entrega_dias: 'entrega (días)', cantidad_minima_compra: 'MOQ',
+    activo: 'activo', requiere_caducidad: 'caducidad', abastecimiento: 'abastecimiento', es_semiterminado: 'semiterminado',
+};
+
+// [[campo, "etiqueta: valor"], ...] de lo que se escribiría en esta fila.
+function listaCampos(p) {
+    if (p.accion === 'error') return [];
+    const campos = camposDeFila(p, p.provId || (p.provNombre ? 'x' : null));
+    if (p.accion === 'actualizar' && p.via === 'SKU') delete campos.sku;   // mismo SKU: no cambia
+    return Object.entries(campos).map(([k, v]) => {
+        const et = ETIQ_CAMPO[k] || k;
+        const val = typeof v === 'boolean' ? (v ? 'sí' : 'no') : (['abastecimiento', 'tipo'].includes(k) ? String(v) : null);
+        return [k, val === null ? et : `${et}: ${val}`];
+    });
+}
+
 async function importar() {
     if (!estado.plan) { alert('Primero pulsa Validar.'); return; }
     const btn = document.getElementById('impImportar');
     btn.disabled = true;
     btn.textContent = 'Importando...';
+
+    // La clasificación necesita las columnas de sql/2026-10-18_producto_abastecimiento_semiterminado.sql
+    if (estado.mapeo.abastecimiento || estado.mapeo.semiterminado) {
+        const { error: errCol } = await supabaseClient.from('productos').select('abastecimiento, es_semiterminado').limit(1);
+        if (errCol) {
+            alert('Falta correr sql/2026-10-18_producto_abastecimiento_semiterminado.sql en Supabase (SQL Editor) antes de importar la clasificación.');
+            btn.textContent = 'Importar';
+            btn.disabled = false;
+            return;
+        }
+    }
 
     const R = estado.refs;
     const tipoDef = document.getElementById('impTipo').value;
@@ -949,17 +1139,7 @@ async function importar() {
                 }
             }
 
-            const campos = {};
-            if (estado.mapeo.sku && p.sku) campos.sku = p.sku;
-            if (p.unidadId) campos.unidad_medida_id = p.unidadId;
-            if (p.precio !== null && p.precio !== undefined) campos.costo_unitario = p.precio;
-            if (p.monedaId) campos.moneda_id = p.monedaId;
-            if (provId) campos.proveedor_id = provId;
-            if (estado.mapeo.descripcion && p.descripcion) campos.descripcion = p.descripcion;
-            // campos nuevos mapeados (tasas, stock minimo, entrega, MOQ, activo)
-            Object.assign(campos, p.extras || {});
-            // el tipo tomado de una columna manda sobre el default / override
-            if (p.tipoCol) campos.tipo = p.tipoCol;
+            const campos = camposDeFila(p, provId);
 
             if (p.accion === 'actualizar') {
                 const { error } = await supabaseClient.from('productos').update(campos).eq('id', p.prodId);

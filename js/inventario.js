@@ -53,6 +53,7 @@ let invFiltroTexto = '';
 const porPaginaResumen = 10;
 const invSeccionEstado = {
     terminados: { pagina: 1, colapsada: true },
+    semiterminados: { pagina: 1, colapsada: true },
     materias: { pagina: 1, colapsada: true },
     componentes: { pagina: 1, colapsada: true },
 };
@@ -65,14 +66,22 @@ export async function cargarInventarioCompleto() {
         if (!supabaseClient) return;
 
         if (contenedorInv) {
-            const { data: productos, error: errProd } = await supabaseClient
-                .from('productos')
-                .select(`
+            // Con es_semiterminado (migración 2026-10-18); si aún no está, sin esa columna.
+            const colsInv = `
                     id, nombre, sku, tipo, costo_unitario, stock_actual, unidad_medida_id, moneda_id,
                     unidades_medida ( nombre ),
                     monedas ( codigo )
-                `)
+                `;
+            let { data: productos, error: errProd } = await supabaseClient
+                .from('productos')
+                .select(colsInv.replace('tipo,', 'tipo, es_semiterminado,'))
                 .order('id', { ascending: true });
+            if (errProd) {
+                ({ data: productos, error: errProd } = await supabaseClient
+                    .from('productos')
+                    .select(colsInv)
+                    .order('id', { ascending: true }));
+            }
 
             if (errProd) throw errProd;
 
@@ -109,7 +118,8 @@ function renderInventarioResumen() {
         || (p.nombre || '').toLowerCase().includes(filtro)
         || (p.sku || '').toLowerCase().includes(filtro);
 
-    const productosTerminados = invProductosCache.filter(p => p.tipo === 'producto' && pasaFiltro(p));
+    const productosTerminados = invProductosCache.filter(p => p.tipo === 'producto' && !p.es_semiterminado && pasaFiltro(p));
+    const semiterminados = invProductosCache.filter(p => p.tipo === 'producto' && p.es_semiterminado && pasaFiltro(p));
     const materiasPrimas = invProductosCache.filter(p => (p.tipo === 'materia_prima' || !p.tipo) && pasaFiltro(p));
     const componentes = invProductosCache.filter(p => (p.tipo === 'componente' || p.tipo === 'refaccion' || p.tipo === 'insumo') && pasaFiltro(p));
 
@@ -185,6 +195,7 @@ function renderInventarioResumen() {
 
     let html = '';
     html += renderSeccion('📦 Productos Terminados', 'text-amber-400', productosTerminados, 'terminados');
+    html += renderSeccion('🧴 Semiterminados (granel y similares)', 'text-indigo-400', semiterminados, 'semiterminados');
     html += renderSeccion('🧪 Materias Primas e Insumos', 'text-sky-400', materiasPrimas, 'materias');
     html += renderSeccion('⚙️ Componentes y Refacciones', 'text-emerald-400', componentes, 'componentes');
 

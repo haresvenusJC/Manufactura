@@ -206,6 +206,21 @@ export async function cargarCatalogoInicial() {
                             </div>
                         </div>
 
+                        <div id="bloqueAbastecimiento" class="rounded-lg border border-slate-800 bg-slate-900/40 p-2.5 space-y-2">
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">¿Cómo se obtiene?</label>
+                                <input type="hidden" id="prodAbastecimiento" value="fabricado">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                    <button type="button" data-abast="fabricado" class="abast-btn text-xs font-medium py-2 rounded-lg border transition">Lo fabrico (lleva BOM)</button>
+                                    <button type="button" data-abast="comprado" class="abast-btn text-xs font-medium py-2 rounded-lg border transition">Lo compro y lo revendo (sin BOM)</button>
+                                </div>
+                            </div>
+                            <label class="flex items-start gap-2 text-[11px] text-slate-300 cursor-pointer">
+                                <input type="checkbox" id="prodSemiterminado" class="mt-0.5">
+                                <span><strong>Es semiterminado</strong> — lo fabrico y lo uso como componente de otros productos (ej. granel).</span>
+                            </label>
+                        </div>
+
                         <div class="relative">
                             <label class="block text-xs font-medium text-slate-400 mb-1">Nombre del Artículo</label>
                             <input type="text" id="prodNombre" placeholder="Ej. Artículo o Material" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 autocomplete-input" autocomplete="off" required>
@@ -444,6 +459,10 @@ export async function cargarCatalogoInicial() {
         const listaTempEl = document.getElementById('listaBomTemporal');
         const selectTipoElemento = document.getElementById('tipoElemento');
         const seccionBomContainer = document.getElementById('detBom');
+        const formArticulo = document.getElementById('formCrearProducto');
+        const bloqueAbast = document.getElementById('bloqueAbastecimiento');
+        const inputAbast = document.getElementById('prodAbastecimiento');
+        const chkSemi = document.getElementById('prodSemiterminado');
 
         if (btnRefrescarProveedores) {
             btnRefrescarProveedores.addEventListener('click', async () => {
@@ -451,14 +470,38 @@ export async function cargarCatalogoInicial() {
             });
         }
 
-        selectTipoElemento.addEventListener('change', (e) => {
-            if (e.target.value === 'producto') {
-                seccionBomContainer.classList.remove('hidden');
-            } else {
-                seccionBomContainer.classList.add('hidden');
+        selectTipoElemento.addEventListener('change', () => sincronizarAbastecimiento());
+
+        // Qué se muestra depende del tipo y de cómo se obtiene: el bloque
+        // "¿Cómo se obtiene?" es solo para productos, y el BOM solo para los
+        // que se fabrican (un producto comprado para reventa no lleva receta).
+        function marcarBotonAbast(valor) {
+            document.querySelectorAll('.abast-btn').forEach((b) => {
+                const activo = b.dataset.abast === valor;
+                b.className = `abast-btn text-xs font-medium py-2 rounded-lg border transition ${activo
+                    ? 'bg-sky-600 border-sky-500 text-white'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800'}`;
+            });
+        }
+        function sincronizarAbastecimiento() {
+            const esProducto = selectTipoElemento.value === 'producto';
+            const comprado = esProducto && inputAbast.value === 'comprado';
+            bloqueAbast.classList.toggle('hidden', !esProducto);
+            if (comprado) chkSemi.checked = false;
+            chkSemi.disabled = comprado;
+            const llevaBom = esProducto && !comprado;
+            seccionBomContainer.classList.toggle('hidden', !llevaBom);
+            if (!llevaBom) {
                 itemsBomTemp = [];
                 actualizarListaBomVisual();
             }
+            marcarBotonAbast(inputAbast.value);
+        }
+        document.querySelectorAll('.abast-btn').forEach((b) => {
+            b.addEventListener('click', () => {
+                inputAbast.value = b.dataset.abast;
+                sincronizarAbastecimiento();
+            });
         });
 
         // Botones de tipo (reemplazan visualmente al <select> oculto, que
@@ -481,6 +524,7 @@ export async function cargarCatalogoInicial() {
             });
         });
         marcarBotonTipoActivo(selectTipoElemento.value || 'producto');
+        sincronizarAbastecimiento();
 
         inputNombre.addEventListener('input', async (e) => {
             const query = e.target.value.trim();
@@ -552,6 +596,10 @@ export async function cargarCatalogoInicial() {
                 productoSeleccionadoId = art.id;
                 selectTipoElemento.value = art.tipo || 'producto';
                 marcarBotonTipoActivo(art.tipo || 'producto');
+                inputAbast.value = art.abastecimiento || 'fabricado';
+                chkSemi.checked = !!art.es_semiterminado;
+                formArticulo.dataset.tieneAbast = ('abastecimiento' in art) ? '1' : '';   // ¿ya está la migración 2026-10-18?
+                sincronizarAbastecimiento();
                 inputNombre.value = art.nombre;
                 document.getElementById('prodSku').value = art.sku || '';
                 document.getElementById('prodUnidadMedidaId').value = art.unidad_medida_id || '';
@@ -588,9 +636,9 @@ export async function cargarCatalogoInicial() {
                 btnGuardar.textContent = "Actualizar Artículo";
                 btnNuevoModo.classList.remove('hidden');
 
-                if (art.tipo === 'producto') {
+                if (art.tipo === 'producto' && inputAbast.value === 'fabricado') {
                     seccionBomContainer.classList.remove('hidden');
-                    
+
                     const { data: bomItems, error: errBom } = await supabaseClient
                         .from('bom')
                         .select('*')
@@ -665,9 +713,12 @@ export async function cargarCatalogoInicial() {
             clavesProvTemp = [];
             renderClavesProv();
             document.getElementById('detClavesProv')?.removeAttribute('open');
-            seccionBomContainer.classList.remove('hidden');
             selectTipoElemento.value = 'producto';
             marcarBotonTipoActivo('producto');
+            inputAbast.value = 'fabricado';
+            chkSemi.checked = false;
+            formArticulo.dataset.tieneAbast = '';
+            sincronizarAbastecimiento();
             document.getElementById('prodExistenciaActual').classList.add('hidden');
             tituloForm.textContent = "Registro General de Artículos";
             btnGuardar.textContent = "Guardar Artículo";
@@ -827,7 +878,7 @@ export async function cargarCatalogoInicial() {
             // no dio clic en "＋ Agregar Componente al BOM", lo sumamos aquí
             // en silencio para que no se pierda al guardar (ver definición
             // de agregarItemBomPendiente más arriba).
-            if (selectTipoElemento.value === 'producto' && !agregarItemBomPendiente({ mostrarAlertas: false })) {
+            if (selectTipoElemento.value === 'producto' && inputAbast.value === 'fabricado' && !agregarItemBomPendiente({ mostrarAlertas: false })) {
                 alert("Revisa el componente del BOM que estás agregando: falta seleccionar un insumo válido o poner una cantidad mayor a 0.");
                 return;
             }
@@ -862,6 +913,17 @@ export async function cargarCatalogoInicial() {
                 return;
             }
             const claveSatPayload = (claveSatVal || elClaveSat.dataset.tenia === '1') ? { clave_sat: claveSatVal || null } : {};
+
+            // Cómo se obtiene (fabricado / comprado) y semiterminado. Igual que la clave SAT:
+            // solo se manda si se sale del valor por defecto (fabricado, no semiterminado) o
+            // si el artículo ya tenía estos datos — así guardar no depende de haber corrido
+            // sql/2026-10-18_producto_abastecimiento_semiterminado.sql.
+            const esProductoTipo = tipo === 'producto';
+            const abastVal = esProductoTipo ? inputAbast.value : 'comprado';
+            const semiVal = esProductoTipo && abastVal === 'fabricado' && chkSemi.checked;
+            const abastPayload = ((esProductoTipo && (abastVal !== 'fabricado' || semiVal)) || formArticulo.dataset.tieneAbast === '1')
+                ? { abastecimiento: abastVal, es_semiterminado: semiVal }
+                : {};
 
             // Datos contables (opcionales; solo si el modulo esta instalado)
             const elTasaIva = document.getElementById('prodTasaIva');
@@ -902,6 +964,7 @@ export async function cargarCatalogoInicial() {
                     tiempo_entrega_dias,
                     cantidad_minima_compra,
                     ...claveSatPayload,
+                    ...abastPayload,
                     ...datosContables
                 };
 
@@ -926,7 +989,7 @@ export async function cargarCatalogoInicial() {
                     articuloId = artIns.id;
                 }
 
-                if (tipo === 'producto' && itemsBomTemp.length > 0) {
+                if (tipo === 'producto' && abastVal === 'fabricado' && itemsBomTemp.length > 0) {
                     const itemsBom = itemsBomTemp.map(i => ({
                         producto_id: articuloId,
                         componente_id: i.componenteId,
@@ -983,6 +1046,8 @@ export async function cargarCatalogoInicial() {
                 console.error("Error al guardar el artículo:", err);
                 if (err.code === '23505') {
                     alert('Error al guardar el artículo: El SKU o clave ya está registrado.');
+                } else if (/abastecimiento|es_semiterminado/.test(err.message || '')) {
+                    alert('Falta correr la migración sql/2026-10-18_producto_abastecimiento_semiterminado.sql en Supabase (SQL Editor) para guardar "Cómo se obtiene" y "Semiterminado".');
                 } else {
                     alert("Error al procesar la operación en la base de datos: " + (err.message || err));
                 }
@@ -1109,8 +1174,15 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
     if (!contenedorTabla) return;
 
     try {
+        // Con "abastecimiento / es_semiterminado" (migración 2026-10-18); si aún no está, sin ellos.
+        const colsProd = 'id, nombre, sku, tipo, unidad_medida_id, proveedor_id, stock_actual, stock_minimo, activo';
+        const consultarProductos = async () => {
+            let r = await supabaseClient.from('productos').select(colsProd + ', abastecimiento, es_semiterminado').order('id', { ascending: true });
+            if (r.error) r = await supabaseClient.from('productos').select(colsProd).order('id', { ascending: true });
+            return r;
+        };
         const [resProd, resProv] = await Promise.all([
-            supabaseClient.from('productos').select('id, nombre, sku, tipo, unidad_medida_id, proveedor_id, stock_actual, stock_minimo, activo').order('id', { ascending: true }),
+            consultarProductos(),
             supabaseClient.from('proveedores').select('id, nombre')
         ]);
 
@@ -1183,6 +1255,14 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
             let tipoColor = "text-sky-400 border-sky-800";
             if (tipoActual === 'materia_prima') tipoColor = "text-amber-400 border-amber-800";
             if (tipoActual === 'insumo') tipoColor = "text-emerald-400 border-emerald-800";
+            let etiquetaTipo = OPCIONES_TIPO_LABEL[tipoActual] || tipoActual;
+            if (tipoActual === 'producto' && item.es_semiterminado) {
+                etiquetaTipo = 'Semiterminado';
+                tipoColor = "text-indigo-400 border-indigo-800";
+            } else if (tipoActual === 'producto' && item.abastecimiento === 'comprado') {
+                etiquetaTipo = 'Terminado (reventa)';
+                tipoColor = "text-rose-400 border-rose-800";
+            }
 
             const nombreProveedor = mapaProvNombres[item.proveedor_id] || 'N/D';
             const nombreUnidad = mapaUnidades[item.unidad_medida_id] || 'N/D';
@@ -1203,7 +1283,7 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
                     </td>
                     <td class="p-3 font-mono text-xs text-sky-300">${item.sku || 'N/D'}</td>
                     <td class="p-3">
-                        <span class="inline-block bg-slate-950 border ${tipoColor} rounded px-1.5 py-0.5 text-[10px] font-medium" title="El tipo se define al crear el artículo y no se puede cambiar aquí">${OPCIONES_TIPO_LABEL[tipoActual] || tipoActual}</span>
+                        <span class="inline-block bg-slate-950 border ${tipoColor} rounded px-1.5 py-0.5 text-[10px] font-medium" title="El tipo se define al crear el artículo y no se puede cambiar aquí">${etiquetaTipo}</span>
                     </td>
                     <td class="p-3 font-medium text-slate-100">${item.nombre || 'Sin nombre'}</td>
                     <td class="p-3 text-slate-400 text-xs">${nombreUnidad}</td>
