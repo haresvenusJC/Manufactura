@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { accesoOperador } from './patron-login.js';
 
 // ---------------------------------------------------------------------------
 //  Orden de Trabajo (móvil, para operarios).
@@ -92,54 +93,15 @@ async function pantallaLogin() {
     });
 }
 
-// ---------- Pantalla: PIN ----------
+// ---------- Pantalla: PIN / patrón (módulo compartido) ----------
 function pantallaPin(emp) {
-    let pin = '';
-
-    const render = (msg = '') => {
-        app().innerHTML = `
-            <div class="p-4 max-w-xs mx-auto">
-                <button id="volver" class="text-xs text-slate-400 mb-2">‹ Volver</button>
-                <h2 class="text-base font-bold text-slate-100 text-center mb-1">${emp.nombre}</h2>
-                <p class="text-xs text-slate-400 text-center mb-3">Ingresa tu PIN de 4 dígitos</p>
-                <div class="flex justify-center gap-3 mb-4">
-                    ${[0, 1, 2, 3].map(i => `<span class="w-4 h-4 rounded-full ${i < pin.length ? 'bg-sky-400' : 'bg-slate-700'}"></span>`).join('')}
-                </div>
-                <p class="text-rose-400 text-xs text-center h-4 mb-2">${msg}</p>
-                <div class="grid grid-cols-3 gap-2">
-                    ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button class="tecla bg-slate-900 border border-slate-800 rounded-xl py-4 text-xl text-slate-100 active:bg-slate-800" data-n="${n}">${n}</button>`).join('')}
-                    <button class="bg-transparent" disabled></button>
-                    <button class="tecla bg-slate-900 border border-slate-800 rounded-xl py-4 text-xl text-slate-100 active:bg-slate-800" data-n="0">0</button>
-                    <button id="borrar" class="bg-slate-900 border border-slate-800 rounded-xl py-4 text-xl text-slate-300 active:bg-slate-800">⌫</button>
-                </div>
-            </div>`;
-
-        document.getElementById('volver').onclick = pantallaLogin;
-        document.getElementById('borrar').onclick = () => { pin = pin.slice(0, -1); render(); };
-        document.querySelectorAll('.tecla').forEach(t => {
-            t.onclick = async () => {
-                if (pin.length >= 4) return;
-                pin += t.dataset.n;
-                if (pin.length < 4) { render(); return; }
-                render('Verificando...');
-
-                const { data, error } = await supabaseClient.rpc('ot_login', {
-                    p_empleado_id: emp.id,
-                    p_pin: pin
-                });
-                const fila = Array.isArray(data) ? data[0] : data;
-                if (error || !fila) {
-                    pin = '';
-                    render(error ? error.message : 'PIN incorrecto');
-                    return;
-                }
-                guardarSesion({ token: fila.token, empleadoId: fila.empleado_id, nombre: fila.empleado_nombre });
-                pantallaOrdenes();
-            };
-        });
-    };
-
-    render();
+    accesoOperador(app(), emp, {
+        volver: pantallaLogin,
+        alEntrar: (fila) => {
+            guardarSesion({ token: fila.token, empleadoId: fila.empleado_id, nombre: fila.empleado_nombre });
+            pantallaOrdenes();
+        }
+    });
 }
 
 // ---------- Pantalla: lista de órdenes abiertas ----------

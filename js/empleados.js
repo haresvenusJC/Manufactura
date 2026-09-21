@@ -124,7 +124,7 @@ export async function cargarModuloEmpleados() {
                 <div>
                     <p class="text-sm font-semibold text-slate-200">${emp.nombre} ${!emp.activo ? '<span class="text-[10px] text-rose-400">(inactivo)</span>' : ''}</p>
                     <p class="text-[11px] text-slate-500">${emp.puesto || 'Sin puesto'}${emp.departamento ? ' · ' + emp.departamento : ''} · $${Number(emp.sueldo_semanal).toFixed(2)}/sem · ${Number(emp.horas_semanales)} hrs/sem</p>
-                    <p class="text-[11px] mt-0.5 ${emp.pin_hash ? 'text-emerald-500' : 'text-amber-500'}">${emp.pin_hash ? 'PIN móvil ✓' : 'Sin PIN móvil'}</p>
+                    <p class="text-[11px] mt-0.5 ${emp.pin_hash ? 'text-emerald-500' : 'text-amber-500'}">${emp.pin_hash ? 'PIN móvil ✓' : 'Sin PIN móvil'}${emp.patron_hash ? ' · Patrón ✓' : ''}</p>
                 </div>
                 <div class="flex items-center gap-3">
                     <span class="font-mono text-emerald-400 font-bold text-sm">$${Number(emp.costo_hora).toFixed(2)}/hr</span>
