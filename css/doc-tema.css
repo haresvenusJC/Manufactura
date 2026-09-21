@@ -1,0 +1,93 @@
+/* =====================================================================
+   Guías y manuales — siguen el tema de la app (Configuración > Tema de colores)
+   Se carga junto con tema-base.css y ui-moderno.css. El atributo data-theme
+   va en <body> (no en <html>) para que las variables --warn/--ok/--bad del
+   tema ganen a las que definen las propias guías en :root.
+   ===================================================================== */
+
+/* --- Manual de gastos y costos (variables --paper, --ink...) --- */
+body[data-theme] {
+    --paper: var(--bg-0);   --ink: var(--tx-0);     --mut: var(--tx-3);      --faint: var(--tx-4);
+    --rule: var(--bd-2);    --rule-soft: var(--bd-1); --code-bg: var(--bg-2); --panel: var(--bg-1);
+    --accent: var(--acc);
+    --warn-bg: color-mix(in srgb, var(--warn) 14%, var(--bg-0));
+    --ok-bg:   color-mix(in srgb, var(--ok)   13%, var(--bg-0));
+    --tec: var(--ind);
+    --tec-bg:  color-mix(in srgb, var(--ind)  14%, var(--bg-0));
+
+    /* --- Guía del flujo (variables --desk, --tx0...) --- */
+    --desk: var(--bg-0);  --guide: var(--bg-1);  --frame: var(--bg-0);
+    --panel-2: var(--bg-2);
+    --line: var(--bd-1);  --line-soft: var(--soft);
+    --tx0: var(--tx-0); --tx1: var(--tx-1); --tx2: var(--tx-2); --tx3: var(--tx-3); --tx4: var(--tx-4); --tx5: var(--tx-5);
+    --accent-2: var(--acc-2);
+    --ok-btn: var(--ok-s);
+    --warn-line: color-mix(in srgb, var(--warn) 70%, #000);
+    --warn-panel: color-mix(in srgb, var(--warn) 14%, transparent);
+    --meta: var(--tx-3); --meta-strong: var(--tx-1); --meta-rule: var(--bd-1);
+    --spot: var(--acc);
+    --shadow: var(--sh-2);
+
+    background-image:
+        radial-gradient(900px 520px at 92% -8%, color-mix(in srgb, var(--acc)   15%, transparent), transparent 62%),
+        radial-gradient(800px 480px at -8% 6%,  color-mix(in srgb, var(--acc-3) 11%, transparent), transparent 60%);
+    background-attachment: fixed;
+}
+/* ui-moderno define --ok-s en :root con el --ok base; aquí se recalcula con el del tema */
+body[data-theme] {
+    --ok-s: color-mix(in srgb, var(--ok) 62%, #04100b);
+}
+
+/* tema-base fuerza el color del texto con !important; cada guía dice cuál es el suyo con --doc-color */
+body[data-theme] { color: var(--doc-color, var(--tx-0)) !important; }
+
+/* --- Formas más redondeadas y con volumen --- */
+body[data-theme] nav.toc,
+body[data-theme] .callout { border-radius: var(--r-md); }
+body[data-theme] .callout { border-left-width: 4px; box-shadow: var(--sh-1); }
+body[data-theme] nav.toc { box-shadow: var(--sh-1); }
+body[data-theme] .calc { border-radius: var(--r-sm); box-shadow: var(--in-sh); }
+body[data-theme] code,
+body[data-theme] .m { border-radius: 8px; }
+body[data-theme] h1 {
+    background-image: linear-gradient(90deg, var(--acc), var(--ind) 58%, var(--acc-3));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    width: fit-content; max-width: 100%;
+}
+body[data-theme] ol.steps > li::before {
+    background: color-mix(in srgb, var(--acc) 14%, var(--bg-1));
+    box-shadow: 0 2px 0 color-mix(in srgb, var(--acc) 40%, #000);
+}
+
+/* Guía: ventana simulada, tarjetas, botones */
+body[data-theme] .win,
+body[data-theme] .card,
+body[data-theme] .kpi { border-radius: var(--r-md); }
+body[data-theme] .win { border-radius: var(--r-lg); }
+body[data-theme] .card,
+body[data-theme] .kpi { box-shadow: var(--sh-1); }
+body[data-theme] .tag { border-radius: 9999px; }
+
+body[data-theme] .btn,
+body[data-theme] .nav button {
+    border-radius: 9999px;
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, .20), rgba(255, 255, 255, 0) 55%, rgba(0, 0, 0, .16));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 -2px 0 rgba(0, 0, 0, .18),
+                0 3px 0 color-mix(in srgb, var(--bg-2) 55%, #000), 0 10px 16px -8px var(--btn-drop);
+    transition: transform .1s ease, box-shadow .14s ease, filter .16s ease;
+}
+body[data-theme] .btn.ok,
+body[data-theme] .nav button.primary {
+    background-color: var(--ok-s);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 -2px 0 rgba(0, 0, 0, .18),
+                0 3px 0 color-mix(in srgb, var(--ok-s) 48%, #000), 0 10px 16px -8px var(--btn-drop);
+}
+body[data-theme] .btn:hover,
+body[data-theme] .nav button:hover { transform: translateY(-1px); filter: brightness(1.07); }
+body[data-theme] .btn:active,
+body[data-theme] .nav button:active { transform: translateY(3px); box-shadow: inset 0 2px 4px rgba(0, 0, 0, .35); }
+
+@media (prefers-reduced-motion: reduce) {
+    body[data-theme] .btn, body[data-theme] .nav button { transition: none; }
+}

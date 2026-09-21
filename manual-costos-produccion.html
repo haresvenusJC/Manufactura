@@ -8,6 +8,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/tema-base.css">
+<link rel="stylesheet" href="css/ui-moderno.css">
+<link rel="stylesheet" href="css/doc-tema.css">
 <style>
   :root{
     --paper:#f7f6f3; --ink:#25303b; --mut:#5b6b78; --faint:#8a97a1;
@@ -42,7 +45,7 @@
 
   *{ box-sizing:border-box; }
   body{
-    margin:0; background:var(--paper); color:var(--ink);
+    margin:0; background:var(--paper); color:var(--ink); --doc-color:var(--ink);
     font-family:"Spectral", Georgia, "Times New Roman", serif;
     font-size:18px; line-height:1.7;
   }
@@ -118,6 +121,7 @@
 </style>
 </head>
 <body>
+<script>try { document.body.setAttribute('data-theme', localStorage.getItem('hares_tema') || 'aurora'); } catch (e) {}</script>
 <div class="page">
 
   <header class="doc">

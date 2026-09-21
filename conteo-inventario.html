@@ -10,6 +10,15 @@
         .hidden { display: none !important; }
         html, body { -webkit-tap-highlight-color: transparent; }
     </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="css/tema-base.css">
+    <link rel="stylesheet" href="css/ui-moderno.css">
+    <script>
+        /* mismo tema que eligió el usuario en la app (Configuración > Tema de colores) */
+        try { document.documentElement.setAttribute('data-theme', localStorage.getItem('hares_tema') || 'aurora'); } catch (e) {}
+    </script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
     <div id="app" class="min-h-screen"></div>

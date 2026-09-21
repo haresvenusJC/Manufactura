@@ -8,6 +8,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="css/tema-base.css">
+<link rel="stylesheet" href="css/ui-moderno.css">
+<link rel="stylesheet" href="css/doc-tema.css">
 <style>
   :root{
     --desk:#0a0f1c; --guide:#0d1524; --frame:#020617; --panel:#0f172a; --panel-2:#1e293b;
@@ -52,7 +55,7 @@
 
   *{ box-sizing:border-box; }
   body{
-    margin:0; background:var(--desk); color:var(--meta);
+    margin:0; background:var(--desk); color:var(--meta); --doc-color:var(--meta);
     font-family:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     line-height:1.6;
   }
@@ -169,6 +172,7 @@
 </style>
 </head>
 <body>
+<script>try { document.body.setAttribute('data-theme', localStorage.getItem('hares_tema') || 'aurora'); } catch (e) {}</script>
 <div class="wrap">
   <header class="top">
     <p class="eyebrow">ERP Hares de México · Guía interactiva</p>
