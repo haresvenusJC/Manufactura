@@ -10,14 +10,26 @@ import { supabaseClient } from './supabase.js';
 const LS_NOMBRE = 'hares_nombre_saludo';
 let reloj = null;
 
+// Íconos de línea (24x24, trazo con el color del tema). Se pintan con stroke="currentColor".
+const ICONO = {
+    fabrica:  '<path d="M3 21h18"/><path d="M5 21V11l5 3v-3l5 3V5h3.5v16"/><path d="M8 18h.01M12 18h.01M15.5 18h.01"/>',
+    caja:     '<path d="M12 3 4 7v10l8 4 8-4V7z"/><path d="M4 7l8 4 8-4"/><path d="M12 11v10"/>',
+    capas:    '<path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="M3 12l9 5 9-5"/><path d="M3 16l9 5 9-5"/>',
+    matraz:   '<path d="M9 3h6"/><path d="M10 3v6.2L4.6 18.4A1.8 1.8 0 0 0 6.2 21h11.6a1.8 1.8 0 0 0 1.6-2.6L14 9.2V3"/><path d="M7.5 15h9"/>',
+    carrito:  '<path d="M3 4h2.2l2.1 10.2a1.6 1.6 0 0 0 1.6 1.3h7.6a1.6 1.6 0 0 0 1.55-1.2L19.5 8H6.1"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/>',
+    brujula:  '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
+    lapiz:    '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+};
+const svg = (nombre) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONO[nombre]}</svg>`;
+
 // Accesos rápidos: [vista, ícono, título, subtítulo]
 const ACCESOS = [
-    ['produccion',       '🏭', 'Producción',           'Órdenes y costos'],
-    ['recibo-mercancia', '📦', 'Recibo de mercancía',  'Entradas de compra'],
-    ['inventario',       '🧴', 'Inventario',           'Existencias y lotes'],
-    ['catalogo',         '🧪', 'Productos y BOM',      'Catálogo y recetas'],
-    ['ordenes-compra',   '🛒', 'Órdenes de compra',    'Abasto'],
-    ['indice',           '🧭', 'Índice del ERP',       'Todos los módulos'],
+    ['produccion',       'fabrica', 'Producción',           'Órdenes y costos'],
+    ['recibo-mercancia', 'caja',    'Recibo de mercancía',  'Entradas de compra'],
+    ['inventario',       'capas',   'Inventario',           'Existencias y lotes'],
+    ['catalogo',         'matraz',  'Productos y BOM',      'Catálogo y recetas'],
+    ['ordenes-compra',   'carrito', 'Órdenes de compra',    'Abasto'],
+    ['indice',           'brujula', 'Índice del ERP',       'Todos los módulos'],
 ];
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -85,14 +97,14 @@ export async function montarBienvenida() {
             <div id="bvFecha" class="bv-fecha">${esc(fechaHora(ahora))}</div>
             <h1 class="bv-saludo">
                 <span id="bvSaludoTxt">${saludoDelDia(ahora.getHours())}</span>${nombre ? `, <span class="bv-nombre" id="bvNombre">${esc(nombre)}</span>` : ''}
-                <a class="bv-editar" id="bvEditar" href="#" title="Cambiar cómo te saludo">✏️</a>
+                <a class="bv-editar" id="bvEditar" href="#" title="Cambiar cómo te saludo">${svg('lapiz')}</a>
             </h1>
             <p class="bv-sub">Qué bueno verte de nuevo. Aquí tienes lo de todos los días a un clic.</p>
 
             <div class="bv-tiles">
                 ${ACCESOS.map(([vista, ico, titulo, sub]) => `
                 <a class="bv-tile" href="#" data-vista="${vista}">
-                    <span class="ico">${ico}</span>
+                    <span class="ico">${svg(ico)}</span>
                     <span>${esc(titulo)}</span>
                     <small>${esc(sub)}</small>
                 </a>`).join('')}
