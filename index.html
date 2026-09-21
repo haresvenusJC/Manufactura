@@ -129,6 +129,7 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
     <!-- Capa visual moderna (radios, botones, campos, tablas). Usa las variables del tema de arriba. -->
     <link rel="stylesheet" href="css/ui-moderno.css">
+    <link rel="stylesheet" href="css/bienvenida.css">
     <script>
         /* aplica el tema guardado antes de pintar, para que no haya parpadeo */
         (function () {
@@ -221,6 +222,7 @@
                 <hr class="border-slate-800">
                 <ul class="space-y-1" style="list-style: none; padding: 0;">
 
+                    <li><button onclick="window.loadView('bienvenida')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-sky-300 transition text-sm font-semibold flex items-center gap-2" style="cursor: pointer;"><span>🏠 Inicio</span></button></li>
                     <li><button onclick="window.loadView('indice')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-sky-300 transition text-sm font-semibold flex items-center gap-2" style="cursor: pointer;"><span>🧭 Índice</span></button></li>
 
                     <!-- Menú Datos Maestros (antes "Catálogos") -->
@@ -340,6 +342,11 @@
                 <button type="button" onclick="window.loadView('tareas')" class="shrink-0 text-xs bg-amber-800 hover:bg-amber-700 text-amber-100 px-3 py-1.5 rounded-lg border border-amber-600 cursor-pointer">Revisar y autorizar</button>
             </div>
 
+            <!-- Vista: Inicio / Bienvenida (es la que se ve al entrar) -->
+            <section id="view-bienvenida" class="vista-seccion space-y-4">
+                <div id="contenedorBienvenida"></div>
+            </section>
+
             <!-- Vista: Índice del ERP -->
             <section id="view-indice" class="vista-seccion hidden space-y-4">
                 <h2 class="text-xl font-bold text-sky-400">Índice del ERP</h2>
@@ -349,7 +356,7 @@
             </section>
 
             <!-- Vista: Catálogo y BOM -->
-            <section id="view-catalogo" class="vista-seccion space-y-4">
+            <section id="view-catalogo" class="vista-seccion hidden space-y-4">
                 <div class="flex items-center justify-between gap-2 flex-wrap">
                     <h2 class="text-xl font-bold text-sky-400">Catálogo de Productos y BOM</h2>
                     <button type="button" onclick="window.abrirManual('#m-catalogo', 'Productos')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>

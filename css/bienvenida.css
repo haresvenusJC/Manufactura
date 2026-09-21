@@ -1,0 +1,74 @@
+/* =====================================================================
+   Pantalla de bienvenida (Inicio). Todo sale de las variables del tema
+   (--acc, --acc-3, --ind, --bg-*, --tx-*): cambia de colores sola con la
+   plantilla elegida. Se carga después de ui-moderno.css.
+   ===================================================================== */
+.bv {
+    position: relative; isolation: isolate; overflow: hidden;
+    min-height: calc(100vh - 5rem);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 2.5rem 1rem 3rem;
+    border-radius: var(--r-lg);
+}
+
+/* Luces de fondo que derivan despacio. El contenedor se desvanece hacia los bordes
+   (máscara) para que nunca se vea el corte de la caja. */
+.bv-orbes { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none;
+    -webkit-mask-image: radial-gradient(ellipse 78% 82% at 50% 50%, #000 38%, transparent 100%);
+            mask-image: radial-gradient(ellipse 78% 82% at 50% 50%, #000 38%, transparent 100%); }
+.bv-orbe { position: absolute; width: 60vmin; height: 60vmin; border-radius: 50%; }
+.bv-orbe.o1 { top: 4%;  left: 6%;   background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--acc)   40%, transparent), transparent 66%); animation: bv-deriva1 24s ease-in-out infinite alternate; }
+.bv-orbe.o2 { bottom: 2%; right: 6%; background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--acc-3) 36%, transparent), transparent 66%); animation: bv-deriva2 28s ease-in-out infinite alternate; }
+.bv-orbe.o3 { top: 26%; left: 36%;  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--ind)   26%, transparent), transparent 68%); animation: bv-deriva3 32s ease-in-out infinite alternate; }
+@keyframes bv-deriva1 { to { transform: translate(14vmin, 8vmin) scale(1.14); } }
+@keyframes bv-deriva2 { to { transform: translate(-12vmin, -7vmin) scale(1.1); } }
+@keyframes bv-deriva3 { to { transform: translate(-8vmin, 9vmin) scale(1.2); } }
+
+/* Logo: disco recortado + aro de colores que gira + resplandor que respira */
+.bv-logo { position: relative; isolation: isolate; width: 176px; height: 176px; margin-bottom: 1.7rem; }
+.bv-logo::before { content: ""; position: absolute; inset: -9px; border-radius: 50%; z-index: -1;
+    background: conic-gradient(from 0deg, var(--acc), var(--acc-3), var(--ind), var(--acc)); animation: bv-gira 10s linear infinite; }
+.bv-logo::after { content: ""; position: absolute; inset: -46px; border-radius: 50%; z-index: -2;
+    background: radial-gradient(circle, color-mix(in srgb, var(--acc) 42%, transparent), transparent 66%); animation: bv-pulso 4.5s ease-in-out infinite; }
+.bv-disco { width: 100%; height: 100%; border-radius: 50%; overflow: hidden; background: #16191d;
+    box-shadow: 0 0 0 6px var(--bg-0), 0 26px 50px -14px rgba(0, 0, 0, .65); }
+.bv-disco img { display: block; width: 100%; height: 100%; transform: scale(1.115); }   /* recorta el margen crema del SVG */
+@keyframes bv-gira  { to { transform: rotate(360deg); } }
+@keyframes bv-flota { 50% { transform: translateY(-9px); } }
+@keyframes bv-pulso { 50% { opacity: .55; transform: scale(1.08); } }
+
+/* Texto */
+.bv-fecha { font-size: .78rem; letter-spacing: .16em; text-transform: uppercase; color: var(--tx-3); font-variant-numeric: tabular-nums; }
+.bv-saludo { font-size: clamp(2.1rem, 5.4vw, 3.8rem); font-weight: 800; letter-spacing: -.035em; line-height: 1.06; margin: .55rem 0 .7rem; color: var(--tx-0); text-wrap: balance; }
+.bv-nombre { background-image: linear-gradient(90deg, var(--acc), var(--ind) 55%, var(--acc-3));
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+.bv-sub { color: var(--tx-3); font-size: 1rem; max-width: 34rem; }
+.bv-editar { margin-left: .5rem; font-size: 1.05rem; vertical-align: middle; text-decoration: none; cursor: pointer; opacity: .45; transition: opacity .15s ease; }
+.bv-editar:hover { opacity: 1; }
+
+/* Accesos rápidos: tarjetas con volumen */
+.bv-tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; width: min(100%, 40rem); margin-top: 2.2rem; }
+@media (min-width: 640px) { .bv-tiles { grid-template-columns: repeat(3, 1fr); } }
+.bv-tile {
+    display: flex; flex-direction: column; align-items: center; gap: .45rem; padding: 1.15rem .8rem 1rem;
+    border-radius: 20px; text-decoration: none; cursor: pointer; color: var(--tx-1); font-size: .85rem; font-weight: 600;
+    background-image: linear-gradient(160deg, color-mix(in srgb, var(--acc) 11%, var(--bg-1)), var(--bg-1) 62%);
+    border: 1px solid color-mix(in srgb, var(--acc) 24%, var(--bd-1));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .09), 0 4px 0 color-mix(in srgb, var(--bg-2) 60%, #000), 0 18px 26px -16px var(--btn-drop);
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.bv-tile .ico { font-size: 1.85rem; line-height: 1; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .3)); }
+.bv-tile small { font-weight: 400; font-size: .7rem; color: var(--tx-4); }
+.bv-tile:hover { transform: translateY(-4px); border-color: var(--acc); }
+.bv-tile:active { transform: translateY(3px); box-shadow: inset 0 2px 5px rgba(0, 0, 0, .35); }
+
+/* Entrada escalonada (ui-rise viene de ui-moderno.css); el logo además flota sin parar */
+.bv-fecha, .bv-saludo, .bv-sub, .bv-tile { animation: ui-rise .7s cubic-bezier(.2, .8, .2, 1) both; }
+.bv-logo { animation: ui-rise .7s cubic-bezier(.2, .8, .2, 1) both, bv-flota 6.5s ease-in-out .8s infinite; }
+.bv-fecha { animation-delay: .15s; } .bv-saludo { animation-delay: .25s; } .bv-sub { animation-delay: .35s; }
+.bv-tile:nth-child(1) { animation-delay: .45s; } .bv-tile:nth-child(2) { animation-delay: .52s; } .bv-tile:nth-child(3) { animation-delay: .59s; }
+.bv-tile:nth-child(4) { animation-delay: .66s; } .bv-tile:nth-child(5) { animation-delay: .73s; } .bv-tile:nth-child(6) { animation-delay: .80s; }
+
+@media (prefers-reduced-motion: reduce) {
+    .bv-orbe, .bv-logo, .bv-logo::before, .bv-logo::after, .bv-fecha, .bv-saludo, .bv-sub, .bv-tile { animation: none !important; }
+}

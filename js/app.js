@@ -32,6 +32,7 @@ import { cargarModuloCierrePeriodo } from './cierre-periodo.js';
 import { cargarModuloAreasProrrateo } from './areas-prorrateo.js';
 import { cargarModuloRepartoPlantillas } from './reparto-plantillas.js';
 import { cargarModuloIndice } from './indice.js';
+import { montarBienvenida } from './bienvenida.js';
 import { cargarModuloIsr } from './isr.js';
 import { cargarModuloReportes } from './reportes.js';
 import { cargarModuloFreshStart } from './fresh-start.js';
@@ -166,6 +167,9 @@ window.loadView = function(viewName) {
     window.cerrarSidebar();
 
     switch (viewName) {
+        case 'bienvenida':
+            montarBienvenida();
+            break;
         case 'indice':
             cargarModuloIndice();
             break;
@@ -296,6 +300,9 @@ async function iniciarApp() {
     if (appIniciada) return;
     appIniciada = true;
     console.log("Iniciando Hares de México (Sistema Modular)...");
+
+    // Pantalla de Inicio: se pinta de inmediato, sin esperar a las cargas de abajo.
+    montarBienvenida().catch((e) => console.warn('No se pudo armar la bienvenida:', e));
 
     try {
         await verificarConexionReal();

@@ -46,12 +46,17 @@ export function wireOrdenTabla(contenedor, estado, onCambio) {
 // Ordena `arr` in-place según estado.campo/estado.dir. `valores(item, campo)`
 // debe regresar el valor comparable (string, number, boolean-as-0/1, etc.)
 // para ese campo. Si no hay columna activa, no hace nada.
+// Los textos se comparan en español (acentos y ñ en su lugar: "Piña" junto a "Pina",
+// no después de la z) y con números naturales ("2 Kilos" antes que "10 Kilos").
+const comparadorTexto = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
+
 export function aplicarOrden(estado, arr, valores) {
     if (!estado.campo || !Array.isArray(arr)) return arr;
     const dir = estado.dir === 'desc' ? -1 : 1;
     arr.sort((a, b) => {
         const va = valores(a, estado.campo);
         const vb = valores(b, estado.campo);
+        if (typeof va === 'string' && typeof vb === 'string') return comparadorTexto.compare(va, vb) * dir;
         if (va < vb) return -1 * dir;
         if (va > vb) return 1 * dir;
         return 0;

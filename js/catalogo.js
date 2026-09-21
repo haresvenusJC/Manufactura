@@ -4,7 +4,7 @@ import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-
 import { opcionesPresentacionHtml } from './presentaciones-proveedor.js';
 
 let catBusqueda = ''; // texto del buscador en vivo del Catálogo General (SKU y/o nombre)
-const catOrden = crearOrdenTabla(); // columna/dirección de ordenamiento activa en la tabla del Catálogo
+const catOrden = crearOrdenTabla('nombre', 'asc'); // ordenamiento de la tabla del Catálogo: alfabético por Nombre por defecto (clic en otra columna lo cambia)
 
 export async function verificarConexionReal() {
     const statusEl = document.getElementById('statusConexion');
@@ -181,7 +181,7 @@ export async function cargarCatalogoInicial() {
             <div class="space-y-6">
                 <details id="detRegistroProducto" class="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
                     <summary class="cursor-pointer select-none p-4 flex justify-between items-center hover:bg-slate-900/40 transition">
-                        <span id="tituloFormProducto" class="text-md font-semibold text-sky-400">Registro General de Artículos</span>
+                        <span id="tituloFormProducto" class="text-md font-semibold text-sky-400">Alta de productos</span>
                         <span class="text-[11px] text-slate-500 flex items-center gap-1.5 shrink-0">
                             <span id="detRegistroChevron">▸ Abrir</span>
                         </span>
@@ -199,8 +199,9 @@ export async function cargarCatalogoInicial() {
                                 <option value="materia_prima">Materia Prima</option>
                                 <option value="insumo">Insumo / Componente Auxiliar</option>
                             </select>
-                            <div id="tipoElementoBotones" class="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                            <div id="tipoElementoBotones" class="grid grid-cols-1 sm:grid-cols-4 gap-1.5">
                                 <button type="button" data-tipo="producto" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Producto terminado</button>
+                                <button type="button" data-tipo="semiterminado" title="Se fabrica y se usa como componente de otros productos (ej. granel)" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Semiterminado</button>
                                 <button type="button" data-tipo="materia_prima" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Materia prima</button>
                                 <button type="button" data-tipo="insumo" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Insumo</button>
                             </div>
@@ -215,11 +216,9 @@ export async function cargarCatalogoInicial() {
                                     <button type="button" data-abast="comprado" class="abast-btn text-xs font-medium py-2 rounded-lg border transition">Lo compro y lo revendo (sin BOM)</button>
                                 </div>
                             </div>
-                            <label class="flex items-start gap-2 text-[11px] text-slate-300 cursor-pointer">
-                                <input type="checkbox" id="prodSemiterminado" class="mt-0.5">
-                                <span><strong>Es semiterminado</strong> — lo fabrico y lo uso como componente de otros productos (ej. granel).</span>
-                            </label>
                         </div>
+                        <!-- Lo activa el botón "Semiterminado" de arriba (tipo real = producto + es_semiterminado) -->
+                        <input type="checkbox" id="prodSemiterminado" class="hidden" tabindex="-1" aria-hidden="true">
 
                         <div class="relative">
                             <label class="block text-xs font-medium text-slate-400 mb-1">Nombre del Artículo</label>
@@ -414,9 +413,7 @@ export async function cargarCatalogoInicial() {
                         <h3 class="text-md font-semibold text-slate-300">Catálogo General de Artículos</h3>
                         <div class="flex flex-wrap gap-2 items-center">
                             <button type="button" id="btnExportProdXlsx" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇️ Excel</button>
-                            <button type="button" id="btnExportProdCsv" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇️ CSV</button>
-                            <span class="text-xs bg-slate-900 border border-slate-800 px-2 py-1 rounded text-slate-400">Sincronizado con Supabase</span>
-                        </div>
+                            <button type="button" id="btnExportProdCsv" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇️ CSV</button>                        </div>
                     </div>
                     <input type="text" id="catBuscador" placeholder="🔍 Buscar por SKU o nombre..." value="${escaparHtml(catBusqueda)}"
                         class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500">
@@ -425,17 +422,15 @@ export async function cargarCatalogoInicial() {
             </div>
         `;
 
-        // El "Registro General" arranca plegado (recuerda tu preferencia) para
-        // que el Catálogo de abajo se vea completo sin desplazarte. Se abre
-        // solo al elegir un artículo existente para editarlo.
+        // "Alta de productos" arranca SIEMPRE contraído (no recuerda cómo lo dejaste)
+        // para que el Catálogo de abajo se vea completo sin desplazarte. Se abre
+        // a mano, o solo al elegir un artículo existente para editarlo.
         const detRegistro = document.getElementById('detRegistroProducto');
         const chevronRegistro = document.getElementById('detRegistroChevron');
-        const LS_FORM_PRODUCTO_ABIERTO = 'hares_catalogo_form_abierto';
-        try { detRegistro.open = localStorage.getItem(LS_FORM_PRODUCTO_ABIERTO) === '1'; } catch (_) { /* noop */ }
-        chevronRegistro.textContent = detRegistro.open ? '▾ Cerrar' : '▸ Abrir';
+        detRegistro.open = false;
+        chevronRegistro.textContent = '▸ Abrir';
         detRegistro.addEventListener('toggle', () => {
             chevronRegistro.textContent = detRegistro.open ? '▾ Cerrar' : '▸ Abrir';
-            try { localStorage.setItem(LS_FORM_PRODUCTO_ABIERTO, detRegistro.open ? '1' : '0'); } catch (_) { /* noop */ }
         });
 
         document.getElementById('btnExportProdCsv').addEventListener('click', () => exportarCatalogoProductos('csv'));
@@ -485,10 +480,12 @@ export async function cargarCatalogoInicial() {
         }
         function sincronizarAbastecimiento() {
             const esProducto = selectTipoElemento.value === 'producto';
+            if (!esProducto) chkSemi.checked = false;
+            const semi = esProducto && chkSemi.checked;
+            if (semi) inputAbast.value = 'fabricado';          // un semiterminado siempre se fabrica
             const comprado = esProducto && inputAbast.value === 'comprado';
-            bloqueAbast.classList.toggle('hidden', !esProducto);
-            if (comprado) chkSemi.checked = false;
-            chkSemi.disabled = comprado;
+            // "¿Cómo se obtiene?" solo aplica a Producto terminado (el semiterminado no lo pregunta)
+            bloqueAbast.classList.toggle('hidden', !esProducto || semi);
             const llevaBom = esProducto && !comprado;
             seccionBomContainer.classList.toggle('hidden', !llevaBom);
             if (!llevaBom) {
@@ -496,6 +493,7 @@ export async function cargarCatalogoInicial() {
                 actualizarListaBomVisual();
             }
             marcarBotonAbast(inputAbast.value);
+            marcarBotonTipoActivo();
         }
         document.querySelectorAll('.abast-btn').forEach((b) => {
             b.addEventListener('click', () => {
@@ -508,9 +506,12 @@ export async function cargarCatalogoInicial() {
         // sigue siendo la fuente de verdad para el resto del formulario —
         // así no hay que tocar la lógica de guardar/cargar/BOM de abajo).
         const botonesTipoElemento = document.querySelectorAll('.tipo-elemento-btn');
-        function marcarBotonTipoActivo(tipo) {
+        // El botón activo sale del <select> (tipo real) y de la casilla oculta de
+        // semiterminado: "Semiterminado" es tipo producto + es_semiterminado.
+        function marcarBotonTipoActivo() {
+            const clave = (selectTipoElemento.value === 'producto' && chkSemi.checked) ? 'semiterminado' : (selectTipoElemento.value || 'producto');
             botonesTipoElemento.forEach((b) => {
-                const activo = b.dataset.tipo === tipo;
+                const activo = b.dataset.tipo === clave;
                 b.className = `tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition ${activo
                     ? 'bg-sky-600 border-sky-500 text-white'
                     : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800'}`;
@@ -518,12 +519,13 @@ export async function cargarCatalogoInicial() {
         }
         botonesTipoElemento.forEach((b) => {
             b.addEventListener('click', () => {
-                selectTipoElemento.value = b.dataset.tipo;
-                marcarBotonTipoActivo(b.dataset.tipo);
-                selectTipoElemento.dispatchEvent(new Event('change'));
+                const esSemi = b.dataset.tipo === 'semiterminado';
+                selectTipoElemento.value = esSemi ? 'producto' : b.dataset.tipo;
+                chkSemi.checked = esSemi;
+                if (esSemi) inputAbast.value = 'fabricado';
+                selectTipoElemento.dispatchEvent(new Event('change'));   // -> sincronizarAbastecimiento()
             });
         });
-        marcarBotonTipoActivo(selectTipoElemento.value || 'producto');
         sincronizarAbastecimiento();
 
         inputNombre.addEventListener('input', async (e) => {
@@ -720,7 +722,7 @@ export async function cargarCatalogoInicial() {
             formArticulo.dataset.tieneAbast = '';
             sincronizarAbastecimiento();
             document.getElementById('prodExistenciaActual').classList.add('hidden');
-            tituloForm.textContent = "Registro General de Artículos";
+            tituloForm.textContent = "Alta de productos";
             btnGuardar.textContent = "Guardar Artículo";
             btnNuevoModo.classList.add('hidden');
 
@@ -792,6 +794,16 @@ export async function cargarCatalogoInicial() {
         window.removerItemBom = function(index) {
             itemsBomTemp.splice(index, 1);
             actualizarListaBomVisual();
+        };
+
+        // La subventana "Editar o ver BOM" (menú ☰ de la tabla) guarda el BOM por su
+        // cuenta. Si ese mismo producto está cargado en el formulario de arriba, se
+        // recarga para que su lista no quede vieja: "Actualizar Artículo" reescribe
+        // el BOM con lo que tenga el formulario y pisaría el cambio recién guardado.
+        window.refrescarFormularioSiEsProducto = async function(id) {
+            if (productoSeleccionadoId !== null && Number(productoSeleccionadoId) === Number(id)) {
+                await cargarDetalleArticuloExistente(id);
+            }
         };
 
         // ---- Claves de proveedor (una a varias por producto) ----
@@ -1355,6 +1367,9 @@ function abrirMenuAccionesProducto(producto, botonAncla) {
     menu.style.top = `${rect.bottom + 4}px`;
     menu.style.left = `${Math.max(8, rect.right - 224)}px`;
 
+    // El BOM solo aplica a lo que se fabrica: producto que no está marcado como comprado para reventa.
+    const llevaBom = (producto.tipo || 'producto') === 'producto' && producto.abastecimiento !== 'comprado';
+
     menu.innerHTML = `
         <button type="button" id="btnMenuProdKardex" class="w-full text-left px-3 py-2.5 hover:bg-slate-800 text-slate-200 flex items-center gap-2 cursor-pointer">
             <span>📦</span><span>Kardex de este producto</span>
@@ -1365,6 +1380,10 @@ function abrirMenuAccionesProducto(producto, botonAncla) {
         <button type="button" id="btnMenuProdResumen" class="w-full text-left px-3 py-2.5 hover:bg-slate-800 text-slate-200 border-t border-slate-800 flex items-center gap-2 cursor-pointer">
             <span>✏️</span><span>Editar artículo</span>
         </button>
+        ${llevaBom ? `
+        <button type="button" id="btnMenuProdBom" class="w-full text-left px-3 py-2.5 hover:bg-slate-800 text-slate-200 border-t border-slate-800 flex items-center gap-2 cursor-pointer">
+            <span>🧪</span><span>Editar o ver BOM</span>
+        </button>` : ''}
     `;
     document.body.appendChild(menu);
 
@@ -1380,6 +1399,10 @@ function abrirMenuAccionesProducto(producto, botonAncla) {
         cerrarMenuAccionesProducto();
         abrirResumenCompletoProducto(producto.id, producto.nombre, producto.sku);
     });
+    document.getElementById('btnMenuProdBom')?.addEventListener('click', () => {
+        cerrarMenuAccionesProducto();
+        abrirVentanaBom(producto);
+    });
 
     // Cerrar al hacer clic afuera o con Escape; se difiere un tick para
     // que no capture el mismo clic que acaba de abrir el menú.
@@ -1387,6 +1410,226 @@ function abrirMenuAccionesProducto(producto, botonAncla) {
         document.addEventListener('click', cerrarMenuAccionesProducto);
         document.addEventListener('keydown', cerrarMenuAccionesProductoEsc);
     }, 0);
+}
+
+// =====================================================================
+// Subventana "Editar o ver BOM" (menú ☰): solo los componentes de ese
+// producto — sin el resto del formulario. Se edita en la lista (cantidad,
+// unidad, quitar) y se agrega con un solo selector. Al guardar aplica solo
+// las diferencias (borra, actualiza, inserta) sobre la tabla `bom`; las
+// reglas de la base (sin ciclos, sin receta a un producto comprado) avisan
+// con su propio mensaje si algo no procede.
+// =====================================================================
+async function abrirVentanaBom(producto) {
+    document.getElementById('modalBomProducto')?.remove();
+    const id = Number(producto.id);
+
+    const modal = document.createElement('div');
+    modal.id = 'modalBomProducto';
+    modal.className = 'fixed z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]';
+    modal.style.top = '8vh';
+    modal.style.left = '50%';
+    modal.style.transform = 'translateX(-50%)';
+    modal.style.width = 'calc(100% - 2rem)';
+    modal.style.maxWidth = '40rem';
+    const etiquetaProd = producto.es_semiterminado ? 'Semiterminado' : 'Producto terminado';
+    modal.innerHTML = `
+        <div class="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-start rounded-t-2xl gap-3">
+            <div class="min-w-0">
+                <h3 class="text-sm font-bold text-slate-200 truncate">🧪 BOM — ${escaparHtml(producto.nombre || '')}</h3>
+                <p class="text-[11px] text-slate-500 mt-0.5 truncate">${escaparHtml(producto.sku || 'sin SKU')} · ${etiquetaProd}</p>
+            </div>
+            <button type="button" id="bomBtnX" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 cursor-pointer shrink-0">&times;</button>
+        </div>
+        <div id="bomCuerpo" class="p-5 overflow-y-auto flex-1 text-sm text-slate-300">Cargando…</div>
+        <div class="bg-slate-950 px-5 py-3 border-t border-slate-800 flex justify-between items-center gap-3 rounded-b-2xl">
+            <span id="bomMsg" class="text-xs text-slate-500 min-w-0"></span>
+            <div class="flex gap-2 shrink-0">
+                <button type="button" id="bomBtnCerrar" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer">Cerrar</button>
+                <button type="button" id="bomBtnGuardar" disabled class="bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer">Guardar</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+
+    const cuerpo = modal.querySelector('#bomCuerpo');
+    const msg = modal.querySelector('#bomMsg');
+    const btnGuardar = modal.querySelector('#bomBtnGuardar');
+
+    let filas = [];              // { id (bom.id o null), compId, cantidad (texto), unidad (texto), base }
+    let productos = [];          // candidatos a componente
+    let unidades = [];
+    let sucio = false;
+
+    const nombreDe = (compId) => productos.find((p) => p.id === compId);
+
+    const hayCambios = () => {
+        const idsAhora = new Set(filas.filter((f) => f.id).map((f) => f.id));
+        if (baseIds.some((b) => !idsAhora.has(b))) return true;
+        return filas.some((f) => !f.id
+            || Number(f.cantidad) !== Number(f.base.cantidad)
+            || String(f.unidad || '') !== String(f.base.unidad || ''));
+    };
+    let baseIds = [];
+
+    const actualizarEstado = () => {
+        sucio = hayCambios();
+        btnGuardar.disabled = !sucio;
+        if (sucio) { msg.dataset.fijo = ''; msg.className = 'text-xs text-amber-400 min-w-0'; msg.textContent = 'Hay cambios sin guardar.'; }
+        else if (!msg.dataset.fijo) { msg.className = 'text-xs text-slate-500 min-w-0'; msg.textContent = ''; }
+    };
+
+    const opcionesUnidad = (sel) => `<option value="">(sin unidad)</option>` +
+        unidades.map((u) => `<option value="${u.id}" ${String(u.id) === String(sel) ? 'selected' : ''}>${escaparHtml(u.nombre)}</option>`).join('');
+
+    const opcionesComponente = () => {
+        const usados = new Set(filas.map((f) => f.compId));
+        const libres = productos.filter((p) => !usados.has(p.id));
+        const mp = libres.filter((p) => p.tipo === 'materia_prima');
+        const otros = libres.filter((p) => p.tipo !== 'materia_prima');
+        const opt = (p) => `<option value="${p.id}">${escaparHtml(p.nombre)}${p.sku ? ' [' + escaparHtml(p.sku) + ']' : ''}</option>`;
+        return `<option value="">＋ Agregar componente…</option>`
+            + (mp.length ? `<optgroup label="Materias primas">${mp.map(opt).join('')}</optgroup>` : '')
+            + (otros.length ? `<optgroup label="Insumos, semiterminados y productos">${otros.map(opt).join('')}</optgroup>` : '');
+    };
+
+    function pintar(enfocarIdx = -1) {
+        const cls = 'bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-sm text-slate-100';
+        cuerpo.innerHTML = `
+            ${filas.length ? `
+            <div class="overflow-x-auto">
+              <table class="w-full text-left">
+                <thead>
+                    <tr class="text-[10px] uppercase tracking-wider text-slate-500">
+                        <th class="pb-2 pr-2 font-semibold">Componente</th>
+                        <th class="pb-2 pr-2 font-semibold w-28">Cantidad</th>
+                        <th class="pb-2 pr-2 font-semibold w-36">Unidad</th>
+                        <th class="pb-2 w-8"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${filas.map((f, i) => {
+                        const p = nombreDe(f.compId);
+                        return `
+                    <tr class="border-t border-slate-800">
+                        <td class="py-2 pr-2 text-slate-100">${escaparHtml(p ? p.nombre : `Elemento ID: ${f.compId}`)}${p && p.sku ? `<span class="block text-[10px] font-mono text-slate-500">${escaparHtml(p.sku)}</span>` : ''}</td>
+                        <td class="py-2 pr-2"><input type="number" min="0" step="any" data-i="${i}" class="bom-cant w-full font-mono ${cls}" value="${escaparHtml(f.cantidad)}"></td>
+                        <td class="py-2 pr-2"><select data-i="${i}" class="bom-uni w-full ${cls}">${opcionesUnidad(f.unidad)}</select></td>
+                        <td class="py-2 text-right"><button type="button" data-i="${i}" class="bom-quitar text-slate-500 hover:text-rose-400 cursor-pointer" title="Quitar del BOM">✕</button></td>
+                    </tr>`;
+                    }).join('')}
+                </tbody>
+              </table>
+            </div>`
+            : `<p class="text-xs text-slate-500 italic py-2">Este producto todavía no tiene componentes.</p>`}
+            <div class="mt-4">
+                <select id="bomAgregar" class="w-full ${cls}">${opcionesComponente()}</select>
+            </div>`;
+
+        cuerpo.querySelectorAll('.bom-cant').forEach((el) => el.addEventListener('input', () => {
+            filas[Number(el.dataset.i)].cantidad = el.value; actualizarEstado();
+        }));
+        cuerpo.querySelectorAll('.bom-uni').forEach((el) => el.addEventListener('change', () => {
+            filas[Number(el.dataset.i)].unidad = el.value; actualizarEstado();
+        }));
+        cuerpo.querySelectorAll('.bom-quitar').forEach((el) => el.addEventListener('click', () => {
+            filas.splice(Number(el.dataset.i), 1); pintar(); actualizarEstado();
+        }));
+        cuerpo.querySelector('#bomAgregar').addEventListener('change', (e) => {
+            const compId = Number(e.target.value);
+            const p = nombreDe(compId);
+            if (!p) return;
+            filas.push({ id: null, compId, cantidad: '', unidad: p.unidad_medida_id ? String(p.unidad_medida_id) : '', base: {} });
+            pintar(filas.length - 1); actualizarEstado();
+        });
+        if (enfocarIdx >= 0) cuerpo.querySelector(`.bom-cant[data-i="${enfocarIdx}"]`)?.focus();
+    }
+
+    async function cargar() {
+        const [rBom, rProd, rUm] = await Promise.all([
+            supabaseClient.from('bom').select('id, componente_id, cantidad_requerida, unidad_medida').eq('producto_id', id).order('id', { ascending: true }),
+            supabaseClient.from('productos').select('id, nombre, sku, tipo, unidad_medida_id').neq('id', id).order('nombre', { ascending: true }),
+            supabaseClient.from('unidades_medida').select('id, nombre').order('nombre', { ascending: true }),
+        ]);
+        for (const r of [rBom, rProd, rUm]) if (r.error) throw r.error;
+        productos = rProd.data || [];
+        unidades = rUm.data || [];
+        filas = (rBom.data || []).map((b) => ({
+            id: b.id, compId: b.componente_id,
+            cantidad: String(b.cantidad_requerida ?? ''),
+            unidad: b.unidad_medida ? String(b.unidad_medida) : '',
+            base: { cantidad: b.cantidad_requerida, unidad: b.unidad_medida ? String(b.unidad_medida) : '' },
+        }));
+        baseIds = filas.map((f) => f.id);
+        pintar();
+    }
+
+    function cerrar(forzar = false) {
+        if (!forzar && sucio && !confirm('Tienes cambios sin guardar. ¿Cerrar de todos modos?')) return;
+        modal.remove();
+        document.removeEventListener('keydown', alEscape);
+    }
+    function alEscape(e) { if (e.key === 'Escape') cerrar(); }
+    document.addEventListener('keydown', alEscape);
+    modal.querySelector('#bomBtnX').addEventListener('click', () => cerrar());
+    modal.querySelector('#bomBtnCerrar').addEventListener('click', () => cerrar());
+
+    btnGuardar.addEventListener('click', async () => {
+        for (const f of filas) {
+            const n = Number(f.cantidad);
+            if (!(n > 0)) {
+                const p = nombreDe(f.compId);
+                msg.dataset.fijo = '';
+                msg.className = 'text-xs text-rose-400 min-w-0';
+                msg.textContent = `Falta la cantidad de "${p ? p.nombre : f.compId}" (debe ser mayor a 0).`;
+                return;
+            }
+        }
+        btnGuardar.disabled = true;
+        msg.className = 'text-xs text-slate-400 min-w-0'; msg.textContent = 'Guardando…';
+        try {
+            const idsAhora = new Set(filas.filter((f) => f.id).map((f) => f.id));
+            const borrar = baseIds.filter((b) => !idsAhora.has(b));
+            if (borrar.length) {
+                const { error } = await supabaseClient.from('bom').delete().in('id', borrar);
+                if (error) throw error;
+            }
+            for (const f of filas.filter((x) => x.id)) {
+                if (Number(f.cantidad) === Number(f.base.cantidad) && String(f.unidad || '') === String(f.base.unidad || '')) continue;
+                const { error } = await supabaseClient.from('bom')
+                    .update({ cantidad_requerida: Number(f.cantidad), unidad_medida: f.unidad ? String(f.unidad) : null })
+                    .eq('id', f.id);
+                if (error) throw error;
+            }
+            const nuevos = filas.filter((f) => !f.id).map((f) => ({
+                producto_id: id, componente_id: f.compId,
+                cantidad_requerida: Number(f.cantidad), unidad_medida: f.unidad ? String(f.unidad) : null,
+            }));
+            if (nuevos.length) {
+                const { error } = await supabaseClient.from('bom').insert(nuevos);
+                if (error) throw error;
+            }
+            await cargar();
+            if (typeof window.refrescarFormularioSiEsProducto === 'function') await window.refrescarFormularioSiEsProducto(id);
+            sucio = false;
+            btnGuardar.disabled = true;
+            msg.dataset.fijo = '1';
+            msg.className = 'text-xs text-emerald-400 min-w-0'; msg.textContent = 'BOM guardado ✓';
+        } catch (err) {
+            console.error('Error al guardar el BOM:', err);
+            msg.dataset.fijo = '';
+            msg.className = 'text-xs text-rose-400 min-w-0';
+            msg.textContent = err.message || 'No se pudo guardar el BOM.';
+            // Se deja la lista como está para poder corregir y volver a guardar
+            // (borrar/actualizar dos veces lo mismo es inofensivo).
+            btnGuardar.disabled = false;
+        }
+    });
+
+    try {
+        await cargar();
+    } catch (err) {
+        cuerpo.innerHTML = `<p class="text-rose-400 text-xs">No se pudo cargar el BOM: ${escaparHtml(err.message || err)}</p>`;
+    }
 }
 
 // =====================================================================
@@ -1464,6 +1707,38 @@ function renderClavesProveedorResumen(filas, proveedores) {
         </div>`;
 }
 
+// Componentes del BOM de este producto, solo consulta (se editan desde ☰ → Editar o ver BOM).
+function renderBomResumen(filas, componentesPorId, unidades) {
+    const mapaUni = new Map((unidades || []).map((u) => [String(u.id), u.nombre]));
+    const fila = (b) => {
+        const c = componentesPorId.get(b.componente_id);
+        return `
+            <tr class="border-t border-slate-800">
+                <td class="py-1.5 px-3 text-slate-100">${escaparHtml(c ? c.nombre : `Elemento ID: ${b.componente_id}`)}${c && c.sku ? `<span class="block text-[10px] font-mono text-slate-500">${escaparHtml(c.sku)}</span>` : ''}</td>
+                <td class="py-1.5 px-3 text-right font-mono text-slate-200">${escaparHtml(b.cantidad_requerida ?? '—')}</td>
+                <td class="py-1.5 px-3 text-slate-400">${escaparHtml(mapaUni.get(String(b.unidad_medida)) || '—')}</td>
+            </tr>`;
+    };
+    return `
+        <div class="mt-4 pt-4 border-t border-slate-800">
+            <p class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-2">Componentes del BOM${filas.length ? ` (${filas.length})` : ''} <span class="font-normal normal-case">(para cambiarlos: menú ☰ → 🧪 Editar o ver BOM)</span></p>
+            ${filas.length ? `
+            <div class="bg-slate-900 border border-slate-800 rounded-lg overflow-hidden">
+                <table class="w-full text-xs">
+                    <thead>
+                        <tr class="text-[10px] uppercase tracking-wider text-slate-500">
+                            <th class="py-1.5 px-3 text-left font-semibold">Componente</th>
+                            <th class="py-1.5 px-3 text-right font-semibold">Cantidad</th>
+                            <th class="py-1.5 px-3 text-left font-semibold">Unidad</th>
+                        </tr>
+                    </thead>
+                    <tbody>${filas.map(fila).join('')}</tbody>
+                </table>
+            </div>`
+            : '<p class="text-xs text-slate-500 italic">Sin componentes: este producto todavía no tiene BOM.</p>'}
+        </div>`;
+}
+
 async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, soloLectura = false) {
     let modal = document.getElementById('modalResumenProducto');
     if (!modal) {
@@ -1517,15 +1792,26 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
 
     const cuerpo = document.getElementById('cuerpoResumenProd');
     try {
-        const [{ data: art, error }, resProv, resMon, resUm, resCta, resClaves] = await Promise.all([
+        const [{ data: art, error }, resProv, resMon, resUm, resCta, resClaves, resBom] = await Promise.all([
             supabaseClient.from('productos').select('*').eq('id', id).single(),
             supabaseClient.from('proveedores').select('id, nombre').order('nombre', { ascending: true }),
             supabaseClient.from('monedas').select('id, codigo').order('id', { ascending: true }),
             supabaseClient.from('unidades_medida').select('id, nombre').order('id', { ascending: true }),
             supabaseClient.from('cuentas_contables').select('id, codigo, nombre').order('codigo', { ascending: true }),
             supabaseClient.from('producto_claves_proveedor').select('*').eq('producto_id', id),
+            supabaseClient.from('bom').select('componente_id, cantidad_requerida, unidad_medida').eq('producto_id', id).order('id', { ascending: true }),
         ]);
         if (error) throw error;
+
+        // Componentes del BOM (solo lectura) — únicamente para lo que se fabrica.
+        const llevaBom = (art.tipo || 'producto') === 'producto' && art.abastecimiento !== 'comprado';
+        const bomFilas = llevaBom ? (resBom.data || []) : [];
+        let componentesPorId = new Map();
+        if (bomFilas.length) {
+            const idsComp = [...new Set(bomFilas.map((b) => b.componente_id))];
+            const { data: comps } = await supabaseClient.from('productos').select('id, nombre, sku').in('id', idsComp);
+            componentesPorId = new Map((comps || []).map((c) => [c.id, c]));
+        }
 
         const tituloSub = document.getElementById('tituloEditarProdSub');
         if (tituloSub) tituloSub.textContent = ` — #${art.id} · ${art.sku || 'sin SKU'} · ${art.nombre || 'sin nombre'}`;
@@ -1632,6 +1918,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                         </div>`;
                 }).join('')}
             </div>
+            ${llevaBom ? renderBomResumen(bomFilas, componentesPorId, resUm.data) : ''}
             ${renderClavesProveedorResumen(resClaves.data, resProv.data)}`;
     } catch (err) {
         cuerpo.innerHTML = `<p class="text-rose-400 text-xs">No se pudo cargar el artículo: ${err.message || err}</p>`;
