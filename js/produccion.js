@@ -132,11 +132,6 @@ async function generarRequisicionFaltantes(faltan, nombreProducto, cantidadProdu
     }
 
     const linea = (i) => `${i.nombre}: ${formatoCantidad(i.cantidad)}${i.unidad ? ' ' + i.unidad : ''}`;
-    if (!comprables.length) {
-        alert('Lo que falta se fabrica en la planta, no se compra:\n\n' + seFabrican.map((i) => '• ' + linea(i)).join('\n')
-            + '\n\nProduce primero esos semiterminados y después esta orden.');
-        return;
-    }
 
     const grupos = new Map();
     for (const i of comprables) {
@@ -145,27 +140,76 @@ async function generarRequisicionFaltantes(faltan, nombreProducto, cantidadProdu
         grupos.get(clave).push(i);
     }
 
-    // Se avisa si hay algo que confirmar: varias requisiciones, o insumos que se dejan fuera.
-    if (grupos.size > 1 || seFabrican.length) {
-        const idsProv = [...grupos.keys()].filter((k) => k !== 'sin').map(Number);
-        const { data: provs } = idsProv.length
-            ? await supabaseClient.from('proveedores').select('id, nombre').in('id', idsProv)
-            : { data: [] };
-        const nombreProv = new Map((provs || []).map((p) => [p.id, p.nombre]));
-        const detalle = [...grupos.entries()].map(([clave, items]) =>
-            `· ${clave === 'sin' ? 'Sin proveedor asignado' : (nombreProv.get(Number(clave)) || 'Proveedor #' + clave)}: ${items.map(linea).join(', ')}`).join('\n');
-        let texto = '';
-        if (grupos.size > 1) texto += `Lo faltante es de proveedores distintos: se va a abrir una requisición por cada uno.\n\n${detalle}\n\n`;
-        else texto += `Se va a abrir una requisición con:\n\n${detalle}\n\n`;
-        if (seFabrican.length) texto += `Se dejan fuera porque se fabrican (produce primero):\n${seFabrican.map((i) => '• ' + linea(i)).join('\n')}\n\n`;
-        if (!confirm(texto + '¿Continuar?')) return;
-    }
+    // Destinos: la requisición de compra (una por proveedor) y la orden de producción de cada semiterminado.
+    const abrirRequisicion = () => {
+        const listaGrupos = [...grupos.values()].map((items) => items.map((i) => ({ id: i.id, cantidad: i.cantidad })));
+        window.__reqPreProductos = listaGrupos[0];
+        window.__reqPreGruposRestantes = listaGrupos.slice(1);
+        window.__reqPreNotas = `Faltantes para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}.`;
+        window.loadView('requisiciones-compra');
+    };
+    const abrirOrdenesProduccion = () => {
+        window.__prodPre = {
+            lista: seFabrican.map((i) => ({ id: i.id, cantidad: i.cantidad, nombre: i.nombre, unidad: i.unidad })),
+            total: seFabrican.length,
+            origen: `Para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}`,
+            aplicada: false,
+        };
+        window.loadView('produccion');
+    };
 
-    const listaGrupos = [...grupos.values()].map((items) => items.map((i) => ({ id: i.id, cantidad: i.cantidad })));
-    window.__reqPreProductos = listaGrupos[0];
-    window.__reqPreGruposRestantes = listaGrupos.slice(1);
-    window.__reqPreNotas = `Faltantes para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}.`;
-    window.loadView('requisiciones-compra');
+    // Un solo destino y un solo proveedor: se va directo, sin preguntar.
+    if (!seFabrican.length && grupos.size === 1) { abrirRequisicion(); return; }
+    if (!comprables.length && seFabrican.length) { abrirOrdenesProduccion(); return; }
+
+    // Hay de las dos cosas (o varios proveedores): se muestra qué pasa con cada una y se elige por dónde empezar.
+    const idsProv = [...grupos.keys()].filter((k) => k !== 'sin').map(Number);
+    const { data: provs } = idsProv.length
+        ? await supabaseClient.from('proveedores').select('id, nombre').in('id', idsProv)
+        : { data: [] };
+    const nombreProv = new Map((provs || []).map((p) => [p.id, p.nombre]));
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    document.getElementById('modalFaltantesProd')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'modalFaltantesProd';
+    modal.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4';
+    modal.innerHTML = `
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl max-h-[85vh] overflow-y-auto p-5 text-sm text-slate-300 space-y-4">
+            <div class="flex justify-between items-start gap-3">
+                <div>
+                    <h3 class="text-base font-bold text-slate-100">Faltantes para producir</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">${esc(formatoCantidad(cantidadProducir))} × ${esc(nombreProducto)}</p>
+                </div>
+                <button type="button" id="fpCerrar" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 cursor-pointer">&times;</button>
+            </div>
+            ${comprables.length ? `
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+                <p class="text-xs font-semibold text-emerald-400 mb-1.5">🛒 Se compran${grupos.size > 1 ? ` — una requisición por proveedor (${grupos.size})` : ''}</p>
+                <ul class="text-xs space-y-1 mb-3">
+                    ${[...grupos.entries()].map(([clave, items]) => `
+                    <li><span class="text-slate-100">${esc(clave === 'sin' ? 'Sin proveedor asignado' : (nombreProv.get(Number(clave)) || 'Proveedor #' + clave))}</span>
+                        <span class="text-slate-500">— ${esc(items.map(linea).join(', '))}</span></li>`).join('')}
+                </ul>
+                <button type="button" id="fpReq" class="w-full bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium py-2 rounded-lg cursor-pointer">📝 Generar requisición de compra</button>
+            </div>` : ''}
+            ${seFabrican.length ? `
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+                <p class="text-xs font-semibold text-amber-400 mb-1.5">🏭 Se fabrican en la planta — una orden de producción por producto (${seFabrican.length})</p>
+                <ul class="text-xs space-y-1 mb-3">
+                    ${seFabrican.map((i) => `<li class="text-slate-100">${esc(linea(i))}</li>`).join('')}
+                </ul>
+                <button type="button" id="fpProd" class="w-full bg-amber-700 hover:bg-amber-600 text-white text-xs font-medium py-2 rounded-lg cursor-pointer">🏭 Generar órdenes de producción</button>
+            </div>` : ''}
+            <p class="text-[11px] text-slate-500">Puedes hacer una y volver a pulsar el botón después para la otra: lo que siga faltando se vuelve a listar. Al abrir una orden de producción, el producto y la cantidad ya vienen cargados; solo completas el lote y los procesos.</p>
+        </div>`;
+    document.body.appendChild(modal);
+
+    const cerrar = () => modal.remove();
+    modal.addEventListener('click', (e) => { if (e.target === modal) cerrar(); });
+    modal.querySelector('#fpCerrar').addEventListener('click', cerrar);
+    modal.querySelector('#fpReq')?.addEventListener('click', () => { cerrar(); abrirRequisicion(); });
+    modal.querySelector('#fpProd')?.addEventListener('click', () => { cerrar(); abrirOrdenesProduccion(); });
 }
 
 // Cronómetros del panel "Órdenes en Proceso" (viven mientras la vista está montada).
@@ -195,6 +239,9 @@ function segundosDeIntervalo(inicioISO, finISO) {
 export async function cargarModuloProduccion() {
     const contenedorProd = document.getElementById('contenedorProduccion');
 
+    // Órdenes sugeridas que ya se cargaron en una visita anterior y quedaron sin terminar: se descartan.
+    if (window.__prodPre && window.__prodPre.aplicada) window.__prodPre = null;
+
     // Al re-montar la vista, cortar los timers anteriores.
     clearInterval(tickerEnProceso); tickerEnProceso = null;
     clearInterval(refetchEnProceso); refetchEnProceso = null;
@@ -207,6 +254,7 @@ export async function cargarModuloProduccion() {
                 <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-xl">
                     <h3 class="text-lg font-semibold mb-1 text-amber-400 flex items-center gap-2">🧾 Generar Orden de Producción</h3>
                     <p class="text-xs text-slate-400 mb-4">Valida existencias y abre la orden en estado <b>"en proceso"</b>. Los tiempos de trabajo se registran desde la <b>Orden de Trabajo</b> en el celular; el inventario se descuenta (FIFO) al <b>cerrar</b> la orden.</p>
+                    <div id="avisoPreseleccionProd" class="hidden mb-4 text-xs text-amber-200 bg-amber-950/30 border border-amber-800/60 rounded-lg px-3 py-2"></div>
                     <form id="formOrdenProduccion" class="space-y-4">
                         <div>
                             <label class="block text-xs font-medium text-slate-400 mb-1">PRODUCTO A PRODUCIR</label>
@@ -526,6 +574,11 @@ export async function cargarModuloProduccion() {
                         document.getElementById('avisoSinProcesos').classList.remove('hidden');
                         panelExistencias.classList.add('hidden');
                         await cargarOrdenesEnProceso();
+                        // Si venían más órdenes sugeridas (semiterminados faltantes), carga la siguiente.
+                        if (window.__prodPre && window.__prodPre.lista && window.__prodPre.lista.length) {
+                            window.__prodPre.lista.shift();
+                            aplicarPreseleccionProduccion();
+                        }
                     } else {
                         alert("❌ Error: " + resultado.error);
                     }
@@ -537,6 +590,35 @@ export async function cargarModuloProduccion() {
                 }
             };
         }
+
+        // Órdenes sugeridas desde "Generar requisición de lo faltante": para cada semiterminado que
+        // falta y se fabrica en casa, carga el producto y la cantidad (solo falta el lote y los procesos).
+        function aplicarPreseleccionProduccion() {
+            const aviso = document.getElementById('avisoPreseleccionProd');
+            const pre = window.__prodPre;
+            if (!pre || !pre.lista || !pre.lista.length) {
+                window.__prodPre = null;
+                if (aviso) aviso.classList.add('hidden');
+                return;
+            }
+            const item = pre.lista[0];
+            pre.aplicada = true;
+            if (![...selectProd.options].some((o) => o.value === String(item.id))) {
+                alert(`"${item.nombre}" no aparece entre los productos a producir (¿tiene receta / BOM?). Se omite.`);
+                pre.lista.shift();
+                aplicarPreseleccionProduccion();
+                return;
+            }
+            selectProd.value = String(item.id);
+            selectProd.dispatchEvent(new Event('change', { bubbles: true }));
+            inputCantidadProd.value = String(item.cantidad);
+            inputCantidadProd.dispatchEvent(new Event('input', { bubbles: true }));
+            const n = pre.total - pre.lista.length + 1;
+            aviso.textContent = `🏭 Orden sugerida ${n} de ${pre.total}: ${item.nombre} × ${formatoCantidad(item.cantidad)}${item.unidad ? ' ' + item.unidad : ''}. ${pre.origen}. Ajusta la cantidad si conviene, captura el lote, agrega los procesos y genera la orden.`;
+            aviso.classList.remove('hidden');
+            document.getElementById('numeroLoteResultante')?.focus();
+        }
+        aplicarPreseleccionProduccion();
 
         document.getElementById('btnRefrescarEnProceso').onclick = cargarOrdenesEnProceso;
 
