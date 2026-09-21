@@ -277,6 +277,12 @@ export async function cargarCatalogoInicial() {
                                     <textarea id="prodDesc" placeholder="Especificaciones adicionales" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100" rows="2"></textarea>
                                 </div>
 
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">Clave SAT (ClaveProdServ)</label>
+                                    <input type="text" id="prodClaveSat" inputmode="numeric" maxlength="8" placeholder="8 dígitos del catálogo c_ClaveProdServ" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                                    <p class="text-[10px] text-slate-500 mt-0.5">La del producto en sí. También se llena sola al importar facturas XML de tus proveedores.</p>
+                                </div>
+
                                 <div class="border-t border-slate-800 pt-3 ${cuentasContables.length ? '' : 'hidden'}">
                                     <p class="text-[11px] font-semibold text-sky-400 mb-2">Datos contables</p>
                                     <div class="grid grid-cols-2 gap-2">
@@ -554,6 +560,8 @@ export async function cargarCatalogoInicial() {
                 document.getElementById('prodStockMinimo').value = art.stock_minimo || 0;
                 document.getElementById('prodTiempoEntrega').value = art.tiempo_entrega_dias ?? '';
                 document.getElementById('prodCantidadMinimaCompra').value = art.cantidad_minima_compra ?? '';
+                document.getElementById('prodClaveSat').value = art.clave_sat || '';
+                document.getElementById('prodClaveSat').dataset.tenia = art.clave_sat ? '1' : '';
 
                 const elExistencia = document.getElementById('prodExistenciaActual');
                 elExistencia.textContent = `Existencia actual: ${Number(art.stock_actual || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })} — se actualiza sola con compras y salidas, no se edita aquí.`;
@@ -651,6 +659,7 @@ export async function cargarCatalogoInicial() {
         btnNuevoModo.addEventListener('click', async () => {
             productoSeleccionadoId = null;
             document.getElementById('formCrearProducto').reset();
+            document.getElementById('prodClaveSat').dataset.tenia = '';
             itemsBomTemp = [];
             actualizarListaBomVisual();
             clavesProvTemp = [];
@@ -842,6 +851,18 @@ export async function cargarCatalogoInicial() {
             const cantidadMinimaVal = document.getElementById('prodCantidadMinimaCompra').value;
             const cantidad_minima_compra = cantidadMinimaVal === '' ? null : parseFloat(cantidadMinimaVal);
 
+            // Clave SAT (ClaveProdServ): 8 dígitos del catálogo c_ClaveProdServ.
+            // Solo se manda si hay algo que guardar (o borrar) — así el guardado
+            // de productos no depende de haber corrido sql/2026-10-15_productos_clave_sat.sql.
+            const elClaveSat = document.getElementById('prodClaveSat');
+            const claveSatVal = elClaveSat.value.trim();
+            if (claveSatVal && !/^\d{8}$/.test(claveSatVal)) {
+                alert('La Clave SAT (ClaveProdServ) debe ser de 8 dígitos, como en el catálogo del SAT (ej. 24122000).');
+                elClaveSat.focus();
+                return;
+            }
+            const claveSatPayload = (claveSatVal || elClaveSat.dataset.tenia === '1') ? { clave_sat: claveSatVal || null } : {};
+
             // Datos contables (opcionales; solo si el modulo esta instalado)
             const elTasaIva = document.getElementById('prodTasaIva');
             const datosContables = {};
@@ -880,6 +901,7 @@ export async function cargarCatalogoInicial() {
                     stock_minimo,
                     tiempo_entrega_dias,
                     cantidad_minima_compra,
+                    ...claveSatPayload,
                     ...datosContables
                 };
 
@@ -1022,7 +1044,7 @@ async function exportarCatalogoProductos(formato) {
 
         // Orden de columnas: primero las "legibles/útiles", luego el resto alfabético.
         const preferidas = [
-            'id', 'sku', 'nombre', 'tipo', 'descripcion',
+            'id', 'sku', 'nombre', 'tipo', 'descripcion', 'clave_sat',
             'unidad', 'unidad_medida_id', 'costo_unitario', 'precio_venta',
             'moneda', 'moneda_id', 'proveedor', 'proveedor_id',
             'stock_actual', 'stock_minimo', 'tiempo_entrega_dias', 'cantidad_minima_compra',
@@ -1225,7 +1247,7 @@ const CAMPOS_NO_EDITABLES_PRODUCTO = new Set(['id', 'created_at', 'updated_at'])
 // las banderas. Los que no estén aquí (columnas nuevas a futuro) caen
 // después, en orden alfabético; los de solo lectura siempre van al final.
 const ORDEN_CAMPOS_PRODUCTO = [
-    'sku', 'nombre', 'tipo', 'descripcion',
+    'sku', 'nombre', 'tipo', 'descripcion', 'clave_sat',
     'unidad_medida_id', 'proveedor_id', 'moneda_id',
     'costo_unitario', 'precio_venta', 'tasa_iva', 'tasa_ieps',
     'cuenta_inventario_id', 'cuenta_costo_id',

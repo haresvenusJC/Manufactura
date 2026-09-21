@@ -26,10 +26,14 @@ export async function cargarModuloImportadorClavesProveedor() {
     if (!cont) return;
     cont.innerHTML = '<p class="text-slate-500 text-sm">Cargando...</p>';
     try {
-        const [pr, pv] = await Promise.all([
-            supabaseClient.from('productos').select('id, nombre, sku').order('nombre'),
+        let [pr, pv] = await Promise.all([
+            supabaseClient.from('productos').select('id, nombre, sku, clave_sat').order('nombre'),
             supabaseClient.from('proveedores').select('id, nombre, rfc').order('nombre'),
         ]);
+        if (pr.error) {
+            // productos.clave_sat aún no existe (falta sql/2026-10-15_productos_clave_sat.sql): sigue sin ella.
+            pr = await supabaseClient.from('productos').select('id, nombre, sku').order('nombre');
+        }
         iclProductos = pr.data || [];
         iclProveedores = pv.data || [];
     } catch (e) {
@@ -79,27 +83,46 @@ async function iclProcesarArchivos() {
                 } catch (_) { /* proveedores sin columna rfc */ }
             }
 
+            // La ClaveProdServ del SAT es una clase de producto, no un
+            // identificador único: varios productos comparten la misma. Por eso
+            // se guarda qué productos tiene cada una, y solo se empareja por ella
+            // cuando apunta a UN solo producto.
             const clavesMap = new Map(), clavesSatMap = new Map();
+            const agregarSat = (mapa, sat, productoId) => {
+                const k = String(sat || '').trim();
+                if (!k) return;
+                if (!mapa.has(k)) mapa.set(k, new Set());
+                mapa.get(k).add(productoId);
+            };
             if (proveedorId) {
                 try {
                     const { data } = await supabaseClient.from('producto_claves_proveedor')
                         .select('producto_id, clave, clave_sat').eq('proveedor_id', proveedorId);
                     (data || []).forEach((c) => {
                         if (c.clave) clavesMap.set(normTxt(c.clave), c.producto_id);
-                        if (c.clave_sat) clavesSatMap.set(String(c.clave_sat).trim(), c.producto_id);
+                        agregarSat(clavesSatMap, c.clave_sat, c.producto_id);
                     });
                 } catch (_) { /* tabla de claves aún no existe */ }
             }
+            iclProductos.forEach((p) => agregarSat(clavesSatMap, p.clave_sat, p.id));
+            const unicoPorSat = (sat) => {
+                const ids = clavesSatMap.get(String(sat || '').trim());
+                return ids && ids.size === 1 ? [...ids][0] : null;
+            };
 
             const { productos: conceptosProducto } = rmClasificarConceptos(r.conceptos);
             conceptosProducto.forEach((cp) => {
+                // Prioridad: 1) SKU del proveedor ya homologado, 2) SKU que trae la
+                // factura = tu SKU interno, 3) ClaveProdServ SAT (solo si es única),
+                // 4) nombre. El SKU manda; la clave SAT solo rescata las partidas
+                // de proveedores que no traen No. de identificación.
                 let prodId = null;
                 if (cp.noId && clavesMap.has(normTxt(cp.noId))) prodId = clavesMap.get(normTxt(cp.noId));
-                if (!prodId && cp.claveSat && clavesSatMap.has(cp.claveSat)) prodId = clavesSatMap.get(cp.claveSat);
                 if (!prodId && cp.noId) {
                     const bySku = iclProductos.find((p) => p.sku && normTxt(p.sku) === normTxt(cp.noId));
                     if (bySku) prodId = bySku.id;
                 }
+                if (!prodId && cp.claveSat) prodId = unicoPorSat(cp.claveSat);
                 if (!prodId && cp.descripcion) {
                     const nd = normTxt(cp.descripcion);
                     const byName = iclProductos.find((p) => p.nombre && (nd.includes(normTxt(p.nombre)) || normTxt(p.nombre).includes(nd)));
@@ -207,7 +230,7 @@ function iclRenderTabla() {
         <table class="w-full text-left text-xs text-slate-300">
           <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
             <th class="p-2">Incluir</th><th class="p-2">Archivo / Proveedor</th><th class="p-2">Producto interno</th>
-            <th class="p-2">SKU proveedor</th><th class="p-2">Descripción proveedor</th><th class="p-2">Unidad</th>
+            <th class="p-2">SKU proveedor</th><th class="p-2">Clave SAT</th><th class="p-2">Descripción proveedor</th><th class="p-2">Unidad</th>
           </tr></thead>
           <tbody>
             ${iclFilas.map((f, i) => `
@@ -224,7 +247,8 @@ function iclRenderTabla() {
                   <select class="icl-producto w-full bg-slate-900 border ${f.productoId ? 'border-slate-800' : 'border-amber-700'} rounded px-1.5 py-1 text-xs text-slate-100">${optsProductos}</select>
                   ${f.productoId && f.productoId !== f.productoIdAuto ? '<p class="text-[10px] text-emerald-400 mt-0.5">✓ homologado a mano</p>' : (f.productoId ? '<p class="text-[10px] text-emerald-400 mt-0.5">✓ coincide con el catálogo</p>' : '<p class="text-[10px] text-amber-400 mt-0.5">sin coincidencia</p>')}
                 </td>
-                <td class="p-2 font-mono text-slate-400">${esc(f.noId) || '—'}</td>
+                <td class="p-2 font-mono text-slate-400">${esc(f.noId) || '<span class="text-slate-600" title="Este proveedor no manda No. de identificación en la factura">sin SKU</span>'}</td>
+                <td class="p-2 font-mono text-slate-400">${esc(f.claveSat) || '—'}</td>
                 <td class="p-2 text-slate-400">${esc(f.descripcion) || '—'}</td>
                 <td class="p-2 text-slate-400">${esc(f.unidad) || '—'}</td>
               </tr>`).join('')}
@@ -271,7 +295,7 @@ async function iclGuardarClaves() {
 
     const btn = document.getElementById('iclGuardar');
     btn.disabled = true;
-    let ok = 0, fallos = 0;
+    let ok = 0, fallos = 0, satGuardadas = 0, satDistintas = 0, satSinColumna = false;
     for (const f of aGuardar) {
         try {
             const { data: existente } = await supabaseClient.from('producto_claves_proveedor')
@@ -291,6 +315,26 @@ async function iclGuardarClaves() {
             }
             f._guardado = true;
             ok++;
+
+            // La ClaveProdServ del SAT también va en el producto mismo (su
+            // clave_sat), no solo en la clave del proveedor. Solo se llena si
+            // está vacía: si el producto ya trae otra, no se pisa — se avisa.
+            const claveSat = String(f.claveSat || '').trim();
+            const prod = iclProductos.find((p) => p.id === f.productoId);
+            if (claveSat && prod && !satSinColumna) {
+                const actual = String(prod.clave_sat || '').trim();
+                if (!actual) {
+                    const { error: eSat } = await supabaseClient.from('productos').update({ clave_sat: claveSat }).eq('id', prod.id);
+                    if (eSat) {
+                        if (/clave_sat|schema cache|could not find|does not exist/i.test(eSat.message || '')) satSinColumna = true;
+                    } else {
+                        prod.clave_sat = claveSat;
+                        satGuardadas++;
+                    }
+                } else if (actual !== claveSat) {
+                    satDistintas++;
+                }
+            }
         } catch (err) {
             f._guardado = false;
             fallos++;
@@ -301,7 +345,11 @@ async function iclGuardarClaves() {
     iclRenderTabla();
     const msgFinal = document.getElementById('iclMsg');
     if (msgFinal) {
-        msgFinal.textContent = `Guardadas ${ok} clave(s) de proveedor.` + (fallos ? ` ${fallos} con error — se quedan en la tabla para reintentar.` : '');
-        msgFinal.className = 'text-xs min-h-[1rem] ' + (fallos ? 'text-amber-400' : 'text-emerald-400');
+        const extra = [];
+        if (satGuardadas) extra.push(`Clave SAT guardada en ${satGuardadas} producto(s).`);
+        if (satDistintas) extra.push(`${satDistintas} producto(s) ya tenían otra Clave SAT distinta a la de la factura — no se cambió, revísala en Productos.`);
+        if (satSinColumna) extra.push('No se guardó la Clave SAT en Productos: falta correr sql/2026-10-15_productos_clave_sat.sql en Supabase.');
+        msgFinal.textContent = `Guardadas ${ok} clave(s) de proveedor.` + (fallos ? ` ${fallos} con error — se quedan en la tabla para reintentar.` : '') + (extra.length ? ' ' + extra.join(' ') : '');
+        msgFinal.className = 'text-xs min-h-[1rem] ' + ((fallos || satDistintas || satSinColumna) ? 'text-amber-400' : 'text-emerald-400');
     }
 }

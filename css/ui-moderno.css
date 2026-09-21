@@ -1,0 +1,167 @@
+/* =====================================================================
+   UI moderna — Hares de México
+   Capa visual global sobre Tailwind. NO cambia colores fijos: todo sale
+   de las variables del tema (--bg-*, --tx-*, --acc, --ok, --bad...) que
+   define index.html, así que cambiar de tema (Midnight, Forest, Plum,
+   Confort, Paper, Mist...) sigue repintando TODO, incluidos los botones
+   de color, que antes no seguían al tema.
+   Se carga DESPUÉS del <style> de index.html.
+   ===================================================================== */
+
+/* ---------- Tokens ---------- */
+:root {
+    --r-sm: 10px;
+    --r-md: 14px;
+    --r-lg: 20px;
+
+    --sh-1: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 12px 32px -20px rgba(0, 0, 0, .75);
+    --sh-2: 0 28px 70px -28px rgba(0, 0, 0, .8);
+    --btn-sh:   0 8px 18px -10px rgba(0, 0, 0, .7), 0 1px 0 rgba(255, 255, 255, .14) inset;
+    --btn-sh-h: 0 12px 24px -10px rgba(0, 0, 0, .75), 0 1px 0 rgba(255, 255, 255, .18) inset;
+
+    /* Botones sólidos: el color semántico del tema, oscurecido para que el
+       texto blanco siempre tenga contraste (en claros y en oscuros). */
+    --ok-s:  color-mix(in srgb, var(--ok) 58%, #04100b);
+    --acc-s: color-mix(in srgb, var(--acc) 55%, #050d16);
+    --ind-s: color-mix(in srgb, var(--ind) 55%, #080a1c);
+    --bad-s: color-mix(in srgb, var(--bad) 60%, #14060a);
+    --wrn-s: color-mix(in srgb, var(--warn) 52%, #140d02);
+    --ok-h:  color-mix(in srgb, var(--ok-s) 84%, #fff);
+    --acc-h: color-mix(in srgb, var(--acc-s) 84%, #fff);
+    --ind-h: color-mix(in srgb, var(--ind-s) 84%, #fff);
+    --bad-h: color-mix(in srgb, var(--bad-s) 84%, #fff);
+    --wrn-h: color-mix(in srgb, var(--wrn-s) 84%, #fff);
+}
+[data-theme="paper"], [data-theme="mist"] {
+    --sh-1: 0 1px 2px rgba(40, 45, 60, .07), 0 12px 30px -18px rgba(40, 45, 60, .28);
+    --sh-2: 0 28px 60px -26px rgba(40, 45, 60, .38);
+    --btn-sh:   0 6px 14px -9px rgba(40, 45, 60, .5), 0 1px 0 rgba(255, 255, 255, .18) inset;
+    --btn-sh-h: 0 9px 18px -9px rgba(40, 45, 60, .55), 0 1px 0 rgba(255, 255, 255, .22) inset;
+}
+
+/* ---------- Tipografía y fondo ---------- */
+body {
+    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    background-image:
+        radial-gradient(1100px 480px at 88% -8%, color-mix(in srgb, var(--acc) 9%, transparent), transparent 62%),
+        radial-gradient(900px 420px at -6% 4%, color-mix(in srgb, var(--ind) 7%, transparent), transparent 58%);
+    background-attachment: fixed;
+}
+h1, h2, h3, h4 { letter-spacing: -0.015em; }
+.font-mono { font-variant-numeric: tabular-nums; }
+::selection { background: color-mix(in srgb, var(--acc) 34%, transparent); }
+
+/* Scroll discreto, del color del tema */
+* { scrollbar-width: thin; scrollbar-color: var(--bd-2) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--bd-2); border-radius: 999px; border: 3px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: var(--tx-5); background-clip: padding-box; border: 3px solid transparent; }
+
+/* ---------- Radios: más generosos en toda la app ---------- */
+.rounded-lg  { border-radius: var(--r-sm) !important; }
+.rounded-xl  { border-radius: var(--r-md) !important; }
+.rounded-2xl { border-radius: var(--r-lg) !important; }
+
+/* ---------- Paneles / tarjetas ---------- */
+.bg-slate-900.border { box-shadow: var(--sh-1); }
+details.bg-slate-900\/40, details.bg-slate-900\/50 { box-shadow: none; }
+.fixed > .bg-slate-900.border, .fixed.bg-slate-900.border { box-shadow: var(--sh-2); }
+
+/* ---------- Botones: redondeados, con relieve y respuesta al toque ---------- */
+button {
+    transition: background-color .16s ease, border-color .16s ease, color .16s ease,
+                box-shadow .16s ease, transform .1s ease, filter .16s ease, opacity .16s ease;
+}
+button:not([disabled]):active { transform: translateY(1px) scale(.985); }
+button:disabled, button[disabled] { opacity: .5; cursor: not-allowed; }
+
+/* Botón normal = píldora. Filas-botón (menú, secciones) y pestañas con
+   subrayado quedan fuera para no deformarlas. */
+button:not(.text-left):not(.w-full):not([class*="border-b-2"]):not(.th-orden) { border-radius: 9999px !important; }
+button.w-full:not(.text-left) { border-radius: var(--r-md) !important; }
+button.text-left { border-radius: var(--r-sm) !important; }
+
+button:focus-visible, a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--acc);
+    outline-offset: 2px;
+}
+
+/* Botones de color: siguen al tema y llevan un brillo sutil arriba. */
+.bg-emerald-500, .bg-emerald-600, .bg-emerald-700, .bg-emerald-800 { background-color: var(--ok-s) !important; }
+.bg-sky-600, .bg-sky-700, .bg-sky-800                                { background-color: var(--acc-s) !important; }
+.bg-indigo-500, .bg-indigo-600, .bg-indigo-700                       { background-color: var(--ind-s) !important; }
+.bg-rose-600, .bg-rose-700, .bg-rose-800, .bg-red-600, .bg-red-700, .bg-red-800 { background-color: var(--bad-s) !important; }
+.bg-amber-600, .bg-amber-700, .bg-amber-800                          { background-color: var(--wrn-s) !important; }
+
+.hover\:bg-emerald-500:hover, .hover\:bg-emerald-600:hover, .hover\:bg-emerald-700:hover { background-color: var(--ok-h) !important; }
+.hover\:bg-sky-500:hover, .hover\:bg-sky-600:hover, .hover\:bg-sky-700:hover             { background-color: var(--acc-h) !important; }
+.hover\:bg-indigo-500:hover, .hover\:bg-indigo-600:hover                                  { background-color: var(--ind-h) !important; }
+.hover\:bg-rose-500:hover, .hover\:bg-rose-600:hover, .hover\:bg-red-500:hover, .hover\:bg-red-600:hover { background-color: var(--bad-h) !important; }
+.hover\:bg-amber-600:hover, .hover\:bg-amber-700:hover                                    { background-color: var(--wrn-h) !important; }
+
+button.bg-emerald-500, button.bg-emerald-600, button.bg-emerald-700, button.bg-emerald-800,
+button.bg-sky-600, button.bg-sky-700, button.bg-sky-800,
+button.bg-indigo-500, button.bg-indigo-600, button.bg-indigo-700,
+button.bg-rose-600, button.bg-rose-700, button.bg-rose-800, button.bg-red-600, button.bg-red-700, button.bg-red-800,
+button.bg-amber-600, button.bg-amber-700, button.bg-amber-800 {
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 58%);
+    box-shadow: var(--btn-sh);
+}
+button.bg-emerald-500:hover, button.bg-emerald-600:hover, button.bg-emerald-700:hover, button.bg-emerald-800:hover,
+button.bg-sky-600:hover, button.bg-sky-700:hover, button.bg-sky-800:hover,
+button.bg-indigo-500:hover, button.bg-indigo-600:hover, button.bg-indigo-700:hover,
+button.bg-rose-600:hover, button.bg-rose-700:hover, button.bg-rose-800:hover,
+button.bg-amber-600:hover, button.bg-amber-700:hover, button.bg-amber-800:hover {
+    box-shadow: var(--btn-sh-h);
+}
+
+/* Bordes de esos botones: un filo del mismo tono, no un trazo duro. */
+.border-emerald-500, .border-emerald-600, .border-emerald-700 { border-color: color-mix(in srgb, var(--ok) 38%, transparent) !important; }
+.border-sky-500, .border-sky-600, .border-sky-700             { border-color: color-mix(in srgb, var(--acc) 38%, transparent) !important; }
+.border-indigo-500, .border-indigo-600, .border-indigo-700    { border-color: color-mix(in srgb, var(--ind) 38%, transparent) !important; }
+.border-rose-500, .border-rose-600, .border-rose-700, .border-red-600, .border-red-700 { border-color: color-mix(in srgb, var(--bad) 38%, transparent) !important; }
+.border-amber-600 { border-color: color-mix(in srgb, var(--warn) 42%, transparent) !important; }
+
+/* Botones secundarios (fondo neutro) */
+button.bg-slate-800:hover { border-color: var(--tx-5); }
+
+/* ---------- Campos de captura ---------- */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+select, textarea {
+    transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):focus,
+select:focus, textarea:focus {
+    outline: none !important;
+    border-color: var(--acc) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--acc) 22%, transparent) !important;
+}
+input::placeholder, textarea::placeholder { color: var(--tx-5); opacity: 1; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--acc) !important; }
+
+/* ---------- Tablas ---------- */
+table thead th { letter-spacing: .05em; font-weight: 600; }
+table tbody tr { transition: background-color .12s ease; }
+table tbody tr:not([class*="bg-"]):hover { background-color: color-mix(in srgb, var(--acc) 5%, transparent); }
+.overflow-x-auto.border { overflow-y: hidden; }
+
+/* ---------- Menú lateral ---------- */
+#sidebar {
+    background-image: linear-gradient(180deg, color-mix(in srgb, var(--acc) 5%, transparent), transparent 38%);
+    box-shadow: 1px 0 0 var(--bd-1);
+}
+#sidebar button { border-radius: 12px !important; }
+#sidebar li > button:hover { transform: translateX(2px); }
+#sidebar li > button:active { transform: none; }
+#sidebar ul[id^="submenu-"] { border-left-color: color-mix(in srgb, var(--acc) 28%, var(--bd-1)) !important; }
+#statusConexion { border-radius: 9999px !important; }
+
+/* ---------- Botón flotante del menú ---------- */
+#btnAbrirMenu { border-radius: 9999px !important; box-shadow: var(--sh-1); }
+
+/* ---------- Etiquetas de estatus / chips ---------- */
+.rounded-full { letter-spacing: .01em; }

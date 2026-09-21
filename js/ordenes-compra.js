@@ -2409,7 +2409,7 @@ function rmRenderDetalleXml(conceptos, meta) {
         if (prod) hits++;
         const reqCad = !!(prod && prod.requiere_caducidad);
         return `
-        <tr class="border-b border-slate-900" data-cpidx="${i}" data-prodid="${prodId || ''}" data-prodid-auto="${prodId || ''}" data-desc="${esc(cp.descripcion || 'Producto CFDI')}" data-unidadid="${prod ? (prod.unidad_medida_id || '') : ''}" data-reqcad="${reqCad ? 1 : 0}" data-nocfdi="${esc(cp.noId || '')}">
+        <tr class="border-b border-slate-900" data-cpidx="${i}" data-prodid="${prodId || ''}" data-prodid-auto="${prodId || ''}" data-desc="${esc(cp.descripcion || 'Producto CFDI')}" data-unidadid="${prod ? (prod.unidad_medida_id || '') : ''}" data-reqcad="${reqCad ? 1 : 0}" data-nocfdi="${esc(cp.noId || '')}" data-clavesat="${esc(cp.claveSat || '')}">
           <td class="p-2 text-center"><input type="checkbox" class="rm-chk accent-emerald-500 w-4 h-4" checked></td>
           <td class="p-2 text-slate-100">
             <div class="text-[11px] text-slate-500">${esc(cp.descripcion || cp.noId || 'sin descripción')}</div>
@@ -2506,6 +2506,7 @@ async function rmConfirmarXml() {
             // con el auto-match (o no hubo auto-match): guarda la clave de
             // este proveedor para ese producto y la próxima factura empareja sola.
             noIdCfdi: tr.dataset.nocfdi || '',
+            claveSat: tr.dataset.clavesat || '',
             homologar: !!prodId && prodId !== prodIdAuto,
         });
     });
@@ -2535,14 +2536,21 @@ async function rmConfirmarXml() {
         for (const l of lineas) {
             let productoId = l.prodId;
             if (!productoId) {
-                const { data: np, error: eNp } = await supabaseClient.from('productos').insert([{
+                const nuevoProd = {
                     nombre: l.desc,
                     costo_unitario: l.costo,
                     proveedor_id: rmXmlMeta ? rmXmlMeta.proveedorId : null,
                     unidad_medida_id: l.unidadId,
                     tipo: 'materia_prima',
                     stock_actual: 0,
-                }]).select('id').single();
+                };
+                // El producto nuevo nace con su ClaveProdServ del SAT (la del CFDI).
+                // Si productos.clave_sat aún no existe, reintenta sin ella.
+                let { data: np, error: eNp } = await supabaseClient.from('productos')
+                    .insert([l.claveSat ? { ...nuevoProd, clave_sat: l.claveSat } : nuevoProd]).select('id').single();
+                if (eNp && l.claveSat && /clave_sat|schema cache|could not find/i.test(eNp.message || '')) {
+                    ({ data: np, error: eNp } = await supabaseClient.from('productos').insert([nuevoProd]).select('id').single());
+                }
                 if (eNp) throw eNp;
                 productoId = np.id;
             }
