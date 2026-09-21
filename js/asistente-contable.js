@@ -93,8 +93,9 @@ export const GUIAS = {
     },
     'reportes-contables': {
         titulo: 'Reportes contables',
-        paraQue: 'Tres reportes en pestañas: Balanza de comprobación (movimientos del periodo), Estado de resultados (utilidad del periodo) y Balance general (saldo acumulado a una fecha — activo, pasivo y capital).',
+        paraQue: 'Cuatro reportes en pestañas: Balanza de comprobación (movimientos del periodo), Estado de resultados (utilidad del periodo), Balance general (saldo acumulado a una fecha — activo, pasivo y capital) y Auxiliar de cuentas contables (cada movimiento de una o varias cuentas, con saldo inicial, saldo corriendo y saldo final).',
         pasos: [
+            'Auxiliar de cuentas contables: elige el periodo y la cuenta (o un rango; una cuenta-mayor como 115 incluye todas sus subcuentas). Haz clic en una póliza para ver su detalle; "Exportar CSV" baja una fila por movimiento.',
             'Elige el periodo (Desde/Hasta) y pulsa Generar — el Balance general solo usa "Hasta", ya que un balance siempre es acumulado desde el inicio, no "del periodo".',
             'En el Balance general, las cuentas-mayor empiezan colapsadas: haz clic para desglosarlas en sus subcuentas, y en una subcuenta para ver sus movimientos — así no arranca con todo abierto.',
             'Revisa la cuenta 503.98 (capacidad no utilizada): si crece mes a mes, tienes planta que pagas y no usas.',

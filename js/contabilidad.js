@@ -1809,6 +1809,223 @@ function rcCablearDesglose() {
     });
 }
 
+// ---------------------------------------------------------------------
+//  Auxiliar de cuentas contables
+//  El reporte clásico de cualquier sistema contable (CONTPAQi, Aspel COI,
+//  SAP...): por cada cuenta, su saldo inicial, cada movimiento del periodo
+//  (fecha, póliza, concepto, cargo, abono) con el saldo corriendo, y el
+//  total del periodo con el saldo final. Se elige una cuenta o un rango; si
+//  eliges una cuenta-mayor (p. ej. 115) entran todas sus subcuentas. Solo
+//  pólizas contabilizadas (las canceladas no cuentan).
+// ---------------------------------------------------------------------
+let rcAuxCtas = null;        // catálogo de cuentas para los selectores
+let rcAuxResultado = null;   // { desde, hasta, cDesde, cHasta, bloques } — lo usa el CSV
+
+const rcEsc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+async function rcCargarCtasAux() {
+    if (rcAuxCtas) return rcAuxCtas;
+    const { data, error } = await supabaseClient.from('cuentas_contables')
+        .select('id, codigo, nombre, naturaleza, tipo, nivel, afectable')
+        .order('codigo', { ascending: true });
+    if (error) throw error;
+    rcAuxCtas = data || [];
+    return rcAuxCtas;
+}
+
+// Muestra los filtros propios del Auxiliar solo en su pestaña y llena los selectores de cuenta.
+async function rcPrepararFiltrosAux() {
+    const caja = document.getElementById('rcAuxFiltros');
+    if (!caja) return;
+    const activo = rcTab === 'auxiliar';
+    caja.classList.toggle('hidden', !activo);
+    caja.classList.toggle('flex', activo);
+    if (!activo) return;
+
+    const selD = document.getElementById('rcAuxDesde');
+    const selH = document.getElementById('rcAuxHasta');
+    if (selD.options.length > 1) return;        // ya están llenos
+    try {
+        const ctas = await rcCargarCtasAux();
+        const opts = '<option value="">(elige una cuenta)</option>' + ctas.map((c) =>
+            `<option value="${rcEsc(c.codigo)}">${'  '.repeat(Math.max(0, (c.nivel || 1) - 1))}${rcEsc(c.codigo)} · ${rcEsc(c.nombre)}</option>`).join('');
+        selD.innerHTML = opts;
+        selH.innerHTML = opts;
+    } catch (err) {
+        document.getElementById('rcResultado').innerHTML =
+            `<p class="text-rose-400 text-xs">No se pudo cargar el plan de cuentas.<br>${rcEsc(err.message || err)}</p>`;
+    }
+}
+
+// Cuentas de detalle (afectables) dentro del rango; una cuenta-mayor incluye sus subcuentas.
+function rcCuentasEnRango(ctas, cDesde, cHasta) {
+    return ctas.filter((c) => c.afectable && c.codigo >= cDesde && (c.codigo <= cHasta || c.codigo.startsWith(cHasta)));
+}
+
+// Todos los movimientos contabilizados de esas cuentas hasta "hasta" (de 1000 en 1000, y por
+// grupos de cuentas para no exceder el largo de la URL).
+async function rcTraerMovsAux(ids, hasta) {
+    const out = [];
+    for (let i = 0; i < ids.length; i += 60) {
+        const grupo = ids.slice(i, i + 60);
+        for (let desdeFila = 0; ; desdeFila += 1000) {
+            const { data, error } = await supabaseClient.from('poliza_movimientos')
+                .select('id, cuenta_id, cargo, abono, concepto, polizas!inner(id, fecha, estatus, tipo, numero, concepto, origen)')
+                .in('cuenta_id', grupo)
+                .eq('polizas.estatus', 'contabilizada')
+                .lte('polizas.fecha', hasta)
+                .order('id', { ascending: true })
+                .range(desdeFila, desdeFila + 999);
+            if (error) throw error;
+            out.push(...(data || []));
+            if (!data || data.length < 1000) break;
+        }
+    }
+    return out;
+}
+
+async function rcGenerarAuxiliar() {
+    const res = document.getElementById('rcResultado');
+    const desde = document.getElementById('rcDesde').value;
+    const hasta = document.getElementById('rcHasta').value;
+    const cDesde = document.getElementById('rcAuxDesde').value;
+    const cHasta = document.getElementById('rcAuxHasta').value;
+    if (!desde || !hasta) { alert('Indica el periodo.'); return; }
+    if (!cDesde || !cHasta) {
+        rcAuxResultado = null;
+        res.innerHTML = '<p class="text-slate-400">Elige la cuenta — o el rango de cuentas — del que quieres el auxiliar. Si eliges una cuenta-mayor (por ejemplo 115), entran todas sus subcuentas.</p>';
+        return;
+    }
+    res.innerHTML = '<p class="text-slate-500">Consultando movimientos...</p>';
+    try {
+        const ctas = await rcCargarCtasAux();
+        const cuentas = rcCuentasEnRango(ctas, cDesde, cHasta);
+        if (!cuentas.length) { res.innerHTML = '<p class="text-slate-400">Ese rango no tiene cuentas de detalle (afectables).</p>'; return; }
+
+        const movs = await rcTraerMovsAux(cuentas.map((c) => c.id), hasta);
+        const porCuenta = new Map();
+        for (const m of movs) {
+            if (!porCuenta.has(m.cuenta_id)) porCuenta.set(m.cuenta_id, []);
+            porCuenta.get(m.cuenta_id).push(m);
+        }
+        const orden = (a, b) => (a.polizas.fecha < b.polizas.fecha ? -1 : a.polizas.fecha > b.polizas.fecha ? 1 : (a.polizas.id - b.polizas.id) || (a.id - b.id));
+
+        const bloques = cuentas.map((c) => {
+            const lista = (porCuenta.get(c.id) || []).slice().sort(orden);
+            const signo = c.naturaleza === 'A' ? -1 : 1;          // el saldo se presenta en su naturaleza: + = normal
+            let saldo = 0;
+            for (const m of lista) if (m.polizas.fecha < desde) saldo += signo * ((Number(m.cargo) || 0) - (Number(m.abono) || 0));
+            const saldoIni = saldo;
+            let cargos = 0, abonos = 0;
+            const filas = [];
+            for (const m of lista) {
+                const f = m.polizas.fecha;
+                if (f < desde || f > hasta) continue;
+                const cg = Number(m.cargo) || 0, ab = Number(m.abono) || 0;
+                saldo += signo * (cg - ab);
+                cargos += cg; abonos += ab;
+                filas.push({
+                    fecha: f, polId: m.polizas.id, tipo: m.polizas.tipo, numero: m.polizas.numero,
+                    concepto: m.concepto || m.polizas.concepto || '',
+                    origen: m.polizas.origen && m.polizas.origen !== 'manual' ? m.polizas.origen : '',
+                    cargo: cg, abono: ab, saldo,
+                });
+            }
+            return { cuenta: c, saldoIni, filas, cargos, abonos, saldoFin: saldo };
+        });
+
+        rcAuxResultado = { desde, hasta, cDesde, cHasta, bloques };
+        rcAuxPintar();
+    } catch (err) {
+        res.innerHTML = `<p class="text-rose-400 text-xs">No se pudo generar el auxiliar. ¿Corriste los SQL de contabilidad?<br>${rcEsc(err.message || err)}</p>`;
+    }
+}
+
+function rcAuxPintar() {
+    const res = document.getElementById('rcResultado');
+    const r = rcAuxResultado;
+    if (!r) return;
+    const soloMov = document.getElementById('rcAuxSoloMov').checked;
+    const bloques = r.bloques.filter((b) => !soloMov || b.filas.length || Math.abs(b.saldoIni) >= 0.005);
+    if (!bloques.length) { res.innerHTML = '<p class="text-slate-400">Sin movimientos ni saldo en ese periodo para las cuentas elegidas.</p>'; return; }
+
+    let tCargos = 0, tAbonos = 0, nMovs = 0;
+    const cuerpo = bloques.map((b) => {
+        tCargos += b.cargos; tAbonos += b.abonos; nMovs += b.filas.length;
+        const c = b.cuenta;
+        return `
+        <tr class="bg-slate-800/60"><td class="p-2 font-bold text-sky-400" colspan="7">${rcEsc(c.codigo)} · ${rcEsc(c.nombre)}
+            <span class="font-normal text-[10px] text-slate-500 ml-2">${c.naturaleza === 'A' ? 'Naturaleza acreedora' : 'Naturaleza deudora'}</span></td></tr>
+        <tr class="border-b border-slate-900 text-slate-400"><td class="p-1.5" colspan="6">Saldo inicial al ${rcEsc(r.desde)}</td><td class="p-1.5 text-right font-mono">${rcFmt(b.saldoIni)}</td></tr>
+        ${b.filas.map((f) => `
+        <tr class="border-b border-slate-900/60">
+            <td class="p-1.5 whitespace-nowrap text-slate-400">${rcEsc(f.fecha)}</td>
+            <td class="p-1.5 whitespace-nowrap"><button type="button" class="rc-ver-pol text-sky-400 hover:underline font-mono" data-pol="${f.polId}">${rcEsc(f.tipo || '?')} #${rcEsc(f.numero ?? '?')}</button></td>
+            <td class="p-1.5 text-slate-300">${rcEsc(f.concepto)}</td>
+            <td class="p-1.5 text-[10px] text-slate-500">${rcEsc(f.origen)}</td>
+            <td class="p-1.5 text-right font-mono">${f.cargo ? rcFmt(f.cargo) : ''}</td>
+            <td class="p-1.5 text-right font-mono">${f.abono ? rcFmt(f.abono) : ''}</td>
+            <td class="p-1.5 text-right font-mono ${f.saldo < 0 ? 'text-rose-400' : ''}">${rcFmt(f.saldo)}</td>
+        </tr>`).join('')}
+        <tr class="border-t border-slate-700 font-semibold bg-slate-900/50">
+            <td class="p-1.5" colspan="4">Total del periodo — ${b.filas.length} movimiento(s)</td>
+            <td class="p-1.5 text-right font-mono">${rcFmt(b.cargos)}</td>
+            <td class="p-1.5 text-right font-mono">${rcFmt(b.abonos)}</td>
+            <td class="p-1.5 text-right font-mono ${b.saldoFin < 0 ? 'text-rose-400' : ''}">${rcFmt(b.saldoFin)}</td>
+        </tr>
+        <tr><td colspan="7" class="p-1"></td></tr>`;
+    }).join('');
+
+    const rango = r.cDesde === r.cHasta ? `Cuenta ${rcEsc(r.cDesde)}` : `Cuentas ${rcEsc(r.cDesde)} a ${rcEsc(r.cHasta)}`;
+    res.innerHTML = `
+        <div id="rcTabla" class="overflow-x-auto">
+            <div class="mb-3">
+                <p class="text-sm font-bold text-slate-200">Auxiliar de cuentas contables</p>
+                <p class="text-[11px] text-slate-500">${rango} · Del ${rcEsc(r.desde)} al ${rcEsc(r.hasta)} · Solo pólizas contabilizadas · ${bloques.length} cuenta(s), ${nMovs} movimiento(s)</p>
+            </div>
+            <table class="w-full text-left text-[11px] text-slate-300">
+                <thead class="bg-slate-900 text-sky-400 uppercase border-b border-slate-800 sticky top-0">
+                    <tr><th class="p-2">Fecha</th><th class="p-2">Póliza</th><th class="p-2">Concepto</th><th class="p-2">Origen</th>
+                        <th class="p-2 text-right">Cargos</th><th class="p-2 text-right">Abonos</th><th class="p-2 text-right">Saldo</th></tr>
+                </thead>
+                <tbody>
+                    ${cuerpo}
+                    ${bloques.length > 1 ? `
+                    <tr class="border-t-2 border-slate-600 bg-slate-800 font-bold">
+                        <td class="p-2" colspan="4">TOTAL GENERAL</td>
+                        <td class="p-2 text-right font-mono">${rcFmt(tCargos)}</td>
+                        <td class="p-2 text-right font-mono">${rcFmt(tAbonos)}</td>
+                        <td class="p-2"></td>
+                    </tr>` : ''}
+                </tbody>
+            </table>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-2">El saldo corre en la naturaleza de cada cuenta (deudora: cargos − abonos; acreedora: abonos − cargos); entre paréntesis, si es contrario. Haz clic en una póliza para ver su detalle. Las pólizas canceladas no se incluyen.</p>`;
+    rcCablearDesglose();
+}
+
+// CSV con una fila por movimiento (una sola hoja filtrable en Excel), más saldo inicial y final de cada cuenta.
+function rcExportarAuxiliarCSV() {
+    const r = rcAuxResultado;
+    if (!r) { alert('Genera primero el auxiliar.'); return; }
+    const soloMov = document.getElementById('rcAuxSoloMov').checked;
+    const celda = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const num = (n) => (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
+    const filas = [['Cuenta', 'Nombre de la cuenta', 'Fecha', 'Tipo de póliza', 'Núm. póliza', 'Concepto', 'Origen', 'Cargos', 'Abonos', 'Saldo']];
+    r.bloques.filter((b) => !soloMov || b.filas.length || Math.abs(b.saldoIni) >= 0.005).forEach((b) => {
+        const base = [b.cuenta.codigo, b.cuenta.nombre];
+        filas.push([...base, r.desde, '', '', 'Saldo inicial', '', '', '', num(b.saldoIni)]);
+        b.filas.forEach((f) => filas.push([...base, f.fecha, f.tipo || '', f.numero ?? '', f.concepto, f.origen, f.cargo ? num(f.cargo) : '', f.abono ? num(f.abono) : '', num(f.saldo)]));
+        filas.push([...base, r.hasta, '', '', 'Saldo final del periodo', '', num(b.cargos), num(b.abonos), num(b.saldoFin)]);
+    });
+    const csv = '﻿' + filas.map((f) => f.map(celda).join(',')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    a.download = `auxiliar_cuentas_${r.cDesde}${r.cDesde === r.cHasta ? '' : '_a_' + r.cHasta}_${r.hasta}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 export async function cargarModuloReportesContables() {
     const cont = document.getElementById('contenedorReportesContables');
     if (!cont) return;
@@ -1820,6 +2037,15 @@ export async function cargarModuloReportesContables() {
                 <input type="date" id="rcDesde" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
             <div><label class="block text-[11px] text-slate-400 mb-1">Hasta</label>
                 <input type="date" id="rcHasta" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
+            <!-- Filtros propios del Auxiliar de cuentas contables (solo se ven en esa pestaña) -->
+            <div id="rcAuxFiltros" class="hidden items-end gap-3 flex-wrap">
+                <div><label class="block text-[11px] text-slate-400 mb-1">Cuenta desde</label>
+                    <select id="rcAuxDesde" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 max-w-[16rem]"><option value="">(elige una cuenta)</option></select></div>
+                <div><label class="block text-[11px] text-slate-400 mb-1">Cuenta hasta</label>
+                    <select id="rcAuxHasta" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 max-w-[16rem]"><option value="">(elige una cuenta)</option></select></div>
+                <button type="button" id="rcAuxTodas" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg border border-slate-700 cursor-pointer">Todas las cuentas</button>
+                <label class="flex items-center gap-1.5 text-[11px] text-slate-300 pb-2 cursor-pointer"><input type="checkbox" id="rcAuxSoloMov" checked class="accent-sky-500"> Solo cuentas con movimientos</label>
+            </div>
             <button type="button" id="rcGenerar" class="text-xs bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg font-semibold cursor-pointer">Generar</button>
             <div class="ml-auto flex gap-2">
                 <button type="button" id="rcCsv" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 px-3 py-2 rounded-lg border border-slate-700 cursor-pointer">Exportar CSV</button>
@@ -1837,9 +2063,31 @@ export async function cargarModuloReportesContables() {
     document.getElementById('rcGenerar').addEventListener('click', () => rcGenerar(true));
     document.getElementById('rcCsv').addEventListener('click', rcExportarCSV);
     document.getElementById('rcPrint').addEventListener('click', () => {
-        const titulo = rcTab === 'balanza' ? 'Balanza de comprobacion' : rcTab === 'balance' ? 'Balance general' : 'Estado de resultados';
+        const titulo = rcTab === 'balanza' ? 'Balanza de comprobacion' : rcTab === 'balance' ? 'Balance general'
+            : rcTab === 'auxiliar' ? 'Auxiliar de cuentas contables' : 'Estado de resultados';
         imprimirConPlantilla('generico', titulo, 'rcTabla');
     });
+
+    // Auxiliar: al elegir la cuenta "desde" la de "hasta" la sigue (una sola cuenta por defecto),
+    // y el reporte se genera solo al cambiar la selección.
+    const selAuxD = document.getElementById('rcAuxDesde');
+    const selAuxH = document.getElementById('rcAuxHasta');
+    selAuxD.addEventListener('change', () => {
+        if (!selAuxH.value || selAuxH.value < selAuxD.value) selAuxH.value = selAuxD.value;
+        rcGenerarAuxiliar();
+    });
+    selAuxH.addEventListener('change', () => {
+        if (!selAuxD.value || selAuxD.value > selAuxH.value) selAuxD.value = selAuxH.value;
+        rcGenerarAuxiliar();
+    });
+    document.getElementById('rcAuxTodas').addEventListener('click', () => {
+        if (selAuxD.options.length < 3) return;
+        selAuxD.selectedIndex = 1;
+        selAuxH.selectedIndex = selAuxH.options.length - 1;
+        rcGenerarAuxiliar();
+    });
+    document.getElementById('rcAuxSoloMov').addEventListener('change', rcAuxPintar);
+    rcPrepararFiltrosAux();
 
     await rcGenerar(true);
     montarGuia(document.getElementById('contenedorReportesContables'), 'reportes-contables');
@@ -1847,13 +2095,22 @@ export async function cargarModuloReportesContables() {
 
 function rcRenderTabs() {
     const el = document.getElementById('rcTabs');
-    const tabs = [{ id: 'balanza', t: 'Balanza de comprobación' }, { id: 'resultados', t: 'Estado de resultados' }, { id: 'balance', t: 'Balance general' }];
+    const tabs = [{ id: 'balanza', t: 'Balanza de comprobación' }, { id: 'resultados', t: 'Estado de resultados' }, { id: 'balance', t: 'Balance general' },
+                  { id: 'auxiliar', t: 'Auxiliar de cuentas contables' }];
     el.innerHTML = tabs.map((x) => `
         <button data-tab="${x.id}" class="rc-tab text-xs font-semibold px-3 py-2 rounded-lg transition ${x.id === rcTab ? 'bg-sky-600 text-white' : 'text-slate-400 hover:bg-slate-800'}" style="cursor:pointer">${x.t}</button>`).join('');
-    el.querySelectorAll('.rc-tab').forEach((b) => b.addEventListener('click', () => { rcTab = b.dataset.tab; rcRenderTabs(); rcPintar(); }));
+    el.querySelectorAll('.rc-tab').forEach((b) => b.addEventListener('click', async () => {
+        rcTab = b.dataset.tab;
+        rcRenderTabs();
+        await rcPrepararFiltrosAux();
+        if (rcTab === 'auxiliar') { rcGenerarAuxiliar(); return; }
+        // Las demás pestañas usan la carga general; si aún no existe (se entró directo al Auxiliar), se hace ahora.
+        if (!rcCache) await rcGenerar(true); else rcPintar();
+    }));
 }
 
 async function rcGenerar(forzar) {
+    if (rcTab === 'auxiliar') { await rcGenerarAuxiliar(); return; }   // el Auxiliar consulta por su cuenta
     const desde = document.getElementById('rcDesde').value;
     const hasta = document.getElementById('rcHasta').value;
     if (!desde || !hasta) { alert('Indica el periodo.'); return; }
@@ -2184,7 +2441,7 @@ window.rcVerPoliza = async function (polId) {
     cont.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 text-sm text-slate-300">
         <p class="text-slate-500">Cargando póliza #${polId}...</p></div>`;
 
-    const ctaMapa = new Map((rcCache?.ctas || []).map((c) => [c.id, c]));
+    const ctaMapa = new Map((rcCache?.ctas || rcAuxCtas || []).map((c) => [c.id, c]));
     try {
         const { data: pol, error } = await supabaseClient
             .from('polizas')
@@ -2266,6 +2523,7 @@ window.rcVerPoliza = async function (polId) {
 };
 
 function rcExportarCSV() {
+    if (rcTab === 'auxiliar') { rcExportarAuxiliarCSV(); return; }
     const tabla = document.querySelector('#rcTabla table');
     if (!tabla) { alert('Genera primero un reporte.'); return; }
     const filas = [];
