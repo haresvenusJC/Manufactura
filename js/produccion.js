@@ -2,6 +2,7 @@ import { supabaseClient } from './supabase.js';
 import { cargarInventarioCompleto } from './inventario.js';
 import { imprimirConPlantilla } from './impresion.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+import { convertirEnBuscador } from './buscador-select.js';
 
 const histProdOrden = crearOrdenTabla('fecha', 'desc');
 
@@ -219,10 +220,15 @@ export async function cargarModuloProduccion() {
         const selectProd = document.getElementById('productoProducirId');
         if (!errProd && productos) {
             selectProd.innerHTML = '<option value="">Seleccione un producto...</option>';
-            productos.forEach(p => {
-                selectProd.innerHTML += `<option value="${p.id}">${p.nombre} (${p.sku || 'Sin SKU'})</option>`;
-            });
+            // Alfabético (en español: acentos y ñ en su lugar), no en el orden en que vengan de la base.
+            productos.slice()
+                .sort((a, b) => String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es', { numeric: true, sensitivity: 'base' }))
+                .forEach(p => {
+                    selectProd.innerHTML += `<option value="${p.id}">${p.nombre} (${p.sku || 'Sin SKU'})</option>`;
+                });
         }
+        // Buscador: escribes parte del nombre o del SKU y eliges (el select sigue siendo la fuente del valor).
+        convertirEnBuscador(selectProd, { placeholder: 'Escribe para buscar por nombre o SKU…' });
 
         // --- Panel de existencias según BOM: se recalcula al cambiar producto o cantidad ---
         const inputCantidadProd = document.getElementById('cantidadProducida');
