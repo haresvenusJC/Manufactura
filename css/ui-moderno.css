@@ -1,42 +1,86 @@
 /* =====================================================================
-   UI moderna — Hares de México
-   Capa visual global sobre Tailwind. NO cambia colores fijos: todo sale
-   de las variables del tema (--bg-*, --tx-*, --acc, --ok, --bad...) que
-   define index.html, así que cambiar de tema (Midnight, Forest, Plum,
-   Confort, Paper, Mist...) sigue repintando TODO, incluidos los botones
-   de color, que antes no seguían al tema.
+   UI moderna — Hares de México  (v2: más color, volumen y carácter)
+   Capa visual global sobre Tailwind. Todo sale de las variables del
+   tema (--bg-*, --tx-*, --acc, --acc-3, --ind, --ok, --bad...), así que
+   cambiar de tema repinta TODO, incluidos los botones de color.
    Se carga DESPUÉS del <style> de index.html.
    ===================================================================== */
 
 /* ---------- Tokens ---------- */
 :root {
-    --r-sm: 10px;
-    --r-md: 14px;
-    --r-lg: 20px;
+    --r-sm: 12px;
+    --r-md: 16px;
+    --r-lg: 22px;
 
-    --sh-1: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 12px 32px -20px rgba(0, 0, 0, .75);
-    --sh-2: 0 28px 70px -28px rgba(0, 0, 0, .8);
-    --btn-sh:   0 8px 18px -10px rgba(0, 0, 0, .7), 0 1px 0 rgba(255, 255, 255, .14) inset;
-    --btn-sh-h: 0 12px 24px -10px rgba(0, 0, 0, .75), 0 1px 0 rgba(255, 255, 255, .18) inset;
+    --acc-3: #f472b6;          /* tercer color de acento (degradados, brillos) */
+
+    --sh-1: 0 1px 0 rgba(255, 255, 255, .05) inset, 0 18px 40px -22px rgba(0, 0, 0, .85);
+    --sh-2: 0 32px 80px -30px rgba(0, 0, 0, .9);
+    --in-sh: inset 0 2px 5px rgba(0, 0, 0, .40), 0 1px 0 rgba(255, 255, 255, .05);
+    --btn-drop: rgba(0, 0, 0, .55);
 
     /* Botones sólidos: el color semántico del tema, oscurecido para que el
        texto blanco siempre tenga contraste (en claros y en oscuros). */
-    --ok-s:  color-mix(in srgb, var(--ok) 58%, #04100b);
-    --acc-s: color-mix(in srgb, var(--acc) 55%, #050d16);
-    --ind-s: color-mix(in srgb, var(--ind) 55%, #080a1c);
-    --bad-s: color-mix(in srgb, var(--bad) 60%, #14060a);
-    --wrn-s: color-mix(in srgb, var(--warn) 52%, #140d02);
-    --ok-h:  color-mix(in srgb, var(--ok-s) 84%, #fff);
-    --acc-h: color-mix(in srgb, var(--acc-s) 84%, #fff);
-    --ind-h: color-mix(in srgb, var(--ind-s) 84%, #fff);
-    --bad-h: color-mix(in srgb, var(--bad-s) 84%, #fff);
-    --wrn-h: color-mix(in srgb, var(--wrn-s) 84%, #fff);
+    --ok-s:  color-mix(in srgb, var(--ok) 62%, #04100b);
+    --acc-s: color-mix(in srgb, var(--acc) 60%, #050d16);
+    --ind-s: color-mix(in srgb, var(--ind) 60%, #080a1c);
+    --bad-s: color-mix(in srgb, var(--bad) 64%, #14060a);
+    --wrn-s: color-mix(in srgb, var(--warn) 56%, #140d02);
+    --ok-h:  color-mix(in srgb, var(--ok-s) 86%, #fff);
+    --acc-h: color-mix(in srgb, var(--acc-s) 86%, #fff);
+    --ind-h: color-mix(in srgb, var(--ind-s) 86%, #fff);
+    --bad-h: color-mix(in srgb, var(--bad-s) 86%, #fff);
+    --wrn-h: color-mix(in srgb, var(--wrn-s) 86%, #fff);
 }
+[data-theme="midnight"] { --acc-3: #67e8f9; }
+[data-theme="forest"]   { --acc-3: #a3e635; }
+[data-theme="plum"]     { --acc-3: #fbbf24; }
+[data-theme="confort"]  { --acc-3: #ffd166; }
 [data-theme="paper"], [data-theme="mist"] {
-    --sh-1: 0 1px 2px rgba(40, 45, 60, .07), 0 12px 30px -18px rgba(40, 45, 60, .28);
-    --sh-2: 0 28px 60px -26px rgba(40, 45, 60, .38);
-    --btn-sh:   0 6px 14px -9px rgba(40, 45, 60, .5), 0 1px 0 rgba(255, 255, 255, .18) inset;
-    --btn-sh-h: 0 9px 18px -9px rgba(40, 45, 60, .55), 0 1px 0 rgba(255, 255, 255, .22) inset;
+    --sh-1: 0 1px 2px rgba(40, 45, 60, .07), 0 16px 36px -20px rgba(40, 45, 60, .30);
+    --sh-2: 0 32px 70px -28px rgba(40, 45, 60, .42);
+    --in-sh: inset 0 2px 4px rgba(40, 45, 60, .14), 0 1px 0 rgba(255, 255, 255, .7);
+    --btn-drop: rgba(40, 45, 60, .38);
+}
+[data-theme="paper"] { --acc-3: #be185d; }
+[data-theme="mist"]  { --acc-3: #0d9488; }
+
+/* ---------- Temas oscuros nuevos ---------- */
+/* Aurora: índigo profundo con cian, violeta y rosa. */
+[data-theme="aurora"] {
+    color-scheme: dark;
+    --bg-0:#0a0a1f; --bg-1:#12123a; --bg-2:#1d1d4b; --bg-3:#2c2c68; --soft:#101033;
+    --bd-0:#12123a; --bd-1:#26265c; --bd-2:#3a3a84;
+    --tx-0:#f3f2ff; --tx-1:#e3e1fb; --tx-2:#cbc8f0; --tx-3:#a4a0d2; --tx-4:#7f7bb3; --tx-5:#615d95;
+    --acc:#22d3ee; --acc-2:#67e8f9; --ind:#a78bfa; --acc-3:#f472b6;
+    --ok:#34d399; --bad:#fb7185; --warn:#fbbf24; --err:#f87171; --chip:#171748;
+}
+/* Atardecer: vino oscuro con naranja, rosa y violeta. */
+[data-theme="sunset"] {
+    color-scheme: dark;
+    --bg-0:#150a10; --bg-1:#22101b; --bg-2:#38192b; --bg-3:#52263c; --soft:#2b1421;
+    --bd-0:#22101b; --bd-1:#43213a; --bd-2:#63304d;
+    --tx-0:#fff2ed; --tx-1:#ffe3d9; --tx-2:#f4cabd; --tx-3:#d3a094; --tx-4:#ab7d72; --tx-5:#865e56;
+    --acc:#ff9f43; --acc-2:#ffbd7a; --ind:#f472b6; --acc-3:#c084fc;
+    --ok:#4ade80; --bad:#fb7185; --warn:#fcd34d; --err:#f87171; --chip:#2e1624;
+}
+/* Neón: grafito con lima eléctrica y violeta. */
+[data-theme="neon"] {
+    color-scheme: dark;
+    --bg-0:#08090b; --bg-1:#111317; --bg-2:#1c1f26; --bg-3:#2c313b; --soft:#0e1013;
+    --bd-0:#111317; --bd-1:#262a33; --bd-2:#3b414e;
+    --tx-0:#f5f7f9; --tx-1:#e7eaef; --tx-2:#d0d5dd; --tx-3:#9ba3b0; --tx-4:#747d8b; --tx-5:#575f6c;
+    --acc:#a3e635; --acc-2:#bef264; --ind:#a78bfa; --acc-3:#22d3ee;
+    --ok:#4ade80; --bad:#fb7185; --warn:#fbbf24; --err:#f87171; --chip:#151820;
+}
+/* Océano: azul marino profundo con aqua y coral. */
+[data-theme="ocean"] {
+    color-scheme: dark;
+    --bg-0:#03111a; --bg-1:#061d2a; --bg-2:#0c3045; --bg-3:#154562; --soft:#072434;
+    --bd-0:#061d2a; --bd-1:#113a54; --bd-2:#1b5675;
+    --tx-0:#ebf9ff; --tx-1:#d6eefa; --tx-2:#b4ddef; --tx-3:#87b8d0; --tx-4:#5f94af; --tx-5:#467792;
+    --acc:#5eead4; --acc-2:#99f6e4; --ind:#60a5fa; --acc-3:#fb923c;
+    --ok:#4ade80; --bad:#fb7185; --warn:#fbbf24; --err:#f87171; --chip:#08283a;
 }
 
 /* ---------- Tipografía y fondo ---------- */
@@ -46,13 +90,27 @@ body {
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     background-image:
-        radial-gradient(1100px 480px at 88% -8%, color-mix(in srgb, var(--acc) 9%, transparent), transparent 62%),
-        radial-gradient(900px 420px at -6% 4%, color-mix(in srgb, var(--ind) 7%, transparent), transparent 58%);
+        radial-gradient(900px 520px at 92% -8%,  color-mix(in srgb, var(--acc)   17%, transparent), transparent 62%),
+        radial-gradient(800px 480px at -8% 6%,   color-mix(in srgb, var(--acc-3) 13%, transparent), transparent 60%),
+        radial-gradient(1000px 640px at 55% 118%, color-mix(in srgb, var(--ind)   13%, transparent), transparent 62%);
     background-attachment: fixed;
 }
 h1, h2, h3, h4 { letter-spacing: -0.015em; }
 .font-mono { font-variant-numeric: tabular-nums; }
-::selection { background: color-mix(in srgb, var(--acc) 34%, transparent); }
+::selection { background: color-mix(in srgb, var(--acc) 38%, transparent); }
+
+/* Títulos de cada vista: degradado de los colores del tema */
+h2.text-xl {
+    background-image: linear-gradient(90deg, var(--acc), var(--ind) 58%, var(--acc-3));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent !important;
+    width: fit-content; max-width: 100%;
+}
+
+/* Entrada suave al cambiar de vista */
+@keyframes ui-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.vista-seccion:not(.hidden) { animation: ui-rise .38s cubic-bezier(.2, .8, .2, 1) both; }
+@media (prefers-reduced-motion: reduce) { .vista-seccion:not(.hidden) { animation: none; } }
 
 /* Scroll discreto, del color del tema */
 * { scrollbar-width: thin; scrollbar-color: var(--bd-2) transparent; }
@@ -61,41 +119,45 @@ h1, h2, h3, h4 { letter-spacing: -0.015em; }
 *::-webkit-scrollbar-thumb { background: var(--bd-2); border-radius: 999px; border: 3px solid transparent; background-clip: padding-box; }
 *::-webkit-scrollbar-thumb:hover { background: var(--tx-5); background-clip: padding-box; border: 3px solid transparent; }
 
-/* ---------- Radios: más generosos en toda la app ---------- */
+/* ---------- Radios generosos ---------- */
 .rounded-lg  { border-radius: var(--r-sm) !important; }
 .rounded-xl  { border-radius: var(--r-md) !important; }
 .rounded-2xl { border-radius: var(--r-lg) !important; }
 
-/* ---------- Paneles / tarjetas ---------- */
-.bg-slate-900.border { box-shadow: var(--sh-1); }
-details.bg-slate-900\/40, details.bg-slate-900\/50 { box-shadow: none; }
+/* ---------- Paneles: cristal con borde degradado ---------- */
+.bg-slate-900.border:not(input):not(select):not(textarea):not(button):not(span) {
+    border-color: transparent !important;
+    background-image:
+        linear-gradient(158deg, color-mix(in srgb, var(--acc) 7%, var(--bg-1)), var(--bg-1) 52%),
+        linear-gradient(140deg,
+            color-mix(in srgb, var(--acc)   52%, transparent),
+            color-mix(in srgb, var(--acc-3) 30%, transparent) 46%,
+            color-mix(in srgb, var(--ind)   16%, transparent));
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    box-shadow: var(--sh-1);
+}
 .fixed > .bg-slate-900.border, .fixed.bg-slate-900.border { box-shadow: var(--sh-2); }
 
-/* ---------- Botones: redondeados, con relieve y respuesta al toque ---------- */
+/* ---------- Botones: píldora con volumen 3D ---------- */
 button {
     transition: background-color .16s ease, border-color .16s ease, color .16s ease,
-                box-shadow .16s ease, transform .1s ease, filter .16s ease, opacity .16s ease;
+                box-shadow .14s ease, transform .1s ease, filter .16s ease, opacity .16s ease;
 }
-button:not([disabled]):active { transform: translateY(1px) scale(.985); }
-button:disabled, button[disabled] { opacity: .5; cursor: not-allowed; }
+button:disabled, button[disabled] { opacity: .5; cursor: not-allowed; filter: saturate(.6); }
 
-/* Botón normal = píldora. Filas-botón (menú, secciones) y pestañas con
-   subrayado quedan fuera para no deformarlas. */
 button:not(.text-left):not(.w-full):not([class*="border-b-2"]):not(.th-orden) { border-radius: 9999px !important; }
 button.w-full:not(.text-left) { border-radius: var(--r-md) !important; }
 button.text-left { border-radius: var(--r-sm) !important; }
 
-button:focus-visible, a:focus-visible, summary:focus-visible {
-    outline: 2px solid var(--acc);
-    outline-offset: 2px;
-}
+button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }
 
-/* Botones de color: siguen al tema y llevan un brillo sutil arriba. */
-.bg-emerald-500, .bg-emerald-600, .bg-emerald-700, .bg-emerald-800 { background-color: var(--ok-s) !important; }
-.bg-sky-600, .bg-sky-700, .bg-sky-800                                { background-color: var(--acc-s) !important; }
-.bg-indigo-500, .bg-indigo-600, .bg-indigo-700                       { background-color: var(--ind-s) !important; }
-.bg-rose-600, .bg-rose-700, .bg-rose-800, .bg-red-600, .bg-red-700, .bg-red-800 { background-color: var(--bad-s) !important; }
-.bg-amber-600, .bg-amber-700, .bg-amber-800                          { background-color: var(--wrn-s) !important; }
+/* Familias de color: siguen al tema; --edge es el "canto" oscuro del 3D. */
+.bg-emerald-500, .bg-emerald-600, .bg-emerald-700, .bg-emerald-800 { background-color: var(--ok-s) !important;  --edge: color-mix(in srgb, var(--ok-s)  48%, #000); }
+.bg-sky-600, .bg-sky-700, .bg-sky-800                                { background-color: var(--acc-s) !important; --edge: color-mix(in srgb, var(--acc-s) 48%, #000); }
+.bg-indigo-500, .bg-indigo-600, .bg-indigo-700                       { background-color: var(--ind-s) !important; --edge: color-mix(in srgb, var(--ind-s) 48%, #000); }
+.bg-rose-600, .bg-rose-700, .bg-rose-800, .bg-red-600, .bg-red-700, .bg-red-800 { background-color: var(--bad-s) !important; --edge: color-mix(in srgb, var(--bad-s) 48%, #000); }
+.bg-amber-600, .bg-amber-700, .bg-amber-800                          { background-color: var(--wrn-s) !important; --edge: color-mix(in srgb, var(--wrn-s) 48%, #000); }
 
 .hover\:bg-emerald-500:hover, .hover\:bg-emerald-600:hover, .hover\:bg-emerald-700:hover { background-color: var(--ok-h) !important; }
 .hover\:bg-sky-500:hover, .hover\:bg-sky-600:hover, .hover\:bg-sky-700:hover             { background-color: var(--acc-h) !important; }
@@ -103,65 +165,124 @@ button:focus-visible, a:focus-visible, summary:focus-visible {
 .hover\:bg-rose-500:hover, .hover\:bg-rose-600:hover, .hover\:bg-red-500:hover, .hover\:bg-red-600:hover { background-color: var(--bad-h) !important; }
 .hover\:bg-amber-600:hover, .hover\:bg-amber-700:hover                                    { background-color: var(--wrn-h) !important; }
 
-button.bg-emerald-500, button.bg-emerald-600, button.bg-emerald-700, button.bg-emerald-800,
-button.bg-sky-600, button.bg-sky-700, button.bg-sky-800,
-button.bg-indigo-500, button.bg-indigo-600, button.bg-indigo-700,
-button.bg-rose-600, button.bg-rose-700, button.bg-rose-800, button.bg-red-600, button.bg-red-700, button.bg-red-800,
-button.bg-amber-600, button.bg-amber-700, button.bg-amber-800 {
-    background-image: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 58%);
-    box-shadow: var(--btn-sh);
+/* El volumen: brillo arriba, sombra interior abajo, canto sólido y sombra proyectada. */
+button:is(.bg-emerald-500, .bg-emerald-600, .bg-emerald-700, .bg-emerald-800,
+          .bg-sky-600, .bg-sky-700, .bg-sky-800,
+          .bg-indigo-500, .bg-indigo-600, .bg-indigo-700,
+          .bg-rose-600, .bg-rose-700, .bg-rose-800, .bg-red-600, .bg-red-700, .bg-red-800,
+          .bg-amber-600, .bg-amber-700, .bg-amber-800) {
+    --th: 3px;
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, .32), rgba(255, 255, 255, .07) 46%, rgba(0, 0, 0, .14));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .55),
+        inset 0 -2px 0 rgba(0, 0, 0, .16),
+        0 var(--th) 0 var(--edge),
+        0 calc(var(--th) + 7px) 16px -6px var(--btn-drop);
+    text-shadow: 0 1px 0 rgba(0, 0, 0, .3);
+    transform: translateY(0);
 }
-button.bg-emerald-500:hover, button.bg-emerald-600:hover, button.bg-emerald-700:hover, button.bg-emerald-800:hover,
-button.bg-sky-600:hover, button.bg-sky-700:hover, button.bg-sky-800:hover,
-button.bg-indigo-500:hover, button.bg-indigo-600:hover, button.bg-indigo-700:hover,
-button.bg-rose-600:hover, button.bg-rose-700:hover, button.bg-rose-800:hover,
-button.bg-amber-600:hover, button.bg-amber-700:hover, button.bg-amber-800:hover {
-    box-shadow: var(--btn-sh-h);
+/* Botones chicos (tablas): canto más delgado. */
+button:is([class*="text-[11px]"], [class*="text-[10px]"]):is(.bg-emerald-500, .bg-emerald-600, .bg-emerald-700, .bg-emerald-800,
+          .bg-sky-600, .bg-sky-700, .bg-sky-800, .bg-indigo-500, .bg-indigo-600, .bg-indigo-700,
+          .bg-rose-600, .bg-rose-700, .bg-rose-800, .bg-red-600, .bg-red-700, .bg-red-800,
+          .bg-amber-600, .bg-amber-700, .bg-amber-800) { --th: 2px; }
+
+button:not([disabled]):is(.bg-emerald-500, .bg-emerald-600, .bg-emerald-700, .bg-emerald-800,
+          .bg-sky-600, .bg-sky-700, .bg-sky-800, .bg-indigo-500, .bg-indigo-600, .bg-indigo-700,
+          .bg-rose-600, .bg-rose-700, .bg-rose-800, .bg-red-600, .bg-red-700, .bg-red-800,
+          .bg-amber-600, .bg-amber-700, .bg-amber-800):hover {
+    transform: translateY(-1px);
+    filter: brightness(1.07) saturate(1.08);
+}
+button:not([disabled]):is(.bg-emerald-500, .bg-emerald-600, .bg-emerald-700, .bg-emerald-800,
+          .bg-sky-600, .bg-sky-700, .bg-sky-800, .bg-indigo-500, .bg-indigo-600, .bg-indigo-700,
+          .bg-rose-600, .bg-rose-700, .bg-rose-800, .bg-red-600, .bg-red-700, .bg-red-800,
+          .bg-amber-600, .bg-amber-700, .bg-amber-800):active {
+    transform: translateY(var(--th));
+    filter: none;
+    box-shadow:
+        inset 0 2px 5px rgba(0, 0, 0, .3),
+        0 0 0 var(--edge),
+        0 2px 6px -3px var(--btn-drop);
 }
 
-/* Bordes de esos botones: un filo del mismo tono, no un trazo duro. */
-.border-emerald-500, .border-emerald-600, .border-emerald-700 { border-color: color-mix(in srgb, var(--ok) 38%, transparent) !important; }
-.border-sky-500, .border-sky-600, .border-sky-700             { border-color: color-mix(in srgb, var(--acc) 38%, transparent) !important; }
-.border-indigo-500, .border-indigo-600, .border-indigo-700    { border-color: color-mix(in srgb, var(--ind) 38%, transparent) !important; }
-.border-rose-500, .border-rose-600, .border-rose-700, .border-red-600, .border-red-700 { border-color: color-mix(in srgb, var(--bad) 38%, transparent) !important; }
-.border-amber-600 { border-color: color-mix(in srgb, var(--warn) 42%, transparent) !important; }
+/* Botones secundarios (fondo neutro): volumen suave. */
+button:is(.bg-slate-800, .bg-slate-700) {
+    --th: 2px;
+    --n-edge: color-mix(in srgb, var(--bg-2) 55%, #000);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, 0) 62%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, .11),
+        0 var(--th) 0 var(--n-edge),
+        0 calc(var(--th) + 5px) 10px -6px var(--btn-drop);
+}
+button:not([disabled]):is(.bg-slate-800, .bg-slate-700):hover { transform: translateY(-1px); border-color: var(--acc) !important; }
+button:not([disabled]):is(.bg-slate-800, .bg-slate-700):active {
+    transform: translateY(var(--th));
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, .3), 0 0 0 var(--n-edge);
+}
 
-/* Botones secundarios (fondo neutro) */
-button.bg-slate-800:hover { border-color: var(--tx-5); }
+/* Bordes de los botones de color: un filo del mismo tono, no un trazo duro. */
+.border-emerald-500, .border-emerald-600, .border-emerald-700 { border-color: color-mix(in srgb, var(--ok) 42%, transparent) !important; }
+.border-sky-500, .border-sky-600, .border-sky-700             { border-color: color-mix(in srgb, var(--acc) 42%, transparent) !important; }
+.border-indigo-500, .border-indigo-600, .border-indigo-700    { border-color: color-mix(in srgb, var(--ind) 42%, transparent) !important; }
+.border-rose-500, .border-rose-600, .border-rose-700, .border-red-600, .border-red-700 { border-color: color-mix(in srgb, var(--bad) 42%, transparent) !important; }
+.border-amber-600 { border-color: color-mix(in srgb, var(--warn) 46%, transparent) !important; }
 
-/* ---------- Campos de captura ---------- */
+/* ---------- Campos de captura: hundidos, con halo al enfocar ---------- */
 input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
 select, textarea {
+    box-shadow: var(--in-sh);
     transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
 }
 input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):focus,
 select:focus, textarea:focus {
     outline: none !important;
     border-color: var(--acc) !important;
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--acc) 22%, transparent) !important;
+    box-shadow: var(--in-sh), 0 0 0 3px color-mix(in srgb, var(--acc) 26%, transparent), 0 0 18px -2px color-mix(in srgb, var(--acc) 40%, transparent) !important;
 }
 input::placeholder, textarea::placeholder { color: var(--tx-5); opacity: 1; }
 input[type="checkbox"], input[type="radio"] { accent-color: var(--acc) !important; }
 
 /* ---------- Tablas ---------- */
+table thead { background-image: linear-gradient(180deg, color-mix(in srgb, var(--acc) 11%, transparent), transparent); }
 table thead th { letter-spacing: .05em; font-weight: 600; }
 table tbody tr { transition: background-color .12s ease; }
-table tbody tr:not([class*="bg-"]):hover { background-color: color-mix(in srgb, var(--acc) 5%, transparent); }
+table tbody tr:not([class*="bg-"]):hover { background-color: color-mix(in srgb, var(--acc) 6%, transparent); }
+table tbody tr:not([class*="bg-"]):hover > td:first-child { box-shadow: inset 3px 0 0 var(--acc); }
 .overflow-x-auto.border { overflow-y: hidden; }
+
+/* ---------- Chips de estatus ---------- */
+span.rounded-full, span.rounded { letter-spacing: .01em; }
+span.rounded-full[class*="bg-"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 28%, transparent), 0 2px 8px -4px color-mix(in srgb, currentColor 45%, transparent); }
+
+/* ---------- Tarjetas de tema (Configuración) ---------- */
+.tema-card, .zoom-card {
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, 0));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 3px 0 color-mix(in srgb, var(--bg-2) 55%, #000), 0 12px 18px -10px var(--btn-drop);
+}
+.tema-card:hover, .zoom-card:hover { transform: translateY(-2px); }
+.tema-card:active, .zoom-card:active { transform: translateY(3px); box-shadow: inset 0 2px 4px rgba(0, 0, 0, .3); }
 
 /* ---------- Menú lateral ---------- */
 #sidebar {
-    background-image: linear-gradient(180deg, color-mix(in srgb, var(--acc) 5%, transparent), transparent 38%);
-    box-shadow: 1px 0 0 var(--bd-1);
+    background-image:
+        linear-gradient(180deg, color-mix(in srgb, var(--acc) 10%, transparent), color-mix(in srgb, var(--acc-3) 6%, transparent) 55%, transparent 100%);
+    box-shadow: 1px 0 0 var(--bd-1), 18px 0 50px -30px rgba(0, 0, 0, .6);
 }
-#sidebar button { border-radius: 12px !important; }
-#sidebar li > button:hover { transform: translateX(2px); }
+#sidebar button { border-radius: 14px !important; }
+#sidebar li > button:hover {
+    background-image: linear-gradient(90deg, color-mix(in srgb, var(--acc) 22%, transparent), color-mix(in srgb, var(--acc-3) 8%, transparent) 70%, transparent);
+    box-shadow: inset 3px 0 0 var(--acc);
+    transform: translateX(2px);
+}
 #sidebar li > button:active { transform: none; }
-#sidebar ul[id^="submenu-"] { border-left-color: color-mix(in srgb, var(--acc) 28%, var(--bd-1)) !important; }
-#statusConexion { border-radius: 9999px !important; }
+#sidebar ul[id^="submenu-"] { border-left-color: color-mix(in srgb, var(--acc) 34%, var(--bd-1)) !important; }
+#statusConexion { border-radius: 9999px !important; box-shadow: var(--in-sh); }
 
 /* ---------- Botón flotante del menú ---------- */
-#btnAbrirMenu { border-radius: 9999px !important; box-shadow: var(--sh-1); }
-
-/* ---------- Etiquetas de estatus / chips ---------- */
-.rounded-full { letter-spacing: .01em; }
+#btnAbrirMenu {
+    border-radius: 9999px !important;
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, 0));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 3px 0 color-mix(in srgb, var(--bg-2) 55%, #000), 0 12px 20px -8px var(--btn-drop);
+}

@@ -246,7 +246,7 @@
         /* aplica el tema guardado antes de pintar, para que no haya parpadeo */
         (function () {
             try {
-                var t = localStorage.getItem('hares_tema') || 'slate';
+                var t = localStorage.getItem('hares_tema') || 'aurora';
                 document.documentElement.setAttribute('data-theme', t);
             } catch (e) {}
             try {
@@ -883,6 +883,26 @@
                                 <span class="w-3 h-3 rounded-full" style="background:#0369a1"></span><span class="w-3 h-3 rounded-full" style="background:#3f4c60"></span>
                             </span><span class="text-sm text-slate-200">Niebla</span>
                         </button>
+                        <button type="button" data-tema="aurora" class="tema-card flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800 transition text-left" style="cursor:pointer">
+                            <span class="flex gap-1 shrink-0 p-1.5 rounded-lg" style="background:#12123a">
+                                <span class="w-3 h-3 rounded-full" style="background:#22d3ee"></span><span class="w-3 h-3 rounded-full" style="background:#a78bfa"></span><span class="w-3 h-3 rounded-full" style="background:#f472b6"></span>
+                            </span><span class="text-sm text-slate-200">Aurora</span>
+                        </button>
+                        <button type="button" data-tema="sunset" class="tema-card flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800 transition text-left" style="cursor:pointer">
+                            <span class="flex gap-1 shrink-0 p-1.5 rounded-lg" style="background:#22101b">
+                                <span class="w-3 h-3 rounded-full" style="background:#ff9f43"></span><span class="w-3 h-3 rounded-full" style="background:#f472b6"></span><span class="w-3 h-3 rounded-full" style="background:#c084fc"></span>
+                            </span><span class="text-sm text-slate-200">Atardecer</span>
+                        </button>
+                        <button type="button" data-tema="neon" class="tema-card flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800 transition text-left" style="cursor:pointer">
+                            <span class="flex gap-1 shrink-0 p-1.5 rounded-lg" style="background:#111317">
+                                <span class="w-3 h-3 rounded-full" style="background:#a3e635"></span><span class="w-3 h-3 rounded-full" style="background:#a78bfa"></span><span class="w-3 h-3 rounded-full" style="background:#22d3ee"></span>
+                            </span><span class="text-sm text-slate-200">Neón</span>
+                        </button>
+                        <button type="button" data-tema="ocean" class="tema-card flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800 transition text-left" style="cursor:pointer">
+                            <span class="flex gap-1 shrink-0 p-1.5 rounded-lg" style="background:#061d2a">
+                                <span class="w-3 h-3 rounded-full" style="background:#5eead4"></span><span class="w-3 h-3 rounded-full" style="background:#60a5fa"></span><span class="w-3 h-3 rounded-full" style="background:#fb923c"></span>
+                            </span><span class="text-sm text-slate-200">Océano</span>
+                        </button>
                     </div>
                 </div>
 
@@ -933,8 +953,8 @@
         (function () {
             var grid = document.getElementById('temasGrid');
             if (!grid) return;
-            var actual = 'slate';
-            try { actual = localStorage.getItem('hares_tema') || 'slate'; } catch (e) {}
+            var actual = 'aurora';
+            try { actual = localStorage.getItem('hares_tema') || 'aurora'; } catch (e) {}
             function marcar(t) {
                 grid.querySelectorAll('.tema-card').forEach(function (b) {
                     var on = b.dataset.tema === t;
