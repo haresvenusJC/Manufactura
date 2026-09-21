@@ -333,15 +333,17 @@ export const GUIAS = {
         ],
     },
     'bitacora-cambios': {
-        titulo: 'Bitácora de cambios',
-        paraQue: 'Ver quién cambió qué y cuándo en las tablas más sensibles a error o fraude — plan de cuentas, tarifas ISR, cierre de periodo, activos fijos, devoluciones, pedidos de venta y cuentas bancarias. Es de solo lectura: ni el admin puede alterar o borrar el rastro.',
+        titulo: 'Bitácora de movimientos',
+        paraQue: 'Ver quién hizo qué y cuándo en todo el sistema: altas, cambios y bajas de productos, BOM, proveedores, clientes, compras, ventas, producción, gastos, pólizas, nómina y demás, más cuándo entró y salió cada usuario. Es de solo lectura: ni el admin puede alterar o borrar el rastro.',
         pasos: [
-            'Filtra por tabla y/o por tipo de acción (alta, modificación, baja) y pulsa "Consultar".',
-            '"Ver" en cada renglón muestra los datos de antes y de después, lado a lado, tal como quedaron guardados.',
+            'Filtra por usuario, módulo, acción y rango de fechas, y pulsa "Consultar".',
+            'La columna "Qué cambió" resume el movimiento (por ejemplo: costo unitario: 12 → 14). "Ver" abre el detalle: los campos que cambiaron con su valor de antes y de después.',
+            '"⬇ CSV" baja lo que estás viendo, por si necesitas entregarlo o revisarlo en Excel.',
         ],
-        cuando: 'Cuando algo cambió y no sabes quién lo hizo, o para revisar de vez en cuando que nadie esté tocando el plan de cuentas o las tarifas fiscales sin que te enteres.',
+        cuando: 'Cuando algo cambió y no sabes quién lo hizo, o para revisar de vez en cuando qué está haciendo cada persona con acceso a la app.',
         errores: [
-            'Esperar encontrar aquí cambios de tablas que no tienen bitácora todavía (por ejemplo documentos, gastos, productos) — solo las 8 tablas listadas la tienen.',
+            'Buscar aquí lo que hacen los operarios desde el celular: sus movimientos aparecen como "Operador / sistema" porque no inician sesión con correo.',
+            'Esperar ver el detalle de cada movimiento de inventario o de cada línea de póliza: esas tablas las genera el sistema y no se registran una por una; queda el registro del documento, la orden o la póliza que las originó.',
         ],
     },
 };

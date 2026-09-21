@@ -16,11 +16,19 @@ export async function iniciarSesion(email, password) {
         password: String(password || '')
     });
     if (error) throw error;
+    registrarEventoSesion('LOGIN');
     return data.session;
 }
 
 export async function cerrarSesion() {
+    await registrarEventoSesion('LOGOUT');   // antes de cerrar: necesita la sesión para saber quién es
     await supabaseClient.auth.signOut();
+}
+
+// Deja en la bitácora que este usuario entró / salió. Nunca estorba: si la migración
+// sql/2026-10-20_bitacora_todos_los_movimientos.sql aún no está, simplemente no registra.
+async function registrarEventoSesion(accion) {
+    try { await supabaseClient.rpc('bitacora_evento', { p_accion: accion }); } catch (_) { /* sin bitácora de sesión */ }
 }
 
 export function alCambiarSesion(callback) {

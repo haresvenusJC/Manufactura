@@ -72,7 +72,7 @@ const SECCIONES = [
     {
         grupo: 'Control y Análisis', ancla: 'ctrl', items: [
             { v: 'reportes', t: 'Reportes', d: 'Reportes operativos.' },
-            { v: 'bitacora-cambios', t: 'Bitácora de cambios', d: 'Quién cambió qué y cuándo en las tablas sensibles (plan de cuentas, tarifas ISR, cierre de periodo, activos fijos, devoluciones, pedidos, cuentas bancarias) — solo lectura, nadie puede alterarla.' },
+            { v: 'bitacora-cambios', t: 'Bitácora de cambios', d: 'Quién hizo qué y cuándo en todo el sistema (catálogos, compras, ventas, producción, finanzas) y cuándo entró y salió cada usuario, con filtros por usuario, módulo y fechas — solo lectura, nadie puede alterarla.' },
         ],
     },
     {
