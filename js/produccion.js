@@ -181,7 +181,7 @@ export async function calcularRequerimientosProduccion(productoId, cantidadProdu
  *    avisa, porque lo que hay que hacer es producirlo primero.
  * Reusa la preselección que ya usa Tareas (window.__reqPre*).
  */
-async function generarRequisicionFaltantes(faltan, nombreProducto, cantidadProducir) {
+export async function generarRequisicionFaltantes(faltan, nombreProducto, cantidadProducir) {
     if (!faltan || !faltan.length) return;
 
     const ids = faltan.map((f) => f.componenteId);

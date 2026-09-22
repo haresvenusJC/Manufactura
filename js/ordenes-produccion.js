@@ -11,7 +11,7 @@
 // =====================================================================
 import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
-import { calcularRequerimientosProduccion, formatoCantidad, fmtFaltante } from './produccion.js';
+import { calcularRequerimientosProduccion, formatoCantidad, fmtFaltante, generarRequisicionFaltantes } from './produccion.js';
 
 const ordenTabla = crearOrdenTabla('created_at', 'desc');
 let ordenesCache = [];
@@ -180,8 +180,11 @@ async function continuarOrdenPendiente(ordenId, btn) {
     if (faltan.length) {
         const snapshot = faltan.map((f) => ({ id: f.componenteId, nombre: f.nombre, unidad: f.unidad, requerido: f.requerido, disponible: f.disponible }));
         await supabaseClient.from('ordenes_produccion').update({ faltantes_insumos: snapshot }).eq('id', ordenId).select('id');
-        alert(`⛔ Todavía faltan insumos para "${orden.productos?.nombre || 'este producto'}":\n${faltan.map(fmtFaltante).join('\n')}`);
-        await cargarOrdenes();
+        alert(`⛔ Todavía faltan insumos para "${orden.productos?.nombre || 'este producto'}":\n${faltan.map(fmtFaltante).join('\n')}\n\nTe llevamos a generar la compra u orden de producción de lo que falta.`);
+        // Mismo flujo que el botón "📝 Generar requisición de lo faltante" del formulario: para lo
+        // que se fabrica en casa (semiterminados como el Granel) navega directo a Producción con el
+        // producto y la cantidad ya precargados.
+        await generarRequisicionFaltantes(faltan, orden.productos?.nombre || 'este producto', orden.cantidad_producida);
         return;
     }
 

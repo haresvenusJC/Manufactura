@@ -17,7 +17,11 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   más. Se agregó `productos.rendimiento_lote_bom` (Catálogo → Más detalles → "Rendimiento del lote"): si
   está capturado, la cantidad pedida se traduce a "cuántos lotes" antes de escalar la receta. **Falta
   capturar ese valor (15, o lo que corresponda) en cada "Granel ..." semiterminado** — sin eso, siguen
-  pidiendo de más.
+  pidiendo de más. (3) `generarRequisicionFaltantes` (antes privada de `produccion.js`) ahora se exporta y
+  la usa también "🔄 Revisar y continuar" en `ordenes-produccion.js`: si al revisar una orden 'borrador'
+  siguen faltando insumos, ya no se queda en un `alert()` — dispara el mismo flujo (requisición de compra
+  y/o navega a Producción con el semiterminado faltante precargado) sin importar desde qué pantalla se
+  esté revisando.
 - Pendiente: correr `sql/2026-09-22_orden_produccion_pendiente_insumos.sql` y
   `sql/2026-09-22_rendimiento_lote_bom.sql`; capturar "Rendimiento del lote" en los productos "Granel ..."
   (ver lista en "Pendiente" de Densidades — probablemente el mismo rango 10-15 según el usuario); revisar
