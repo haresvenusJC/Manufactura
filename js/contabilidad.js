@@ -1906,6 +1906,7 @@ async function rcPrepararFiltrosAuxInv() {
     if (activo) await prepararFiltrosAuxInv(caja, rcGenerarAuxInv);
 }
 async function rcGenerarAuxInv() {
+    try { await rcCargarCtasAux(); } catch (_) { /* solo da nombre a las cuentas en la subventana de póliza */ }
     await generarAuxInventarios(document.getElementById('rcResultado'),
         document.getElementById('rcDesde').value, document.getElementById('rcHasta').value);
 }

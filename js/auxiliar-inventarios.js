@@ -31,6 +31,16 @@ const fmt = (n) => {
 const fmtCant = (n) => Number(Number(n || 0).toFixed(4)).toLocaleString('es-MX', { maximumFractionDigits: 4 });
 const fechaLocal = (iso) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
+// Todo documento o póliza que aparece en un reporte se puede abrir desde ahí (regla de CLAUDE.md):
+// documento -> window.abrirDetalleDocumentoGlobal (js/documentos.js), póliza -> window.rcVerPoliza
+// (js/contabilidad.js). Ambos abren una subventana sin salir del reporte.
+const linkDoc = (id, texto) => id
+    ? `<button type="button" onclick="window.abrirDetalleDocumentoGlobal(${Number(id)}); const m=document.getElementById('modalDetalleDocKardex'); if(m){m.style.zIndex=70;m.classList.remove('hidden');}" class="text-sky-300 hover:text-sky-200 hover:underline cursor-pointer font-mono" title="Abrir el documento">${esc(texto)}</button>`
+    : esc(texto);
+const linkPoliza = (id) => id
+    ? `<button type="button" onclick="window.rcVerPoliza(${Number(id)}); const m=document.getElementById('rcModalPoliza'); if(m) m.style.zIndex=70;" class="text-sky-300 hover:text-sky-200 hover:underline cursor-pointer font-mono" title="Abrir la póliza">#${Number(id)}</button>`
+    : '—';
+
 const CLASIF = {
     materia_prima: 'Materia prima',
     insumo: 'Insumo',
@@ -204,7 +214,7 @@ export async function generarAuxInventarios(res, desde, hasta) {
                 cant += q; valor += v;
                 if (f < desde) { cantIni = cant; valIni = valor; continue; }
                 if (q >= 0) { eC += q; eV += v; } else { sC += -q; sV += -v; }
-                filas.push({ fecha: f, tipo: TIPO_MOV[m.tipo_movimiento] || m.tipo_movimiento || '—', folio: m.documentos?.folio || (m.documento_id ? '#' + m.documento_id : '—'),
+                filas.push({ fecha: f, tipo: TIPO_MOV[m.tipo_movimiento] || m.tipo_movimiento || '—', docId: m.documento_id || null, folio: m.documentos?.folio || (m.documento_id ? '#' + m.documento_id : '—'),
                     poliza: m.documentos?.poliza_id || null, lote: m.lotes_inventario?.numero_lote || '', q, cu: Number(m.costo_unitario || 0), v, cant, valor });
             }
             kardex.set(p.id, { p, cantIni, valIni, filas, eC, eV, sC, sV, cantFin: cant, valFin: valor });
@@ -258,7 +268,7 @@ function pintar(res, { desde, hasta, visibles, kardex, cuadre, soloMov }) {
             <td class="${tdR}"></td><td class="${tdR}"></td><td class="${tdR}">${fmtCant(k.cantIni)}</td><td class="${tdR}">${fmt(k.valIni)}</td></tr>
         ${k.filas.map((f) => `<tr class="border-b border-slate-900/60 text-slate-300">
             <td class="${td} font-mono text-[11px]">${esc(f.fecha)}</td><td class="${td}">${esc(f.tipo)}</td>
-            <td class="${td} font-mono text-[11px]">${esc(f.folio)}</td><td class="${td} font-mono text-[11px]">${f.poliza ? '#' + f.poliza : '—'}</td>
+            <td class="${td} font-mono text-[11px]">${linkDoc(f.docId, f.folio)}</td><td class="${td} font-mono text-[11px]">${linkPoliza(f.poliza)}</td>
             <td class="${td} font-mono text-[11px]">${esc(f.lote)}</td>
             <td class="${tdR} text-emerald-300">${f.q >= 0 ? fmtCant(f.q) : ''}</td><td class="${tdR} text-emerald-300">${f.q >= 0 ? fmt(f.v) : ''}</td>
             <td class="${tdR} text-rose-300">${f.q < 0 ? fmtCant(-f.q) : ''}</td><td class="${tdR} text-rose-300">${f.q < 0 ? fmt(-f.v) : ''}</td>
@@ -278,7 +288,7 @@ function pintar(res, { desde, hasta, visibles, kardex, cuadre, soloMov }) {
         <tr class="text-slate-300"><td class="${td}" colspan="10">Saldo de la cuenta en la balanza (pólizas contabilizadas)</td><td class="${tdR}">${fmt(c.saldoBalanza)}</td></tr>
         <tr class="font-semibold ${ok ? 'text-emerald-300' : 'text-amber-300'}"><td class="${td}" colspan="10">Diferencia (balanza − kardex)</td><td class="${tdR}">${fmt(c.dif)}</td></tr>
         ${c.ajenas.length ? `<tr class="text-slate-400"><td class="${td} text-[11px] italic" colspan="11">Pólizas que movieron esta cuenta sin un movimiento de inventario detrás (ahí suele estar la diferencia):</td></tr>
-        ${c.ajenas.map((a) => `<tr class="text-slate-400 text-[11px]"><td class="${td} font-mono">${esc(a.pol.fecha)}</td><td class="${td}">Póliza #${a.pol.id}</td>
+        ${c.ajenas.map((a) => `<tr class="text-slate-400 text-[11px]"><td class="${td} font-mono">${esc(a.pol.fecha)}</td><td class="${td}">Póliza ${linkPoliza(a.pol.id)}</td>
             <td class="${td}">${esc(a.pol.tipo || '')} ${esc(a.pol.numero || '')}</td><td class="${td}">${esc(a.pol.origen || 'manual')}</td>
             <td class="${td}" colspan="6">${esc(a.concepto)}</td><td class="${tdR}">${fmt(a.neto)}</td></tr>`).join('')}` : ''}`;
     }).join('');

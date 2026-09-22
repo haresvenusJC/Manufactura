@@ -239,6 +239,11 @@ function duracion(seg) {
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
     return h ? `${h} h ${m} min` : `${m} min`;
 }
+// Documentos y pólizas citados en el reporte se abren desde ahí (regla de CLAUDE.md): subventanas de
+// js/documentos.js (abrirDetalleDocumentoGlobal) y js/contabilidad.js (rcVerPoliza).
+const lnkDoc = (id, texto) => id
+    ? `<button type="button" onclick="window.abrirDetalleDocumentoGlobal(${Number(id)}); const m=document.getElementById('modalDetalleDocKardex'); if(m){m.style.zIndex=70;m.classList.remove('hidden');}" style="color:#0369a1;text-decoration:underline;cursor:pointer;">${escD(texto)}</button>` : escD(texto);
+const lnkPol = (id) => `<button type="button" onclick="window.rcVerPoliza(${Number(id)}); const m=document.getElementById('rcModalPoliza'); if(m) m.style.zIndex=70;" style="color:#0369a1;text-decoration:underline;cursor:pointer;">#${Number(id)}</button>`;
 const ESTADO_TXT = { borrador: 'Pendiente por insumos', en_proceso: 'En proceso', cerrada: 'Cerrada', cancelada: 'Cancelada' };
 
 const ST = {
@@ -529,9 +534,9 @@ async function armarDocumentoEstado(ordenId) {
             <p style="${ST.h}">Mano de obra por proceso</p>
             ${procesoHtml}
             <p style="${ST.h}">Documentos</p>
-            <p style="font-size:11px;">Entrada (producto terminado): <b>${escD(docs.entrada?.folio || '—')}</b> ·
-               Salida (materia prima): <b>${escD(docs.salida?.folio || (docs.entrada ? 'en el mismo documento' : '—'))}</b> ·
-               Póliza: <b>${docs.entrada?.poliza_id ? '#' + docs.entrada.poliza_id : 'sin póliza'}</b></p>`;
+            <p style="font-size:11px;">Entrada (producto terminado): <b>${lnkDoc(docs.entrada?.id, docs.entrada?.folio || '—')}</b> ·
+               Salida (materia prima): <b>${docs.salida ? lnkDoc(docs.salida.id, docs.salida.folio) : escD(docs.entrada ? 'en el mismo documento' : '—')}</b> ·
+               Póliza: <b>${docs.entrada?.poliza_id ? lnkPol(docs.entrada.poliza_id) : 'sin póliza'}</b></p>`;
     }
 
     const firma = (t) => `<td style="width:33%;padding:28px 10px 0;text-align:center;"><div style="border-top:1px solid #333;padding-top:4px;font-size:11px;">${t}</div></td>`;
