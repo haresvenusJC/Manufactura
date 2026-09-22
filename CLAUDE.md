@@ -4,7 +4,11 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
-- Archivos tocados (lo último): `js/produccion.js`, `js/ordenes-produccion.js`. "Historial de Órdenes Cerradas"
+- Archivos tocados (lo último): `js/app.js` — la flecha ← del navegador sacaba del ERP: `window.loadView(vista,
+  { desdeHistorial })` ahora anota cada pantalla con `history.pushState({ erpVista })` y un `popstate` la reabre;
+  `iniciarApp` pone un tope (`erpBase`) + Inicio, así ← en Inicio se queda en Inicio. No cierra subventanas
+  abiertas ni restaura la pantalla al recargar (F5 → Inicio).
+- Antes: `js/produccion.js`, `js/ordenes-produccion.js`. "Historial de Órdenes Cerradas"
   mostraba "No se encontraron movimientos…" porque buscaba los consumos en el documento de ENTRADA y quedan en el de
   SALIDA (`PROD-…-MP`): nuevas `documentosDeOrden` / `consumosDeOrden` (exportadas de `produccion.js`; la orden no
   guarda el documento, se llega por el lote producto+número más cercano a `cerrada_at`). Botón "📄 Reporte
@@ -40,8 +44,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Mapa de módulos (`js/*.js`)
 
-- `app.js` — router de vistas (`window.loadView`) + shell de navegación (riel de iconos + cajón) y
-  exposición de funciones al `window` para los `onclick` del HTML.
+- `app.js` — router de vistas (`window.loadView`, con historial del navegador: ← / → entre pantallas) + shell de
+  navegación (riel de iconos + cajón) y exposición de funciones al `window` para los `onclick` del HTML.
 - `areas-prorrateo.js` — declara m²/kW/personas por área para derivar los % de prorrateo de gastos compartidos.
 - `asistente-contable.js` — panel de ayuda colapsable ("¿Cómo llenar esta pantalla?") reutilizado por
   varios módulos + el asistente de captura de Gastos.

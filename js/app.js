@@ -154,8 +154,28 @@ window.mostrarTabImportador = function(tab) {
 // Botón "📖 Cómo llenar esta pantalla" de cada módulo (subventana con el manual).
 window.abrirManual = abrirManual;
 
+// Historial del navegador: cada cambio de pantalla se anota (history.pushState) para que la flecha
+// ← del navegador regrese a la pantalla anterior del ERP en vez de sacar del sitio. El primer registro
+// (erpBase, puesto en iniciarApp) es un tope: si se llega a él con ←, se queda en Inicio.
+function registrarVistaEnHistorial(viewName) {
+    if (!history.state || !history.state.erpVista) return;       // la app aún no arranca (antes del login)
+    if (history.state.erpVista === viewName && !history.state.erpBase) return;   // misma pantalla: no duplicar
+    history.pushState({ erpVista: viewName }, '');
+}
+window.addEventListener('popstate', (e) => {
+    const st = e.state;
+    if (!st || !st.erpVista) return;
+    if (st.erpBase) {   // ← desde la primera pantalla: no salir del ERP, quedarse en Inicio
+        history.pushState({ erpVista: 'bienvenida' }, '');
+        window.loadView('bienvenida', { desdeHistorial: true });
+        return;
+    }
+    window.loadView(st.erpVista, { desdeHistorial: true });
+});
+
 // 2. Enrutador global para la navegación de vistas
-window.loadView = function(viewName) {
+window.loadView = function(viewName, opciones = {}) {
+    if (!opciones.desdeHistorial) registrarVistaEnHistorial(viewName);
     document.querySelectorAll('.vista-seccion').forEach(section => {
         section.classList.add('hidden');
     });
@@ -304,6 +324,10 @@ async function iniciarApp() {
     if (appIniciada) return;
     appIniciada = true;
     console.log("Iniciando Hares de México (Sistema Modular)...");
+
+    // Historial: tope (erpBase) + Inicio, para que ← nunca saque del ERP (ver registrarVistaEnHistorial).
+    history.replaceState({ erpVista: 'bienvenida', erpBase: true }, '');
+    history.pushState({ erpVista: 'bienvenida' }, '');
 
     // Pantalla de Inicio: se pinta de inmediato, sin esperar a las cargas de abajo.
     montarBienvenida().catch((e) => console.warn('No se pudo armar la bienvenida:', e));
