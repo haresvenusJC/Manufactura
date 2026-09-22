@@ -1,6 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { irAKardexDeProducto } from './kardex.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+import { factorConversion } from './conversion-unidades.js';
 import { opcionesPresentacionHtml } from './presentaciones-proveedor.js';
 
 let catBusqueda = ''; // texto del buscador en vivo del Catálogo General (SKU y/o nombre)
@@ -297,6 +298,12 @@ export async function cargarCatalogoInicial() {
                                     <p class="text-[10px] text-slate-500 mt-0.5">La del producto en sí. También se llena sola al importar facturas XML de tus proveedores.</p>
                                 </div>
 
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">Densidad (kg por litro)</label>
+                                    <input type="number" step="0.0001" min="0" id="prodDensidad" placeholder="Ej. 1.26 (déjalo vacío si no aplica)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                                    <p class="text-[10px] text-slate-500 mt-0.5">Solo para insumos cuya receta (BOM) está en volumen (Litros/mL) pero se llevan en inventario por peso (Kilogramos/gramos), o al revés. Con ella, Producción convierte bien cuánto pedir y descontar; sin ella, se toma 1 a 1 y se avisa.</p>
+                                </div>
+
                                 <div class="border-t border-slate-800 pt-3 ${cuentasContables.length ? '' : 'hidden'}">
                                     <p class="text-[11px] font-semibold text-sky-400 mb-2">Datos contables</p>
                                     <div class="grid grid-cols-2 gap-2">
@@ -413,7 +420,10 @@ export async function cargarCatalogoInicial() {
                         <h3 class="text-md font-semibold text-slate-300">Catálogo General de Artículos</h3>
                         <div class="flex flex-wrap gap-2 items-center">
                             <button type="button" id="btnExportProdXlsx" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇️ Excel</button>
-                            <button type="button" id="btnExportProdCsv" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇️ CSV</button>                        </div>
+                            <button type="button" id="btnExportProdCsv" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇️ CSV</button>
+                            <button type="button" id="btnTablaDensidades" title="Kilogramos que pesa 1 litro de cada insumo — para convertir recetas en volumen contra inventario en peso" class="text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⚖️ Densidades</button>
+                            <button type="button" id="btnTablaUnidades" title="Ver, editar y agregar unidades de medida (Piezas, Kilogramos, Litros...)" class="text-xs bg-slate-800 hover:bg-slate-700 text-indigo-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">📏 Unidades</button>
+                        </div>
                     </div>
                     <input type="text" id="catBuscador" placeholder="🔍 Buscar por SKU o nombre..." value="${escaparHtml(catBusqueda)}"
                         class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500">
@@ -435,6 +445,8 @@ export async function cargarCatalogoInicial() {
 
         document.getElementById('btnExportProdCsv').addEventListener('click', () => exportarCatalogoProductos('csv'));
         document.getElementById('btnExportProdXlsx').addEventListener('click', () => exportarCatalogoProductos('xlsx'));
+        document.getElementById('btnTablaDensidades').addEventListener('click', abrirTablaDensidades);
+        document.getElementById('btnTablaUnidades').addEventListener('click', abrirTablaUnidades);
         document.getElementById('catBuscador').addEventListener('input', (e) => {
             catBusqueda = e.target.value;
             aplicarFiltroCatalogo();
@@ -612,6 +624,8 @@ export async function cargarCatalogoInicial() {
                 document.getElementById('prodCantidadMinimaCompra').value = art.cantidad_minima_compra ?? '';
                 document.getElementById('prodClaveSat').value = art.clave_sat || '';
                 document.getElementById('prodClaveSat').dataset.tenia = art.clave_sat ? '1' : '';
+                document.getElementById('prodDensidad').value = art.densidad_kg_l ?? '';
+                document.getElementById('prodDensidad').dataset.tenia = (art.densidad_kg_l !== null && art.densidad_kg_l !== undefined) ? '1' : '';
 
                 const elExistencia = document.getElementById('prodExistenciaActual');
                 elExistencia.textContent = `Existencia actual: ${Number(art.stock_actual || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })} — se actualiza sola con compras y salidas, no se edita aquí.`;
@@ -710,6 +724,7 @@ export async function cargarCatalogoInicial() {
             productoSeleccionadoId = null;
             document.getElementById('formCrearProducto').reset();
             document.getElementById('prodClaveSat').dataset.tenia = '';
+            document.getElementById('prodDensidad').dataset.tenia = '';
             itemsBomTemp = [];
             actualizarListaBomVisual();
             clavesProvTemp = [];
@@ -926,6 +941,18 @@ export async function cargarCatalogoInicial() {
             }
             const claveSatPayload = (claveSatVal || elClaveSat.dataset.tenia === '1') ? { clave_sat: claveSatVal || null } : {};
 
+            // Densidad (kg/L): igual patrón que la clave SAT — solo se manda si hay algo que
+            // guardar (o borrar), así el guardado no depende de haber corrido
+            // sql/2026-10-23_densidad_conversion_bom.sql.
+            const elDensidad = document.getElementById('prodDensidad');
+            const densidadVal = elDensidad.value.trim();
+            if (densidadVal && !(parseFloat(densidadVal) > 0)) {
+                alert('La densidad debe ser un número mayor a 0 (kg por litro).');
+                elDensidad.focus();
+                return;
+            }
+            const densidadPayload = (densidadVal || elDensidad.dataset.tenia === '1') ? { densidad_kg_l: densidadVal ? parseFloat(densidadVal) : null } : {};
+
             // Cómo se obtiene (fabricado / comprado) y semiterminado. Igual que la clave SAT:
             // solo se manda si se sale del valor por defecto (fabricado, no semiterminado) o
             // si el artículo ya tenía estos datos — así guardar no depende de haber corrido
@@ -976,6 +1003,7 @@ export async function cargarCatalogoInicial() {
                     tiempo_entrega_dias,
                     cantidad_minima_compra,
                     ...claveSatPayload,
+                    ...densidadPayload,
                     ...abastPayload,
                     ...datosContables
                 };
@@ -1060,6 +1088,8 @@ export async function cargarCatalogoInicial() {
                     alert('Error al guardar el artículo: El SKU o clave ya está registrado.');
                 } else if (/abastecimiento|es_semiterminado/.test(err.message || '')) {
                     alert('Falta correr la migración sql/2026-10-18_producto_abastecimiento_semiterminado.sql en Supabase (SQL Editor) para guardar "Cómo se obtiene" y "Semiterminado".');
+                } else if (/densidad_kg_l/.test(err.message || '')) {
+                    alert('Falta correr la migración sql/2026-10-23_densidad_conversion_bom.sql en Supabase (SQL Editor) para guardar la Densidad.');
                 } else {
                     alert("Error al procesar la operación en la base de datos: " + (err.message || err));
                 }
@@ -1339,7 +1369,7 @@ const CAMPOS_NO_EDITABLES_PRODUCTO = new Set(['id', 'created_at', 'updated_at'])
 // las banderas. Los que no estén aquí (columnas nuevas a futuro) caen
 // después, en orden alfabético; los de solo lectura siempre van al final.
 const ORDEN_CAMPOS_PRODUCTO = [
-    'sku', 'nombre', 'tipo', 'descripcion', 'clave_sat',
+    'sku', 'nombre', 'tipo', 'descripcion', 'clave_sat', 'densidad_kg_l',
     'unidad_medida_id', 'proveedor_id', 'moneda_id',
     'costo_unitario', 'precio_venta', 'tasa_iva', 'tasa_ieps',
     'cuenta_inventario_id', 'cuenta_costo_id',
@@ -1458,6 +1488,7 @@ async function abrirVentanaBom(producto) {
     let filas = [];              // { id (bom.id o null), compId, cantidad (texto), unidad (texto), base }
     let productos = [];          // candidatos a componente
     let unidades = [];
+    let nombreUnidadPorId = new Map();
     let sucio = false;
 
     const nombreDe = (compId) => productos.find((p) => p.id === compId);
@@ -1480,6 +1511,35 @@ async function abrirVentanaBom(producto) {
 
     const opcionesUnidad = (sel) => `<option value="">(sin unidad)</option>` +
         unidades.map((u) => `<option value="${u.id}" ${String(u.id) === String(sel) ? 'selected' : ''}>${escaparHtml(u.nombre)}</option>`).join('');
+
+    // "Receta: 13.7 Litros → se descontarán 17.262 Kilogramos (densidad 1.26 kg/L)" — el mismo aviso
+    // que verá Producción, pero aquí, al capturar la receta, antes de que falte algo el día del lote.
+    const fmtNum = (n) => Number(Number(n || 0).toFixed(4)).toString();
+    function notaConversionFila(f) {
+        const p = nombreDe(f.compId);
+        const cant = Number(f.cantidad);
+        if (!p || !f.unidad || !(cant > 0)) return '';
+        const stockId = String(p.unidad_medida_id ?? '');
+        if (!stockId || f.unidad === stockId) return '';   // misma unidad: no hay nada que convertir
+        const nombreUnidadReceta = nombreUnidadPorId.get(f.unidad) || '';
+        const nombreUnidadStock = p.unidades_medida?.nombre || nombreUnidadPorId.get(stockId) || '';
+        const conv = factorConversion(f.unidad, stockId, nombreUnidadPorId, nombreUnidadStock, cant, p.densidad_kg_l);
+        const convertido = cant * conv.factor;
+        const detalle = conv.tipo === 'aviso'
+            ? 'sin densidad capturada — se toma 1 a 1, agrégala en ⚖️ Densidades'
+            : (conv.nota ? conv.nota.replace(/^Convertido con /, '').replace(/\.$/, '') : 'conversión exacta de unidad');
+        const clase = conv.tipo === 'aviso' ? 'text-amber-400' : 'text-emerald-400';
+        return `<span class="${clase}">Receta: ${fmtNum(cant)} ${escaparHtml(nombreUnidadReceta)} → se descontarán ${fmtNum(convertido)} ${escaparHtml(nombreUnidadStock)} (${detalle})</span>`;
+    }
+    // Actualiza SOLO el renglón de aviso de una fila (sin repintar toda la tabla, para no
+    // perder el foco/cursor mientras el usuario está escribiendo la cantidad).
+    function refrescarNotaFila(i) {
+        const el = cuerpo.querySelector(`#bomNota${i}`);
+        if (!el) return;
+        const html = notaConversionFila(filas[i]);
+        el.innerHTML = html;
+        el.closest('tr')?.classList.toggle('hidden', !html);
+    }
 
     const opcionesComponente = () => {
         const usados = new Set(filas.map((f) => f.compId));
@@ -1509,13 +1569,15 @@ async function abrirVentanaBom(producto) {
                 <tbody>
                     ${filas.map((f, i) => {
                         const p = nombreDe(f.compId);
+                        const nota = notaConversionFila(f);
                         return `
                     <tr class="border-t border-slate-800">
                         <td class="py-2 pr-2 text-slate-100">${escaparHtml(p ? p.nombre : `Elemento ID: ${f.compId}`)}${p && p.sku ? `<span class="block text-[10px] font-mono text-slate-500">${escaparHtml(p.sku)}</span>` : ''}</td>
                         <td class="py-2 pr-2"><input type="number" min="0" step="any" data-i="${i}" class="bom-cant w-full font-mono ${cls}" value="${escaparHtml(f.cantidad)}"></td>
                         <td class="py-2 pr-2"><select data-i="${i}" class="bom-uni w-full ${cls}">${opcionesUnidad(f.unidad)}</select></td>
                         <td class="py-2 text-right"><button type="button" data-i="${i}" class="bom-quitar text-slate-500 hover:text-rose-400 cursor-pointer" title="Quitar del BOM">✕</button></td>
-                    </tr>`;
+                    </tr>
+                    <tr class="${nota ? '' : 'hidden'}"><td></td><td colspan="3" class="pb-2 -mt-1 text-[10px] font-normal" id="bomNota${i}">${nota}</td></tr>`;
                     }).join('')}
                 </tbody>
               </table>
@@ -1526,10 +1588,12 @@ async function abrirVentanaBom(producto) {
             </div>`;
 
         cuerpo.querySelectorAll('.bom-cant').forEach((el) => el.addEventListener('input', () => {
-            filas[Number(el.dataset.i)].cantidad = el.value; actualizarEstado();
+            const i = Number(el.dataset.i);
+            filas[i].cantidad = el.value; actualizarEstado(); refrescarNotaFila(i);
         }));
         cuerpo.querySelectorAll('.bom-uni').forEach((el) => el.addEventListener('change', () => {
-            filas[Number(el.dataset.i)].unidad = el.value; actualizarEstado();
+            const i = Number(el.dataset.i);
+            filas[i].unidad = el.value; actualizarEstado(); refrescarNotaFila(i);
         }));
         cuerpo.querySelectorAll('.bom-quitar').forEach((el) => el.addEventListener('click', () => {
             filas.splice(Number(el.dataset.i), 1); pintar(); actualizarEstado();
@@ -1545,14 +1609,24 @@ async function abrirVentanaBom(producto) {
     }
 
     async function cargar() {
-        const [rBom, rProd, rUm] = await Promise.all([
-            supabaseClient.from('bom').select('id, componente_id, cantidad_requerida, unidad_medida').eq('producto_id', id).order('id', { ascending: true }),
-            supabaseClient.from('productos').select('id, nombre, sku, tipo, unidad_medida_id').neq('id', id).order('nombre', { ascending: true }),
-            supabaseClient.from('unidades_medida').select('id, nombre').order('nombre', { ascending: true }),
-        ]);
-        for (const r of [rBom, rProd, rUm]) if (r.error) throw r.error;
-        productos = rProd.data || [];
+        const rUm = await supabaseClient.from('unidades_medida').select('id, nombre').order('nombre', { ascending: true });
+        if (rUm.error) throw rUm.error;
         unidades = rUm.data || [];
+        nombreUnidadPorId = new Map(unidades.map((u) => [String(u.id), u.nombre]));
+
+        // Con densidad_kg_l (migración 2026-10-23); si aún no está, sin ella — el aviso de
+        // conversión por densidad simplemente no aparece hasta que se corra.
+        let rProd = await supabaseClient.from('productos')
+            .select('id, nombre, sku, tipo, unidad_medida_id, densidad_kg_l, unidades_medida ( nombre )')
+            .neq('id', id).order('nombre', { ascending: true });
+        if (rProd.error) {
+            rProd = await supabaseClient.from('productos')
+                .select('id, nombre, sku, tipo, unidad_medida_id, unidades_medida ( nombre )')
+                .neq('id', id).order('nombre', { ascending: true });
+        }
+        const rBom = await supabaseClient.from('bom').select('id, componente_id, cantidad_requerida, unidad_medida').eq('producto_id', id).order('id', { ascending: true });
+        for (const r of [rBom, rProd]) if (r.error) throw r.error;
+        productos = rProd.data || [];
         filas = (rBom.data || []).map((b) => ({
             id: b.id, compId: b.componente_id,
             cantidad: String(b.cantidad_requerida ?? ''),
@@ -1630,6 +1704,257 @@ async function abrirVentanaBom(producto) {
     } catch (err) {
         cuerpo.innerHTML = `<p class="text-rose-400 text-xs">No se pudo cargar el BOM: ${escaparHtml(err.message || err)}</p>`;
     }
+}
+
+// =====================================================================
+// Tabla de densidades: catálogo consultable y editable de "cuántos kilos
+// pesa 1 litro" de cada insumo. Es la referencia que usa la conversión de
+// unidades (BOM en volumen ↔ inventario en peso) en Producción y en la
+// ventana de BOM de arriba. Requiere sql/2026-10-23_densidad_conversion_bom.sql.
+// =====================================================================
+const densOrden = crearOrdenTabla('nombre', 'asc');
+let densFiltro = '';
+let densFilas = [];
+
+async function abrirTablaDensidades() {
+    document.getElementById('modalDensidades')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'modalDensidades';
+    modal.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4';
+    modal.innerHTML = `
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+            <div class="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-start gap-3 rounded-t-2xl">
+                <div class="min-w-0">
+                    <h3 class="text-sm font-bold text-slate-100">⚖️ Tabla de densidades</h3>
+                    <p class="text-[11px] text-slate-500 mt-0.5">Kilogramos que pesa 1 litro de cada insumo. Se usa para convertir cuando la receta (BOM) está en volumen (Litros/mL) y el insumo se lleva en inventario por peso (Kilogramos/gramos), o al revés. Los cambios se guardan solos.</p>
+                </div>
+                <button type="button" id="densBtnX" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 cursor-pointer shrink-0">&times;</button>
+            </div>
+            <div class="p-4 pb-2 shrink-0">
+                <input type="text" id="densBuscar" placeholder="🔍 Buscar por nombre o SKU…" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+            </div>
+            <div id="densCuerpo" class="px-4 pb-4 overflow-y-auto flex-1 text-sm text-slate-300">Cargando…</div>
+        </div>`;
+    document.body.appendChild(modal);
+
+    const cerrar = () => modal.remove();
+    modal.addEventListener('click', (e) => { if (e.target === modal) cerrar(); });
+    modal.querySelector('#densBtnX').addEventListener('click', cerrar);
+
+    const cuerpo = modal.querySelector('#densCuerpo');
+    document.getElementById('densBuscar').addEventListener('input', (e) => {
+        densFiltro = e.target.value.trim().toLowerCase();
+        densPintar(cuerpo);
+    });
+
+    try {
+        const { data, error } = await supabaseClient.from('productos')
+            .select('id, sku, nombre, tipo, densidad_kg_l, unidades_medida ( nombre )')
+            .order('nombre', { ascending: true });
+        if (error) throw error;
+        densFilas = data || [];
+        densPintar(cuerpo);
+    } catch (err) {
+        cuerpo.innerHTML = `<p class="text-rose-400 text-xs">No se pudo cargar. ¿Corriste sql/2026-10-23_densidad_conversion_bom.sql en Supabase?<br>${escaparHtml(err.message || err)}</p>`;
+    }
+}
+
+function densPintar(cuerpo) {
+    const filtro = densFiltro;
+    const filas = densFilas.filter((p) => !filtro || (p.nombre || '').toLowerCase().includes(filtro) || (p.sku || '').toLowerCase().includes(filtro));
+    aplicarOrden(densOrden, filas, (p, campo) => {
+        switch (campo) {
+            case 'nombre': return (p.nombre || '').toLowerCase();
+            case 'unidad': return (p.unidades_medida?.nombre || '').toLowerCase();
+            case 'densidad': return p.densidad_kg_l === null || p.densidad_kg_l === undefined ? -1 : Number(p.densidad_kg_l);
+            default: return p.id;
+        }
+    });
+    if (!filas.length) { cuerpo.innerHTML = '<p class="text-slate-500 text-xs italic py-3">Sin resultados.</p>'; return; }
+    cuerpo.innerHTML = `
+        <table class="w-full text-left text-xs">
+            <thead class="text-slate-500 uppercase sticky top-0 bg-slate-900"><tr>
+                ${thOrden(densOrden, 'nombre', 'Nombre')}${thOrden(densOrden, 'unidad', 'Unidad de inventario')}${thOrden(densOrden, 'densidad', 'Densidad (kg/L)')}<th class="p-2"></th>
+            </tr></thead>
+            <tbody>
+                ${filas.map((p) => `
+                <tr class="border-t border-slate-800" data-id="${p.id}">
+                    <td class="p-2 text-slate-100">${escaparHtml(p.nombre)}${p.sku ? `<span class="block text-[10px] font-mono text-slate-500">${escaparHtml(p.sku)}</span>` : ''}</td>
+                    <td class="p-2 text-slate-400">${escaparHtml(p.unidades_medida?.nombre || '—')}</td>
+                    <td class="p-2"><input type="number" step="0.0001" min="0" placeholder="—" class="dens-input w-24 bg-slate-950 border border-slate-800 rounded p-1 text-xs text-slate-100 font-mono" value="${p.densidad_kg_l ?? ''}"></td>
+                    <td class="p-2 text-[10px] dens-estado text-slate-600"></td>
+                </tr>`).join('')}
+            </tbody>
+        </table>`;
+    wireOrdenTabla(cuerpo, densOrden, () => densPintar(cuerpo));
+    cuerpo.querySelectorAll('.dens-input').forEach((inp) => {
+        inp.addEventListener('change', async () => {
+            const tr = inp.closest('tr');
+            const id = Number(tr.dataset.id);
+            const estado = tr.querySelector('.dens-estado');
+            const val = inp.value.trim();
+            if (val && !(parseFloat(val) > 0)) {
+                estado.textContent = 'Debe ser > 0'; estado.className = 'p-2 text-[10px] dens-estado text-rose-400';
+                return;
+            }
+            estado.textContent = 'Guardando…'; estado.className = 'p-2 text-[10px] dens-estado text-slate-500';
+            try {
+                const { error } = await supabaseClient.from('productos').update({ densidad_kg_l: val ? parseFloat(val) : null }).eq('id', id);
+                if (error) throw error;
+                const fila = densFilas.find((p) => p.id === id);
+                if (fila) fila.densidad_kg_l = val ? parseFloat(val) : null;
+                estado.textContent = 'Guardado ✓'; estado.className = 'p-2 text-[10px] dens-estado text-emerald-400';
+            } catch (err) {
+                estado.textContent = /densidad_kg_l/.test(err.message || '') ? 'Falta la migración 2026-10-23' : (err.message || 'Error al guardar');
+                estado.className = 'p-2 text-[10px] dens-estado text-rose-400';
+            }
+        });
+    });
+}
+
+// =====================================================================
+// Tabla de unidades de medida: catálogo consultable, editable y ampliable
+// (Piezas, Kilogramos, Litros...). Antes solo se podía tocar entrando a
+// Supabase -> Table Editor; ahora se ve, se corrige y se agregan nuevas
+// desde aquí. Requiere sql/2026-10-25_unidades_medida_editable.sql para
+// poder guardar (RLS de 'authenticated' sobre esa tabla).
+// =====================================================================
+const unidOrden = crearOrdenTabla('nombre', 'asc');
+let unidFiltro = '';
+let unidFilas = [];
+
+async function abrirTablaUnidades() {
+    document.getElementById('modalUnidades')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'modalUnidades';
+    modal.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4';
+    modal.innerHTML = `
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+            <div class="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-start gap-3 rounded-t-2xl">
+                <div class="min-w-0">
+                    <h3 class="text-sm font-bold text-slate-100">📏 Tabla de unidades de medida</h3>
+                    <p class="text-[11px] text-slate-500 mt-0.5">Piezas, Kilogramos, Litros... Los cambios se guardan solos. "Fraccionable" controla si se puede pedir/producir en decimales (Kilogramos) o solo enteros (Piezas).</p>
+                </div>
+                <button type="button" id="unidBtnX" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 cursor-pointer shrink-0">&times;</button>
+            </div>
+            <div class="p-4 pb-2 shrink-0 space-y-2">
+                <input type="text" id="unidBuscar" placeholder="🔍 Buscar por nombre…" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                <div class="flex flex-wrap gap-2 items-center bg-slate-950/60 border border-slate-800 rounded-lg p-2">
+                    <input type="text" id="unidNueva" placeholder="Nueva unidad (ej. Metros)" class="flex-1 min-w-[10rem] bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100">
+                    <label class="flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer"><input type="checkbox" id="unidNuevaFrac" class="accent-sky-500"> Fraccionable</label>
+                    <button type="button" id="unidAgregar" class="text-xs bg-sky-600 hover:bg-sky-500 text-white font-medium px-3 py-1.5 rounded-lg cursor-pointer">＋ Agregar</button>
+                </div>
+                <p id="unidMsg" class="text-[11px] min-h-[1rem]"></p>
+            </div>
+            <div id="unidCuerpo" class="px-4 pb-4 overflow-y-auto flex-1 text-sm text-slate-300">Cargando…</div>
+        </div>`;
+    document.body.appendChild(modal);
+
+    const cerrar = () => modal.remove();
+    modal.addEventListener('click', (e) => { if (e.target === modal) cerrar(); });
+    modal.querySelector('#unidBtnX').addEventListener('click', cerrar);
+
+    const cuerpo = modal.querySelector('#unidCuerpo');
+    const msg = modal.querySelector('#unidMsg');
+    document.getElementById('unidBuscar').addEventListener('input', (e) => { unidFiltro = e.target.value.trim().toLowerCase(); unidPintar(cuerpo); });
+
+    document.getElementById('unidAgregar').addEventListener('click', async () => {
+        const inp = document.getElementById('unidNueva');
+        const nombre = inp.value.trim();
+        msg.textContent = ''; msg.className = 'text-[11px] min-h-[1rem]';
+        if (!nombre) { msg.textContent = 'Escribe el nombre de la unidad.'; msg.className = 'text-[11px] min-h-[1rem] text-rose-400'; return; }
+        if (unidFilas.some((u) => u.nombre.trim().toLowerCase() === nombre.toLowerCase())) {
+            msg.textContent = `"${nombre}" ya existe.`; msg.className = 'text-[11px] min-h-[1rem] text-rose-400'; return;
+        }
+        try {
+            const { data, error } = await supabaseClient.from('unidades_medida')
+                .insert([{ nombre, es_fraccionable: document.getElementById('unidNuevaFrac').checked }])
+                .select('id, nombre, es_fraccionable').single();
+            if (error) throw error;
+            unidFilas.push({ ...data, _uso: 0 });
+            inp.value = ''; document.getElementById('unidNuevaFrac').checked = false;
+            msg.textContent = `"${data.nombre}" agregada ✓`; msg.className = 'text-[11px] min-h-[1rem] text-emerald-400';
+            unidPintar(cuerpo);
+        } catch (err) {
+            const m = err.message || String(err);
+            msg.textContent = /row-level security|permission denied/i.test(m)
+                ? 'Falta correr sql/2026-10-25_unidades_medida_editable.sql en Supabase (SQL Editor).'
+                : (/duplicate key|unique/i.test(m) ? `"${nombre}" ya existe.` : m);
+            msg.className = 'text-[11px] min-h-[1rem] text-rose-400';
+        }
+    });
+
+    try {
+        const [rUnid, rProd] = await Promise.all([
+            supabaseClient.from('unidades_medida').select('id, nombre, es_fraccionable').order('nombre', { ascending: true }),
+            supabaseClient.from('productos').select('unidad_medida_id'),
+        ]);
+        if (rUnid.error) throw rUnid.error;
+        const usoPorId = new Map();
+        (rProd.data || []).forEach((p) => { if (p.unidad_medida_id) usoPorId.set(p.unidad_medida_id, (usoPorId.get(p.unidad_medida_id) || 0) + 1); });
+        unidFilas = (rUnid.data || []).map((u) => ({ ...u, _uso: usoPorId.get(u.id) || 0 }));
+        unidPintar(cuerpo);
+    } catch (err) {
+        cuerpo.innerHTML = `<p class="text-rose-400 text-xs">No se pudo cargar.<br>${escaparHtml(err.message || err)}</p>`;
+    }
+}
+
+function unidPintar(cuerpo) {
+    const filtro = unidFiltro;
+    const filas = unidFilas.filter((u) => !filtro || u.nombre.toLowerCase().includes(filtro));
+    aplicarOrden(unidOrden, filas, (u, campo) => {
+        switch (campo) {
+            case 'nombre': return u.nombre.toLowerCase();
+            case 'fraccionable': return u.es_fraccionable ? 1 : 0;
+            case 'uso': return u._uso;
+            default: return u.id;
+        }
+    });
+    if (!filas.length) { cuerpo.innerHTML = '<p class="text-slate-500 text-xs italic py-3">Sin resultados.</p>'; return; }
+    cuerpo.innerHTML = `
+        <table class="w-full text-left text-xs">
+            <thead class="text-slate-500 uppercase sticky top-0 bg-slate-900"><tr>
+                ${thOrden(unidOrden, 'nombre', 'Nombre')}${thOrden(unidOrden, 'fraccionable', 'Fraccionable', 'text-center justify-center')}${thOrden(unidOrden, 'uso', 'En uso', 'text-right justify-end')}<th class="p-2"></th>
+            </tr></thead>
+            <tbody>
+                ${filas.map((u) => `
+                <tr class="border-t border-slate-800" data-id="${u.id}">
+                    <td class="p-2"><input type="text" class="unid-nombre w-full bg-slate-950 border border-slate-800 rounded p-1 text-xs text-slate-100" value="${escaparHtml(u.nombre)}"></td>
+                    <td class="p-2 text-center"><input type="checkbox" class="unid-frac accent-sky-500" ${u.es_fraccionable ? 'checked' : ''}></td>
+                    <td class="p-2 text-right font-mono text-slate-400" title="Productos que usan esta unidad">${u._uso}</td>
+                    <td class="p-2 text-[10px] unid-estado text-slate-600"></td>
+                </tr>`).join('')}
+            </tbody>
+        </table>`;
+    wireOrdenTabla(cuerpo, unidOrden, () => unidPintar(cuerpo));
+
+    const guardar = async (tr, campos) => {
+        const id = Number(tr.dataset.id);
+        const estado = tr.querySelector('.unid-estado');
+        estado.textContent = 'Guardando…'; estado.className = 'p-2 text-[10px] unid-estado text-slate-500';
+        try {
+            const { error } = await supabaseClient.from('unidades_medida').update(campos).eq('id', id);
+            if (error) throw error;
+            const fila = unidFilas.find((u) => u.id === id);
+            if (fila) Object.assign(fila, campos);
+            estado.textContent = 'Guardado ✓'; estado.className = 'p-2 text-[10px] unid-estado text-emerald-400';
+        } catch (err) {
+            const m = err.message || String(err);
+            estado.textContent = /row-level security|permission denied/i.test(m) ? 'Falta la migración 2026-10-25'
+                : (/duplicate key|unique/i.test(m) ? 'Ese nombre ya existe' : (m || 'Error al guardar'));
+            estado.className = 'p-2 text-[10px] unid-estado text-rose-400';
+        }
+    };
+    cuerpo.querySelectorAll('.unid-nombre').forEach((inp) => {
+        inp.addEventListener('change', () => {
+            const nombre = inp.value.trim();
+            if (!nombre) { inp.focus(); return; }
+            guardar(inp.closest('tr'), { nombre });
+        });
+    });
+    cuerpo.querySelectorAll('.unid-frac').forEach((chk) => {
+        chk.addEventListener('change', () => guardar(chk.closest('tr'), { es_fraccionable: chk.checked }));
+    });
 }
 
 // =====================================================================

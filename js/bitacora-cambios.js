@@ -15,6 +15,8 @@ import { montarGuia } from './asistente-contable.js';
 // =====================================================================
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const hoyISO = () => new Date().toISOString().slice(0, 10);
+const primerDiaMesISO = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); };
 const bitOrden = crearOrdenTabla('creado_at', 'desc');
 const LIMITE = 500;
 let bitFiltros = { usuario: '', tabla: '', accion: '', desde: '', hasta: '' };
@@ -137,6 +139,11 @@ export async function cargarModuloBitacora() {
         bitCargar();
     };
     document.getElementById('bitCsv').onclick = bitExportarCsv;
+
+    // Igual que el resto de los reportes: arranca del inicio del mes a hoy.
+    document.getElementById('bitDesde').value = primerDiaMesISO();
+    document.getElementById('bitHasta').value = hoyISO();
+    bitFiltros = { usuario: '', tabla: '', accion: '', desde: primerDiaMesISO(), hasta: hoyISO() };
 
     await bitLlenarUsuarios();
     await bitCargar();

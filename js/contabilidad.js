@@ -1694,7 +1694,6 @@ async function gaCancelar(id) {
 //  polizas 'contabilizada'. Requiere: fases 1 y 2.
 // =====================================================================
 
-const primerDiaAnioISO = () => new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10);
 const rcFmt = (n) => {
     const v = Math.round((Number(n) || 0) * 100) / 100;
     const s = Math.abs(v).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1818,22 +1817,22 @@ function rcCablearDesglose() {
 //  eliges una cuenta-mayor (p. ej. 115) entran todas sus subcuentas. Solo
 //  pólizas contabilizadas (las canceladas no cuentan).
 // ---------------------------------------------------------------------
-let rcAuxCtas = null;        // catálogo de cuentas para los selectores
-let rcAuxResultado = null;   // { desde, hasta, cDesde, cHasta, bloques } — lo usa el CSV
+let rcAuxCtas = null;        // catálogo de cuentas para el selector
+let rcAuxResultado = null;   // { desde, hasta, seleccion, cuentaLabel, bloques } — lo usa el CSV
 
 const rcEsc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 async function rcCargarCtasAux() {
     if (rcAuxCtas) return rcAuxCtas;
     const { data, error } = await supabaseClient.from('cuentas_contables')
-        .select('id, codigo, nombre, naturaleza, tipo, nivel, afectable')
+        .select('id, codigo, nombre, naturaleza, tipo, nivel, cuenta_padre_id, afectable')
         .order('codigo', { ascending: true });
     if (error) throw error;
     rcAuxCtas = data || [];
     return rcAuxCtas;
 }
 
-// Muestra los filtros propios del Auxiliar solo en su pestaña y llena los selectores de cuenta.
+// Muestra el filtro propio del Auxiliar solo en su pestaña y llena el selector de cuenta.
 async function rcPrepararFiltrosAux() {
     const caja = document.getElementById('rcAuxFiltros');
     if (!caja) return;
@@ -1842,24 +1841,36 @@ async function rcPrepararFiltrosAux() {
     caja.classList.toggle('flex', activo);
     if (!activo) return;
 
-    const selD = document.getElementById('rcAuxDesde');
-    const selH = document.getElementById('rcAuxHasta');
-    if (selD.options.length > 1) return;        // ya están llenos
+    const sel = document.getElementById('rcAuxCuenta');
+    if (sel.options.length > 2) return;        // ya está lleno
     try {
         const ctas = await rcCargarCtasAux();
-        const opts = '<option value="">(elige una cuenta)</option>' + ctas.map((c) =>
-            `<option value="${rcEsc(c.codigo)}">${'  '.repeat(Math.max(0, (c.nivel || 1) - 1))}${rcEsc(c.codigo)} · ${rcEsc(c.nombre)}</option>`).join('');
-        selD.innerHTML = opts;
-        selH.innerHTML = opts;
+        const arbol = ctas.map((c) =>
+            `<option value="${c.id}">${'  '.repeat(Math.max(0, (c.nivel || 1) - 1))}${rcEsc(c.codigo)} · ${rcEsc(c.nombre)}</option>`).join('');
+        sel.innerHTML = `<option value="">(elige una cuenta)</option><option value="__todas__">\u2500\u2500 Todas las cuentas \u2500\u2500</option>${arbol}`;
     } catch (err) {
         document.getElementById('rcResultado').innerHTML =
             `<p class="text-rose-400 text-xs">No se pudo cargar el plan de cuentas.<br>${rcEsc(err.message || err)}</p>`;
     }
 }
 
-// Cuentas de detalle (afectables) dentro del rango; una cuenta-mayor incluye sus subcuentas.
-function rcCuentasEnRango(ctas, cDesde, cHasta) {
-    return ctas.filter((c) => c.afectable && c.codigo >= cDesde && (c.codigo <= cHasta || c.codigo.startsWith(cHasta)));
+// Todas las cuentas de detalle (afectables) que cuelgan de una cuenta-mayor, a cualquier profundidad.
+function rcCuentasDescendientesAfectables(ctas, padreId) {
+    const out = [];
+    for (const h of ctas.filter((c) => c.cuenta_padre_id === padreId)) {
+        if (h.afectable) out.push(h);
+        out.push(...rcCuentasDescendientesAfectables(ctas, h.id));
+    }
+    return out;
+}
+
+// Cuentas de detalle que entran al auxiliar segun lo elegido en el selector: todas las cuentas, una
+// cuenta de detalle (ella misma), o una cuenta-mayor (sus subcuentas).
+function rcCuentasSeleccionadas(ctas, seleccion) {
+    if (seleccion === '__todas__') return ctas.filter((c) => c.afectable);
+    const cuenta = ctas.find((c) => c.id === Number(seleccion));
+    if (!cuenta) return [];
+    return cuenta.afectable ? [cuenta] : rcCuentasDescendientesAfectables(ctas, cuenta.id);
 }
 
 // Todos los movimientos contabilizados de esas cuentas hasta "hasta" (de 1000 en 1000, y por
@@ -1888,19 +1899,18 @@ async function rcGenerarAuxiliar() {
     const res = document.getElementById('rcResultado');
     const desde = document.getElementById('rcDesde').value;
     const hasta = document.getElementById('rcHasta').value;
-    const cDesde = document.getElementById('rcAuxDesde').value;
-    const cHasta = document.getElementById('rcAuxHasta').value;
+    const seleccion = document.getElementById('rcAuxCuenta').value;
     if (!desde || !hasta) { alert('Indica el periodo.'); return; }
-    if (!cDesde || !cHasta) {
+    if (!seleccion) {
         rcAuxResultado = null;
-        res.innerHTML = '<p class="text-slate-400">Elige la cuenta — o el rango de cuentas — del que quieres el auxiliar. Si eliges una cuenta-mayor (por ejemplo 115), entran todas sus subcuentas.</p>';
+        res.innerHTML = '<p class="text-slate-400">Elige la cuenta de la que quieres el auxiliar (o "Todas las cuentas"). Si eliges una cuenta-mayor, por ejemplo 115, entran todas sus subcuentas.</p>';
         return;
     }
     res.innerHTML = '<p class="text-slate-500">Consultando movimientos...</p>';
     try {
         const ctas = await rcCargarCtasAux();
-        const cuentas = rcCuentasEnRango(ctas, cDesde, cHasta);
-        if (!cuentas.length) { res.innerHTML = '<p class="text-slate-400">Ese rango no tiene cuentas de detalle (afectables).</p>'; return; }
+        const cuentas = rcCuentasSeleccionadas(ctas, seleccion);
+        if (!cuentas.length) { res.innerHTML = '<p class="text-slate-400">Esa cuenta no tiene cuentas de detalle (afectables).</p>'; return; }
 
         const movs = await rcTraerMovsAux(cuentas.map((c) => c.id), hasta);
         const porCuenta = new Map();
@@ -1934,7 +1944,11 @@ async function rcGenerarAuxiliar() {
             return { cuenta: c, saldoIni, filas, cargos, abonos, saldoFin: saldo };
         });
 
-        rcAuxResultado = { desde, hasta, cDesde, cHasta, bloques };
+        const cuentaLabel = seleccion === '__todas__' ? 'Todas las cuentas' : (() => {
+            const c = ctas.find((x) => x.id === Number(seleccion));
+            return c ? `Cuenta ${rcEsc(c.codigo)} - ${rcEsc(c.nombre)}` : 'Cuenta';
+        })();
+        rcAuxResultado = { desde, hasta, seleccion, cuentaLabel, bloques };
         rcAuxPintar();
     } catch (err) {
         res.innerHTML = `<p class="text-rose-400 text-xs">No se pudo generar el auxiliar. ¿Corriste los SQL de contabilidad?<br>${rcEsc(err.message || err)}</p>`;
@@ -1976,7 +1990,7 @@ function rcAuxPintar() {
         <tr><td colspan="7" class="p-1"></td></tr>`;
     }).join('');
 
-    const rango = r.cDesde === r.cHasta ? `Cuenta ${rcEsc(r.cDesde)}` : `Cuentas ${rcEsc(r.cDesde)} a ${rcEsc(r.cHasta)}`;
+    const rango = rcEsc(r.cuentaLabel);
     res.innerHTML = `
         <div id="rcTabla" class="overflow-x-auto">
             <div class="mb-3">
@@ -2021,7 +2035,8 @@ function rcExportarAuxiliarCSV() {
     const csv = '﻿' + filas.map((f) => f.map(celda).join(',')).join('\r\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-    a.download = `auxiliar_cuentas_${r.cDesde}${r.cDesde === r.cHasta ? '' : '_a_' + r.cHasta}_${r.hasta}.csv`;
+    const slug = r.seleccion === '__todas__' ? 'todas' : r.cuentaLabel.replace(/^Cuenta /, '').split(' ')[0];
+    a.download = `auxiliar_cuentas_${slug}_${r.hasta}.csv`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
@@ -2039,11 +2054,8 @@ export async function cargarModuloReportesContables() {
                 <input type="date" id="rcHasta" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
             <!-- Filtros propios del Auxiliar de cuentas contables (solo se ven en esa pestaña) -->
             <div id="rcAuxFiltros" class="hidden items-end gap-3 flex-wrap">
-                <div><label class="block text-[11px] text-slate-400 mb-1">Cuenta desde</label>
-                    <select id="rcAuxDesde" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 max-w-[16rem]"><option value="">(elige una cuenta)</option></select></div>
-                <div><label class="block text-[11px] text-slate-400 mb-1">Cuenta hasta</label>
-                    <select id="rcAuxHasta" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 max-w-[16rem]"><option value="">(elige una cuenta)</option></select></div>
-                <button type="button" id="rcAuxTodas" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg border border-slate-700 cursor-pointer">Todas las cuentas</button>
+                <div><label class="block text-[11px] text-slate-400 mb-1">Cuenta</label>
+                    <select id="rcAuxCuenta" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 max-w-[20rem]"><option value="">(elige una cuenta)</option></select></div>
                 <label class="flex items-center gap-1.5 text-[11px] text-slate-300 pb-2 cursor-pointer"><input type="checkbox" id="rcAuxSoloMov" checked class="accent-sky-500"> Solo cuentas con movimientos</label>
             </div>
             <button type="button" id="rcGenerar" class="text-xs bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg font-semibold cursor-pointer">Generar</button>
@@ -2056,7 +2068,7 @@ export async function cargarModuloReportesContables() {
         <div id="rcResultado" class="bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm text-slate-500">Elige el periodo y pulsa Generar.</div>
     </div>`;
 
-    document.getElementById('rcDesde').value = primerDiaAnioISO();
+    document.getElementById('rcDesde').value = primerDiaMesISO();
     document.getElementById('rcHasta').value = hoyISO();
     rcRenderTabs();
 
@@ -2068,24 +2080,8 @@ export async function cargarModuloReportesContables() {
         imprimirConPlantilla('generico', titulo, 'rcTabla');
     });
 
-    // Auxiliar: al elegir la cuenta "desde" la de "hasta" la sigue (una sola cuenta por defecto),
-    // y el reporte se genera solo al cambiar la selección.
-    const selAuxD = document.getElementById('rcAuxDesde');
-    const selAuxH = document.getElementById('rcAuxHasta');
-    selAuxD.addEventListener('change', () => {
-        if (!selAuxH.value || selAuxH.value < selAuxD.value) selAuxH.value = selAuxD.value;
-        rcGenerarAuxiliar();
-    });
-    selAuxH.addEventListener('change', () => {
-        if (!selAuxD.value || selAuxD.value > selAuxH.value) selAuxD.value = selAuxH.value;
-        rcGenerarAuxiliar();
-    });
-    document.getElementById('rcAuxTodas').addEventListener('click', () => {
-        if (selAuxD.options.length < 3) return;
-        selAuxD.selectedIndex = 1;
-        selAuxH.selectedIndex = selAuxH.options.length - 1;
-        rcGenerarAuxiliar();
-    });
+    // Auxiliar: el reporte se genera solo al elegir la cuenta (padre o de detalle) o "Todas las cuentas".
+    document.getElementById('rcAuxCuenta').addEventListener('change', rcGenerarAuxiliar);
     document.getElementById('rcAuxSoloMov').addEventListener('change', rcAuxPintar);
     rcPrepararFiltrosAux();
 

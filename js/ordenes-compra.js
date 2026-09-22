@@ -1165,6 +1165,12 @@ function rmTarjetaPrerecibo(pr, { conBotones = true } = {}) {
         bannerEstado = `<p class="text-[11px] mt-0.5 text-amber-400">⚠ El operador NO marcó "todo correcto".</p>`;
     }
 
+    // Un 'validado' que sigue en "Por validar" (conBotones=true) todavía no tiene su recepción
+    // completada — se avisa aparte del badge verde "Validado", que por sí solo sugeriría que ya
+    // no hay nada pendiente.
+    const avisoFaltaRecibir = (conBotones && pr.estatus === 'validado')
+        ? '<p class="text-[11px] mt-0.5 text-emerald-300">📦 Ya validado — falta completar la recepción real en inventario.</p>' : '';
+
     const estatusBadge = {
         pendiente: '<span class="text-[10px] bg-amber-800/60 text-amber-200 border border-amber-700 rounded px-1.5 py-0.5 ml-1">Pendiente</span>',
         validado: '<span class="text-[10px] bg-emerald-800/60 text-emerald-200 border border-emerald-700 rounded px-1.5 py-0.5 ml-1">Validado</span>',
@@ -1172,14 +1178,17 @@ function rmTarjetaPrerecibo(pr, { conBotones = true } = {}) {
         cancelado: '<span class="text-[10px] bg-slate-700/60 text-slate-300 border border-slate-600 rounded px-1.5 py-0.5 ml-1">Cancelado</span>',
     }[pr.estatus] || '';
 
-    // Validar/Rechazar solo tienen sentido mientras está pendiente. Ver es
+    // Validar/Rechazar solo tienen sentido mientras está pendiente. Un 'validado' que sigue
+    // apareciendo en "Por validar" (todavía sin documento_id: nadie completó la recepción) no
+    // se vuelve a validar — solo retoma la pantalla de recepción donde se quedó. Ver es
     // siempre. Editar (solo admin, esta pantalla nunca la usa el operador)
     // mientras siga vivo (pendiente/validado). Cancelar en cualquier estatus
     // salvo ya cancelado — permite anular incluso uno ya validado por error
     // (OC equivocada, duplicado, compra que ya no aplica) y volver a capturar.
-    const accionesValidar = (conBotones && pr.estatus === 'pendiente') ? `
+    const accionesValidar = !conBotones ? '' : pr.estatus === 'pendiente' ? `
           <button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'validar')" class="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg">✔ Validar y recibir</button>
-          <button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'rechazar')" class="text-xs bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-3 py-1.5 rounded-lg">✕ Rechazar</button>` : '';
+          <button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'rechazar')" class="text-xs bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-3 py-1.5 rounded-lg">✕ Rechazar</button>` : pr.estatus === 'validado' ? `
+          <button type="button" onclick="window.irARecibirOC(${pr.orden_compra_id || 'null'})" class="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg">📦 Continuar recepción</button>` : '';
     const accionEditar = (pr.estatus === 'pendiente' || pr.estatus === 'validado')
         ? `<button type="button" onclick="window.prereciboEditar(${pr.id})" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg">✏ Editar</button>` : '';
     const accionCancelar = pr.estatus !== 'cancelado'
@@ -1194,6 +1203,7 @@ function rmTarjetaPrerecibo(pr, { conBotones = true } = {}) {
             <p class="flex items-center flex-wrap">${oc}${estatusBadge}</p>
             <p class="text-[11px] text-slate-500">Operador: ${esc(pr.empleado_nombre || '?')} · ${new Date(pr.creado_en).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</p>
             ${bannerEstado}
+            ${avisoFaltaRecibir}
             ${pr.observaciones ? `<p class="text-[11px] text-slate-400 mt-0.5">“${esc(pr.observaciones)}”</p>` : ''}
             ${(pr.estatus === 'rechazado' || pr.estatus === 'cancelado') && pr.nota_validacion ? `<p class="text-[11px] text-rose-400 mt-0.5"><b>Motivo${pr.estatus === 'cancelado' ? ' de la cancelación' : ' del rechazo'}:</b> ${esc(pr.nota_validacion)}</p>` : ''}
           </div>
@@ -1219,6 +1229,9 @@ function rmTarjetaPrerecibo(pr, { conBotones = true } = {}) {
 }
 
 const PRERECIBO_COLUMNAS = 'id, orden_compra_id, referencia, empleado_nombre, fotos, observaciones, todo_correcto, lineas, estatus, nota_validacion, creado_en, ordenes_compra ( folio, proveedores ( nombre ) )';
+// Con pre_recibos.documento_id (migración 2026-10-26); si aún no está, "Por validar" se guía
+// solo por 'pendiente', como antes de este archivo.
+let rmPrereciboTieneDocId = true;
 function prereciboErrorMsg(err) {
     const m = err?.message || String(err);
     const archivoFalta = /lineas/i.test(m)
@@ -1229,20 +1242,27 @@ function prereciboErrorMsg(err) {
         : `Error al leer pre-recibos: ${esc(m)}`;
 }
 
+// "Por validar" = pendientes de revisar + ya validados a los que aún no se les completó la
+// recepción real (documento_id vacío) — para que "Validar y recibir" nunca los pierda si el
+// admin abre la recepción y no la termina.
 async function rmPreRecibos() {
     const cont = document.getElementById('rmPreRecibos');
     if (!cont) return;
 
     let filas;
     try {
-        const { data, error } = await supabaseClient
-            .from('pre_recibos')
-            .select(PRERECIBO_COLUMNAS)
-            .eq('estatus', 'pendiente')
-            .order('creado_en', { ascending: true });
+        let q = supabaseClient.from('pre_recibos').select(rmPrereciboTieneDocId ? PRERECIBO_COLUMNAS + ', documento_id' : PRERECIBO_COLUMNAS);
+        q = rmPrereciboTieneDocId
+            ? q.in('estatus', ['pendiente', 'validado']).is('documento_id', null)
+            : q.eq('estatus', 'pendiente');
+        const { data, error } = await q.order('creado_en', { ascending: true });
         if (error) throw error;
         filas = data || [];
     } catch (err) {
+        if (rmPrereciboTieneDocId && /documento_id/i.test(err.message || '')) {
+            rmPrereciboTieneDocId = false;
+            return rmPreRecibos();
+        }
         cont.innerHTML = `<p class="text-[11px] text-slate-600">${prereciboErrorMsg(err)}</p>`;
         return;
     }
@@ -1256,12 +1276,15 @@ async function rmPreRecibos() {
         return;
     }
 
+    const nPendientes = filas.filter((f) => f.estatus === 'pendiente').length;
+    const nValidados = filas.length - nPendientes;
     cont.innerHTML = `
       <div class="bg-amber-950/30 border border-amber-800/50 rounded-xl p-3">
         <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
           <h3 class="text-sm font-semibold text-amber-300">Pre-recibos por validar (${filas.length})</h3>
           <span>${linkOperador}</span>
         </div>
+        ${nValidados ? `<p class="text-[11px] text-emerald-400/90 mb-2">${nValidados} ya validado(s), a la espera de que se complete su recepción en inventario.</p>` : ''}
         <div class="space-y-2">
           ${filas.map(pr => rmTarjetaPrerecibo(pr, { conBotones: true })).join('')}
         </div>
@@ -1309,6 +1332,11 @@ async function rmHistorialPrerecibos() {
 }
 
 window.prereciboValidar = async (id, ocId, accion) => {
+    // La base EXIGE (trigger _candado_recibo_requiere_prerecibo) que el pre-recibo ya esté
+    // 'validado' antes de poder registrar el recibo de mercancía — así que "validar" no se
+    // puede posponer hasta terminar la recepción. Lo que sí se pospone es que DESAPAREZCA de
+    // "Por validar": mientras nadie complete la recepción real (rmConfirmar le pone
+    // documento_id), sigue apareciendo ahí aunque su estatus ya sea 'validado'.
     let nota = null;
     if (accion === 'rechazar') {
         nota = prompt('Motivo del rechazo (se lo verá el operador con administración):', '');
@@ -2360,6 +2388,21 @@ async function rmConfirmar(ocs) {
         if (detFresco && detFresco.every(d => Number(d.cantidad_recibida || 0) >= Number(d.cantidad || 0))) nuevo = 'recibida';
         else if (detFresco && detFresco.every(d => Number(d.cantidad_recibida || 0) === 0)) nuevo = 'abierta';
         await supabaseClient.from('ordenes_compra').update({ estatus: nuevo }).eq('id', oc.id);
+
+        // El pre-recibo ya estaba 'validado' desde que se pulsó "Validar y recibir" (la base lo
+        // exige antes de dejar insertar este documento). Recién AHORA, con la mercancía ya
+        // adentro del inventario, se le anota el documento — así "Por validar" (que sigue
+        // mostrando un 'validado' sin documento_id) por fin lo suelta. Si el admin nunca llega
+        // a este punto, se queda visible ahí en vez de perderse. Best-effort: si falla, la
+        // recepción ya quedó registrada de todas formas.
+        try {
+            const { data: prVal } = await supabaseClient.from('pre_recibos')
+                .select('id').eq('orden_compra_id', oc.id).eq('estatus', 'validado').is('documento_id', null)
+                .order('creado_en', { ascending: false }).limit(1);
+            if (prVal && prVal[0]) {
+                await supabaseClient.from('pre_recibos').update({ documento_id: documentoId }).eq('id', prVal[0].id);
+            }
+        } catch (_) { /* no bloquea la recepción ya registrada */ }
 
         alert(`✅ Recepción registrada (documento #${documentoId}).${msgContab}\nLa orden ${oc.folio} quedó "${nuevo}".`);
 

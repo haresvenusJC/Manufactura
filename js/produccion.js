@@ -4,6 +4,7 @@ import { cargarInventarioCompleto } from './inventario.js';
 import { imprimirConPlantilla } from './impresion.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { convertirEnBuscador } from './buscador-select.js';
+import { factorConversion } from './conversion-unidades.js';
 
 const histProdOrden = crearOrdenTabla('fecha', 'desc');
 
@@ -12,47 +13,21 @@ function formatoCantidad(n) {
     return Number(Number(n || 0).toFixed(3)).toString();
 }
 
-// --- Conversión entre la unidad del BOM y la unidad en que se lleva el inventario del componente ---
-// Familias que se pueden convertir con exactitud: masa (mg, g, kg) y volumen (ml, l).
-const FAMILIAS_UNIDAD = [
-    [/^(miligramos?|mgs?)$/, 'masa', 0.001],
-    [/^(kilogramos?|kilos?|kgs?)$/, 'masa', 1000],
-    [/^(gramos?|grs?|g)$/, 'masa', 1],
-    [/^(mililitros?|mls?|cc)$/, 'volumen', 1],
-    [/^(litros?|lts?|l)$/, 'volumen', 1000],
-];
-function familiaDeUnidad(nombre) {
-    const n = String(nombre || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-    for (const [re, familia, aBase] of FAMILIAS_UNIDAD) if (re.test(n)) return { familia, aBase };
-    return null;
-}
-
 /**
- * Cuántas unidades de inventario del componente equivale 1 unidad del BOM.
- *  - Misma unidad (mismo id): 1. Es lo normal y no se toca.
- *  - Mismo tipo de unidad, distinta escala (g ↔ kg, ml ↔ l): se convierte exacto.
- *  - Unidades de distinto tipo (p. ej. BOM en Litros e inventario en Kilogramos): sin densidad no se
- *    puede convertir, así que se toma 1 a 1 y se deja una nota visible en el panel.
- *  - BOM sin unidad (capturas viejas): se conserva la regla anterior (mL/g → kg/L y cantidades > 10
- *    se toman como mL/g) para no cambiar los BOM ya cargados de esa forma.
+ * Lote sugerido para una nueva producción: LotDDD + CadMMAA.
+ *  - DDD: día juliano de hoy (1-366, con ceros a la izquierda) — Date.UTC en ambos
+ *    extremos para que no falle por el cambio de horario de verano.
+ *  - CadMMAA: mes y año (2+2 dígitos) de la caducidad, calculada a 2 años de hoy.
+ * Ej. hoy 21-sep-2026 (día juliano 264) -> "Lot264Cad0928" (caduca 09/2028).
  */
-function factorConversionBom(unidadBomRaw, unidadStockId, nombreUnidadPorId, unidadStockNombre, cantidadReqUnit) {
-    const raw = String(unidadBomRaw ?? '').trim();
-    if (!raw) {
-        // regla anterior, solo para renglones del BOM sin unidad
-        const stock = String(unidadStockNombre || '').toLowerCase().trim();
-        return { factor: (stock.includes('ml') || stock.includes('g') || cantidadReqUnit > 10) ? 1 / 1000 : 1, nota: '' };
-    }
-    if (String(unidadStockId ?? '') === raw) return { factor: 1, nota: '' };
-
-    const nombreBom = /^\d+$/.test(raw) ? (nombreUnidadPorId.get(raw) || '') : raw;
-    const fb = familiaDeUnidad(nombreBom);
-    const fs = familiaDeUnidad(unidadStockNombre);
-    if (fb && fs && fb.familia === fs.familia) return { factor: fb.aBase / fs.aBase, nota: '' };
-    if (nombreBom && unidadStockNombre && nombreBom.toLowerCase() !== unidadStockNombre.toLowerCase()) {
-        return { factor: 1, nota: `El BOM está en ${nombreBom} y el inventario en ${unidadStockNombre}: se toma 1 a 1.` };
-    }
-    return { factor: 1, nota: '' };
+function generarLoteSugerido(fecha = new Date()) {
+    const inicioAnio = Date.UTC(fecha.getFullYear(), 0, 1);
+    const hoyUTC = Date.UTC(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+    const diaJuliano = Math.round((hoyUTC - inicioAnio) / 86400000) + 1;
+    const caducidad = new Date(fecha.getFullYear() + 2, fecha.getMonth(), fecha.getDate());
+    const mm = String(caducidad.getMonth() + 1).padStart(2, '0');
+    const aa = String(caducidad.getFullYear()).slice(-2);
+    return `Lot${String(diaJuliano).padStart(3, '0')}Cad${mm}${aa}`;
 }
 
 /**
@@ -86,11 +61,18 @@ export async function calcularRequerimientosProduccion(productoId, cantidadProdu
 
     const idsComponentes = componentes.map(c => c.componente_id);
 
-    const { data: infoInsumos, error: errInsumos } = await supabaseClient
+    // Con densidad_kg_l (migración 2026-10-23); si aún no está, sin ella (sin densidad, la
+    // conversión entre volumen y masa se sigue tomando 1 a 1, como antes).
+    let { data: infoInsumos, error: errInsumos } = await supabaseClient
         .from('productos')
-        .select('id, nombre, costo_unitario, unidad_medida_id, unidades_medida ( nombre )')
+        .select('id, nombre, costo_unitario, unidad_medida_id, densidad_kg_l, unidades_medida ( nombre )')
         .in('id', idsComponentes);
-
+    if (errInsumos) {
+        ({ data: infoInsumos, error: errInsumos } = await supabaseClient
+            .from('productos')
+            .select('id, nombre, costo_unitario, unidad_medida_id, unidades_medida ( nombre )')
+            .in('id', idsComponentes));
+    }
     if (errInsumos) return { error: errInsumos.message, filas: [] };
     const mapaInsumos = new Map((infoInsumos || []).map(i => [i.id, i]));
 
@@ -118,16 +100,27 @@ export async function calcularRequerimientosProduccion(productoId, cantidadProdu
         const datosIns = mapaInsumos.get(componenteId) || {};
 
         const cantidadReqUnit = Number(comp.cantidad_requerida || 0);
-        let requerido = cantidadReqUnit * cantidad;
+        const cantidadRecetaBase = cantidadReqUnit * cantidad;    // en la unidad del renglón del BOM, antes de convertir
+        let requerido = cantidadRecetaBase;
 
         const unidadStockNombre = datosIns.unidades_medida?.nombre || '';
-        const conv = factorConversionBom(comp.unidad_medida, datosIns.unidad_medida_id, nombreUnidadPorId, unidadStockNombre, cantidadReqUnit);
+        const raw = String(comp.unidad_medida ?? '').trim();
+        const conv = factorConversion(comp.unidad_medida, datosIns.unidad_medida_id, nombreUnidadPorId, unidadStockNombre, cantidadReqUnit, datosIns.densidad_kg_l);
         requerido *= conv.factor;
+
+        // ¿La receta pide este insumo en OTRA unidad que la del inventario? Para avisar "Receta: X → se descuentan Y".
+        const distinta = raw && String(datosIns.unidad_medida_id ?? '') !== raw;
+        const nombreUnidadReceta = distinta ? (/^\d+$/.test(raw) ? (nombreUnidadPorId.get(raw) || '') : raw) : '';
 
         const prev = acumulado.get(componenteId);
         if (prev) {
             prev.requerido += requerido;
-            if (!prev.nota && conv.nota) prev.nota = conv.nota;
+            if (!prev.nota && conv.nota) { prev.nota = conv.nota; prev.notaTipo = conv.tipo; }
+            if (distinta && prev.recetaUnidadConsistente) {
+                if (!prev.recetaUnidad) prev.recetaUnidad = nombreUnidadReceta;
+                if (prev.recetaUnidad === nombreUnidadReceta) prev.recetaCantidad = (prev.recetaCantidad || 0) + cantidadRecetaBase;
+                else prev.recetaUnidadConsistente = false;   // dos renglones del mismo insumo en unidades distintas: no se puede sumar limpio
+            }
         } else {
             acumulado.set(componenteId, {
                 componenteId,
@@ -135,7 +128,11 @@ export async function calcularRequerimientosProduccion(productoId, cantidadProdu
                 unidad: unidadStockNombre,
                 costoUnitarioCatalogo: Number(datosIns.costo_unitario || 0),
                 requerido,
-                nota: conv.nota || ''
+                nota: conv.nota || '',
+                notaTipo: conv.tipo || 'ok',
+                recetaCantidad: distinta ? cantidadRecetaBase : undefined,
+                recetaUnidad: distinta ? nombreUnidadReceta : undefined,
+                recetaUnidadConsistente: true,
             });
         }
     });
@@ -316,8 +313,11 @@ export async function cargarModuloProduccion() {
                                 <input type="number" id="cantidadProducida" min="1" step="any" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-slate-400 mb-1">NÚMERO DE LOTE RESULTANTE</label>
-                                <input type="text" id="numeroLoteResultante" placeholder="Ej: LOTE-PT-2026-001" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
+                                <div class="flex justify-between items-center mb-1">
+                                    <label class="block text-xs font-medium text-slate-400">NÚMERO DE LOTE RESULTANTE</label>
+                                    <button type="button" id="btnSugerirLote" title="Generar de nuevo a partir de hoy: LotDDD (día juliano) + CadMMAA (caducidad a 2 años)" class="text-[10px] text-amber-400 hover:text-amber-300 cursor-pointer">🎲 Sugerir</button>
+                                </div>
+                                <input type="text" id="numeroLoteResultante" placeholder="Ej: Lot264Cad0928" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
                             </div>
                         </div>
                         <div id="panelExistenciasBOM" class="hidden bg-slate-950 border border-slate-800 rounded-lg p-3">
@@ -449,9 +449,19 @@ export async function cargarModuloProduccion() {
                 const color = f.suficiente ? 'text-emerald-400' : 'text-rose-400';
                 const icono = f.suficiente ? '✅' : '⛔';
                 const falta = f.suficiente ? '' : ` · faltan ${formatoCantidad(f.requerido - f.disponible)}${u}`;
+                // "Receta: 13.7 Litros → se descuentan 17.262 Kilogramos" — solo cuando la receta pide
+                // este insumo en una unidad distinta a la del inventario (conversión real, no solo redondeo).
+                let notaHtml = '';
+                if (f.recetaUnidadConsistente && f.recetaCantidad != null && f.recetaUnidad) {
+                    const detalle = f.notaTipo === 'aviso'
+                        ? 'sin densidad capturada — se toma 1 a 1, agrégala en ⚖️ Densidades'
+                        : (f.nota ? f.nota.replace(/^Convertido con /, '').replace(/\.$/, '') : 'conversión exacta de unidad');
+                    const clase = f.notaTipo === 'aviso' ? 'text-amber-400/80' : 'text-emerald-400/70';
+                    notaHtml = `<span class="block text-[10px] ${clase} font-normal">Receta: ${formatoCantidad(f.recetaCantidad)} ${f.recetaUnidad} → se descuentan ${formatoCantidad(f.requerido)}${u} (${detalle})</span>`;
+                }
                 return `
                     <div class="flex justify-between items-center gap-2 text-xs border-b border-slate-900 last:border-0 py-1">
-                        <span class="text-slate-200">${icono} ${f.nombre}${f.nota ? `<span class="block text-[10px] text-amber-400/80 font-normal" title="Sin la densidad del producto no se puede convertir entre unidades de distinto tipo.">${f.nota}</span>` : ''}</span>
+                        <span class="text-slate-200">${icono} ${f.nombre}${notaHtml}</span>
                         <span class="font-mono ${color}">req ${formatoCantidad(f.requerido)}${u} · disp ${formatoCantidad(f.disponible)}${u}${falta}</span>
                     </div>`;
             }).join('');
@@ -618,6 +628,7 @@ export async function cargarModuloProduccion() {
                     if (resultado.success) {
                         alert(`✅ Orden ${resultado.folio} generada y en proceso.\nLos operarios ya pueden registrar tiempos desde la Orden de Trabajo en el celular.`);
                         formOrden.reset();
+                        document.getElementById('numeroLoteResultante').value = generarLoteSugerido();
                         document.getElementById('listaProcesosOrden').innerHTML = '';
                         document.getElementById('avisoSinProcesos').classList.remove('hidden');
                         panelExistencias.classList.add('hidden');
@@ -666,6 +677,11 @@ export async function cargarModuloProduccion() {
             aviso.classList.remove('hidden');
             document.getElementById('numeroLoteResultante')?.focus();
         }
+        // Lote sugerido al abrir el formulario ("🎲 Sugerir" lo vuelve a calcular a partir de hoy).
+        document.getElementById('numeroLoteResultante').value = generarLoteSugerido();
+        document.getElementById('btnSugerirLote').addEventListener('click', () => {
+            document.getElementById('numeroLoteResultante').value = generarLoteSugerido();
+        });
         aplicarPreseleccionProduccion();
 
         document.getElementById('btnRefrescarEnProceso').onclick = cargarOrdenesEnProceso;
