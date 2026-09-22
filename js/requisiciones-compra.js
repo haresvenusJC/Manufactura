@@ -17,6 +17,16 @@ import './trazabilidad.js';
 
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const hoyISO = () => new Date().toISOString().slice(0, 10);
+// Hoy + N días hábiles (lunes a viernes), en hora local — para "Fecha esperada" al autorizar.
+function fechaHabilesDesdeHoy(n) {
+    const d = new Date();
+    let faltan = n;
+    while (faltan > 0) {
+        d.setDate(d.getDate() + 1);
+        if (d.getDay() !== 0 && d.getDay() !== 6) faltan--;
+    }
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const TABLA_FALTA = /does not exist|schema cache|could not find|relation .* does not exist/i;
 
@@ -880,7 +890,7 @@ window.reqAutorizar = async (id) => {
             <div><label class="block text-xs text-slate-400 mb-1">Proveedor</label>
               <select id="autProveedor" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optProv}</select></div>
             <div><label class="block text-xs text-slate-400 mb-1">Fecha esperada</label>
-              <input type="date" id="autFechaEsp" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+              <input type="date" id="autFechaEsp" value="${fechaHabilesDesdeHoy(5)}" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
             <div><label class="block text-xs text-slate-400 mb-1">Moneda</label>
               <select id="autMoneda" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optMon}</select></div>
             <button type="button" id="btnConfirmarAutorizar" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Autorizar y crear Orden de compra</button>

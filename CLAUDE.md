@@ -4,7 +4,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
-- Archivos tocados: `js/ordenes-compra.js`, `CLAUDE.md` (antes, misma sesión: documento "Estado de la orden
+- Archivos tocados: `js/requisiciones-compra.js` ("Autorizar requisición" → "Fecha esperada" prellenada con hoy
+  + 5 días hábiles, `fechaHabilesDesdeHoy`, hora local), `js/ordenes-compra.js`, `CLAUDE.md` (antes, misma sesión: documento "Estado de la orden
   de producción", requisiciones ligadas a la orden y tarjeta de pendientes por insumos en Producción —
   `js/ordenes-produccion.js`, `js/produccion.js`, `js/requisiciones-compra.js`,
   `sql/2026-09-22_requisicion_orden_produccion.sql`).
