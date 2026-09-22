@@ -905,7 +905,7 @@ async function cargarHistorialSalidas() {
                 <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition">
                     <td class="p-3 font-mono text-xs text-red-400 font-bold">${doc.folio}</td>
                     <td class="p-3 text-xs uppercase font-semibold text-slate-400">${doc.tipo_movimiento}</td>
-                    <td class="p-3 text-xs text-slate-400">${new Date(doc.fecha_emision).toLocaleDateString()}</td>
+                    <td class="p-3 text-xs text-slate-400">${new Date(doc.fecha_emision + 'T00:00:00').toLocaleDateString()}</td>
                     <td class="p-3 text-xs text-slate-200">${doc.descripcion || 'N/D'}</td>
                     <td class="p-3">${descDetalles}</td>
                     <td class="p-3">${contabCell}</td>

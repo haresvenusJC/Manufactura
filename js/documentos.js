@@ -210,7 +210,7 @@ window.renderizarTablaDocumentos = function(lista) {
 
     let html = '';
     lista.forEach(doc => {
-        const fecha = doc.fecha_emision ? new Date(doc.fecha_emision).toLocaleString() : 'N/D';
+        const fecha = doc.fecha_emision ? new Date(doc.fecha_emision + 'T00:00:00').toLocaleDateString() : 'N/D';
         const tercero = doc.proveedores?.nombre || doc.proveedor_cliente || doc.cliente_nombre || 'N/D';
         const estadoClase = doc.estado === 'completado' ? 'text-emerald-400 bg-emerald-950/40 border-emerald-900/50' : 'text-amber-400 bg-amber-950/40 border-amber-900/50';
 
@@ -348,7 +348,7 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
         let ventaSubtotalCalc = 0, ventaIvaCalc = 0;
 
         const contenidoModal = document.getElementById('contenidoModalDoc');
-        const fechaEmision = docInfo.fecha_emision ? new Date(docInfo.fecha_emision).toLocaleString() : 'N/D';
+        const fechaEmision = docInfo.fecha_emision ? new Date(docInfo.fecha_emision + 'T00:00:00').toLocaleDateString() : 'N/D';
         const tercero = docInfo.proveedores?.nombre || docInfo.proveedor_cliente || docInfo.cliente_nombre || 'N/D';
 
         // Se guarda para que window.imprimirDocumentoActual sepa qué plantilla y título usar

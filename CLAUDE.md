@@ -65,6 +65,15 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - Pantalla de Inicio (`js/bienvenida.js`): logo animado, saludo y accesos rápidos; es la vista de arranque.
 - Producción: botón "Generar requisición de lo faltante" — abre requisición de compra (agrupada por
   proveedor) y/o órdenes de producción para lo que se fabrica en casa (semiterminados como el granel).
+  Antecedentes entre órdenes: crear una orden YA NO se bloquea si le faltan insumos (el inventario no se
+  toca hasta cerrarla, igual que antes; al cerrar se sigue validando) — así nace con folio real de
+  inmediato. Cada orden "en proceso" tiene botones "📝 Ver/generar faltantes" (recalcula existencias y
+  dispara hijas/requisiciones ligadas a ESTA orden vía `orden_origen_id` /
+  `requisiciones_compra.orden_produccion_origen_id`) y "🔗 Antecedentes" (cadena orden origen → esta →
+  hijas → requisiciones que disparó, `abrirAntecedentesProduccion` en `js/trazabilidad.js`, mismo patrón
+  que `abrirAntecedentes` para Requisición→OC→Documento). Requiere
+  `sql/2026-10-27_antecedentes_ordenes_produccion.sql`; degrada con gracia si no se ha corrido (crea/guarda
+  igual, sin antecedente).
 - Buscador reutilizable para `<select>` largos: `js/buscador-select.js` (en uso en Producción).
 - Producción: número de lote sugerido automático al abrir el formulario (`generarLoteSugerido`,
   `js/produccion.js`) con patrón `LotDDDCadMMAA` — `DDD` = día juliano de hoy, `CadMMAA` = mes/año de
@@ -81,10 +90,16 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   se llena solo al confirmar la recepción en `rmConfirmar`, `js/ordenes-compra.js`), degrada con gracia si
   la migración no se ha corrido (vuelve al comportamiento anterior). Requiere
   `sql/2026-10-26_prerecibo_documento_id.sql`.
+- Fecha de documentos (`documentos.fecha_emision`, columna `date` sin hora): `documentos.js`, `compras.js`,
+  `salidas.js` y `entradas.js` hacían `new Date(fecha_emision).toLocaleString()/toLocaleDateString()`, que
+  interpreta el string como medianoche UTC y lo corre un día (y le pega una hora falsa) al convertir a la
+  zona local. Corregido con `new Date(fecha_emision + 'T00:00:00')` (mismo patrón ya usado en
+  `nomina.js`/`tareas.js`/`prorrateo.js`/`ordenes-compra.js`).
 
 ## Pendiente
 
-- Correr `sql/2026-10-25_unidades_medida_editable.sql` (`2026-10-23` y `2026-10-26` ya corridas).
+- Correr `sql/2026-10-25_unidades_medida_editable.sql` y `sql/2026-10-27_antecedentes_ordenes_produccion.sql`
+  (`2026-10-23` y `2026-10-26` ya corridas).
 - En Catálogo → "⚖️ Densidades", capturar densidad de los "Granel ..." (Gel/Miel/Lubricante, son mezclas
   propias — no hay ficha técnica externa que buscar): Anal Xtasi, Bubblegum, Cherry, Chocolate, Essence,
   Fresa Kiwi, Mango, Mint, Piña Colada, Prolongel Retardador, Vcream, Watermelon, Miel Bee Power,

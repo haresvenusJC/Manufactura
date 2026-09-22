@@ -378,14 +378,25 @@ async function reqGuardarRequisicion() {
     try {
         const notas = document.getElementById('reqNotas').value.trim();
         const folio = await siguienteFolio('REQ');   // consecutivo: REQ-000001, REQ-000002...
-        const origen = notas.startsWith('Generada desde Tareas') ? 'stock_bajo_minimo' : 'manual';
-        const { data: req, error: e1 } = await supabaseClient.from('requisiciones_compra').insert([{
+        // Antecedente real (folio de la orden de producción que la disparó, ver Producción →
+        // "Ver/generar faltantes"): persiste mientras queden grupos de otros proveedores por guardar.
+        const ordenOrigenId = window.__reqPreOrdenProduccionId || null;
+        const origen = ordenOrigenId ? 'orden_produccion' : (notas.startsWith('Generada desde Tareas') ? 'stock_bajo_minimo' : 'manual');
+        const filaReq = {
             folio,
             fecha: document.getElementById('reqFecha').value || hoyISO(),
             origen,
             estatus: 'pendiente',
             notas: notas || null,
-        }]).select('id, folio').single();
+        };
+        if (ordenOrigenId) filaReq.orden_produccion_origen_id = ordenOrigenId;
+        let { data: req, error: e1 } = await supabaseClient.from('requisiciones_compra').insert([filaReq]).select('id, folio').single();
+        if (e1 && ordenOrigenId && /orden_produccion_origen_id|does not exist|schema cache|could not find/i.test(e1.message || '')) {
+            // falta sql/2026-10-27_antecedentes_ordenes_produccion.sql: se guarda igual, sin antecedente.
+            delete filaReq.orden_produccion_origen_id;
+            filaReq.origen = notas.startsWith('Generada desde Tareas') ? 'stock_bajo_minimo' : 'manual';
+            ({ data: req, error: e1 } = await supabaseClient.from('requisiciones_compra').insert([filaReq]).select('id, folio').single());
+        }
         if (e1) throw e1;
 
         const filas = reqPartidasTemp.map(p => ({
@@ -430,6 +441,7 @@ async function reqGuardarRequisicion() {
 
         const siguiente = await reqCargarSiguienteGrupoPendiente();
         if (!siguiente) {
+            window.__reqPreOrdenProduccionId = null;
             msg.textContent = `Requisición ${req.folio} guardada, pendiente de autorización.`;
             msg.className = 'text-xs mt-2 text-emerald-400';
         } else {
@@ -466,11 +478,21 @@ async function reqRenderLista() {
     try {
         let q = supabaseClient
             .from('requisiciones_compra')
-            .select('id, folio, fecha, estatus, origen, notas, revisada_por, revisada_en, motivo_rechazo, orden_compra_id, ordenes_compra ( folio, estatus ), requisiciones_compra_detalle ( cantidad, costo_estimado, productos ( nombre ) )')
+            .select('id, folio, fecha, estatus, origen, notas, revisada_por, revisada_en, motivo_rechazo, orden_compra_id, orden_produccion_origen_id, ordenes_compra ( folio, estatus ), ordenes_produccion ( folio ), requisiciones_compra_detalle ( cantidad, costo_estimado, productos ( nombre ) )')
             .order('id', { ascending: false })
             .limit(200);
         if (reqFiltro !== 'todas') q = q.eq('estatus', reqFiltro);
-        const { data, error } = await q;
+        let { data, error } = await q;
+        if (error && /orden_produccion_origen_id|does not exist|schema cache|could not find/i.test(error.message || '')) {
+            // falta sql/2026-10-27_antecedentes_ordenes_produccion.sql: cae al select sin el antecedente.
+            let q2 = supabaseClient
+                .from('requisiciones_compra')
+                .select('id, folio, fecha, estatus, origen, notas, revisada_por, revisada_en, motivo_rechazo, orden_compra_id, ordenes_compra ( folio, estatus ), requisiciones_compra_detalle ( cantidad, costo_estimado, productos ( nombre ) )')
+                .order('id', { ascending: false })
+                .limit(200);
+            if (reqFiltro !== 'todas') q2 = q2.eq('estatus', reqFiltro);
+            ({ data, error } = await q2);
+        }
         if (error) throw error;
         if (!data || !data.length) { cont.innerHTML = `<p class="text-slate-500 text-sm">Sin requisiciones en "${REQ_FILTROS.find(f => f.v === reqFiltro)?.t.toLowerCase()}".</p>`; return; }
 
@@ -510,13 +532,14 @@ async function reqRenderLista() {
                             <button type="button" onclick="window.abrirAntecedentesOC(${r.orden_compra_id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded ml-1">🔗 Antecedentes</button>
                             ${r.estatus === 'autorizada' && r.ordenes_compra?.estatus === 'cancelada' ? `<button type="button" onclick="window.reqSincronizarCancelacion(${r.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-2 py-1 rounded ml-1" title="La orden de compra de esta requisición ya está cancelada">⚠ Marcar cancelada</button>` : ''}
                         ` : '')}
+                        ${r.orden_produccion_origen_id ? `<button type="button" onclick="window.abrirAntecedentesProduccion(${r.orden_produccion_origen_id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-2 py-1 rounded ml-1">🏭 Orden ${esc(r.ordenes_produccion?.folio || '#' + r.orden_produccion_origen_id)}</button>` : ''}
                       </td>
                       <td class="p-2"><button type="button" onclick="window.abrirDetalleReq(${r.id})" class="font-mono text-emerald-300 hover:underline hover:text-emerald-200 text-left">${esc(r.folio || '#' + r.id)}</button></td>
                       <td class="p-2 text-slate-300 max-w-xs truncate" title="${esc(r._resumen)}">${esc(r._resumen) || '—'}</td>
                       <td class="p-2 whitespace-nowrap text-slate-400">${r.fecha || ''}</td>
                       <td class="p-2 text-right font-mono">${money(r._total)}</td>
                       <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${REQ_ESTATUS[r.estatus] || 'text-slate-400 bg-slate-800'}">${esc(r.estatus)}</span></td>
-                      <td class="p-2 text-slate-500 text-[11px]">${r.origen === 'stock_bajo_minimo' ? 'Stock bajo mínimo' : 'Manual'}</td>
+                      <td class="p-2 text-slate-500 text-[11px]">${r.origen === 'stock_bajo_minimo' ? 'Stock bajo mínimo' : (r.origen === 'orden_produccion' ? 'Orden de producción' : 'Manual')}</td>
                     </tr>
                     ${(r.estatus === 'rechazada' || r.estatus === 'cancelada') && r.motivo_rechazo ? `<tr class="border-b border-slate-900"><td></td><td colspan="6" class="p-2 pt-0 text-[11px] ${r.estatus === 'cancelada' ? 'text-amber-400/80' : 'text-rose-400/80'}">Motivo: ${esc(r.motivo_rechazo)}</td></tr>` : ''}
               `).join('')}
@@ -573,14 +596,14 @@ async function abrirDetalleReq(id) {
     try {
         let { data: r, error } = await supabaseClient
             .from('requisiciones_compra')
-            .select(`id, folio, fecha, estatus, origen, notas, revisada_por, revisada_en, motivo_rechazo, orden_compra_id,
-                ordenes_compra ( folio ),
+            .select(`id, folio, fecha, estatus, origen, notas, revisada_por, revisada_en, motivo_rechazo, orden_compra_id, orden_produccion_origen_id,
+                ordenes_compra ( folio ), ordenes_produccion ( folio ),
                 requisiciones_compra_detalle ( id, producto_id, descripcion, cantidad, costo_estimado,
                     sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor,
                     productos ( nombre, sku ), unidades_medida ( nombre ), proveedores ( nombre ) )`)
             .eq('id', id).single();
         if (error && /does not exist|schema cache|could not find/i.test(error.message || '')) {
-            // columnas de datos del proveedor aún no existen: cae al select sin ellas.
+            // columnas de datos del proveedor y/o del antecedente de producción aún no existen: cae al select sin ellas.
             ({ data: r, error } = await supabaseClient
                 .from('requisiciones_compra')
                 .select(`id, folio, fecha, estatus, origen, notas, revisada_por, revisada_en, motivo_rechazo, orden_compra_id,
@@ -611,7 +634,9 @@ async function abrirDetalleReq(id) {
             <div class="grid grid-cols-2 gap-3 mb-4 text-sm">
                 <div><span class="block text-[10px] text-slate-500">Fecha</span><span class="text-slate-300">${r.fecha || '—'}</span></div>
                 <div><span class="block text-[10px] text-slate-500">Estatus</span><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${REQ_ESTATUS[r.estatus] || 'text-slate-400 bg-slate-800'}">${esc(r.estatus)}</span></div>
-                <div><span class="block text-[10px] text-slate-500">Origen</span><span class="text-slate-300">${r.origen === 'stock_bajo_minimo' ? 'Stock bajo mínimo' : 'Manual'}</span></div>
+                <div><span class="block text-[10px] text-slate-500">Origen</span><span class="text-slate-300">${r.origen === 'stock_bajo_minimo' ? 'Stock bajo mínimo' : (r.origen === 'orden_produccion' ? 'Orden de producción' : 'Manual')}</span>
+                    ${r.orden_produccion_origen_id ? `<button type="button" onclick="window.abrirAntecedentesProduccion(${r.orden_produccion_origen_id})" class="block mt-0.5 text-[11px] text-amber-300 hover:underline">🏭 ${esc(r.ordenes_produccion?.folio || '#' + r.orden_produccion_origen_id)} — ver antecedentes</button>` : ''}
+                </div>
             </div>
             ${r.notas ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Notas</span><p class="text-xs text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5">${esc(r.notas)}</p></div>` : ''}
             ${bloqueRevision}

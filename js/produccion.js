@@ -5,6 +5,7 @@ import { imprimirConPlantilla } from './impresion.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { convertirEnBuscador } from './buscador-select.js';
 import { factorConversion } from './conversion-unidades.js';
+import './trazabilidad.js';
 
 const histProdOrden = crearOrdenTabla('fecha', 'desc');
 
@@ -152,8 +153,13 @@ export async function calcularRequerimientosProduccion(productoId, cantidadProdu
  *  - Lo que se fabrica en casa (semiterminados como el granel) NO se compra: se deja fuera y se
  *    avisa, porque lo que hay que hacer es producirlo primero.
  * Reusa la preselección que ya usa Tareas (window.__reqPre*).
+ *
+ * @param {{id:number, folio:string}|null} origenOrden - orden de producción YA GUARDADA que
+ *   dispara este faltante (viene del botón "Ver/generar faltantes" de una orden ya creada). Si es
+ *   null (caso del formulario de orden nueva, que todavía no tiene folio), las hijas/requisiciones
+ *   que se generen quedan sin antecedente real, solo con la nota de texto de siempre.
  */
-async function generarRequisicionFaltantes(faltan, nombreProducto, cantidadProducir) {
+async function generarRequisicionFaltantes(faltan, nombreProducto, cantidadProducir, origenOrden = null) {
     if (!faltan || !faltan.length) return;
 
     const ids = faltan.map((f) => f.componenteId);
@@ -186,18 +192,21 @@ async function generarRequisicionFaltantes(faltan, nombreProducto, cantidadProdu
     }
 
     // Destinos: la requisición de compra (una por proveedor) y la orden de producción de cada semiterminado.
+    const huella = origenOrden ? ` (antecedente: orden ${origenOrden.folio || '#' + origenOrden.id})` : '';
     const abrirRequisicion = () => {
         const listaGrupos = [...grupos.values()].map((items) => items.map((i) => ({ id: i.id, cantidad: i.cantidad })));
         window.__reqPreProductos = listaGrupos[0];
         window.__reqPreGruposRestantes = listaGrupos.slice(1);
-        window.__reqPreNotas = `Faltantes para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}.`;
+        window.__reqPreNotas = `Faltantes para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}${huella}.`;
+        window.__reqPreOrdenProduccionId = origenOrden?.id || null;
         window.loadView('requisiciones-compra');
     };
     const abrirOrdenesProduccion = () => {
         window.__prodPre = {
             lista: seFabrican.map((i) => ({ id: i.id, cantidad: i.cantidad, nombre: i.nombre, unidad: i.unidad })),
             total: seFabrican.length,
-            origen: `Para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}`,
+            origen: `Para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}${huella}`,
+            origenOrdenId: origenOrden?.id || null,
             aplicada: false,
         };
         window.loadView('produccion');
@@ -612,11 +621,18 @@ export async function cargarModuloProduccion() {
         if (formOrden) {
             formOrden.onsubmit = async (e) => {
                 e.preventDefault();
+
+                if (faltantesActuales.length > 0) {
+                    const sigue = confirm(`⚠️ Todavía faltan ${faltantesActuales.length} insumo(s) para esta orden. Se puede generar igual (queda "en proceso"), pero no vas a poder cerrarla hasta resolver el faltante — usa "📝 Generar requisición de lo faltante" antes o después.\n\n¿Generar la orden de todas formas?`);
+                    if (!sigue) return;
+                }
+
                 const datos = {
                     productoId: document.getElementById('productoProducirId').value,
                     cantidadProducida: parseFloat(document.getElementById('cantidadProducida').value),
                     numeroLote: document.getElementById('numeroLoteResultante').value.trim(),
-                    procesos: recolectarProcesosDefinidos()
+                    procesos: recolectarProcesosDefinidos(),
+                    ordenOrigenId: window.__prodPre?.origenOrdenId || null,
                 };
 
                 const btnSubmit = formOrden.querySelector('button[type="submit"]');
@@ -626,7 +642,10 @@ export async function cargarModuloProduccion() {
                 try {
                     const resultado = await generarOrdenDeProduccion(datos);
                     if (resultado.success) {
-                        alert(`✅ Orden ${resultado.folio} generada y en proceso.\nLos operarios ya pueden registrar tiempos desde la Orden de Trabajo en el celular.`);
+                        const avisoFaltan = resultado.faltantes && resultado.faltantes.length
+                            ? `\n⚠️ Ojo: todavía le faltan ${resultado.faltantes.length} insumo(s) — no se podrá cerrar hasta resolverlo (usa "📝 Ver/generar faltantes" en la tarjeta de esta orden).`
+                            : '';
+                        alert(`✅ Orden ${resultado.folio} generada y en proceso.\nLos operarios ya pueden registrar tiempos desde la Orden de Trabajo en el celular.${avisoFaltan}`);
                         formOrden.reset();
                         document.getElementById('numeroLoteResultante').value = generarLoteSugerido();
                         document.getElementById('listaProcesosOrden').innerHTML = '';
@@ -719,26 +738,38 @@ export async function generarOrdenDeProduccion(datos) {
             throw new Error("Cada proceso debe tener al menos un empleado asignado (si no, nadie podrá registrar tiempo en el celular).");
         }
 
-        // Validación de existencias (mismo cálculo que el panel del formulario).
+        // Existencias (mismo cálculo que el panel del formulario): ya NO bloquea la creación -el
+        // inventario no se toca hasta cerrar la orden (etapa 3)-, solo se reporta para que la
+        // alerta de éxito avise si quedó con faltantes por resolver antes de poder cerrarla.
         const { error: errReq, filas } = await calcularRequerimientosProduccion(productoId, cantidadProducida);
         if (errReq) throw new Error(errReq);
         const faltantes = filas.filter(f => !f.suficiente);
-        if (faltantes.length > 0) {
-            throw new Error(`Existencias insuficientes. No se generó la orden:\n${faltantes.map(fmtFaltante).join('\n')}`);
-        }
 
-        const { data: ordenNueva, error: errOrden } = await supabaseClient
+        const filaOrden = {
+            producto_id: productoId,
+            cantidad_producida: cantidadProducida,
+            numero_lote: numeroLote,
+            estado: 'en_proceso',
+            abierta_at: new Date().toISOString()
+        };
+        const ordenOrigenId = datos.ordenOrigenId ? Number(datos.ordenOrigenId) : null;
+        if (ordenOrigenId) filaOrden.orden_origen_id = ordenOrigenId;
+
+        let { data: ordenNueva, error: errOrden } = await supabaseClient
             .from('ordenes_produccion')
-            .insert([{
-                producto_id: productoId,
-                cantidad_producida: cantidadProducida,
-                numero_lote: numeroLote,
-                estado: 'en_proceso',
-                abierta_at: new Date().toISOString()
-            }])
+            .insert([filaOrden])
             .select('id')
             .single();
 
+        if (errOrden && ordenOrigenId && /orden_origen_id|column .* does not exist/i.test(errOrden.message || '')) {
+            // falta sql/2026-10-27_antecedentes_ordenes_produccion.sql: se crea igual, sin antecedente.
+            delete filaOrden.orden_origen_id;
+            ({ data: ordenNueva, error: errOrden } = await supabaseClient
+                .from('ordenes_produccion')
+                .insert([filaOrden])
+                .select('id')
+                .single());
+        }
         if (errOrden) throw errOrden;
         const ordenId = ordenNueva.id;
         const folio = 'OP-' + String(ordenId).padStart(6, '0');
@@ -786,7 +817,7 @@ export async function generarOrdenDeProduccion(datos) {
             }
         }
 
-        return { success: true, ordenId, folio };
+        return { success: true, ordenId, folio, faltantes };
     } catch (error) {
         console.error("Error al generar la orden:", error.message);
         return { success: false, error: error.message };
@@ -1021,7 +1052,7 @@ async function cargarOrdenesEnProceso() {
     const { data: ordenes, error } = await supabaseClient
         .from('ordenes_produccion')
         .select(`
-            id, folio, numero_lote, cantidad_producida, abierta_at,
+            id, folio, producto_id, numero_lote, cantidad_producida, abierta_at,
             productos ( nombre ),
             orden_produccion_procesos (
                 id, proceso_nombre,
@@ -1116,6 +1147,25 @@ async function cargarOrdenesEnProceso() {
             }
         };
     });
+
+    // Recalcula el faltante de ESTA orden ya creada (folio real) y, si sigue habiendo, ofrece
+    // generar sus requisiciones/órdenes hijas con el antecedente ligado a esta orden.
+    cont.querySelectorAll('.btn-faltantes-orden').forEach(btn => {
+        btn.onclick = async () => {
+            const ordenId = Number(btn.dataset.id);
+            const productoId = Number(btn.dataset.producto);
+            const cantidad = Number(btn.dataset.cantidad);
+            const nombreProducto = btn.dataset.nombreProducto || '';
+            const folio = btn.dataset.folio;
+            btn.disabled = true;
+            const { error, filas } = await calcularRequerimientosProduccion(productoId, cantidad);
+            btn.disabled = false;
+            if (error) { alert('No se pudo calcular el faltante: ' + error); return; }
+            const faltan = filas.filter(f => !f.suficiente);
+            if (!faltan.length) { alert('✅ Ya no le faltan insumos a esta orden — puedes cerrarla cuando quieras.'); return; }
+            generarRequisicionFaltantes(faltan, nombreProducto, cantidad, { id: ordenId, folio });
+        };
+    });
 }
 
 function renderTarjetaOrdenEnProceso(o, registros, solicitudes = []) {
@@ -1170,6 +1220,7 @@ function renderTarjetaOrdenEnProceso(o, registros, solicitudes = []) {
             </div>`;
     }).join('');
 
+    const nombreProdEsc = (o.productos?.nombre || 'Producto').replace(/"/g, '&quot;');
     return `
         <div class="border border-slate-800 rounded-xl p-4 mb-3">
             <div class="flex flex-wrap justify-between items-start gap-2 mb-3">
@@ -1178,7 +1229,13 @@ function renderTarjetaOrdenEnProceso(o, registros, solicitudes = []) {
                     <p class="text-xs text-slate-300">${o.productos?.nombre || 'Producto'} · ${o.cantidad_producida} u · Lote ${o.numero_lote || 'S/L'}</p>
                     <p class="text-[11px] text-slate-500">Abierta: ${abierta}</p>
                 </div>
-                <button type="button" class="btn-cerrar-orden bg-rose-700 hover:bg-rose-600 text-white text-xs px-3 py-1.5 rounded-lg" data-id="${o.id}" data-folio="${folio}">🔒 Cerrar orden</button>
+                <div class="flex flex-wrap gap-1.5 justify-end">
+                    <button type="button" class="btn-faltantes-orden bg-amber-800/60 hover:bg-amber-700 text-amber-100 border border-amber-700 text-xs px-3 py-1.5 rounded-lg"
+                            data-id="${o.id}" data-producto="${o.producto_id}" data-cantidad="${o.cantidad_producida}" data-folio="${folio}"
+                            data-nombre-producto="${nombreProdEsc}" title="Recalcula existencias y, si falta algo, genera requisición/orden hija ligada a esta orden">📝 Ver/generar faltantes</button>
+                    <button type="button" onclick="window.abrirAntecedentesProduccion(${o.id})" class="bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 text-xs px-3 py-1.5 rounded-lg">🔗 Antecedentes</button>
+                    <button type="button" class="btn-cerrar-orden bg-rose-700 hover:bg-rose-600 text-white text-xs px-3 py-1.5 rounded-lg" data-id="${o.id}" data-folio="${folio}">🔒 Cerrar orden</button>
+                </div>
             </div>
             <div class="space-y-2">${procesosHtml}</div>
             <div class="flex justify-between items-center text-xs mt-3 pt-2 border-t border-slate-800">
@@ -1462,6 +1519,7 @@ async function renderizarDetalleOrden(idSeleccionado, ordenes, contenedorDetalle
                     ${docPolizaId
                         ? `<button type="button" onclick="window.verPolizaDeDocumento(${docPolizaId}, '${docPolizaFecha || ''}')" class="mt-1 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 cursor-pointer">🧾 Ver póliza #${docPolizaId}</button>`
                         : `<span class="text-xs text-amber-400">Sin póliza — esta orden no se ha contabilizado.</span>`}
+                    <button type="button" onclick="window.abrirAntecedentesProduccion(${orden.id})" class="mt-1 ml-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5 cursor-pointer">🔗 Antecedentes</button>
                 </div>
             </div>
             ${orden.productos?.descripcion ? `<p class="text-xs text-slate-400 mb-4 -mt-2">${orden.productos.descripcion}</p>` : ''}
