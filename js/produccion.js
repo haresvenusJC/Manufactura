@@ -214,20 +214,27 @@ export async function generarRequisicionFaltantes(faltan, nombreProducto, cantid
     }
 
     // Destinos: la requisición de compra (una por proveedor) y la orden de producción de cada semiterminado.
+    // Si hay de los dos, el que no se eligió primero queda como "siguiente paso" (no se pierde):
+    //  · requisición primero → window.__faltantesSiguiente lo ofrece al guardar la última requisición;
+    //  · producción primero  → __prodPre.despues lo ofrece al generar la última orden sugerida.
+    const listaGrupos = [...grupos.values()].map((items) => items.map((i) => ({ id: i.id, cantidad: i.cantidad })));
+    const notasReq = `Faltantes para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}.`;
+    const prodPre = () => ({
+        lista: seFabrican.map((i) => ({ id: i.id, cantidad: i.cantidad, nombre: i.nombre, unidad: i.unidad })),
+        total: seFabrican.length,
+        origen: `Para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}`,
+        aplicada: false,
+    });
     const abrirRequisicion = () => {
-        const listaGrupos = [...grupos.values()].map((items) => items.map((i) => ({ id: i.id, cantidad: i.cantidad })));
         window.__reqPreProductos = listaGrupos[0];
         window.__reqPreGruposRestantes = listaGrupos.slice(1);
-        window.__reqPreNotas = `Faltantes para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}.`;
+        window.__reqPreNotas = notasReq;
+        window.__faltantesSiguiente = seFabrican.length ? { prodPre: prodPre() } : null;
         window.loadView('requisiciones-compra');
     };
     const abrirOrdenesProduccion = () => {
-        window.__prodPre = {
-            lista: seFabrican.map((i) => ({ id: i.id, cantidad: i.cantidad, nombre: i.nombre, unidad: i.unidad })),
-            total: seFabrican.length,
-            origen: `Para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}`,
-            aplicada: false,
-        };
+        window.__prodPre = prodPre();
+        if (comprables.length) window.__prodPre.despues = { grupos: listaGrupos, notas: notasReq };
         window.loadView('produccion');
     };
 
@@ -246,7 +253,8 @@ export async function generarRequisicionFaltantes(faltan, nombreProducto, cantid
     document.getElementById('modalFaltantesProd')?.remove();
     const modal = document.createElement('div');
     modal.id = 'modalFaltantesProd';
-    modal.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4';
+    // Fondo semitransparente sin difuminar: la pantalla que abrió la subventana sigue visible detrás.
+    modal.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4';
     modal.innerHTML = `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl max-h-[85vh] overflow-y-auto p-5 text-sm text-slate-300 space-y-4">
             <div class="flex justify-between items-start gap-3">
@@ -274,7 +282,7 @@ export async function generarRequisicionFaltantes(faltan, nombreProducto, cantid
                 </ul>
                 <button type="button" id="fpProd" class="w-full bg-amber-700 hover:bg-amber-600 text-white text-xs font-medium py-2 rounded-lg cursor-pointer">🏭 Generar órdenes de producción</button>
             </div>` : ''}
-            <p class="text-[11px] text-slate-500">Puedes hacer una y volver a pulsar el botón después para la otra: lo que siga faltando se vuelve a listar. Al abrir una orden de producción, el producto y la cantidad ya vienen cargados; solo completas el lote y los procesos.</p>
+            <p class="text-[11px] text-slate-500">${comprables.length && seFabrican.length ? 'Empieza por la que quieras: al terminarla te ofrezco continuar con la otra. ' : ''}Al abrir una orden de producción, el producto y la cantidad ya vienen cargados; solo completas el lote y los procesos.</p>
         </div>`;
     document.body.appendChild(modal);
 
@@ -705,7 +713,24 @@ export async function cargarModuloProduccion() {
             const pre = window.__prodPre;
             if (!pre || !pre.lista || !pre.lista.length) {
                 window.__prodPre = null;
-                if (aviso) aviso.classList.add('hidden');
+                if (!aviso) return;
+                // Se eligió primero producción y también faltaban cosas por comprar: ofrecer la requisición.
+                if (pre && pre.despues && pre.despues.grupos.length) {
+                    const { grupos, notas } = pre.despues;
+                    aviso.innerHTML = `✅ Órdenes sugeridas generadas. Falta la requisición de compra de lo que no se fabrica.
+                        <button type="button" id="btnContinuarReqFaltantes" class="block mt-2 text-xs bg-emerald-700 hover:bg-emerald-600 text-white font-medium px-3 py-1.5 rounded-lg cursor-pointer">📝 Continuar con la requisición de compra (${grupos.length} proveedor${grupos.length > 1 ? 'es' : ''})</button>`;
+                    aviso.classList.remove('hidden');
+                    document.getElementById('btnContinuarReqFaltantes').addEventListener('click', () => {
+                        window.__reqPreProductos = grupos[0];
+                        window.__reqPreGruposRestantes = grupos.slice(1);
+                        window.__reqPreNotas = notas;
+                        window.__faltantesSiguiente = null;
+                        window.loadView('requisiciones-compra');
+                    });
+                    aviso.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return;
+                }
+                aviso.classList.add('hidden');
                 return;
             }
             const item = pre.lista[0];

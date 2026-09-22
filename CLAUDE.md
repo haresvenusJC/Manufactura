@@ -4,14 +4,16 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
-- Archivos tocados: `sql/2026-09-22_ot_componentes_conversion.sql` (nuevo), `CLAUDE.md`.
-- Qué cambió: la Orden de trabajo del celular (`v_ot_orden_componentes`) calculaba la cantidad requerida
-  como `bom × cantidad` a secas, sin el "Rendimiento del lote" ni la conversión de unidades/densidad →
-  pedía ~15× de más en los Granel (12 L → "Glicerina 164.4 kg" en vez de 13.81) y faltantes falsos. La
-  vista ahora usa `factor_conversion_bom()` (función SQL nueva, réplica de `factorConversion` de
-  `js/conversion-unidades.js` — si cambia una, cambiar la otra) y divide entre `rendimiento_lote_bom`.
-  La pantalla de Producción y el cierre ya estaban bien (usan `calcularRequerimientosProduccion`).
-- Pendiente: correr `sql/2026-09-22_ot_componentes_conversion.sql` en Supabase; lo demás, ver "Pendiente".
+- Archivos tocados: `js/produccion.js`, `js/requisiciones-compra.js`, `CLAUDE.md` (antes, misma sesión:
+  `sql/2026-09-22_ot_componentes_conversion.sql` — vista de la Orden de trabajo con rendimiento del lote +
+  conversión de unidades vía `factor_conversion_bom()`, réplica SQL de `factorConversion`).
+- Qué cambió: "Faltantes para producir" (`generarRequisicionFaltantes`) ya no pierde la otra opción: si
+  se elige primero la requisición, `window.__faltantesSiguiente` hace que al guardar la última requisición
+  aparezca "🏭 Continuar con las órdenes de producción (N)"; si se elige primero producción,
+  `__prodPre.despues` hace que al generar la última orden sugerida aparezca "📝 Continuar con la
+  requisición de compra (N proveedores)". Su fondo pasó a `bg-slate-950/40` sin blur (se ve lo de atrás).
+- Pendiente: correr `sql/2026-09-22_ot_componentes_conversion.sql`; auditar el resto de modales contra la
+  regla de subventanas; lo demás, ver "Pendiente".
 
 ## Estructura
 
@@ -101,7 +103,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `reparto-plantillas.js` — plantillas de reparto de gastos compartidos (qué base usar y a qué cuenta va).
 - `reportes.js` — 3 reportes canónicos (compras por proveedor, gastos por cuenta, inventario valorizado) +
   tabla dinámica genérica.
-- `requisiciones-compra.js` — requisiciones de compra (a mano o desde Tareas), autorización → Orden de compra real.
+- `requisiciones-compra.js` — requisiciones de compra (a mano, desde Tareas o desde "Faltantes para producir"),
+  autorización → Orden de compra real.
 - `salidas.js` — salidas de inventario (venta/merma/ajuste) con FEFO y póliza de ingreso si es venta.
 - `state.js` — estado global simple compartido (insumos/productos/historial de producción cacheados).
 - `supabase.js` — cliente y credenciales de Supabase.

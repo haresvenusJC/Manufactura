@@ -146,6 +146,8 @@ async function reqAplicarPreseleccion() {
     const pre = window.__reqPreProducto;
     window.__reqPreProductos = null;
     window.__reqPreProducto = null;
+    // Se entró sin preselección (a mano, desde el menú): un "siguiente paso" viejo ya no aplica.
+    if (!(Array.isArray(preMulti) && preMulti.length) && !(pre && pre.id)) window.__faltantesSiguiente = null;
 
     // Nota con la que llega la preselección (p. ej. desde Producción: "Faltantes para producir…").
     // Se conserva mientras queden grupos de otros proveedores por cargar.
@@ -176,10 +178,35 @@ function reqAvisarGruposRestantes() {
     const restantes = window.__reqPreGruposRestantes;
     const msg = document.getElementById('reqMsg');
     if (!msg) return;
+    const partes = [];
     if (Array.isArray(restantes) && restantes.length) {
-        msg.textContent = `Guarda esta requisición y se va a abrir la del siguiente proveedor automáticamente (quedan ${restantes.length}).`;
+        partes.push(`Guarda esta requisición y se va a abrir la del siguiente proveedor automáticamente (quedan ${restantes.length}).`);
+    }
+    const sig = window.__faltantesSiguiente;
+    if (sig && sig.prodPre) {
+        partes.push(`Después de esta(s) requisición(es) sigue: órdenes de producción (${sig.prodPre.total}).`);
+    }
+    if (partes.length) {
+        msg.textContent = partes.join(' ');
         msg.className = 'text-xs mt-2 text-sky-400';
     }
+}
+
+// Venía de "Faltantes para producir" (Producción) con cosas que también se fabrican en casa:
+// al guardar la última requisición, ofrece seguir con esas órdenes de producción.
+function reqOfrecerSiguientePaso(msg, textoGuardado) {
+    const sig = window.__faltantesSiguiente;
+    if (!sig || !sig.prodPre) return false;
+    msg.innerHTML = `${esc(textoGuardado)}
+        <button type="button" id="reqBtnContinuarProd" class="block mt-2 text-xs bg-amber-700 hover:bg-amber-600 text-white font-medium px-3 py-1.5 rounded-lg cursor-pointer">🏭 Continuar con las órdenes de producción (${sig.prodPre.total})</button>`;
+    msg.className = 'text-xs mt-2 text-emerald-400';
+    document.getElementById('reqBtnContinuarProd').addEventListener('click', () => {
+        window.__prodPre = sig.prodPre;
+        window.__faltantesSiguiente = null;
+        window.loadView('produccion');
+    });
+    msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return true;
 }
 
 // Después de guardar una requisición, si venían más grupos de proveedor
@@ -430,8 +457,11 @@ async function reqGuardarRequisicion() {
 
         const siguiente = await reqCargarSiguienteGrupoPendiente();
         if (!siguiente) {
-            msg.textContent = `Requisición ${req.folio} guardada, pendiente de autorización.`;
-            msg.className = 'text-xs mt-2 text-emerald-400';
+            const texto = `Requisición ${req.folio} guardada, pendiente de autorización.`;
+            if (!reqOfrecerSiguientePaso(msg, texto)) {
+                msg.textContent = texto;
+                msg.className = 'text-xs mt-2 text-emerald-400';
+            }
         } else {
             msg.textContent = `Requisición ${req.folio} guardada. Cargué la del siguiente proveedor — revisa y guarda esta también.`;
             msg.className = 'text-xs mt-2 text-emerald-400';
