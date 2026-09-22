@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { siguienteFolio } from './folios.js';
 import { cargarInventarioCompleto } from './inventario.js';
 import { REGIMENES } from './proveedores.js';
 import { parsearCfdi, extraerTextoPdf, parsearCfdiPdf } from './cfdi.js';
@@ -277,7 +278,7 @@ async function ocGuardarOrden() {
     const btn = document.getElementById('ocGuardar');
     btn.disabled = true;
     try {
-        const folio = 'OC-' + Date.now().toString().slice(-6);
+        const folio = await siguienteFolio('OC');   // consecutivo: OC-000001, OC-000002...
         const { data: oc, error: e1 } = await supabaseClient.from('ordenes_compra').insert([{
             folio,
             proveedor_id: document.getElementById('ocProveedor').value ? parseInt(document.getElementById('ocProveedor').value) : null,

@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { siguienteFolio } from './folios.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
 import { imprimirConPlantilla } from './impresion.js';
@@ -376,7 +377,7 @@ async function reqGuardarRequisicion() {
     btn.disabled = true;
     try {
         const notas = document.getElementById('reqNotas').value.trim();
-        const folio = 'REQ-' + Date.now().toString().slice(-6);
+        const folio = await siguienteFolio('REQ');   // consecutivo: REQ-000001, REQ-000002...
         const origen = notas.startsWith('Generada desde Tareas') ? 'stock_bajo_minimo' : 'manual';
         const { data: req, error: e1 } = await supabaseClient.from('requisiciones_compra').insert([{
             folio,

@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { siguienteFolio, proximoFolio } from './folios.js';
 import { cargarInventarioCompleto } from './inventario.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
@@ -22,7 +23,7 @@ export async function configurarFormularioEntradasDirectas() {
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-slate-400 mb-1">Folio / Documento Interno</label>
-                        <input type="text" id="entradaDirectaFolio" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono" placeholder="Ej. ENT-DIR-001" required>
+                        <input type="text" id="entradaDirectaFolio" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono" placeholder="Automático">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-slate-400 mb-1">Motivo de Entrada</label>
@@ -187,6 +188,14 @@ export async function configurarFormularioEntradasDirectas() {
         });
     }
 
+    // Sugerencia: muestra en el campo cuál será el folio automático (no lo consume).
+    const mostrarProximoFolioEntrada = async () => {
+        const f = await proximoFolio('ENT');
+        const inp = document.getElementById('entradaDirectaFolio');
+        if (f && inp) inp.placeholder = `Automático: ${f} (o escribe el tuyo)`;
+    };
+    mostrarProximoFolioEntrada();
+
     formEntradasDirectas.onsubmit = async (e) => {
         e.preventDefault();
 
@@ -196,14 +205,17 @@ export async function configurarFormularioEntradasDirectas() {
         }
 
         const fecha = document.getElementById('entradaDirectaFecha').value;
-        const folio = document.getElementById('entradaDirectaFolio').value.trim();
+        const folioCapturado = document.getElementById('entradaDirectaFolio').value.trim();
         const motivo = document.getElementById('entradaDirectaMotivo').value;
         const notas = document.getElementById('entradaDirectaDescripcion').value.trim();
         const descripcion = `[${motivo}] ${notas}`.trim();
 
-        if (!confirm(`¿Confirma el registro de esta Entrada Directa (${folio}) con ${partidasEntradaDirecta.length} partida(s)?`)) {
+        if (!confirm(`¿Confirma el registro de esta Entrada Directa (${folioCapturado || 'folio automático'}) con ${partidasEntradaDirecta.length} partida(s)?`)) {
             return;
         }
+
+        // Folio vacío: se asigna el siguiente consecutivo (ENT-000001...) hasta confirmar, para no dejar huecos.
+        const folio = folioCapturado || await siguienteFolio('ENT');
 
         try {
             // 1. Crear el documento general de la entrada
@@ -309,6 +321,7 @@ export async function configurarFormularioEntradasDirectas() {
             alert("¡Entrada directa registrada en inventario correctamente!" + msgContab);
             partidasEntradaDirecta = [];
             formEntradasDirectas.reset();
+            mostrarProximoFolioEntrada();   // el siguiente folio sugerido
 
             if (inputFecha) inputFecha.value = new Date().toISOString().split('T')[0];
             renderizarTablaEDPartidas();

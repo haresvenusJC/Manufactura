@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { siguienteFolio } from './folios.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
 import { registrarSalidaMultiPartida } from './salidas.js';
@@ -166,7 +167,7 @@ async function pvGuardarPedido() {
     const btn = document.getElementById('pvGuardar');
     btn.disabled = true;
     try {
-        const folio = 'PED-' + Date.now().toString().slice(-6);
+        const folio = await siguienteFolio('PED');   // consecutivo: PED-000001, PED-000002...
         const { data: pedido, error: e1 } = await supabaseClient.from('pedidos_venta').insert([{
             folio, fecha: document.getElementById('pvFecha').value || hoyISO(), cliente_id: clienteId,
             estatus: 'pendiente', notas: document.getElementById('pvNotas').value.trim() || null,
@@ -412,7 +413,10 @@ async function pvAbrirSurtir(pedido, lineasPendientes) {
         const btn = document.getElementById('pvConfirmarSurtir');
         btn.disabled = true;
         try {
-            const folio = pedido.folio + '-S' + Date.now().toString().slice(-5);
+            // Surtidos del pedido en orden: PED-000012-S1, PED-000012-S2...
+            const { count: surtidosPrevios } = await supabaseClient.from('documentos')
+                .select('id', { count: 'exact', head: true }).eq('pedido_venta_id', pedido.id);
+            const folio = `${pedido.folio}-S${(surtidosPrevios || 0) + 1}`;
             const res = await registrarSalidaMultiPartida({ tipoMovimiento: 'salida_venta', folio, descripcion: 'Surtido de pedido ' + pedido.folio, partidas, pedidoVentaId: pedido.id });
             if (!res.success) throw new Error(res.error || 'Error desconocido');
 

@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { siguienteFolio } from './folios.js';
 import { cargarInventarioCompleto } from './inventario.js';
 import { imprimirConPlantilla } from './impresion.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
@@ -9,6 +10,49 @@ const histProdOrden = crearOrdenTabla('fecha', 'desc');
 // Formatea cantidades evitando colas de decimales largas (10.0000001 -> "10").
 function formatoCantidad(n) {
     return Number(Number(n || 0).toFixed(3)).toString();
+}
+
+// --- Conversión entre la unidad del BOM y la unidad en que se lleva el inventario del componente ---
+// Familias que se pueden convertir con exactitud: masa (mg, g, kg) y volumen (ml, l).
+const FAMILIAS_UNIDAD = [
+    [/^(miligramos?|mgs?)$/, 'masa', 0.001],
+    [/^(kilogramos?|kilos?|kgs?)$/, 'masa', 1000],
+    [/^(gramos?|grs?|g)$/, 'masa', 1],
+    [/^(mililitros?|mls?|cc)$/, 'volumen', 1],
+    [/^(litros?|lts?|l)$/, 'volumen', 1000],
+];
+function familiaDeUnidad(nombre) {
+    const n = String(nombre || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+    for (const [re, familia, aBase] of FAMILIAS_UNIDAD) if (re.test(n)) return { familia, aBase };
+    return null;
+}
+
+/**
+ * Cuántas unidades de inventario del componente equivale 1 unidad del BOM.
+ *  - Misma unidad (mismo id): 1. Es lo normal y no se toca.
+ *  - Mismo tipo de unidad, distinta escala (g ↔ kg, ml ↔ l): se convierte exacto.
+ *  - Unidades de distinto tipo (p. ej. BOM en Litros e inventario en Kilogramos): sin densidad no se
+ *    puede convertir, así que se toma 1 a 1 y se deja una nota visible en el panel.
+ *  - BOM sin unidad (capturas viejas): se conserva la regla anterior (mL/g → kg/L y cantidades > 10
+ *    se toman como mL/g) para no cambiar los BOM ya cargados de esa forma.
+ */
+function factorConversionBom(unidadBomRaw, unidadStockId, nombreUnidadPorId, unidadStockNombre, cantidadReqUnit) {
+    const raw = String(unidadBomRaw ?? '').trim();
+    if (!raw) {
+        // regla anterior, solo para renglones del BOM sin unidad
+        const stock = String(unidadStockNombre || '').toLowerCase().trim();
+        return { factor: (stock.includes('ml') || stock.includes('g') || cantidadReqUnit > 10) ? 1 / 1000 : 1, nota: '' };
+    }
+    if (String(unidadStockId ?? '') === raw) return { factor: 1, nota: '' };
+
+    const nombreBom = /^\d+$/.test(raw) ? (nombreUnidadPorId.get(raw) || '') : raw;
+    const fb = familiaDeUnidad(nombreBom);
+    const fs = familiaDeUnidad(unidadStockNombre);
+    if (fb && fs && fb.familia === fs.familia) return { factor: fb.aBase / fs.aBase, nota: '' };
+    if (nombreBom && unidadStockNombre && nombreBom.toLowerCase() !== unidadStockNombre.toLowerCase()) {
+        return { factor: 1, nota: `El BOM está en ${nombreBom} y el inventario en ${unidadStockNombre}: se toma 1 a 1.` };
+    }
+    return { factor: 1, nota: '' };
 }
 
 /**
@@ -44,11 +88,15 @@ export async function calcularRequerimientosProduccion(productoId, cantidadProdu
 
     const { data: infoInsumos, error: errInsumos } = await supabaseClient
         .from('productos')
-        .select('id, nombre, costo_unitario, unidades_medida ( nombre )')
+        .select('id, nombre, costo_unitario, unidad_medida_id, unidades_medida ( nombre )')
         .in('id', idsComponentes);
 
     if (errInsumos) return { error: errInsumos.message, filas: [] };
     const mapaInsumos = new Map((infoInsumos || []).map(i => [i.id, i]));
+
+    // Nombres de las unidades: en `bom.unidad_medida` se guarda el id de la unidad como texto.
+    const { data: unidadesCat } = await supabaseClient.from('unidades_medida').select('id, nombre');
+    const nombreUnidadPorId = new Map((unidadesCat || []).map(u => [String(u.id), u.nombre]));
 
     const { data: lotes, error: errLotes } = await supabaseClient
         .from('lotes_inventario')
@@ -72,22 +120,22 @@ export async function calcularRequerimientosProduccion(productoId, cantidadProdu
         const cantidadReqUnit = Number(comp.cantidad_requerida || 0);
         let requerido = cantidadReqUnit * cantidad;
 
-        const unidadBom = String(comp.unidad_medida || '').toLowerCase().trim();
-        const unidadCat = String(datosIns.unidades_medida?.nombre || '').toLowerCase().trim();
-        if (unidadBom.includes('ml') || unidadBom.includes('g') || unidadCat.includes('ml') || unidadCat.includes('g') || cantidadReqUnit > 10) {
-            requerido /= 1000;
-        }
+        const unidadStockNombre = datosIns.unidades_medida?.nombre || '';
+        const conv = factorConversionBom(comp.unidad_medida, datosIns.unidad_medida_id, nombreUnidadPorId, unidadStockNombre, cantidadReqUnit);
+        requerido *= conv.factor;
 
         const prev = acumulado.get(componenteId);
         if (prev) {
             prev.requerido += requerido;
+            if (!prev.nota && conv.nota) prev.nota = conv.nota;
         } else {
             acumulado.set(componenteId, {
                 componenteId,
                 nombre: datosIns.nombre || `Insumo ID ${componenteId}`,
-                unidad: datosIns.unidades_medida?.nombre || '',
+                unidad: unidadStockNombre,
                 costoUnitarioCatalogo: Number(datosIns.costo_unitario || 0),
-                requerido
+                requerido,
+                nota: conv.nota || ''
             });
         }
     });
@@ -403,7 +451,7 @@ export async function cargarModuloProduccion() {
                 const falta = f.suficiente ? '' : ` · faltan ${formatoCantidad(f.requerido - f.disponible)}${u}`;
                 return `
                     <div class="flex justify-between items-center gap-2 text-xs border-b border-slate-900 last:border-0 py-1">
-                        <span class="text-slate-200">${icono} ${f.nombre}</span>
+                        <span class="text-slate-200">${icono} ${f.nombre}${f.nota ? `<span class="block text-[10px] text-amber-400/80 font-normal" title="Sin la densidad del producto no se puede convertir entre unidades de distinto tipo.">${f.nota}</span>` : ''}</span>
                         <span class="font-mono ${color}">req ${formatoCantidad(f.requerido)}${u} · disp ${formatoCantidad(f.disponible)}${u}${falta}</span>
                     </div>`;
             }).join('');
@@ -812,7 +860,7 @@ export async function cerrarOrdenDeProduccion(ordenId) {
         // transformación de inventario -una sola póliza-, así que al póliza que
         // genera contabilizar_produccion() se le liga también el documento de
         // salida (ver más abajo) en vez de duplicar el asiento.
-        const folioBase = `PROD-${Date.now().toString().slice(-6)}`;
+        const folioBase = await siguienteFolio('PROD');   // consecutivo: PROD-000001, PROD-000002...
         const { data: docSalida, error: errDocSalida } = await supabaseClient
             .from('documentos')
             .insert([{

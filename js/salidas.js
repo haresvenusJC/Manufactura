@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { siguienteFolio, proximoFolio, SERIE_SALIDA } from './folios.js';
 import { cargarInventarioCompleto, registrarMovimientoAlmacen } from './inventario.js';
 
 let partidasSalidaTemp = [];
@@ -36,7 +37,7 @@ export async function cargarModuloSalidas() {
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-slate-400 mb-1">FOLIO / REFERENCIA</label>
-                                <input type="text" id="folioSalida" placeholder="Ej: VTA-2026-001" autocomplete="off" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 focus:outline-none focus:border-red-500" required>
+                                <input type="text" id="folioSalida" placeholder="Automático" autocomplete="off" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 focus:outline-none focus:border-red-500">
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-slate-400 mb-1">DESCRIPCIÓN / MOTIVO GENERAL</label>
@@ -290,13 +291,8 @@ export async function cargarModuloSalidas() {
 
             document.getElementById('btnProcesarSalidaFinal').onclick = async () => {
                 const tipoMovimiento = document.getElementById('tipoSalida').value;
-                const folio = document.getElementById('folioSalida').value.trim();
+                const folioCapturado = document.getElementById('folioSalida').value.trim();
                 const descripcion = document.getElementById('descripcionSalida').value.trim();
-
-                if (!folio) {
-                    alert("❌ El campo Folio / Referencia es obligatorio.");
-                    return;
-                }
 
                 if (partidasSalidaTemp.length === 0) {
                     alert("❌ Debes agregar al menos una partida a la lista antes de procesar.");
@@ -308,6 +304,8 @@ export async function cargarModuloSalidas() {
                 btnFinal.textContent = "Procesando documento completo...";
 
                 try {
+                    // Folio vacío: siguiente consecutivo de la serie del tipo (VTA / MER / SAL / AJU).
+                    const folio = folioCapturado || await siguienteFolio(SERIE_SALIDA[tipoMovimiento] || 'SAL');
                     const resultado = await registrarSalidaMultiPartida({
                         tipoMovimiento,
                         folio,
@@ -324,6 +322,7 @@ export async function cargarModuloSalidas() {
                         const scli = document.getElementById('salClienteSelect');
                         if (scli) scli.value = '';
                         document.getElementById('folioSalida').value = '';
+                        document.getElementById('tipoSalida').dispatchEvent(new Event('change'));   // refresca el folio sugerido
                         document.getElementById('descripcionSalida').value = '';
                         renderizarTablaPartidasTemp();
                         
@@ -707,6 +706,14 @@ async function cargarBloqueContableSalidas() {
     }
 
     const tipoSel = document.getElementById('tipoSalida');
+    // Sugerencia: muestra en el campo cuál será el folio automático del tipo elegido (no lo consume).
+    const mostrarProximoFolioSalida = async () => {
+        const f = await proximoFolio(SERIE_SALIDA[tipoSel.value] || 'SAL');
+        const inp = document.getElementById('folioSalida');
+        if (f && inp) inp.placeholder = `Automático: ${f} (o escribe el tuyo)`;
+    };
+    tipoSel.addEventListener('change', mostrarProximoFolioSalida);
+    mostrarProximoFolioSalida();
     const sync = () => {
         const esVenta = tipoSel.value === 'salida_venta';
         document.getElementById('salCamposVenta').classList.toggle('hidden', !esVenta);
