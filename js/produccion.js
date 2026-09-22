@@ -353,6 +353,44 @@ export async function requisicionesDeOrden(ordenId) {
     });
 }
 
+/**
+ * Documentos de una orden CERRADA: el de ENTRADA (producto terminado, folio PROD-…, con la póliza) y el
+ * de SALIDA (materia prima consumida, folio PROD-…-MP, donde quedan los movimientos del kardex). La orden
+ * no guarda el id del documento: se llega por el lote que creó el cierre (producto + número de lote); como
+ * un mismo número de lote se puede repetir entre órdenes, se toma el lote creado más cerca de cerrada_at.
+ * Órdenes cerradas antes de separar los dos documentos traen todo en el de entrada (salida = null).
+ */
+export async function documentosDeOrden(orden) {
+    const { data: lotes } = await supabaseClient.from('lotes_inventario')
+        .select('documento_id, created_at')
+        .eq('producto_id', orden.producto_id).eq('numero_lote', orden.numero_lote)
+        .not('documento_id', 'is', null);
+    if (!lotes || !lotes.length) return { entrada: null, salida: null };
+    const ref = orden.cerrada_at ? new Date(orden.cerrada_at).getTime() : Date.now();
+    const lote = lotes.slice().sort((a, b) =>
+        Math.abs(new Date(a.created_at).getTime() - ref) - Math.abs(new Date(b.created_at).getTime() - ref))[0];
+    const { data: entrada } = await supabaseClient.from('documentos')
+        .select('id, folio, poliza_id, fecha_emision').eq('id', lote.documento_id).maybeSingle();
+    let salida = null;
+    if (entrada?.folio) {
+        const { data: sal } = await supabaseClient.from('documentos')
+            .select('id, folio').eq('folio', `${entrada.folio}-MP`).limit(1).maybeSingle();
+        salida = sal || null;
+    }
+    return { entrada: entrada || null, salida };
+}
+
+/** Consumos reales (kardex) de una orden cerrada: un renglón por lote descontado, con el costo PEPS aplicado. */
+export async function consumosDeOrden(docs) {
+    const ids = [docs.entrada?.id, docs.salida?.id].filter(Boolean);
+    if (!ids.length) return [];
+    const { data } = await supabaseClient.from('movimientos_inventario')
+        .select('cantidad, costo_unitario, lote_id, lotes_inventario ( numero_lote ), productos ( id, nombre, unidades_medida ( nombre ) )')
+        .in('documento_id', ids)
+        .eq('tipo_movimiento', 'salida_produccion');
+    return data || [];
+}
+
 // Cronómetros del panel "Órdenes en Proceso" (viven mientras la vista está montada).
 let tickerEnProceso = null;
 let refetchEnProceso = null;
@@ -467,6 +505,7 @@ export async function cargarModuloProduccion() {
                                 <option value="">Seleccione orden por ID...</option>
                             </select>
                             <button id="btnImprimirOrden" class="bg-slate-800 hover:bg-slate-700 text-amber-400 p-2 rounded-lg border border-slate-700 transition-all text-sm flex items-center gap-1" title="Ventana Imprimible" disabled>🖨️</button>
+                            <button id="btnReporteCompletoOrden" class="bg-amber-700 hover:bg-amber-600 text-white px-2.5 py-2 rounded-lg transition-all text-xs whitespace-nowrap" title="Costeo completo: por materia prima, por persona y por proceso (imprimible)">📄 Reporte completo</button>
                         </div>
                     </div>
                     <div id="detalleResumenOrden" class="bg-slate-950 border border-slate-800/60 p-4 rounded-lg text-sm text-slate-300 mb-6">
@@ -1439,7 +1478,7 @@ async function cargarHistorialProduccion(idSeleccionarReciente = null) {
 
         const { data: ordenes, error } = await supabaseClient
             .from('ordenes_produccion')
-            .select(`id, folio, producto_id, numero_lote, cantidad_producida, empleados_involucrados, costo_unitario_final, costo_total_materiales, costo_total_mano_obra, created_at, productos ( id, nombre, sku, descripcion, unidades_medida ( nombre ) )`)
+            .select(`id, folio, producto_id, numero_lote, cantidad_producida, empleados_involucrados, costo_unitario_final, costo_total_materiales, costo_total_mano_obra, created_at, cerrada_at, productos ( id, nombre, sku, descripcion, unidades_medida ( nombre ) )`)
             .eq('estado', 'cerrada')
             .order('created_at', { ascending: false });
 
@@ -1462,6 +1501,17 @@ async function cargarHistorialProduccion(idSeleccionarReciente = null) {
                 const val = Number(e.target.value);
                 if (btnImprimirOrden) btnImprimirOrden.disabled = !val;
                 await renderizarDetalleOrden(val, ordenes, detalleResumenOrden);
+            };
+        }
+
+        const btnReporteCompleto = document.getElementById('btnReporteCompletoOrden');
+        if (btnReporteCompleto) {
+            btnReporteCompleto.onclick = async () => {
+                const idActual = Number(selectOrdenId?.value);
+                if (!idActual) return;
+                // Import dinámico: ordenes-produccion.js ya importa de este archivo (evita el ciclo al cargar).
+                const m = await import('./ordenes-produccion.js');
+                m.abrirDetalle(idActual);
             };
         }
 
@@ -1531,48 +1581,12 @@ async function renderizarDetalleOrden(idSeleccionado, ordenes, contenedorDetalle
     contenedorDetalle.innerHTML = `<p class="text-slate-400 text-sm text-center py-2">Cargando desglose de componentes por lote...</p>`;
     
     try {
-        let docIdAUsar = null;
-        const { data: loteOrden, error: errLote } = await supabaseClient
-            .from('lotes_inventario')
-            .select('documento_id')
-            .eq('producto_id', orden.producto_id)
-            .eq('numero_lote', orden.numero_lote)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-        if (!errLote && loteOrden) {
-            docIdAUsar = loteOrden.documento_id;
-        }
-
-        let docPolizaId = null, docPolizaFecha = null;
-        if (docIdAUsar) {
-            const { data: docInfo } = await supabaseClient
-                .from('documentos')
-                .select('poliza_id, fecha_emision')
-                .eq('id', docIdAUsar)
-                .maybeSingle();
-            if (docInfo) { docPolizaId = docInfo.poliza_id; docPolizaFecha = docInfo.fecha_emision; }
-        }
-
-        let movimientosSalida = [];
-
-        if (docIdAUsar) {
-            const { data: movs, error: errMov } = await supabaseClient
-                .from('movimientos_inventario')
-                .select(`
-                    cantidad,
-                    costo_unitario,
-                    lotes_inventario ( numero_lote ),
-                    productos ( id, nombre, unidades_medida ( nombre ) )
-                `)
-                .eq('documento_id', docIdAUsar)
-                .eq('tipo_movimiento', 'salida_produccion');
-
-            if (!errMov && movs) {
-                movimientosSalida = movs;
-            }
-        }
+        // Los consumos de materia prima quedan en el documento de SALIDA (PROD-…-MP), no en el de entrada
+        // del producto terminado (que es el que trae la póliza): ver documentosDeOrden.
+        const docs = await documentosDeOrden(orden);
+        const docPolizaId = docs.entrada?.poliza_id || null;
+        const docPolizaFecha = docs.entrada?.fecha_emision || null;
+        const movimientosSalida = await consumosDeOrden(docs);
 
         const cantidadProducidaLote = Number(orden.cantidad_producida || 1);
         let htmlComponentes = '';

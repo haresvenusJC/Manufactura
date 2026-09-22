@@ -11,7 +11,7 @@
 // =====================================================================
 import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
-import { calcularRequerimientosProduccion, formatoCantidad, fmtFaltante, generarRequisicionFaltantes, requisicionesDeOrden } from './produccion.js';
+import { calcularRequerimientosProduccion, formatoCantidad, fmtFaltante, generarRequisicionFaltantes, requisicionesDeOrden, documentosDeOrden, consumosDeOrden } from './produccion.js';
 import { imprimirConPlantilla } from './impresion.js';
 
 const ordenTabla = crearOrdenTabla('created_at', 'desc');
@@ -264,7 +264,7 @@ export async function abrirDetalle(ordenId) {
         <div id="opModalOverlay" class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4">
             <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-4 space-y-3">
                 <div class="flex justify-between items-center gap-3">
-                    <p class="text-sm font-semibold text-amber-400">📄 Estado de la orden de producción</p>
+                    <p class="text-sm font-semibold text-amber-400">📄 Estado / costeo de la orden de producción</p>
                     <div class="flex items-center gap-2">
                         <button type="button" id="opDocImprimir" disabled class="text-xs bg-amber-600 hover:bg-amber-500 text-white font-medium px-3 py-1.5 rounded-lg cursor-pointer">🖨️ Imprimir</button>
                         <button type="button" id="opModalCerrar" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 cursor-pointer">&times;</button>
@@ -295,7 +295,7 @@ async function armarDocumentoEstado(ordenId) {
     const { data: o, error } = await supabaseClient.from('ordenes_produccion')
         .select(`*, productos ( nombre, sku, unidades_medida ( nombre ) ),
             orden_produccion_procesos ( id, proceso_nombre, segundos_transcurridos, costo_calculado,
-                orden_produccion_proceso_empleados ( empleado_id, finalizado_at, empleados ( nombre ) ) )`)
+                orden_produccion_proceso_empleados ( empleado_id, finalizado_at, costo_hora_snapshot, empleados ( nombre ) ) )`)
         .eq('id', ordenId).single();
     if (error) throw error;
 
@@ -327,6 +327,8 @@ async function armarDocumentoEstado(ordenId) {
     const procIds = procesos.map((p) => p.id);
     const segPor = new Map();   // `${proc}|${emp}` -> segundos
     const activos = new Set();
+    const tarifa = new Map();   // `${proc}|${emp}` -> costo por hora congelado al asignar (mismo cálculo que el cierre)
+    procesos.forEach((p) => (p.orden_produccion_proceso_empleados || []).forEach((e) => tarifa.set(`${p.id}|${e.empleado_id}`, Number(e.costo_hora_snapshot || 0))));
     if (procIds.length) {
         const { data: regs } = await supabaseClient.from('registros_tiempo')
             .select('orden_produccion_proceso_id, empleado_id, inicio, fin').in('orden_produccion_proceso_id', procIds);
@@ -412,14 +414,125 @@ async function armarDocumentoEstado(ordenId) {
                 <td style="${ST.td}">${escD(r.detalle.map((d) => `${d.nombre}: ${formatoCantidad(d.cantidad)}${d.unidad ? ' ' + d.unidad : ''}`).join(', '))}</td></tr>`).join('')}
             </tbody></table>` : `<p style="${ST.nota}">No hay requisiciones de compra ligadas a esta orden.</p>`);
 
-    // ---- Costos (solo cerrada)
-    const costosHtml = !cerrada ? '' : `
-        <div class="campo-costo"><p style="${ST.h}">Costos</p>
-        <table style="${ST.tabla}">
-            <tr><td style="${ST.td}">Materiales</td><td style="${ST.tdR}">${money(o.costo_total_materiales)}</td></tr>
-            <tr><td style="${ST.td}">Mano de obra</td><td style="${ST.tdR}">${money(o.costo_total_mano_obra)}</td></tr>
-            <tr><td style="${ST.td}"><b>Costo unitario final</b></td><td style="${ST.tdR}"><b>${money(o.costo_unitario_final)}</b> / ${escD(unidadProd)}</td></tr>
-        </table></div>`;
+    // ---- Costeo completo (solo cerrada): materia prima real (kardex), mano de obra por persona y por proceso
+    let costeoHtml = '';
+    if (cerrada) {
+        const docs = await documentosDeOrden(o);
+        const consumos = await consumosDeOrden(docs);
+        const pct = (x, tot) => tot > 0 ? `${(x / tot * 100).toFixed(1)}%` : '—';
+
+        // Materia prima: renglón por lote, agrupado por insumo, contra lo que pide la receta actual.
+        const porInsumo = new Map();
+        consumos.forEach((m) => {
+            const id = m.productos?.id;
+            if (!porInsumo.has(id)) porInsumo.set(id, { nombre: m.productos?.nombre || 'Insumo', unidad: m.productos?.unidades_medida?.nombre || '', lotes: [], cant: 0, costo: 0 });
+            const g = porInsumo.get(id);
+            const cant = Math.abs(Number(m.cantidad || 0));
+            const sub = cant * Number(m.costo_unitario || 0);
+            g.lotes.push({ lote: m.lotes_inventario?.numero_lote || 'S/L', cant, cu: Number(m.costo_unitario || 0), sub });
+            g.cant += cant; g.costo += sub;
+        });
+        const totalMP = [...porInsumo.values()].reduce((a, g) => a + g.costo, 0);
+        const recetaPor = new Map(filas.map((f) => [f.componenteId, f]));
+        const mpFilas = [...porInsumo.entries()].sort((a, b) => b[1].costo - a[1].costo).map(([id, g]) => {
+            const rec = recetaPor.get(id);
+            const dif = rec ? g.cant - rec.requerido : null;
+            const difTxt = dif === null ? '—' : (Math.abs(dif) < 0.0005 ? '0' : `${dif > 0 ? '+' : ''}${formatoCantidad(dif)}`);
+            return g.lotes.map((l, i) => `<tr>
+                <td style="${ST.td}">${i === 0 ? `<b>${escD(g.nombre)}</b>` : ''}</td>
+                <td style="${ST.td}" class="campo-lote">${escD(l.lote)}</td>
+                <td style="${ST.tdR}">${formatoCantidad(l.cant)} ${escD(g.unidad)}</td>
+                <td style="${ST.tdR}" class="campo-costo">${money(l.cu)}</td>
+                <td style="${ST.tdR}" class="campo-costo">${money(l.sub)}</td>
+                <td style="${ST.tdR}">${i === 0 && rec ? `${formatoCantidad(rec.requerido)} ${escD(rec.unidad)}` : ''}</td>
+                <td style="${ST.tdR}${i === 0 && dif !== null && Math.abs(dif) >= 0.0005 ? 'color:#b45309;font-weight:700;' : ''}">${i === 0 ? difTxt : ''}</td>
+                <td style="${ST.tdR}" class="campo-costo">${i === 0 ? pct(g.costo, totalMP) : ''}</td>
+            </tr>`).join('') + (g.lotes.length > 1 ? `<tr><td style="${ST.td}"></td><td style="${ST.td}${ST.nota}" colspan="3">Subtotal ${escD(g.nombre)}</td><td style="${ST.tdR}font-weight:700;" class="campo-costo">${money(g.costo)}</td><td colspan="3" style="${ST.td}"></td></tr>` : '');
+        }).join('');
+        const mpHtml = porInsumo.size ? `<table style="${ST.tabla}"><thead><tr>
+                <th style="${ST.th}">Insumo</th><th style="${ST.th}">Lote</th><th style="${ST.thR}">Consumido</th>
+                <th style="${ST.thR}">Costo unit. (PEPS)</th><th style="${ST.thR}">Subtotal</th>
+                <th style="${ST.thR}">Receta</th><th style="${ST.thR}">Diferencia</th><th style="${ST.thR}">% MP</th>
+            </tr></thead><tbody>${mpFilas}
+            <tr><td style="${ST.td}" colspan="4"><b>Total materia prima (kardex)</b></td><td style="${ST.tdR}font-weight:700;" class="campo-costo">${money(totalMP)}</td><td colspan="3" style="${ST.td}"></td></tr>
+            </tbody></table>
+            <p style="${ST.nota}">"Receta" = lo que pide hoy el BOM para ${formatoCantidad(o.cantidad_producida)} ${escD(unidadProd)} (si la receta cambió después del cierre, puede no coincidir). "Diferencia" = consumido − receta.</p>`
+            : `<p style="${ST.nota}">No se encontraron los movimientos de kardex de esta orden${docs.entrada ? '' : ' (no se localizó su documento de entrada)'}.</p>`;
+
+        // Mano de obra por persona y por proceso (tiempo × costo/hora congelado, igual que el cierre).
+        const porPersona = new Map();
+        const porProceso = [];
+        procesos.forEach((p) => {
+            let segP = 0, costoP = 0; const gente = new Set();
+            (p.orden_produccion_proceso_empleados || []).forEach((e) => {
+                const k = `${p.id}|${e.empleado_id}`;
+                const seg = segPor.get(k) || 0;
+                if (!seg) return;
+                const costo = (seg / 3600) * (tarifa.get(k) || 0);
+                segP += seg; costoP += costo; gente.add(e.empleados?.nombre || 'Empleado');
+                const nom = e.empleados?.nombre || 'Empleado';
+                if (!porPersona.has(nom)) porPersona.set(nom, { seg: 0, costo: 0, procesos: [], tarifas: new Set() });
+                const pp = porPersona.get(nom);
+                pp.seg += seg; pp.costo += costo; pp.procesos.push(p.proceso_nombre); pp.tarifas.add(tarifa.get(k) || 0);
+            });
+            porProceso.push({ nombre: p.proceso_nombre, seg: segP, costo: costoP, gente: [...gente] });
+        });
+        const totalMO = [...porPersona.values()].reduce((a, x) => a + x.costo, 0);
+        const personaHtml = porPersona.size ? `<table style="${ST.tabla}"><thead><tr>
+                <th style="${ST.th}">Persona</th><th style="${ST.th}">Procesos</th><th style="${ST.thR}">Tiempo</th>
+                <th style="${ST.thR}">Costo / hora</th><th style="${ST.thR}">Costo</th><th style="${ST.thR}">% MO</th>
+            </tr></thead><tbody>
+            ${[...porPersona.entries()].sort((a, b) => b[1].costo - a[1].costo).map(([nom, x]) => `<tr>
+                <td style="${ST.td}"><b>${escD(nom)}</b></td><td style="${ST.td}">${escD(x.procesos.join(', '))}</td>
+                <td style="${ST.tdR}">${duracion(x.seg)}</td>
+                <td style="${ST.tdR}" class="campo-costo">${[...x.tarifas].map(money).join(' / ')}</td>
+                <td style="${ST.tdR}" class="campo-costo">${money(x.costo)}</td>
+                <td style="${ST.tdR}" class="campo-costo">${pct(x.costo, totalMO)}</td></tr>`).join('')}
+            <tr><td style="${ST.td}" colspan="4"><b>Total mano de obra</b></td><td style="${ST.tdR}font-weight:700;" class="campo-costo">${money(totalMO)}</td><td style="${ST.td}"></td></tr>
+            </tbody></table>` : `<p style="${ST.nota}">Sin tiempos registrados.</p>`;
+        const procesoHtml = porProceso.length ? `<table style="${ST.tabla}"><thead><tr>
+                <th style="${ST.th}">Proceso</th><th style="${ST.th}">Personas</th><th style="${ST.thR}">Tiempo total</th><th style="${ST.thR}">Costo</th><th style="${ST.thR}">% MO</th>
+            </tr></thead><tbody>
+            ${porProceso.map((x) => `<tr><td style="${ST.td}"><b>${escD(x.nombre)}</b></td><td style="${ST.td}">${escD(x.gente.join(', ') || '—')}</td>
+                <td style="${ST.tdR}">${x.seg ? duracion(x.seg) : '—'}</td><td style="${ST.tdR}" class="campo-costo">${money(x.costo)}</td><td style="${ST.tdR}" class="campo-costo">${pct(x.costo, totalMO)}</td></tr>`).join('')}
+            </tbody></table>` : '';
+
+        // Comparación contra la orden cerrada anterior del mismo producto.
+        const { data: prev } = await supabaseClient.from('ordenes_produccion')
+            .select('folio, id, costo_unitario_final, cerrada_at')
+            .eq('producto_id', o.producto_id).eq('estado', 'cerrada').neq('id', o.id)
+            .lt('cerrada_at', o.cerrada_at || new Date().toISOString())
+            .order('cerrada_at', { ascending: false }).limit(1);
+        const anterior = prev && prev[0];
+        const cuAct = Number(o.costo_unitario_final || 0);
+        const cuAnt = anterior ? Number(anterior.costo_unitario_final || 0) : 0;
+        const varTxt = anterior && cuAnt > 0
+            ? `${money(cuAnt)} en ${escD(anterior.folio || '#' + anterior.id)} → ${cuAct >= cuAnt ? '▲' : '▼'} ${((cuAct - cuAnt) / cuAnt * 100).toFixed(1)}%`
+            : 'Sin orden cerrada anterior de este producto para comparar.';
+        const matGuardado = Number(o.costo_total_materiales || 0);
+        const moGuardado = Number(o.costo_total_mano_obra || 0);
+        const totalOrden = matGuardado + moGuardado;
+
+        costeoHtml = `
+            <p style="${ST.h}">Resumen de costos</p>
+            <table style="${ST.tabla}" class="campo-costo">
+                <tr><td style="${ST.td}">Materia prima</td><td style="${ST.tdR}">${money(matGuardado)}</td><td style="${ST.tdR}">${pct(matGuardado, totalOrden)}</td></tr>
+                <tr><td style="${ST.td}">Mano de obra</td><td style="${ST.tdR}">${money(moGuardado)}</td><td style="${ST.tdR}">${pct(moGuardado, totalOrden)}</td></tr>
+                <tr><td style="${ST.td}"><b>Costo total de la orden</b></td><td style="${ST.tdR}"><b>${money(totalOrden)}</b></td><td style="${ST.tdR}">100%</td></tr>
+                <tr><td style="${ST.td}"><b>Costo unitario</b></td><td style="${ST.tdR}"><b>${money(cuAct)}</b> / ${escD(unidadProd)}</td><td style="${ST.td}"></td></tr>
+                <tr><td style="${ST.td}">Contra la orden anterior</td><td style="${ST.td}" colspan="2">${varTxt}</td></tr>
+            </table>
+            <p style="${ST.h}">Materia prima consumida (real, por lote)</p>
+            ${mpHtml}
+            <p style="${ST.h}">Mano de obra por persona</p>
+            ${personaHtml}
+            <p style="${ST.h}">Mano de obra por proceso</p>
+            ${procesoHtml}
+            <p style="${ST.h}">Documentos</p>
+            <p style="font-size:11px;">Entrada (producto terminado): <b>${escD(docs.entrada?.folio || '—')}</b> ·
+               Salida (materia prima): <b>${escD(docs.salida?.folio || (docs.entrada ? 'en el mismo documento' : '—'))}</b> ·
+               Póliza: <b>${docs.entrada?.poliza_id ? '#' + docs.entrada.poliza_id : 'sin póliza'}</b></p>`;
+    }
 
     const firma = (t) => `<td style="width:33%;padding:28px 10px 0;text-align:center;"><div style="border-top:1px solid #333;padding-top:4px;font-size:11px;">${t}</div></td>`;
 
@@ -427,14 +540,14 @@ async function armarDocumentoEstado(ordenId) {
         folio,
         cuerpo: `<div style="${ST.hoja}">
             ${encabezado}
-            <p style="${ST.h}">Insumos${cerrada ? ' (receta de la orden)' : ' — existencias de hoy'}</p>
+            ${cerrada ? costeoHtml : `
+            <p style="${ST.h}">Insumos — existencias de hoy</p>
             ${insumos}
             ${lotesHtml}
             <p style="${ST.h}">Procesos y equipo</p>
-            ${procesosHtml}
+            ${procesosHtml}`}
             <p style="${ST.h}">Requisiciones de compra ligadas</p>
             ${reqsHtml}
-            ${costosHtml}
             <table style="width:100%;margin-top:18px;"><tr>${firma('Elaboró')}${firma('Revisó')}${firma('Autorizó')}</tr></table>
         </div>`,
     };

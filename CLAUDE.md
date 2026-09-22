@@ -4,7 +4,14 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
-- Archivos tocados: `sql/2026-09-22_fix_salida_fifo_costo_ambiguo.sql` (nuevo), `CLAUDE.md`. Antes, misma sesión:
+- Archivos tocados (lo último): `js/produccion.js`, `js/ordenes-produccion.js`. "Historial de Órdenes Cerradas"
+  mostraba "No se encontraron movimientos…" porque buscaba los consumos en el documento de ENTRADA y quedan en el de
+  SALIDA (`PROD-…-MP`): nuevas `documentosDeOrden` / `consumosDeOrden` (exportadas de `produccion.js`; la orden no
+  guarda el documento, se llega por el lote producto+número más cercano a `cerrada_at`). Botón "📄 Reporte
+  completo" → `abrirDetalle`; para órdenes cerradas el documento ahora es costeo completo: resumen (MP/MO/%/costo
+  unitario vs. orden anterior), materia prima real por lote (costo PEPS, subtotal, receta, diferencia, % MP),
+  mano de obra por persona y por proceso (tiempo × `costo_hora_snapshot`, igual que el cierre), documentos y póliza.
+- Antes: `sql/2026-09-22_fix_salida_fifo_costo_ambiguo.sql` (nuevo), `CLAUDE.md`. Antes, misma sesión:
   buscadores SAT en Recibo de mercancía, "Fecha esperada" +5 hábiles, pre-recibo en proceso, documento "Estado de la
   orden", requisiciones ligadas a la orden, pendientes por insumos en Producción, conversión sin densidad.
 - Qué cambió: "Cerrar orden" fallaba con `column reference "costo_unitario" is ambiguous`. La
@@ -85,7 +92,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   insumos/en proceso/cerrada/cancelada); las 'borrador' (pendientes por insumos, ver
   `generarOrdenDeProduccion` en `produccion.js`) se revisan y continúan (o cancelan) desde aquí.
   "👁 Detalle" = documento imprimible "Estado de la orden de producción" (insumos en vivo, lotes,
-  tiempos, requisiciones ligadas, costos).
+  tiempos, requisiciones ligadas); si está cerrada, costeo completo por materia prima, persona y proceso
+  (también desde Producción → Historial → "📄 Reporte completo").
 - `pagos-proveedor.js` — pagos a proveedores: compras/gastos a crédito con saldo pendiente y registro del pago.
 - `patron-login.js` — login por patrón (además de PIN) compartido por las 3 apps de operador.
 - `pedidos-venta.js` — pedidos de venta que se surten después (total o en partes), enlazados a la salida real.
