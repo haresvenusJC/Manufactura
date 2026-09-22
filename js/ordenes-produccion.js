@@ -163,8 +163,15 @@ function pintarTabla() {
     });
 }
 
-async function continuarOrdenPendiente(ordenId, btn) {
-    const orden = ordenesCache.find((o) => o.id === ordenId);
+// Exportada: también la usa la tarjeta "📋 Órdenes pendientes por insumos" de Producción
+// (js/produccion.js), que pasa `alTerminar` para refrescarse en vez de esta tabla.
+export async function continuarOrdenPendiente(ordenId, btn, alTerminar = null) {
+    let orden = ordenesCache.find((o) => o.id === ordenId);
+    if (!orden) {
+        const { data } = await supabaseClient.from('ordenes_produccion')
+            .select('id, folio, producto_id, cantidad_producida, estado, productos ( nombre )').eq('id', ordenId).single();
+        orden = data;
+    }
     if (!orden) return;
     btn.disabled = true;
     btn.textContent = 'Revisando...';
@@ -186,6 +193,12 @@ async function continuarOrdenPendiente(ordenId, btn) {
         // que se fabrica en casa (semiterminados como el Granel) navega directo a Producción con el
         // producto y la cantidad ya precargados.
         await generarRequisicionFaltantes(faltan, orden.productos?.nombre || 'este producto', orden.cantidad_producida, { id: orden.id, folio: orden.folio });
+        // Si no se navegó a otra pantalla, el botón vuelve a quedar usable y la lista refleja la nueva revisión.
+        if (document.body.contains(btn)) {
+            btn.disabled = false;
+            btn.textContent = '🔄 Revisar y continuar';
+            if (alTerminar) await alTerminar(); else await cargarOrdenes();
+        }
         return;
     }
 
@@ -199,7 +212,7 @@ async function continuarOrdenPendiente(ordenId, btn) {
         .eq('id', ordenId);
     if (errUpd) { alert('No se pudo continuar la orden: ' + errUpd.message); btn.disabled = false; btn.textContent = '🔄 Revisar y continuar'; return; }
     alert(`✅ Orden ${orden.folio || '#' + orden.id} pasó a "en proceso". Ya aparece en Producción → Órdenes en Proceso.`);
-    await cargarOrdenes();
+    if (alTerminar) await alTerminar(); else await cargarOrdenes();
 }
 
 async function cancelarOrdenPendiente(ordenId) {
@@ -239,9 +252,14 @@ const ST = {
     nota: 'font-size:10px;color:#666;',
 };
 
-async function abrirDetalle(ordenId) {
-    const host = document.getElementById('opModalDetalle');
-    if (!host) return;
+// Exportada: también la usa Producción ("👁 Ver estado" en órdenes pendientes por insumos).
+export async function abrirDetalle(ordenId) {
+    let host = document.getElementById('opModalDetalle');
+    if (!host) {   // desde otra pantalla: contenedor propio pegado a <body>
+        host = document.createElement('div');
+        host.id = 'opModalDetalle';
+        document.body.appendChild(host);
+    }
     host.innerHTML = `
         <div id="opModalOverlay" class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4">
             <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-4 space-y-3">

@@ -442,6 +442,15 @@ export async function cargarModuloProduccion() {
                     </form>
                 </div>
 
+                <div id="tarjetaPendientesInsumos" class="hidden bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-xl">
+                    <div class="flex justify-between items-center mb-1">
+                        <h3 class="text-lg font-semibold text-amber-400 flex items-center gap-2">📋 Órdenes pendientes por insumos <span id="numPendientesInsumos" class="text-sm text-slate-400"></span></h3>
+                        <button type="button" id="btnRefrescarPendientes" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg border border-slate-700" title="Refrescar">↻</button>
+                    </div>
+                    <p class="text-[11px] text-slate-500 mb-3">Lo que faltaba es de la última revisión; "🔄 Revisar y continuar" vuelve a revisar existencias.</p>
+                    <div id="contenedorPendientesInsumos" class="space-y-2"></div>
+                </div>
+
                 <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-xl">
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="text-lg font-semibold text-amber-400 flex items-center gap-2">⏱️ Órdenes en Proceso</h3>
@@ -740,6 +749,7 @@ export async function cargarModuloProduccion() {
                         document.getElementById('listaProcesosOrden').innerHTML = '';
                         document.getElementById('avisoSinProcesos').classList.remove('hidden');
                         panelExistencias.classList.add('hidden');
+                        cargarOrdenesPendientesInsumos();
                         generarRequisicionFaltantes(faltantesActuales, etiqueta, datos.cantidadProducida, { id: resultado.ordenId, folio: resultado.folio });
                     } else if (resultado.success) {
                         alert(`✅ Orden ${resultado.folio} generada y en proceso.\nLos operarios ya pueden registrar tiempos desde la Orden de Trabajo en el celular.`);
@@ -818,7 +828,9 @@ export async function cargarModuloProduccion() {
         aplicarPreseleccionProduccion();
 
         document.getElementById('btnRefrescarEnProceso').onclick = cargarOrdenesEnProceso;
+        document.getElementById('btnRefrescarPendientes').onclick = cargarOrdenesPendientesInsumos;
 
+        await cargarOrdenesPendientesInsumos();
         await cargarOrdenesEnProceso();
         await cargarHistorialProduccion();
 
@@ -1154,6 +1166,64 @@ export async function cerrarOrdenDeProduccion(ordenId) {
 }
 
 // --- Panel "Órdenes en Proceso" (admin: sí muestra costos) -------------------
+
+// Resumen de las órdenes 'borrador' (pendientes por insumos, ver generarOrdenDeProduccion). Usa la foto
+// de la última revisión (faltantes_insumos) para no recalcular existencias de cada una al abrir la
+// pantalla; "👁 Ver estado" y "🔄 Revisar y continuar" (de js/ordenes-produccion.js) calculan en vivo.
+async function cargarOrdenesPendientesInsumos() {
+    const tarjeta = document.getElementById('tarjetaPendientesInsumos');
+    const cont = document.getElementById('contenedorPendientesInsumos');
+    if (!tarjeta || !cont) return;
+
+    let { data: ordenes, error } = await supabaseClient.from('ordenes_produccion')
+        .select('id, folio, numero_lote, cantidad_producida, created_at, faltantes_insumos, productos ( nombre, unidades_medida ( nombre ) )')
+        .eq('estado', 'borrador').order('created_at', { ascending: true });
+    if (error) {   // aún sin sql/2026-09-22_orden_produccion_pendiente_insumos.sql
+        tarjeta.classList.add('hidden');
+        return;
+    }
+    ordenes = ordenes || [];
+    document.getElementById('numPendientesInsumos').textContent = ordenes.length ? `(${ordenes.length})` : '';
+    if (!ordenes.length) { tarjeta.classList.add('hidden'); cont.innerHTML = ''; return; }
+    tarjeta.classList.remove('hidden');
+
+    const reqsPorOrden = await Promise.all(ordenes.map((o) => requisicionesDeOrden(o.id)));
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    cont.innerHTML = ordenes.map((o, i) => {
+        const falt = Array.isArray(o.faltantes_insumos) ? o.faltantes_insumos : [];
+        const reqs = reqsPorOrden[i] || [];
+        const reqsTxt = reqs.length
+            ? reqs.map((r) => `📦 ${esc(r.folio)} ${esc(r.estadoTexto)}`).join(' · ')
+            : (reqsPorOrden[i] === null ? '' : 'Sin requisición');
+        return `
+        <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 flex flex-wrap justify-between gap-3">
+            <div class="min-w-0 flex-1">
+                <p class="text-sm text-slate-100"><span class="font-mono font-bold text-amber-400">${esc(o.folio || '#' + o.id)}</span> · ${esc(o.productos?.nombre || 'Producto')}</p>
+                <p class="text-[11px] text-slate-400">${formatoCantidad(o.cantidad_producida)} ${esc(o.productos?.unidades_medida?.nombre || 'u')} · Lote ${esc(o.numero_lote || 'S/L')} · ${new Date(o.created_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}</p>
+                <p class="text-[11px] mt-1 ${falt.length ? 'text-rose-400' : 'text-slate-500'}" title="${esc(falt.map((f) => f.nombre).join(', '))}">${falt.length ? `⛔ Faltan ${falt.length} insumo(s): ${esc(falt.map((f) => f.nombre).join(', '))}` : 'Sin detalle de faltantes guardado'}</p>
+                ${reqsTxt ? `<p class="text-[11px] mt-0.5 text-sky-300/90">${reqsTxt}</p>` : ''}
+            </div>
+            <div class="flex flex-col gap-1.5 shrink-0">
+                <button type="button" class="btn-pend-ver text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg border border-slate-700" data-id="${o.id}">👁 Ver estado</button>
+                <button type="button" class="btn-pend-continuar text-xs bg-amber-700 hover:bg-amber-600 text-white px-2 py-1 rounded-lg" data-id="${o.id}">🔄 Revisar y continuar</button>
+            </div>
+        </div>`;
+    }).join('');
+
+    // Import dinámico: ordenes-produccion.js ya importa de este archivo (evita el ciclo al cargar).
+    cont.querySelectorAll('.btn-pend-ver').forEach((b) => b.addEventListener('click', async () => {
+        const m = await import('./ordenes-produccion.js');
+        m.abrirDetalle(Number(b.dataset.id));
+    }));
+    cont.querySelectorAll('.btn-pend-continuar').forEach((b) => b.addEventListener('click', async () => {
+        const m = await import('./ordenes-produccion.js');
+        await m.continuarOrdenPendiente(Number(b.dataset.id), b, async () => {
+            await cargarOrdenesPendientesInsumos();
+            await cargarOrdenesEnProceso();
+        });
+    }));
+}
 
 async function cargarOrdenesEnProceso() {
     const cont = document.getElementById('contenedorOrdenesEnProceso');

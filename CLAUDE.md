@@ -16,6 +16,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   que no ha llegado (`requisicionesDeOrden`: pendiente, o autorizada con OC borrador/abierta) — "📦 Ya solicitado".
   Solo se liga desde órdenes guardadas (al quedar pendiente por insumos y en "🔄 Revisar y continuar"); el
   botón del formulario antes de generar no tiene orden todavía.
+  (3) Producción tiene tarjeta "📋 Órdenes pendientes por insumos (N)" (`cargarOrdenesPendientesInsumos`, oculta
+  si no hay): foto de la última revisión + requisiciones ligadas, con "👁 Ver estado" / "🔄 Revisar y continuar"
+  reutilizando `abrirDetalle` / `continuarOrdenPendiente` (ahora exportadas de `ordenes-produccion.js`, import
+  dinámico para evitar el ciclo de imports).
 - Pendiente: correr `sql/2026-09-22_factor_conversion_sin_densidad.sql` y
   `sql/2026-09-22_requisicion_orden_produccion.sql`; las requisiciones hechas antes quedan sin liga
   (se pueden ligar a mano con `update requisiciones_compra set orden_produccion_id = … where folio = …`).
@@ -175,6 +179,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   usuario, filtros (usuario/módulo/acción/fechas) y export CSV (`sql/2026-10-20...`, `js/bitacora-cambios.js`).
 - Login por patrón (además de PIN) en las 3 apps de operador (`sql/2026-10-17...`, `js/patron-login.js`).
 - Pantalla de Inicio (`js/bienvenida.js`): logo animado, saludo y accesos rápidos; es la vista de arranque.
+- Producción: tarjeta "📋 Órdenes pendientes por insumos" (resumen de las 'borrador').
 - Producción: botón "Generar requisición de lo faltante" — abre requisición de compra (agrupada por
   proveedor) y/o órdenes de producción para lo que se fabrica en casa (semiterminados como el granel).
 - Buscador reutilizable para `<select>` largos: `js/buscador-select.js` (en uso en Producción).
