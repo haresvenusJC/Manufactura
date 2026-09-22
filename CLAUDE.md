@@ -12,7 +12,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   aparezca "🏭 Continuar con las órdenes de producción (N)"; si se elige primero producción,
   `__prodPre.despues` hace que al generar la última orden sugerida aparezca "📝 Continuar con la
   requisición de compra (N proveedores)". Su fondo pasó a `bg-slate-950/40` sin blur (se ve lo de atrás).
-- Pendiente: correr `sql/2026-09-22_ot_componentes_conversion.sql`; auditar el resto de modales contra la
+- Pendiente: (migraciones ya corridas) auditar el resto de modales contra la
   regla de subventanas; lo demás, ver "Pendiente".
 
 ## Estructura
@@ -185,9 +185,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Pendiente
 
-- Correr `sql/2026-09-22_ot_componentes_conversion.sql`, `sql/2026-09-22_orden_produccion_pendiente_insumos.sql`,
-  `sql/2026-09-22_rendimiento_lote_bom.sql` y `sql/2026-10-25_unidades_medida_editable.sql`
-  (`2026-10-23` y `2026-10-26` ya corridas).
+- Todas las migraciones de `sql/` están corridas (verificado 2026-09-22).
 - Capturar "Rendimiento del lote" (Catálogo → Más detalles) en cada producto "Granel ..." cuyo BOM se
   escribió para el lote completo y no por 1 unidad — si no, `calcularRequerimientosProduccion` sigue
   pidiendo insumos de más. El usuario confirmó que sus lotes son de 10-15 Litros según el producto; hay
