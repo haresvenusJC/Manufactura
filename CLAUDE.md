@@ -84,10 +84,13 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Pendiente
 
-- Correr `sql/2026-10-23_densidad_conversion_bom.sql`, `sql/2026-10-25_unidades_medida_editable.sql` y
-  `sql/2026-10-26_prerecibo_documento_id.sql`.
-- En Catálogo → "⚖️ Densidades", capturar la de los saborizantes y cualquier otro insumo que la necesite
-  (se ve fácil ahí: unidad en peso pero sin densidad).
+- Correr `sql/2026-10-25_unidades_medida_editable.sql` (`2026-10-23` y `2026-10-26` ya corridas).
+- En Catálogo → "⚖️ Densidades", capturar densidad de los "Granel ..." (Gel/Miel/Lubricante, son mezclas
+  propias — no hay ficha técnica externa que buscar): Anal Xtasi, Bubblegum, Cherry, Chocolate, Essence,
+  Fresa Kiwi, Mango, Mint, Piña Colada, Prolongel Retardador, Vcream, Watermelon, Miel Bee Power,
+  Lubricante Silicón. Sabores (Chocolate/Fresa Kiwi/Piña Colada) y Ácido Cítrico se dejaron sin sembrar
+  a propósito (varían demasiado) — capturarlos a mano solo si su BOM los usa en volumen y de verdad
+  importa la precisión.
 - Evaluar si extender el buscador de selects a otras pantallas (Salidas, Órdenes de compra, alta de BOM).
 - Pendiente de responder: ¿aplicar también el default Desde=inicio de mes/Hasta=hoy a Cuentas por
   cobrar/pagar, historial de Recibo de mercancía e Historial de tareas? (se dejaron igual, ver arriba).
