@@ -4,6 +4,7 @@ import { montarGuia, crearPanelAsistente, abrirManual } from './asistente-contab
 import { parsearCfdi, formaPagoSimple, extraerTextoPdf, parsearCfdiPdf } from './cfdi.js';
 import { REGIMENES } from './proveedores.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+import { prepararFiltrosAuxInv, generarAuxInventarios } from './auxiliar-inventarios.js';
 
 // =====================================================================
 //  Contabilidad - FASE 1: Plan de cuentas
@@ -1895,6 +1896,20 @@ async function rcTraerMovsAux(ids, hasta) {
     return out;
 }
 
+// Auxiliar de inventarios (valorizado): filtros y reporte viven en js/auxiliar-inventarios.js.
+async function rcPrepararFiltrosAuxInv() {
+    const caja = document.getElementById('rcAuxInvFiltros');
+    if (!caja) return;
+    const activo = rcTab === 'auxinv';
+    caja.classList.toggle('hidden', !activo);
+    caja.classList.toggle('flex', activo);
+    if (activo) await prepararFiltrosAuxInv(caja, rcGenerarAuxInv);
+}
+async function rcGenerarAuxInv() {
+    await generarAuxInventarios(document.getElementById('rcResultado'),
+        document.getElementById('rcDesde').value, document.getElementById('rcHasta').value);
+}
+
 async function rcGenerarAuxiliar() {
     const res = document.getElementById('rcResultado');
     const desde = document.getElementById('rcDesde').value;
@@ -2058,6 +2073,8 @@ export async function cargarModuloReportesContables() {
                     <select id="rcAuxCuenta" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 max-w-[20rem]"><option value="">(elige una cuenta)</option></select></div>
                 <label class="flex items-center gap-1.5 text-[11px] text-slate-300 pb-2 cursor-pointer"><input type="checkbox" id="rcAuxSoloMov" checked class="accent-sky-500"> Solo cuentas con movimientos</label>
             </div>
+            <!-- Filtros del Auxiliar de inventarios (js/auxiliar-inventarios.js; solo se ven en esa pestaña) -->
+            <div id="rcAuxInvFiltros" class="hidden items-end gap-3 flex-wrap"></div>
             <button type="button" id="rcGenerar" class="text-xs bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg font-semibold cursor-pointer">Generar</button>
             <div class="ml-auto flex gap-2">
                 <button type="button" id="rcCsv" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 px-3 py-2 rounded-lg border border-slate-700 cursor-pointer">Exportar CSV</button>
@@ -2076,7 +2093,8 @@ export async function cargarModuloReportesContables() {
     document.getElementById('rcCsv').addEventListener('click', rcExportarCSV);
     document.getElementById('rcPrint').addEventListener('click', () => {
         const titulo = rcTab === 'balanza' ? 'Balanza de comprobacion' : rcTab === 'balance' ? 'Balance general'
-            : rcTab === 'auxiliar' ? 'Auxiliar de cuentas contables' : 'Estado de resultados';
+            : rcTab === 'auxiliar' ? 'Auxiliar de cuentas contables'
+            : rcTab === 'auxinv' ? 'Auxiliar de inventarios (valorizado)' : 'Estado de resultados';
         imprimirConPlantilla('generico', titulo, 'rcTabla');
     });
 
@@ -2092,14 +2110,16 @@ export async function cargarModuloReportesContables() {
 function rcRenderTabs() {
     const el = document.getElementById('rcTabs');
     const tabs = [{ id: 'balanza', t: 'Balanza de comprobación' }, { id: 'resultados', t: 'Estado de resultados' }, { id: 'balance', t: 'Balance general' },
-                  { id: 'auxiliar', t: 'Auxiliar de cuentas contables' }];
+                  { id: 'auxiliar', t: 'Auxiliar de cuentas contables' }, { id: 'auxinv', t: 'Auxiliar de inventarios (valorizado)' }];
     el.innerHTML = tabs.map((x) => `
         <button data-tab="${x.id}" class="rc-tab text-xs font-semibold px-3 py-2 rounded-lg transition ${x.id === rcTab ? 'bg-sky-600 text-white' : 'text-slate-400 hover:bg-slate-800'}" style="cursor:pointer">${x.t}</button>`).join('');
     el.querySelectorAll('.rc-tab').forEach((b) => b.addEventListener('click', async () => {
         rcTab = b.dataset.tab;
         rcRenderTabs();
         await rcPrepararFiltrosAux();
+        await rcPrepararFiltrosAuxInv();
         if (rcTab === 'auxiliar') { rcGenerarAuxiliar(); return; }
+        if (rcTab === 'auxinv') { rcGenerarAuxInv(); return; }
         // Las demás pestañas usan la carga general; si aún no existe (se entró directo al Auxiliar), se hace ahora.
         if (!rcCache) await rcGenerar(true); else rcPintar();
     }));
@@ -2107,6 +2127,7 @@ function rcRenderTabs() {
 
 async function rcGenerar(forzar) {
     if (rcTab === 'auxiliar') { await rcGenerarAuxiliar(); return; }   // el Auxiliar consulta por su cuenta
+    if (rcTab === 'auxinv') { await rcGenerarAuxInv(); return; }       // Auxiliar de inventarios: js/auxiliar-inventarios.js
     const desde = document.getElementById('rcDesde').value;
     const hasta = document.getElementById('rcHasta').value;
     if (!desde || !hasta) { alert('Indica el periodo.'); return; }

@@ -4,7 +4,13 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
-- Archivos tocados (lo último): `js/app.js` — la flecha ← del navegador sacaba del ERP: `window.loadView(vista,
+- Archivos tocados (lo último): `js/auxiliar-inventarios.js` (nuevo), `js/contabilidad.js` — Reportes contables →
+  pestaña "Auxiliar de inventarios (valorizado)": filtros Clasificación / Cuenta de inventario / Artículo (buscador);
+  por artículo saldo inicial, movimientos del kardex (documento, póliza, lote, entrada/salida en cantidad y $, saldo
+  corriente) y saldo final; valor = |cantidad| × `costo_unitario` del movimiento (trae landed cost y costo PEPS).
+  "Cuadre" por cuenta (`cuenta_inventario_id`, sin cuenta → 115.04 si producto / 115.01 si no): kardex de TODOS los
+  artículos de la cuenta vs. saldo en balanza a "Hasta", + pólizas que movieron la cuenta sin kardex detrás.
+- Antes: `js/app.js` — la flecha ← del navegador sacaba del ERP: `window.loadView(vista,
   { desdeHistorial })` ahora anota cada pantalla con `history.pushState({ erpVista })` y un `popstate` la reabre;
   `iniciarApp` pone un tope (`erpBase`) + Inicio, así ← en Inicio se queda en Inicio. No cierra subventanas
   abiertas ni restaura la pantalla al recargar (F5 → Inicio).
@@ -52,6 +58,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `activos-fijos.js` — activos fijos y depreciación (NIF C-6, línea recta): catálogo + corrida mensual con póliza.
 - `auditoria-inventario.js` — auditorías de inventario (toma física) lado admin: crear, ver avance/resultado,
   cerrar/reabrir (la captura la hace el operador en `conteo-inventario.html`).
+- `auxiliar-inventarios.js` — Reportes contables → "Auxiliar de inventarios (valorizado)": kardex valorizado por
+  artículo/clasificación/cuenta + cuadre contra la balanza de cada cuenta de inventario.
 - `auth.js` — login del admin (los empleados no pasan por aquí) + bitácora de inicio/cierre de sesión.
 - `bancos-tesoreria.js` — cuentas bancarias ligadas a cuenta contable, conciliación y flujo proyectado simple.
 - `bienvenida.js` — pantalla de Inicio: saludo, nombre del usuario y accesos rápidos.
@@ -66,7 +74,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `compras.js` — compra directa con póliza cuando no se pasa por Orden de compra → Recibo de mercancía.
 - `conteo-inventario.js` — app móvil de operador: conteo físico a ciegas por auditoría abierta (PIN/patrón).
 - `contabilidad.js` — plan de cuentas, pólizas, gastos y reportes (Balanza/Estado de resultados/Balance
-  general/Auxiliar de cuentas contables).
+  general/Auxiliar de cuentas contables); la pestaña "Auxiliar de inventarios (valorizado)" vive en
+  `auxiliar-inventarios.js`.
 - `conversion-unidades.js` — conversión BOM↔inventario compartida (familias de unidad + densidad) entre
   Producción y Catálogo.
 - `cuentas-por-cobrar.js` — cobros a clientes: ventas a crédito con saldo pendiente y registro del cobro.
