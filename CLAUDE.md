@@ -4,19 +4,18 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
-- Archivos tocados: `js/ordenes-compra.js` (Recibo de mercancía: "Uso CFDI", "Forma de pago" y "Método de pago"
-  ahora con `convertirEnBuscador` — se busca por clave o descripción; `setSel` del XML llama `buscadorRefrescar`),
-  `js/requisiciones-compra.js` ("Autorizar requisición" → "Fecha esperada" prellenada con hoy
-  + 5 días hábiles, `fechaHabilesDesdeHoy`, hora local), `js/ordenes-compra.js`, `CLAUDE.md` (antes, misma sesión: documento "Estado de la orden
-  de producción", requisiciones ligadas a la orden y tarjeta de pendientes por insumos en Producción —
-  `js/ordenes-produccion.js`, `js/produccion.js`, `js/requisiciones-compra.js`,
-  `sql/2026-09-22_requisicion_orden_produccion.sql`).
-- Qué cambió: Recibo de mercancía → "Pre-recibos por validar": al pulsar "✔ Validar y recibir" o
-  "📦 Continuar recepción" (`window.prereciboContinuar`) se guarda `rmPrereciboEnProceso` y la lista muestra
-  solo ese pre-recibo ("Procesando este pre-recibo" + "↩ Mostrar todos") hasta que `rmConfirmar` registra la
-  recepción (o ya no está por validar). En memoria del módulo: se pierde al recargar la página.
-- Pendiente: correr `sql/2026-09-22_factor_conversion_sin_densidad.sql` y
-  `sql/2026-09-22_requisicion_orden_produccion.sql`; requisiciones previas quedan sin liga a su orden.
+- Archivos tocados: `sql/2026-09-22_fix_salida_fifo_costo_ambiguo.sql` (nuevo), `CLAUDE.md`. Antes, misma sesión:
+  buscadores SAT en Recibo de mercancía, "Fecha esperada" +5 hábiles, pre-recibo en proceso, documento "Estado de la
+  orden", requisiciones ligadas a la orden, pendientes por insumos en Producción, conversión sin densidad.
+- Qué cambió: "Cerrar orden" fallaba con `column reference "costo_unitario" is ambiguous`. La
+  `registrar_salida_fifo` VIVA en la base (costeo PEPS con cursor de capas `stock_costeo`, cambiada fuera de este
+  repo — distinta a `sql/2026-09-13_salidas_fefo.sql`) abría el cursor sin alias y chocaba con la columna de
+  salida `costo_unitario` del RETURNS TABLE. La migración es copia exacta de la versión viva con solo ese SELECT
+  calificado (`lc.`); reproducido y probado en Postgres local. OJO: la fuente de verdad de esa función es ahora
+  esta migración, no la de 2026-09-13.
+- Pendiente: correr `sql/2026-09-22_fix_salida_fifo_costo_ambiguo.sql`,
+  `sql/2026-09-22_factor_conversion_sin_densidad.sql` y `sql/2026-09-22_requisicion_orden_produccion.sql`; cada
+  intento fallido de cierre dejó 2 documentos vacíos (`PROD-…-MP` y `PROD-…`) sin movimientos.
 
 ## Estructura
 
@@ -198,7 +197,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Pendiente
 
-- Correr `sql/2026-09-22_factor_conversion_sin_densidad.sql` y `sql/2026-09-22_requisicion_orden_produccion.sql` (las demás de `sql/` ya están corridas, verificado 2026-09-22).
+- Correr `sql/2026-09-22_fix_salida_fifo_costo_ambiguo.sql`, `sql/2026-09-22_factor_conversion_sin_densidad.sql` y `sql/2026-09-22_requisicion_orden_produccion.sql` (las demás de `sql/` ya están corridas, verificado 2026-09-22).
 - Capturar "Rendimiento del lote" (Catálogo → Más detalles) en cada producto "Granel ..." cuyo BOM se
   escribió para el lote completo y no por 1 unidad — si no, `calcularRequerimientosProduccion` sigue
   pidiendo insumos de más. El usuario confirmó que sus lotes son de 10-15 Litros según el producto; hay
