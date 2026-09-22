@@ -1188,7 +1188,7 @@ function rmTarjetaPrerecibo(pr, { conBotones = true } = {}) {
     const accionesValidar = !conBotones ? '' : pr.estatus === 'pendiente' ? `
           <button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'validar')" class="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg">✔ Validar y recibir</button>
           <button type="button" onclick="window.prereciboValidar(${pr.id}, ${pr.orden_compra_id || 'null'}, 'rechazar')" class="text-xs bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-3 py-1.5 rounded-lg">✕ Rechazar</button>` : pr.estatus === 'validado' ? `
-          <button type="button" onclick="window.irARecibirOC(${pr.orden_compra_id || 'null'})" class="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg">📦 Continuar recepción</button>` : '';
+          <button type="button" onclick="window.prereciboContinuar(${pr.id}, ${pr.orden_compra_id || 'null'})" class="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg">📦 Continuar recepción</button>` : '';
     const accionEditar = (pr.estatus === 'pendiente' || pr.estatus === 'validado')
         ? `<button type="button" onclick="window.prereciboEditar(${pr.id})" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg">✏ Editar</button>` : '';
     const accionCancelar = pr.estatus !== 'cancelado'
@@ -1232,6 +1232,15 @@ const PRERECIBO_COLUMNAS = 'id, orden_compra_id, referencia, empleado_nombre, fo
 // Con pre_recibos.documento_id (migración 2026-10-26); si aún no está, "Por validar" se guía
 // solo por 'pendiente', como antes de este archivo.
 let rmPrereciboTieneDocId = true;
+// Pre-recibo que se está procesando ("✔ Validar y recibir" / "📦 Continuar recepción"): mientras
+// no se complete su recepción, "Pre-recibos por validar" muestra solo ese. Vive en memoria del
+// módulo (sobrevive a cambiar de pantalla, no a recargar la página).
+let rmPrereciboEnProceso = null;   // id del pre-recibo
+window.prereciboMostrarTodos = async () => { rmPrereciboEnProceso = null; await rmPreRecibos(); };
+window.prereciboContinuar = (id, ocId) => {
+    rmPrereciboEnProceso = Number(id);
+    window.irARecibirOC(ocId);
+};
 function prereciboErrorMsg(err) {
     const m = err?.message || String(err);
     const archivoFalta = /lineas/i.test(m)
@@ -1273,6 +1282,23 @@ async function rmPreRecibos() {
     if (filas.length === 0) {
         cont.innerHTML = `<div class="bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-between flex-wrap gap-2">
             <span class="text-xs text-slate-500">No hay pre-recibos de operadores por validar.</span><span>${linkOperador}</span></div>`;
+        return;
+    }
+
+    // Procesando uno: solo se muestra ese; si ya no está por validar (terminó), se suelta el foco.
+    const enProceso = rmPrereciboEnProceso ? filas.find((f) => f.id === rmPrereciboEnProceso) : null;
+    if (rmPrereciboEnProceso && !enProceso) rmPrereciboEnProceso = null;
+    if (enProceso) {
+        const otros = filas.length - 1;
+        cont.innerHTML = `
+      <div class="bg-amber-950/30 border border-amber-800/50 rounded-xl p-3">
+        <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+          <h3 class="text-sm font-semibold text-amber-300">Procesando este pre-recibo</h3>
+          <button type="button" onclick="window.prereciboMostrarTodos()" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-2.5 py-1 rounded-lg">↩ Mostrar todos</button>
+        </div>
+        ${otros ? `<p class="text-[11px] text-slate-400 mb-2">Los otros ${otros} pre-recibo(s) por validar se muestran al terminar esta recepción.</p>` : ''}
+        <div class="space-y-2">${rmTarjetaPrerecibo(enProceso, { conBotones: true })}</div>
+      </div>`;
         return;
     }
 
@@ -1350,6 +1376,7 @@ window.prereciboValidar = async (id, ocId, accion) => {
     const { error } = await supabaseClient.rpc('prerecibo_validar', { p_id: Number(id), p_accion: accion, p_nota: nota });
     if (error) { alert('No se pudo procesar: ' + (error.message || error)); return; }
     if (accion === 'validar' && ocId) {
+        rmPrereciboEnProceso = Number(id);
         window.irARecibirOC(ocId);   // recarga el módulo y abre esa OC para capturar la recepción
     } else {
         await rmPreRecibos();
@@ -2403,6 +2430,7 @@ async function rmConfirmar(ocs) {
                 await supabaseClient.from('pre_recibos').update({ documento_id: documentoId }).eq('id', prVal[0].id);
             }
         } catch (_) { /* no bloquea la recepción ya registrada */ }
+        rmPrereciboEnProceso = null;   // terminó: "Pre-recibos por validar" vuelve a mostrar todos
 
         alert(`✅ Recepción registrada (documento #${documentoId}).${msgContab}\nLa orden ${oc.folio} quedó "${nuevo}".`);
 

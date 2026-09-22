@@ -4,25 +4,16 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
-- Archivos tocados: `js/ordenes-produccion.js`, `js/produccion.js`, `js/requisiciones-compra.js`,
-  `sql/2026-09-22_requisicion_orden_produccion.sql` (nuevo), `CLAUDE.md`.
-- Qué cambió: (1) "👁 Detalle" en Consulta de órdenes de producción ahora es el documento imprimible
-  "Estado de la orden de producción" (`armarDocumentoEstado`, hoja blanca con estilos en línea + "🖨️ Imprimir"
-  vía `imprimirConPlantilla('orden_produccion', …)`): encabezado, insumos en vivo (receta/requerido/
-  disponible/faltante/✅⛔🏭), lotes a surtir (solo en proceso, de `v_ot_orden_componentes`), procesos con
-  tiempo por empleado (`registros_tiempo`), requisiciones ligadas, costos si cerrada, firmas. (2) Nueva
-  `requisiciones_compra.orden_produccion_id`: `generarRequisicionFaltantes(…, orden)` liga la requisición
-  (`window.__reqPreOrden` → `reqOrdenProd` en requisiciones-compra.js) y descuenta lo ya pedido para esa orden
-  que no ha llegado (`requisicionesDeOrden`: pendiente, o autorizada con OC borrador/abierta) — "📦 Ya solicitado".
-  Solo se liga desde órdenes guardadas (al quedar pendiente por insumos y en "🔄 Revisar y continuar"); el
-  botón del formulario antes de generar no tiene orden todavía.
-  (3) Producción tiene tarjeta "📋 Órdenes pendientes por insumos (N)" (`cargarOrdenesPendientesInsumos`, oculta
-  si no hay): foto de la última revisión + requisiciones ligadas, con "👁 Ver estado" / "🔄 Revisar y continuar"
-  reutilizando `abrirDetalle` / `continuarOrdenPendiente` (ahora exportadas de `ordenes-produccion.js`, import
-  dinámico para evitar el ciclo de imports).
+- Archivos tocados: `js/ordenes-compra.js`, `CLAUDE.md` (antes, misma sesión: documento "Estado de la orden
+  de producción", requisiciones ligadas a la orden y tarjeta de pendientes por insumos en Producción —
+  `js/ordenes-produccion.js`, `js/produccion.js`, `js/requisiciones-compra.js`,
+  `sql/2026-09-22_requisicion_orden_produccion.sql`).
+- Qué cambió: Recibo de mercancía → "Pre-recibos por validar": al pulsar "✔ Validar y recibir" o
+  "📦 Continuar recepción" (`window.prereciboContinuar`) se guarda `rmPrereciboEnProceso` y la lista muestra
+  solo ese pre-recibo ("Procesando este pre-recibo" + "↩ Mostrar todos") hasta que `rmConfirmar` registra la
+  recepción (o ya no está por validar). En memoria del módulo: se pierde al recargar la página.
 - Pendiente: correr `sql/2026-09-22_factor_conversion_sin_densidad.sql` y
-  `sql/2026-09-22_requisicion_orden_produccion.sql`; las requisiciones hechas antes quedan sin liga
-  (se pueden ligar a mano con `update requisiciones_compra set orden_produccion_id = … where folio = …`).
+  `sql/2026-09-22_requisicion_orden_produccion.sql`; requisiciones previas quedan sin liga a su orden.
 
 ## Estructura
 
@@ -197,7 +188,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   recepción" y el botón "📦 Continuar recepción". Se implementa con `pre_recibos.documento_id` (nullable,
   se llena solo al confirmar la recepción en `rmConfirmar`, `js/ordenes-compra.js`), degrada con gracia si
   la migración no se ha corrido (vuelve al comportamiento anterior). Requiere
-  `sql/2026-10-26_prerecibo_documento_id.sql`.
+  `sql/2026-10-26_prerecibo_documento_id.sql`. Mientras se procesa uno, la lista muestra solo ese
+  (`rmPrereciboEnProceso`, botón "↩ Mostrar todos").
 
 ## Pendiente
 
