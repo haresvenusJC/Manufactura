@@ -8,6 +8,7 @@ import { imprimirConPlantilla } from './impresion.js';
 import { obtenerInfoProveedorProducto } from './info-proveedor-producto.js';
 import { opcionesPresentacionHtml, sugerirPresetPorUnidadCfdi } from './presentaciones-proveedor.js';
 import './trazabilidad.js';
+import { convertirEnBuscador } from './buscador-select.js';
 
 // =====================================================================
 //  Órdenes de compra + Recibo de mercancía  (Fase 1: captura y recepción
@@ -1045,6 +1046,13 @@ export async function cargarModuloReciboMercancia() {
     rmMostrarTab('recibir');
     document.getElementById('rmTabBtnRecibir').onclick = () => rmMostrarTab('recibir');
     document.getElementById('rmTabBtnHistorial').onclick = () => rmMostrarTab('historial');
+
+    // Catálogos SAT: cada opción empieza con la clave ("G01 · …"), así que la búsqueda por letra del
+    // navegador no encuentra la descripción. Buscador: escribes clave o descripción, sin acentos.
+    ['rmUsoCfdi', 'rmFormaPago', 'rmMetodoPago'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) convertirEnBuscador(el, { placeholder: 'Escribe clave o descripción…' });
+    });
 
     const selOc = document.getElementById('rmOC');
     selOc.onchange = () => { rmRenderDetalle(ocs.find(o => o.id === Number(selOc.value))); rmAvisoRecepcionesPrevias(); };
@@ -2719,6 +2727,7 @@ async function rmProcesarDatosFactura(datos, { icono = '📄', fuente = 'XML' } 
             el.appendChild(o);
             el.value = v;
         }
+        el.buscadorRefrescar?.();   // si es buscador (Uso CFDI / Forma / Método de pago), que muestre el valor nuevo
     };
     setSel('rmFormaPago', formaPago);
     setSel('rmMetodoPago', metodoPago);

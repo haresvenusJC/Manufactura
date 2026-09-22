@@ -4,7 +4,9 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
-- Archivos tocados: `js/requisiciones-compra.js` ("Autorizar requisición" → "Fecha esperada" prellenada con hoy
+- Archivos tocados: `js/ordenes-compra.js` (Recibo de mercancía: "Uso CFDI", "Forma de pago" y "Método de pago"
+  ahora con `convertirEnBuscador` — se busca por clave o descripción; `setSel` del XML llama `buscadorRefrescar`),
+  `js/requisiciones-compra.js` ("Autorizar requisición" → "Fecha esperada" prellenada con hoy
   + 5 días hábiles, `fechaHabilesDesdeHoy`, hora local), `js/ordenes-compra.js`, `CLAUDE.md` (antes, misma sesión: documento "Estado de la orden
   de producción", requisiciones ligadas a la orden y tarjeta de pendientes por insumos en Producción —
   `js/ordenes-produccion.js`, `js/produccion.js`, `js/requisiciones-compra.js`,
@@ -174,7 +176,9 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - Producción: tarjeta "📋 Órdenes pendientes por insumos" (resumen de las 'borrador').
 - Producción: botón "Generar requisición de lo faltante" — abre requisición de compra (agrupada por
   proveedor) y/o órdenes de producción para lo que se fabrica en casa (semiterminados como el granel).
-- Buscador reutilizable para `<select>` largos: `js/buscador-select.js` (en uso en Producción).
+- Buscador reutilizable para `<select>` largos: `js/buscador-select.js` (en uso en Producción y en Recibo de
+  mercancía: Uso CFDI / Forma de pago / Método de pago). Si el valor se cambia por código, llamar
+  `select.buscadorRefrescar()`.
 - Producción: número de lote sugerido automático al abrir el formulario (`generarLoteSugerido`,
   `js/produccion.js`) con patrón `LotDDDCadMMAA` — `DDD` = día juliano de hoy, `CadMMAA` = mes/año de
   caducidad a 2 años; botón "🎲 Sugerir" para recalcular; campo sigue siendo texto libre editable.
