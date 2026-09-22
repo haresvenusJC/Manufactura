@@ -4,29 +4,14 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
-- Archivos tocados: `js/produccion.js`, `js/ordenes-produccion.js` (nuevo), `js/catalogo.js`, `js/app.js`,
-  `index.html`, `sql/2026-09-22_orden_produccion_pendiente_insumos.sql` (nuevo),
-  `sql/2026-09-22_rendimiento_lote_bom.sql` (nuevo), `CLAUDE.md`.
-- Qué cambió: (1) si al generar una Orden de producción faltan insumos, la orden ya no se pierde con solo
-  un `alert()` — se guarda igual, con procesos/equipo ya capturados, en `estado: 'borrador'` + el detalle
-  de lo que faltó en `faltantes_insumos`, y dispara "📝 Generar requisición de lo faltante". Nuevo módulo
-  **Consulta de órdenes de producción** (menú Operación → Producción) lista TODAS las órdenes con filtro
-  de estado y buscador; las 'borrador' traen "🔄 Revisar y continuar" y "🗑 Cancelar". (2) Se detectó que
-  los "Granel ... 15 Litros" tienen su BOM escrito para el LOTE completo (ej. 15 Litros), no por 1 unidad,
-  y `calcularRequerimientosProduccion` los multiplicaba directo por la cantidad pedida → pedía ~15× de
-  más. Se agregó `productos.rendimiento_lote_bom` (Catálogo → Más detalles → "Rendimiento del lote"): si
-  está capturado, la cantidad pedida se traduce a "cuántos lotes" antes de escalar la receta. **Falta
-  capturar ese valor (15, o lo que corresponda) en cada "Granel ..." semiterminado** — sin eso, siguen
-  pidiendo de más. (3) `generarRequisicionFaltantes` (antes privada de `produccion.js`) ahora se exporta y
-  la usa también "🔄 Revisar y continuar" en `ordenes-produccion.js`: si al revisar una orden 'borrador'
-  siguen faltando insumos, ya no se queda en un `alert()` — dispara el mismo flujo (requisición de compra
-  y/o navega a Producción con el semiterminado faltante precargado) sin importar desde qué pantalla se
-  esté revisando.
-- Pendiente: correr `sql/2026-09-22_orden_produccion_pendiente_insumos.sql` y
-  `sql/2026-09-22_rendimiento_lote_bom.sql`; capturar "Rendimiento del lote" en los productos "Granel ..."
-  (ver lista en "Pendiente" de Densidades — probablemente el mismo rango 10-15 según el usuario); revisar
-  las subventanas/modales ya existentes contra la regla de "nunca ocultar el contenido que las originó"
-  (no se auditó código todavía, solo se documentó la convención) — ver "Pendiente" al final.
+- Archivos tocados: `sql/2026-09-22_ot_componentes_conversion.sql` (nuevo), `CLAUDE.md`.
+- Qué cambió: la Orden de trabajo del celular (`v_ot_orden_componentes`) calculaba la cantidad requerida
+  como `bom × cantidad` a secas, sin el "Rendimiento del lote" ni la conversión de unidades/densidad →
+  pedía ~15× de más en los Granel (12 L → "Glicerina 164.4 kg" en vez de 13.81) y faltantes falsos. La
+  vista ahora usa `factor_conversion_bom()` (función SQL nueva, réplica de `factorConversion` de
+  `js/conversion-unidades.js` — si cambia una, cambiar la otra) y divide entre `rendimiento_lote_bom`.
+  La pantalla de Producción y el cierre ya estaban bien (usan `calcularRequerimientosProduccion`).
+- Pendiente: correr `sql/2026-09-22_ot_componentes_conversion.sql` en Supabase; lo demás, ver "Pendiente".
 
 ## Estructura
 
@@ -88,7 +73,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `kardex.js` — navegación directa al Kardex de un producto específico.
 - `nomina.js` — nómina: cálculo (IMSS/ISR real vía RPC), autorización, póliza y recibo imprimible.
 - `orden-tabla.js` — ordenamiento client-side reutilizable para encabezados de tabla en toda la app.
-- `orden-trabajo.js` — app móvil del operario: registro de tiempos por proceso de una orden de producción.
+- `orden-trabajo.js` — app móvil del operario: registro de tiempos por proceso de una orden de producción;
+  componentes/lotes a surtir vienen de la vista `v_ot_orden_componentes` (misma conversión que Producción).
 - `ordenes-compra.js` — Órdenes de compra + Recibo de mercancía (candado de pre-recibo, landed cost,
   XML/PDF/QR del CFDI, FIFO).
 - `ordenes-produccion.js` — consulta de TODAS las órdenes de producción (pendiente por
@@ -196,7 +182,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Pendiente
 
-- Correr `sql/2026-09-22_orden_produccion_pendiente_insumos.sql`,
+- Correr `sql/2026-09-22_ot_componentes_conversion.sql`, `sql/2026-09-22_orden_produccion_pendiente_insumos.sql`,
   `sql/2026-09-22_rendimiento_lote_bom.sql` y `sql/2026-10-25_unidades_medida_editable.sql`
   (`2026-10-23` y `2026-10-26` ya corridas).
 - Capturar "Rendimiento del lote" (Catálogo → Más detalles) en cada producto "Granel ..." cuyo BOM se
