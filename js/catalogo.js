@@ -301,7 +301,7 @@ export async function cargarCatalogoInicial() {
                                 <div>
                                     <label class="block text-[11px] text-slate-400 mb-1">Densidad (kg por litro)</label>
                                     <input type="number" step="0.0001" min="0" id="prodDensidad" placeholder="Ej. 1.26 (déjalo vacío si no aplica)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
-                                    <p class="text-[10px] text-slate-500 mt-0.5">Solo para insumos cuya receta (BOM) está en volumen (Litros/mL) pero se llevan en inventario por peso (Kilogramos/gramos), o al revés. Con ella, Producción convierte bien cuánto pedir y descontar; sin ella, se toma 1 a 1 y se avisa.</p>
+                                    <p class="text-[10px] text-slate-500 mt-0.5">Solo para insumos cuya receta (BOM) está en volumen (Litros/mL) pero se llevan en inventario por peso (Kilogramos/gramos), o al revés. Con ella, Producción convierte bien cuánto pedir y descontar; sin ella, se toma como agua (1 kg/L) y se avisa.</p>
                                 </div>
 
                                 <div>
@@ -1550,7 +1550,7 @@ async function abrirVentanaBom(producto) {
         const conv = factorConversion(f.unidad, stockId, nombreUnidadPorId, nombreUnidadStock, cant, p.densidad_kg_l);
         const convertido = cant * conv.factor;
         const detalle = conv.tipo === 'aviso'
-            ? 'sin densidad capturada — se toma 1 a 1, agrégala en ⚖️ Densidades'
+            ? 'sin densidad capturada — se toma como agua (1 kg/L), agrégala en ⚖️ Densidades'
             : (conv.nota ? conv.nota.replace(/^Convertido con /, '').replace(/\.$/, '') : 'conversión exacta de unidad');
         const clase = conv.tipo === 'aviso' ? 'text-amber-400' : 'text-emerald-400';
         return `<span class="${clase}">Receta: ${fmtNum(cant)} ${escaparHtml(nombreUnidadReceta)} → se descontarán ${fmtNum(convertido)} ${escaparHtml(nombreUnidadStock)} (${detalle})</span>`;

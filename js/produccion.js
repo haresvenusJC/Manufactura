@@ -89,7 +89,7 @@ export async function calcularRequerimientosProduccion(productoId, cantidadProdu
     const idsComponentes = componentes.map(c => c.componente_id);
 
     // Con densidad_kg_l (migración 2026-10-23); si aún no está, sin ella (sin densidad, la
-    // conversión entre volumen y masa se sigue tomando 1 a 1, como antes).
+    // conversión entre volumen y masa se toma como agua, 1 kg/L).
     let { data: infoInsumos, error: errInsumos } = await supabaseClient
         .from('productos')
         .select('id, nombre, costo_unitario, unidad_medida_id, densidad_kg_l, unidades_medida ( nombre )')
@@ -501,7 +501,7 @@ export async function cargarModuloProduccion() {
                 let notaHtml = '';
                 if (f.recetaUnidadConsistente && f.recetaCantidad != null && f.recetaUnidad) {
                     const detalle = f.notaTipo === 'aviso'
-                        ? 'sin densidad capturada — se toma 1 a 1, agrégala en ⚖️ Densidades'
+                        ? 'sin densidad capturada — se toma como agua (1 kg/L), agrégala en ⚖️ Densidades'
                         : (f.nota ? f.nota.replace(/^Convertido con /, '').replace(/\.$/, '') : 'conversión exacta de unidad');
                     const clase = f.notaTipo === 'aviso' ? 'text-amber-400/80' : 'text-emerald-400/70';
                     notaHtml = `<span class="block text-[10px] ${clase} font-normal">Receta: ${formatoCantidad(f.recetaCantidad)} ${f.recetaUnidad} → se descuentan ${formatoCantidad(f.requerido)}${u} (${detalle})</span>`;

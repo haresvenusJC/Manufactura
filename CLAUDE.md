@@ -4,16 +4,15 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
-- Archivos tocados: `js/produccion.js`, `js/requisiciones-compra.js`, `CLAUDE.md` (antes, misma sesión:
-  `sql/2026-09-22_ot_componentes_conversion.sql` — vista de la Orden de trabajo con rendimiento del lote +
-  conversión de unidades vía `factor_conversion_bom()`, réplica SQL de `factorConversion`).
-- Qué cambió: "Faltantes para producir" (`generarRequisicionFaltantes`) ya no pierde la otra opción: si
-  se elige primero la requisición, `window.__faltantesSiguiente` hace que al guardar la última requisición
-  aparezca "🏭 Continuar con las órdenes de producción (N)"; si se elige primero producción,
-  `__prodPre.despues` hace que al generar la última orden sugerida aparezca "📝 Continuar con la
-  requisición de compra (N proveedores)". Su fondo pasó a `bg-slate-950/40` sin blur (se ve lo de atrás).
-- Pendiente: (migraciones ya corridas) auditar el resto de modales contra la
-  regla de subventanas; lo demás, ver "Pendiente".
+- Archivos tocados: `js/conversion-unidades.js`, `js/catalogo.js`, `js/produccion.js` (textos),
+  `sql/2026-09-22_factor_conversion_sin_densidad.sql` (nuevo), `CLAUDE.md`. Antes, misma sesión: vista de la
+  Orden de trabajo con rendimiento del lote + conversión (`sql/2026-09-22_ot_componentes_conversion.sql`) y
+  "Faltantes para producir" que ya no pierde la otra opción (`js/produccion.js`, `js/requisiciones-compra.js`).
+- Qué cambió: `factorConversion` (JS) y `factor_conversion_bom` (SQL) — sin densidad, volumen↔masa ya no
+  pasa el NÚMERO 1 a 1 (41 mL → 41 kg), se toma como agua (1 kg/L) respetando la escala (41 mL → 0.041 kg),
+  con aviso "falta la densidad". El 1 a 1 queda solo para unidades no convertibles (Piezas vs kg).
+- Pendiente: correr `sql/2026-09-22_factor_conversion_sin_densidad.sql`; OP-000005 guarda los faltantes de su
+  última revisión ("Revisar y continuar" los recalcula); auditar el resto de modales.
 
 ## Estructura
 
@@ -130,6 +129,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   mostrar el plan de cambios — no aplicar nada hasta que el usuario lo apruebe.
 - **Al terminar cada tarea**: actualizar "Última sesión" (abajo) con 3 líneas — archivos tocados, qué
   cambió en cada uno, qué quedó pendiente — y mantener al día el "Mapa de módulos".
+- **Unidades de compra vs. surtido**: por estandarización de procesos, el usuario compra en una unidad y
+  surte/formula en otra (compra en kg y la receta en mL, o al revés). Toda cantidad de BOM se convierte a la
+  unidad de inventario (`factorConversion` / `factor_conversion_bom`) — nunca comparar números crudos entre
+  unidades distintas; la densidad (Catálogo → ⚖️ Densidades) es la que da precisión volumen↔masa.
 - **Subventanas (modales)**: nunca ocultar el contenido que originó la subventana — la pantalla de atrás
   debe seguir visible detrás (overlay semitransparente, no un fondo opaco que la tape por completo).
 
@@ -185,7 +188,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Pendiente
 
-- Todas las migraciones de `sql/` están corridas (verificado 2026-09-22).
+- Correr `sql/2026-09-22_factor_conversion_sin_densidad.sql` (las demás de `sql/` ya están corridas, verificado 2026-09-22).
 - Capturar "Rendimiento del lote" (Catálogo → Más detalles) en cada producto "Granel ..." cuyo BOM se
   escribió para el lote completo y no por 1 unidad — si no, `calcularRequerimientosProduccion` sigue
   pidiendo insumos de más. El usuario confirmó que sus lotes son de 10-15 Litros según el producto; hay
