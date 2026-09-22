@@ -304,6 +304,12 @@ export async function cargarCatalogoInicial() {
                                     <p class="text-[10px] text-slate-500 mt-0.5">Solo para insumos cuya receta (BOM) está en volumen (Litros/mL) pero se llevan en inventario por peso (Kilogramos/gramos), o al revés. Con ella, Producción convierte bien cuánto pedir y descontar; sin ella, se toma 1 a 1 y se avisa.</p>
                                 </div>
 
+                                <div>
+                                    <label class="block text-[11px] text-slate-400 mb-1">Rendimiento del lote (para el BOM)</label>
+                                    <input type="number" step="0.0001" min="0" id="prodRendimientoLote" placeholder="Déjalo vacío si el BOM ya está por 1 unidad" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                                    <p class="text-[10px] text-slate-500 mt-0.5">Solo si este BOM se escribió para un LOTE completo (ej. "Granel ... 15 Litros" con receta pensada para 15 Litros), no para 1 unidad. Pon aquí cuánto rinde esa receta (en la unidad de este producto); Producción escala cada insumo según cuántos lotes representa lo que se va a producir. Vacío = el BOM ya está por 1 unidad (como antes).</p>
+                                </div>
+
                                 <div class="border-t border-slate-800 pt-3 ${cuentasContables.length ? '' : 'hidden'}">
                                     <p class="text-[11px] font-semibold text-sky-400 mb-2">Datos contables</p>
                                     <div class="grid grid-cols-2 gap-2">
@@ -626,6 +632,8 @@ export async function cargarCatalogoInicial() {
                 document.getElementById('prodClaveSat').dataset.tenia = art.clave_sat ? '1' : '';
                 document.getElementById('prodDensidad').value = art.densidad_kg_l ?? '';
                 document.getElementById('prodDensidad').dataset.tenia = (art.densidad_kg_l !== null && art.densidad_kg_l !== undefined) ? '1' : '';
+                document.getElementById('prodRendimientoLote').value = art.rendimiento_lote_bom ?? '';
+                document.getElementById('prodRendimientoLote').dataset.tenia = (art.rendimiento_lote_bom !== null && art.rendimiento_lote_bom !== undefined) ? '1' : '';
 
                 const elExistencia = document.getElementById('prodExistenciaActual');
                 elExistencia.textContent = `Existencia actual: ${Number(art.stock_actual || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })} — se actualiza sola con compras y salidas, no se edita aquí.`;
@@ -725,6 +733,7 @@ export async function cargarCatalogoInicial() {
             document.getElementById('formCrearProducto').reset();
             document.getElementById('prodClaveSat').dataset.tenia = '';
             document.getElementById('prodDensidad').dataset.tenia = '';
+            document.getElementById('prodRendimientoLote').dataset.tenia = '';
             itemsBomTemp = [];
             actualizarListaBomVisual();
             clavesProvTemp = [];
@@ -953,6 +962,18 @@ export async function cargarCatalogoInicial() {
             }
             const densidadPayload = (densidadVal || elDensidad.dataset.tenia === '1') ? { densidad_kg_l: densidadVal ? parseFloat(densidadVal) : null } : {};
 
+            // Rendimiento del lote (BOM por lote completo, ej. "Granel ... 15 Litros"): mismo
+            // patrón que Densidad — solo se manda si hay algo que guardar (o borrar), así no
+            // depende de haber corrido sql/2026-09-22_rendimiento_lote_bom.sql.
+            const elRendLote = document.getElementById('prodRendimientoLote');
+            const rendLoteVal = elRendLote.value.trim();
+            if (rendLoteVal && !(parseFloat(rendLoteVal) > 0)) {
+                alert('El rendimiento del lote debe ser un número mayor a 0.');
+                elRendLote.focus();
+                return;
+            }
+            const rendimientoLotePayload = (rendLoteVal || elRendLote.dataset.tenia === '1') ? { rendimiento_lote_bom: rendLoteVal ? parseFloat(rendLoteVal) : null } : {};
+
             // Cómo se obtiene (fabricado / comprado) y semiterminado. Igual que la clave SAT:
             // solo se manda si se sale del valor por defecto (fabricado, no semiterminado) o
             // si el artículo ya tenía estos datos — así guardar no depende de haber corrido
@@ -1004,6 +1025,7 @@ export async function cargarCatalogoInicial() {
                     cantidad_minima_compra,
                     ...claveSatPayload,
                     ...densidadPayload,
+                    ...rendimientoLotePayload,
                     ...abastPayload,
                     ...datosContables
                 };
@@ -1090,6 +1112,8 @@ export async function cargarCatalogoInicial() {
                     alert('Falta correr la migración sql/2026-10-18_producto_abastecimiento_semiterminado.sql en Supabase (SQL Editor) para guardar "Cómo se obtiene" y "Semiterminado".');
                 } else if (/densidad_kg_l/.test(err.message || '')) {
                     alert('Falta correr la migración sql/2026-10-23_densidad_conversion_bom.sql en Supabase (SQL Editor) para guardar la Densidad.');
+                } else if (/rendimiento_lote_bom/.test(err.message || '')) {
+                    alert('Falta correr la migración sql/2026-09-22_rendimiento_lote_bom.sql en Supabase (SQL Editor) para guardar el Rendimiento del lote.');
                 } else {
                     alert("Error al procesar la operación en la base de datos: " + (err.message || err));
                 }
@@ -1369,7 +1393,7 @@ const CAMPOS_NO_EDITABLES_PRODUCTO = new Set(['id', 'created_at', 'updated_at'])
 // las banderas. Los que no estén aquí (columnas nuevas a futuro) caen
 // después, en orden alfabético; los de solo lectura siempre van al final.
 const ORDEN_CAMPOS_PRODUCTO = [
-    'sku', 'nombre', 'tipo', 'descripcion', 'clave_sat', 'densidad_kg_l',
+    'sku', 'nombre', 'tipo', 'descripcion', 'clave_sat', 'densidad_kg_l', 'rendimiento_lote_bom',
     'unidad_medida_id', 'proveedor_id', 'moneda_id',
     'costo_unitario', 'precio_venta', 'tasa_iva', 'tasa_ieps',
     'cuenta_inventario_id', 'cuenta_costo_id',

@@ -8,6 +8,7 @@ import { cargarModuloPagosProveedor } from './pagos-proveedor.js';
 import { cargarModuloCuentasPorCobrar } from './cuentas-por-cobrar.js';
 import { cargarModuloAuditoriaInventario } from './auditoria-inventario.js';
 import { cargarModuloProduccion } from './produccion.js';
+import { cargarModuloOrdenesProduccion } from './ordenes-produccion.js';
 import { cargarModuloProveedores } from './proveedores.js';
 import { cargarModuloSalidas } from './salidas.js';
 import { cargarModuloPedidosVenta } from './pedidos-venta.js';
@@ -208,6 +209,9 @@ window.loadView = function(viewName) {
             break;
         case 'produccion':
             cargarModuloProduccion();
+            break;
+        case 'consulta-produccion':
+            cargarModuloOrdenesProduccion();
             break;
         case 'proveedores':
             cargarModuloProveedores();

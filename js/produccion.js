@@ -9,7 +9,7 @@ import { factorConversion } from './conversion-unidades.js';
 const histProdOrden = crearOrdenTabla('fecha', 'desc');
 
 // Formatea cantidades evitando colas de decimales largas (10.0000001 -> "10").
-function formatoCantidad(n) {
+export function formatoCantidad(n) {
     return Number(Number(n || 0).toFixed(3)).toString();
 }
 
@@ -39,7 +39,7 @@ function generarLoteSugerido(fecha = new Date()) {
  * @returns {Promise<{ error: string|null, filas: Array<{
  *   componenteId:number, nombre:string, unidad:string,
  *   costoUnitarioCatalogo:number, requerido:number, disponible:number, suficiente:boolean
- * }> }>}
+ * }>, loteInfo: {rendimientoLote:number, unidad:string, factorLote:number}|null }>}
  */
 export async function calcularRequerimientosProduccion(productoId, cantidadProducida) {
     const pid = Number(productoId);
@@ -58,6 +58,33 @@ export async function calcularRequerimientosProduccion(productoId, cantidadProdu
     if (!componentes || componentes.length === 0) {
         return { error: 'El producto seleccionado no tiene una receta o BOM registrada.', filas: [] };
     }
+
+    // Algunos semiterminados (los "Granel ... 15 Litros") tienen el BOM escrito para un LOTE
+    // completo, no para 1 unidad — sql/2026-09-22_rendimiento_lote_bom.sql. Si el producto tiene
+    // rendimiento_lote_bom > 0, la cantidad pedida se traduce a "cuántos lotes de la receta"
+    // representa antes de escalar cada insumo; si no lo tiene, se comporta igual que siempre
+    // (1 unidad producida = 1 vez la receta).
+    let rendimientoLote = null;
+    let unidadLoteNombre = '';
+    {
+        let { data: prodRaiz, error: errRaiz } = await supabaseClient
+            .from('productos')
+            .select('rendimiento_lote_bom, unidades_medida ( nombre )')
+            .eq('id', pid)
+            .single();
+        if (errRaiz) {
+            ({ data: prodRaiz, error: errRaiz } = await supabaseClient
+                .from('productos')
+                .select('unidades_medida ( nombre )')
+                .eq('id', pid)
+                .single());
+        }
+        if (!errRaiz && prodRaiz) {
+            rendimientoLote = Number(prodRaiz.rendimiento_lote_bom) > 0 ? Number(prodRaiz.rendimiento_lote_bom) : null;
+            unidadLoteNombre = prodRaiz.unidades_medida?.nombre || '';
+        }
+    }
+    const factorLote = rendimientoLote ? (cantidad / rendimientoLote) : cantidad;
 
     const idsComponentes = componentes.map(c => c.componente_id);
 
@@ -100,7 +127,7 @@ export async function calcularRequerimientosProduccion(productoId, cantidadProdu
         const datosIns = mapaInsumos.get(componenteId) || {};
 
         const cantidadReqUnit = Number(comp.cantidad_requerida || 0);
-        const cantidadRecetaBase = cantidadReqUnit * cantidad;    // en la unidad del renglón del BOM, antes de convertir
+        const cantidadRecetaBase = cantidadReqUnit * factorLote;    // en la unidad del renglón del BOM, antes de convertir
         let requerido = cantidadRecetaBase;
 
         const unidadStockNombre = datosIns.unidades_medida?.nombre || '';
@@ -142,7 +169,8 @@ export async function calcularRequerimientosProduccion(productoId, cantidadProdu
         return { ...f, disponible, suficiente: disponible + 1e-6 >= f.requerido };
     });
 
-    return { error: null, filas };
+    const loteInfo = rendimientoLote ? { rendimientoLote, unidad: unidadLoteNombre, factorLote } : null;
+    return { error: null, filas, loteInfo };
 }
 
 /**
@@ -270,7 +298,7 @@ function formatoHHMMSS(totalSegundos) {
 }
 
 // Línea de detalle para un insumo que no alcanza (reusada al generar y al cerrar).
-function fmtFaltante(f) {
+export function fmtFaltante(f) {
     const u = f.unidad ? ` ${f.unidad}` : '';
     return `• ${f.nombre}: requerido ${formatoCantidad(f.requerido)}${u}, disponible ${formatoCantidad(f.disponible)}${u} (faltan ${formatoCantidad(f.requerido - f.disponible)}${u})`;
 }
@@ -325,6 +353,7 @@ export async function cargarModuloProduccion() {
                                 <span class="text-xs font-medium text-slate-400">EXISTENCIAS PARA ESTA PRODUCCIÓN (según receta / BOM)</span>
                                 <span id="resumenExistenciasBOM" class="text-[11px] font-mono"></span>
                             </div>
+                            <p id="notaLoteBOM" class="hidden text-[11px] text-sky-300/90 bg-sky-950/20 border border-sky-800/40 rounded-lg px-2.5 py-1.5 mb-2"></p>
                             <div id="tablaExistenciasBOM" class="space-y-1"></div>
                             <div id="accionesExistenciasBOM" class="hidden mt-3 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
                                 <span class="text-[11px] text-slate-500">Abre una requisición de compra con lo que falta, agrupada por proveedor.</span>
@@ -403,6 +432,7 @@ export async function cargarModuloProduccion() {
         const panelExistencias = document.getElementById('panelExistenciasBOM');
         const tablaExistencias = document.getElementById('tablaExistenciasBOM');
         const resumenExistencias = document.getElementById('resumenExistenciasBOM');
+        const notaLoteBOM = document.getElementById('notaLoteBOM');
         let tokenPanelExistencias = 0;
         const contAccionesReq = document.getElementById('accionesExistenciasBOM');
         const btnReqFaltantes = document.getElementById('btnReqFaltantes');
@@ -429,13 +459,22 @@ export async function cargarModuloProduccion() {
             tablaExistencias.innerHTML = '<p class="text-slate-500 text-xs italic">Calculando requerimientos...</p>';
             resumenExistencias.textContent = '';
 
-            const { error, filas } = await calcularRequerimientosProduccion(idProd, cant);
+            const { error, filas, loteInfo } = await calcularRequerimientosProduccion(idProd, cant);
             if (miToken !== tokenPanelExistencias) return; // llegó una respuesta obsoleta
 
             if (error) {
                 tablaExistencias.innerHTML = `<p class="text-amber-400 text-xs">${error}</p>`;
                 resumenExistencias.textContent = '';
+                notaLoteBOM.classList.add('hidden');
                 return;
+            }
+
+            if (loteInfo) {
+                const u = loteInfo.unidad ? ` ${loteInfo.unidad}` : '';
+                notaLoteBOM.textContent = `📐 Receta pensada para un lote de ${formatoCantidad(loteInfo.rendimientoLote)}${u} → esta orden equivale a ${formatoCantidad(loteInfo.factorLote)} lote(s).`;
+                notaLoteBOM.classList.remove('hidden');
+            } else {
+                notaLoteBOM.classList.add('hidden');
             }
 
             const faltan = filas.filter(f => !f.suficiente);
@@ -625,7 +664,16 @@ export async function cargarModuloProduccion() {
 
                 try {
                     const resultado = await generarOrdenDeProduccion(datos);
-                    if (resultado.success) {
+                    if (resultado.success && resultado.pendiente) {
+                        const etiqueta = selectProd.options[selectProd.selectedIndex]?.textContent.trim() || '';
+                        alert(`📋 Orden ${resultado.folio} guardada como PENDIENTE por insumos (procesos y equipo ya quedaron capturados):\n${resultado.faltantes.map(fmtFaltante).join('\n')}\n\nPodrás continuarla desde "Consulta de órdenes de producción" en cuanto haya existencias.`);
+                        formOrden.reset();
+                        document.getElementById('numeroLoteResultante').value = generarLoteSugerido();
+                        document.getElementById('listaProcesosOrden').innerHTML = '';
+                        document.getElementById('avisoSinProcesos').classList.remove('hidden');
+                        panelExistencias.classList.add('hidden');
+                        generarRequisicionFaltantes(faltantesActuales, etiqueta, datos.cantidadProducida);
+                    } else if (resultado.success) {
                         alert(`✅ Orden ${resultado.folio} generada y en proceso.\nLos operarios ya pueden registrar tiempos desde la Orden de Trabajo en el celular.`);
                         formOrden.reset();
                         document.getElementById('numeroLoteResultante').value = generarLoteSugerido();
@@ -719,26 +767,34 @@ export async function generarOrdenDeProduccion(datos) {
             throw new Error("Cada proceso debe tener al menos un empleado asignado (si no, nadie podrá registrar tiempo en el celular).");
         }
 
-        // Validación de existencias (mismo cálculo que el panel del formulario).
+        // Validación de existencias (mismo cálculo que el panel del formulario). Si falta algo, la
+        // orden no se pierde: se guarda como 'borrador' (pendiente por insumos) con sus procesos y
+        // equipo ya capturados, para poder continuarla después desde "Consulta de órdenes de
+        // producción" sin volver a llenar el formulario.
         const { error: errReq, filas } = await calcularRequerimientosProduccion(productoId, cantidadProducida);
         if (errReq) throw new Error(errReq);
         const faltantes = filas.filter(f => !f.suficiente);
-        if (faltantes.length > 0) {
-            throw new Error(`Existencias insuficientes. No se generó la orden:\n${faltantes.map(fmtFaltante).join('\n')}`);
+        const pendienteInsumos = faltantes.length > 0;
+        const faltantesSnapshot = pendienteInsumos
+            ? faltantes.map(f => ({ id: f.componenteId, nombre: f.nombre, unidad: f.unidad, requerido: f.requerido, disponible: f.disponible }))
+            : null;
+
+        const filaOrden = {
+            producto_id: productoId,
+            cantidad_producida: cantidadProducida,
+            numero_lote: numeroLote,
+            estado: pendienteInsumos ? 'borrador' : 'en_proceso',
+            abierta_at: pendienteInsumos ? null : new Date().toISOString(),
+            faltantes_insumos: faltantesSnapshot
+        };
+        let { data: ordenNueva, error: errOrden } = await supabaseClient
+            .from('ordenes_produccion').insert([filaOrden]).select('id').single();
+        if (errOrden && /faltantes_insumos|column .* does not exist/i.test(errOrden.message || '')) {
+            // Aún sin la migración 2026-09-22: se guarda igual como borrador, solo sin el detalle de lo que faltó.
+            const { faltantes_insumos, ...filaSinSnapshot } = filaOrden;
+            ({ data: ordenNueva, error: errOrden } = await supabaseClient
+                .from('ordenes_produccion').insert([filaSinSnapshot]).select('id').single());
         }
-
-        const { data: ordenNueva, error: errOrden } = await supabaseClient
-            .from('ordenes_produccion')
-            .insert([{
-                producto_id: productoId,
-                cantidad_producida: cantidadProducida,
-                numero_lote: numeroLote,
-                estado: 'en_proceso',
-                abierta_at: new Date().toISOString()
-            }])
-            .select('id')
-            .single();
-
         if (errOrden) throw errOrden;
         const ordenId = ordenNueva.id;
         const folio = 'OP-' + String(ordenId).padStart(6, '0');
@@ -786,7 +842,7 @@ export async function generarOrdenDeProduccion(datos) {
             }
         }
 
-        return { success: true, ordenId, folio };
+        return { success: true, ordenId, folio, pendiente: pendienteInsumos, faltantes: pendienteInsumos ? faltantes : null };
     } catch (error) {
         console.error("Error al generar la orden:", error.message);
         return { success: false, error: error.message };
