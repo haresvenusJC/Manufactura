@@ -27,6 +27,9 @@ let reqProductos = [];
 let reqPartidasTemp = [];
 let reqProdSel = null;
 let reqFiltro = 'pendiente';
+// Orden de producción de la que salió la requisición ({ id, folio }), vía window.__reqPreOrden
+// ("Faltantes para producir"). Se guarda en requisiciones_compra.orden_produccion_id.
+let reqOrdenProd = null;
 const reqListaOrden = crearOrdenTabla('id', 'desc');
 
 const REQ_FILTROS = [
@@ -147,7 +150,11 @@ async function reqAplicarPreseleccion() {
     window.__reqPreProductos = null;
     window.__reqPreProducto = null;
     // Se entró sin preselección (a mano, desde el menú): un "siguiente paso" viejo ya no aplica.
-    if (!(Array.isArray(preMulti) && preMulti.length) && !(pre && pre.id)) window.__faltantesSiguiente = null;
+    const conPre = (Array.isArray(preMulti) && preMulti.length) || (pre && pre.id);
+    if (!conPre) window.__faltantesSiguiente = null;
+    // Liga a la orden de producción: se conserva mientras queden grupos de otros proveedores por cargar.
+    reqOrdenProd = conPre && window.__reqPreOrden && window.__reqPreOrden.id ? window.__reqPreOrden : null;
+    if (!conPre || !Array.isArray(window.__reqPreGruposRestantes) || !window.__reqPreGruposRestantes.length) window.__reqPreOrden = null;
 
     // Nota con la que llega la preselección (p. ej. desde Producción: "Faltantes para producir…").
     // Se conserva mientras queden grupos de otros proveedores por cargar.
@@ -179,6 +186,7 @@ function reqAvisarGruposRestantes() {
     const msg = document.getElementById('reqMsg');
     if (!msg) return;
     const partes = [];
+    if (reqOrdenProd) partes.push(`Ligada a la orden de producción ${reqOrdenProd.folio || '#' + reqOrdenProd.id}.`);
     if (Array.isArray(restantes) && restantes.length) {
         partes.push(`Guarda esta requisición y se va a abrir la del siguiente proveedor automáticamente (quedan ${restantes.length}).`);
     }
@@ -406,13 +414,20 @@ async function reqGuardarRequisicion() {
         const notas = document.getElementById('reqNotas').value.trim();
         const folio = await siguienteFolio('REQ');   // consecutivo: REQ-000001, REQ-000002...
         const origen = notas.startsWith('Generada desde Tareas') ? 'stock_bajo_minimo' : 'manual';
-        const { data: req, error: e1 } = await supabaseClient.from('requisiciones_compra').insert([{
+        const filaReq = {
             folio,
             fecha: document.getElementById('reqFecha').value || hoyISO(),
             origen,
             estatus: 'pendiente',
             notas: notas || null,
-        }]).select('id, folio').single();
+        };
+        if (reqOrdenProd) filaReq.orden_produccion_id = reqOrdenProd.id;
+        let { data: req, error: e1 } = await supabaseClient.from('requisiciones_compra').insert([filaReq]).select('id, folio').single();
+        if (e1 && reqOrdenProd && TABLA_FALTA.test(e1.message || '')) {
+            // aún sin sql/2026-09-22_requisicion_orden_produccion.sql: se guarda sin la liga.
+            delete filaReq.orden_produccion_id;
+            ({ data: req, error: e1 } = await supabaseClient.from('requisiciones_compra').insert([filaReq]).select('id, folio').single());
+        }
         if (e1) throw e1;
 
         const filas = reqPartidasTemp.map(p => ({
@@ -457,6 +472,7 @@ async function reqGuardarRequisicion() {
 
         const siguiente = await reqCargarSiguienteGrupoPendiente();
         if (!siguiente) {
+            reqOrdenProd = null;
             const texto = `Requisición ${req.folio} guardada, pendiente de autorización.`;
             if (!reqOfrecerSiguientePaso(msg, texto)) {
                 msg.textContent = texto;

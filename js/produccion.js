@@ -180,8 +180,11 @@ export async function calcularRequerimientosProduccion(productoId, cantidadProdu
  *  - Lo que se fabrica en casa (semiterminados como el granel) NO se compra: se deja fuera y se
  *    avisa, porque lo que hay que hacer es producirlo primero.
  * Reusa la preselección que ya usa Tareas (window.__reqPre*).
+ *  - Con `orden` ({ id, folio }): la requisición queda ligada a esa orden de producción
+ *    (requisiciones_compra.orden_produccion_id) y lo que YA está pedido para ella y aún no llega
+ *    se descuenta, para no pedirlo dos veces (ver requisicionesDeOrden).
  */
-export async function generarRequisicionFaltantes(faltan, nombreProducto, cantidadProducir) {
+export async function generarRequisicionFaltantes(faltan, nombreProducto, cantidadProducir, orden = null) {
     if (!faltan || !faltan.length) return;
 
     const ids = faltan.map((f) => f.componenteId);
@@ -204,6 +207,19 @@ export async function generarRequisicionFaltantes(faltan, nombreProducto, cantid
         if (p.tipo === 'producto' && p.abastecimiento !== 'comprado') seFabrican.push(item); else comprables.push(item);
     }
 
+    // Lo ya pedido para esta orden (requisiciones pendientes/autorizadas que aún no llegan) se descuenta.
+    const reqsLigadas = orden && orden.id ? ((await requisicionesDeOrden(orden.id)) || []) : [];
+    const reqsEnCamino = reqsLigadas.filter((r) => r.enCamino);
+    if (reqsEnCamino.length) {
+        const pedido = new Map();
+        reqsEnCamino.forEach((r) => r.detalle.forEach((d) => pedido.set(d.productoId, (pedido.get(d.productoId) || 0) + d.cantidad)));
+        for (let k = comprables.length - 1; k >= 0; k--) {
+            const ya = pedido.get(comprables[k].id) || 0;
+            const resta = Number((comprables[k].cantidad - ya).toFixed(3));
+            if (resta > 0) comprables[k].cantidad = resta; else comprables.splice(k, 1);
+        }
+    }
+
     const linea = (i) => `${i.nombre}: ${formatoCantidad(i.cantidad)}${i.unidad ? ' ' + i.unidad : ''}`;
 
     const grupos = new Map();
@@ -218,7 +234,8 @@ export async function generarRequisicionFaltantes(faltan, nombreProducto, cantid
     //  · requisición primero → window.__faltantesSiguiente lo ofrece al guardar la última requisición;
     //  · producción primero  → __prodPre.despues lo ofrece al generar la última orden sugerida.
     const listaGrupos = [...grupos.values()].map((items) => items.map((i) => ({ id: i.id, cantidad: i.cantidad })));
-    const notasReq = `Faltantes para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}.`;
+    const folioOrden = orden && orden.id ? (orden.folio || '#' + orden.id) : '';
+    const notasReq = `Faltantes para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}${folioOrden ? ` (orden ${folioOrden})` : ''}.`;
     const prodPre = () => ({
         lista: seFabrican.map((i) => ({ id: i.id, cantidad: i.cantidad, nombre: i.nombre, unidad: i.unidad })),
         total: seFabrican.length,
@@ -229,6 +246,7 @@ export async function generarRequisicionFaltantes(faltan, nombreProducto, cantid
         window.__reqPreProductos = listaGrupos[0];
         window.__reqPreGruposRestantes = listaGrupos.slice(1);
         window.__reqPreNotas = notasReq;
+        window.__reqPreOrden = orden && orden.id ? { id: orden.id, folio: orden.folio || null } : null;
         window.__faltantesSiguiente = seFabrican.length ? { prodPre: prodPre() } : null;
         window.loadView('requisiciones-compra');
     };
@@ -238,9 +256,10 @@ export async function generarRequisicionFaltantes(faltan, nombreProducto, cantid
         window.loadView('produccion');
     };
 
-    // Un solo destino y un solo proveedor: se va directo, sin preguntar.
-    if (!seFabrican.length && grupos.size === 1) { abrirRequisicion(); return; }
-    if (!comprables.length && seFabrican.length) { abrirOrdenesProduccion(); return; }
+    // Un solo destino y un solo proveedor (y nada ya pedido que avisar): se va directo, sin preguntar.
+    if (!comprables.length && !seFabrican.length && !reqsLigadas.length) return;
+    if (!reqsLigadas.length && !seFabrican.length && grupos.size === 1) { abrirRequisicion(); return; }
+    if (!reqsLigadas.length && !comprables.length && seFabrican.length) { abrirOrdenesProduccion(); return; }
 
     // Hay de las dos cosas (o varios proveedores): se muestra qué pasa con cada una y se elige por dónde empezar.
     const idsProv = [...grupos.keys()].filter((k) => k !== 'sin').map(Number);
@@ -264,6 +283,17 @@ export async function generarRequisicionFaltantes(faltan, nombreProducto, cantid
                 </div>
                 <button type="button" id="fpCerrar" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 cursor-pointer">&times;</button>
             </div>
+            ${reqsLigadas.length ? `
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+                <p class="text-xs font-semibold text-sky-400 mb-1.5">📦 Ya solicitado para la orden ${esc(folioOrden)}</p>
+                <ul class="text-xs space-y-1">
+                    ${reqsLigadas.map((r) => `<li><span class="text-slate-100 font-mono">${esc(r.folio)}</span>
+                        <span class="text-slate-400">· ${esc(r.estadoTexto)}</span>
+                        <span class="text-slate-500">— ${esc(r.detalle.map((d) => `${d.nombre}: ${formatoCantidad(d.cantidad)}${d.unidad ? ' ' + d.unidad : ''}`).join(', '))}</span></li>`).join('')}
+                </ul>
+                ${reqsEnCamino.length ? '<p class="text-[11px] text-slate-500 mt-1.5">Lo que ya está pedido y no ha llegado se descontó de lo que falta comprar.</p>' : ''}
+                ${!comprables.length && !seFabrican.length ? '<p class="text-[11px] text-emerald-400 mt-1.5">✔ Todo lo que falta ya está solicitado: no hace falta otra requisición.</p>' : ''}
+            </div>` : ''}
             ${comprables.length ? `
             <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
                 <p class="text-xs font-semibold text-emerald-400 mb-1.5">🛒 Se compran${grupos.size > 1 ? ` — una requisición por proveedor (${grupos.size})` : ''}</p>
@@ -291,6 +321,36 @@ export async function generarRequisicionFaltantes(faltan, nombreProducto, cantid
     modal.querySelector('#fpCerrar').addEventListener('click', cerrar);
     modal.querySelector('#fpReq')?.addEventListener('click', () => { cerrar(); abrirRequisicion(); });
     modal.querySelector('#fpProd')?.addEventListener('click', () => { cerrar(); abrirOrdenesProduccion(); });
+}
+
+/**
+ * Requisiciones de compra ligadas a una orden de producción (requisiciones_compra.orden_produccion_id,
+ * sql/2026-09-22_requisicion_orden_produccion.sql). Devuelve null si la migración aún no está.
+ * `enCamino`: pendiente de autorizar, o autorizada cuya orden de compra no ha recibido nada
+ * (borrador/abierta) — eso es lo que se descuenta para no volver a pedirlo.
+ */
+export async function requisicionesDeOrden(ordenId) {
+    const { data, error } = await supabaseClient.from('requisiciones_compra')
+        .select('id, folio, fecha, estatus, ordenes_compra ( folio, estatus ), requisiciones_compra_detalle ( producto_id, cantidad, productos ( nombre, unidades_medida ( nombre ) ) )')
+        .eq('orden_produccion_id', ordenId)
+        .order('id', { ascending: true });
+    if (error) return null;
+    const TXT_OC = { borrador: 'OC en borrador', abierta: 'OC abierta, sin recibir', recibida_parcial: 'recibida parcial', recibida: 'recibida', cancelada: 'OC cancelada' };
+    return (data || []).map((r) => {
+        const oc = r.ordenes_compra;
+        const enCamino = r.estatus === 'pendiente'
+            || (r.estatus === 'autorizada' && (!oc || oc.estatus === 'borrador' || oc.estatus === 'abierta'));
+        const estadoTexto = r.estatus === 'autorizada'
+            ? `autorizada${oc ? ` → ${oc.folio || 'OC'} (${TXT_OC[oc.estatus] || oc.estatus})` : ''}`
+            : (r.estatus === 'pendiente' ? 'pendiente de autorizar' : r.estatus);
+        return {
+            id: r.id, folio: r.folio, fecha: r.fecha, estatus: r.estatus, enCamino, estadoTexto,
+            detalle: (r.requisiciones_compra_detalle || []).map((d) => ({
+                productoId: Number(d.producto_id), cantidad: Number(d.cantidad || 0),
+                nombre: d.productos?.nombre || 'Producto', unidad: d.productos?.unidades_medida?.nombre || '',
+            })),
+        };
+    });
 }
 
 // Cronómetros del panel "Órdenes en Proceso" (viven mientras la vista está montada).
@@ -680,7 +740,7 @@ export async function cargarModuloProduccion() {
                         document.getElementById('listaProcesosOrden').innerHTML = '';
                         document.getElementById('avisoSinProcesos').classList.remove('hidden');
                         panelExistencias.classList.add('hidden');
-                        generarRequisicionFaltantes(faltantesActuales, etiqueta, datos.cantidadProducida);
+                        generarRequisicionFaltantes(faltantesActuales, etiqueta, datos.cantidadProducida, { id: resultado.ordenId, folio: resultado.folio });
                     } else if (resultado.success) {
                         alert(`✅ Orden ${resultado.folio} generada y en proceso.\nLos operarios ya pueden registrar tiempos desde la Orden de Trabajo en el celular.`);
                         formOrden.reset();

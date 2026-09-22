@@ -4,15 +4,21 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
-- Archivos tocados: `js/conversion-unidades.js`, `js/catalogo.js`, `js/produccion.js` (textos),
-  `sql/2026-09-22_factor_conversion_sin_densidad.sql` (nuevo), `CLAUDE.md`. Antes, misma sesión: vista de la
-  Orden de trabajo con rendimiento del lote + conversión (`sql/2026-09-22_ot_componentes_conversion.sql`) y
-  "Faltantes para producir" que ya no pierde la otra opción (`js/produccion.js`, `js/requisiciones-compra.js`).
-- Qué cambió: `factorConversion` (JS) y `factor_conversion_bom` (SQL) — sin densidad, volumen↔masa ya no
-  pasa el NÚMERO 1 a 1 (41 mL → 41 kg), se toma como agua (1 kg/L) respetando la escala (41 mL → 0.041 kg),
-  con aviso "falta la densidad". El 1 a 1 queda solo para unidades no convertibles (Piezas vs kg).
-- Pendiente: correr `sql/2026-09-22_factor_conversion_sin_densidad.sql`; OP-000005 guarda los faltantes de su
-  última revisión ("Revisar y continuar" los recalcula); auditar el resto de modales.
+- Archivos tocados: `js/ordenes-produccion.js`, `js/produccion.js`, `js/requisiciones-compra.js`,
+  `sql/2026-09-22_requisicion_orden_produccion.sql` (nuevo), `CLAUDE.md`.
+- Qué cambió: (1) "👁 Detalle" en Consulta de órdenes de producción ahora es el documento imprimible
+  "Estado de la orden de producción" (`armarDocumentoEstado`, hoja blanca con estilos en línea + "🖨️ Imprimir"
+  vía `imprimirConPlantilla('orden_produccion', …)`): encabezado, insumos en vivo (receta/requerido/
+  disponible/faltante/✅⛔🏭), lotes a surtir (solo en proceso, de `v_ot_orden_componentes`), procesos con
+  tiempo por empleado (`registros_tiempo`), requisiciones ligadas, costos si cerrada, firmas. (2) Nueva
+  `requisiciones_compra.orden_produccion_id`: `generarRequisicionFaltantes(…, orden)` liga la requisición
+  (`window.__reqPreOrden` → `reqOrdenProd` en requisiciones-compra.js) y descuenta lo ya pedido para esa orden
+  que no ha llegado (`requisicionesDeOrden`: pendiente, o autorizada con OC borrador/abierta) — "📦 Ya solicitado".
+  Solo se liga desde órdenes guardadas (al quedar pendiente por insumos y en "🔄 Revisar y continuar"); el
+  botón del formulario antes de generar no tiene orden todavía.
+- Pendiente: correr `sql/2026-09-22_factor_conversion_sin_densidad.sql` y
+  `sql/2026-09-22_requisicion_orden_produccion.sql`; las requisiciones hechas antes quedan sin liga
+  (se pueden ligar a mano con `update requisiciones_compra set orden_produccion_id = … where folio = …`).
 
 ## Estructura
 
@@ -81,6 +87,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `ordenes-produccion.js` — consulta de TODAS las órdenes de producción (pendiente por
   insumos/en proceso/cerrada/cancelada); las 'borrador' (pendientes por insumos, ver
   `generarOrdenDeProduccion` en `produccion.js`) se revisan y continúan (o cancelan) desde aquí.
+  "👁 Detalle" = documento imprimible "Estado de la orden de producción" (insumos en vivo, lotes,
+  tiempos, requisiciones ligadas, costos).
 - `pagos-proveedor.js` — pagos a proveedores: compras/gastos a crédito con saldo pendiente y registro del pago.
 - `patron-login.js` — login por patrón (además de PIN) compartido por las 3 apps de operador.
 - `pedidos-venta.js` — pedidos de venta que se surten después (total o en partes), enlazados a la salida real.
@@ -188,7 +196,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Pendiente
 
-- Correr `sql/2026-09-22_factor_conversion_sin_densidad.sql` (las demás de `sql/` ya están corridas, verificado 2026-09-22).
+- Correr `sql/2026-09-22_factor_conversion_sin_densidad.sql` y `sql/2026-09-22_requisicion_orden_produccion.sql` (las demás de `sql/` ya están corridas, verificado 2026-09-22).
 - Capturar "Rendimiento del lote" (Catálogo → Más detalles) en cada producto "Granel ..." cuyo BOM se
   escribió para el lote completo y no por 1 unidad — si no, `calcularRequerimientosProduccion` sigue
   pidiendo insumos de más. El usuario confirmó que sus lotes son de 10-15 Litros según el producto; hay

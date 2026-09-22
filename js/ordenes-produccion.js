@@ -11,7 +11,8 @@
 // =====================================================================
 import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
-import { calcularRequerimientosProduccion, formatoCantidad, fmtFaltante, generarRequisicionFaltantes } from './produccion.js';
+import { calcularRequerimientosProduccion, formatoCantidad, fmtFaltante, generarRequisicionFaltantes, requisicionesDeOrden } from './produccion.js';
+import { imprimirConPlantilla } from './impresion.js';
 
 const ordenTabla = crearOrdenTabla('created_at', 'desc');
 let ordenesCache = [];
@@ -184,7 +185,7 @@ async function continuarOrdenPendiente(ordenId, btn) {
         // Mismo flujo que el botón "📝 Generar requisición de lo faltante" del formulario: para lo
         // que se fabrica en casa (semiterminados como el Granel) navega directo a Producción con el
         // producto y la cantidad ya precargados.
-        await generarRequisicionFaltantes(faltan, orden.productos?.nombre || 'este producto', orden.cantidad_producida);
+        await generarRequisicionFaltantes(faltan, orden.productos?.nombre || 'este producto', orden.cantidad_producida, { id: orden.id, folio: orden.folio });
         return;
     }
 
@@ -210,45 +211,213 @@ async function cancelarOrdenPendiente(ordenId) {
     await cargarOrdenes();
 }
 
-function abrirDetalle(ordenId) {
-    const orden = ordenesCache.find((o) => o.id === ordenId);
+// ---------------------------------------------------------------------
+//  "👁 Detalle" = documento imprimible "Estado de la orden de producción":
+//  todo lo de la orden calculado en vivo (insumos que hay / faltan, lotes a
+//  surtir, procesos y tiempos, requisiciones ligadas, costos si ya cerró).
+//  Va con estilos en línea (hoja blanca) para que se vea igual en pantalla
+//  y al imprimir con la plantilla (imprimirConPlantilla).
+// ---------------------------------------------------------------------
+const escD = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fechaHora = (iso) => iso ? new Date(iso).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function duracion(seg) {
+    const s = Math.max(0, Math.round(seg || 0));
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+    return h ? `${h} h ${m} min` : `${m} min`;
+}
+const ESTADO_TXT = { borrador: 'Pendiente por insumos', en_proceso: 'En proceso', cerrada: 'Cerrada', cancelada: 'Cancelada' };
+
+const ST = {
+    hoja: 'background:#fff;color:#111;border-radius:12px;padding:18px;font-size:12px;line-height:1.4;',
+    h: 'font-size:12px;font-weight:700;margin:16px 0 6px;padding-bottom:3px;border-bottom:1px solid #ccc;text-transform:uppercase;letter-spacing:.03em;',
+    tabla: 'width:100%;border-collapse:collapse;font-size:11px;',
+    th: 'text-align:left;padding:4px 6px;border-bottom:1px solid #999;background:#f3f3f3;',
+    thR: 'text-align:right;padding:4px 6px;border-bottom:1px solid #999;background:#f3f3f3;',
+    td: 'padding:4px 6px;border-bottom:1px solid #e3e3e3;vertical-align:top;',
+    tdR: 'padding:4px 6px;border-bottom:1px solid #e3e3e3;text-align:right;white-space:nowrap;vertical-align:top;',
+    nota: 'font-size:10px;color:#666;',
+};
+
+async function abrirDetalle(ordenId) {
     const host = document.getElementById('opModalDetalle');
-    if (!orden || !host) return;
-
-    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    const procesosHtml = (orden.orden_produccion_procesos || []).map((p) => {
-        const equipo = (p.orden_produccion_proceso_empleados || []).map((e) => esc(e.empleados?.nombre || 'Empleado')).join(', ');
-        return `<li class="text-slate-200"><b>${esc(p.proceso_nombre)}</b> — <span class="text-slate-400">${equipo || 'sin equipo asignado'}</span></li>`;
-    }).join('') || '<li class="text-slate-500 italic">Sin procesos capturados.</li>';
-
-    const faltantesHtml = (orden.faltantes_insumos || []).length
-        ? `<div class="bg-rose-950/20 border border-rose-900/40 rounded-lg p-3 mt-3">
-               <p class="text-xs font-semibold text-rose-300 mb-1.5">⛔ Faltaba (última revisión)</p>
-               <ul class="text-xs space-y-0.5">${orden.faltantes_insumos.map((f) => `<li class="text-rose-200/90">${esc(f.nombre)}: requerido ${formatoCantidad(f.requerido)}${f.unidad ? ' ' + esc(f.unidad) : ''}, disponible ${formatoCantidad(f.disponible)}${f.unidad ? ' ' + esc(f.unidad) : ''}</li>`).join('')}</ul>
-           </div>`
-        : '';
-
+    if (!host) return;
     host.innerHTML = `
-        <div id="opModalOverlay" class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-5 text-sm text-slate-300 space-y-3">
-                <div class="flex justify-between items-start gap-3">
-                    <div>
-                        <p class="font-mono font-bold text-amber-400">${esc(orden.folio || ('#' + orden.id))}</p>
-                        <p class="text-xs text-slate-300">${esc(orden.productos?.nombre || 'Producto')} · ${formatoCantidad(orden.cantidad_producida)} u · Lote ${esc(orden.numero_lote || 'S/L')}</p>
+        <div id="opModalOverlay" class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-4 space-y-3">
+                <div class="flex justify-between items-center gap-3">
+                    <p class="text-sm font-semibold text-amber-400">📄 Estado de la orden de producción</p>
+                    <div class="flex items-center gap-2">
+                        <button type="button" id="opDocImprimir" disabled class="text-xs bg-amber-600 hover:bg-amber-500 text-white font-medium px-3 py-1.5 rounded-lg cursor-pointer">🖨️ Imprimir</button>
+                        <button type="button" id="opModalCerrar" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 cursor-pointer">&times;</button>
                     </div>
-                    <button type="button" id="opModalCerrar" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 cursor-pointer">&times;</button>
                 </div>
-                <div>${badgeEstado(orden.estado)}</div>
-                <div>
-                    <p class="text-xs font-semibold text-slate-400 mb-1">PROCESOS Y EQUIPO</p>
-                    <ul class="text-xs space-y-1">${procesosHtml}</ul>
-                </div>
-                ${faltantesHtml}
+                <div id="opDocEstado"><p class="text-slate-400 text-xs italic">Armando el documento...</p></div>
             </div>
         </div>`;
-
     const overlay = host.querySelector('#opModalOverlay');
     const cerrar = () => { host.innerHTML = ''; };
     overlay.addEventListener('click', (e) => { if (e.target === overlay) cerrar(); });
     host.querySelector('#opModalCerrar').addEventListener('click', cerrar);
+
+    const doc = host.querySelector('#opDocEstado');
+    try {
+        const html = await armarDocumentoEstado(ordenId);
+        if (!document.body.contains(doc)) return;   // se cerró mientras cargaba
+        doc.innerHTML = html.cuerpo;
+        const btn = host.querySelector('#opDocImprimir');
+        btn.disabled = false;
+        btn.addEventListener('click', () => imprimirConPlantilla('orden_produccion', `Estado de la orden de producción ${html.folio}`, 'opDocEstado'));
+    } catch (e) {
+        doc.innerHTML = `<p class="text-rose-400 text-xs">No se pudo armar el documento: ${escD(e.message || e)}</p>`;
+    }
+}
+
+async function armarDocumentoEstado(ordenId) {
+    const { data: o, error } = await supabaseClient.from('ordenes_produccion')
+        .select(`*, productos ( nombre, sku, unidades_medida ( nombre ) ),
+            orden_produccion_procesos ( id, proceso_nombre, segundos_transcurridos, costo_calculado,
+                orden_produccion_proceso_empleados ( empleado_id, finalizado_at, empleados ( nombre ) ) )`)
+        .eq('id', ordenId).single();
+    if (error) throw error;
+
+    const folio = o.folio || ('#' + o.id);
+    const unidadProd = o.productos?.unidades_medida?.nombre || 'u';
+    const cerrada = o.estado === 'cerrada';
+
+    // Insumos: requerimiento y existencias de hoy (misma función que Producción).
+    const req = await calcularRequerimientosProduccion(o.producto_id, o.cantidad_producida);
+    const filas = req.filas || [];
+    let tipoPorId = new Map();
+    if (filas.length) {
+        const { data: infos } = await supabaseClient.from('productos').select('id, tipo, abastecimiento').in('id', filas.map((f) => f.componenteId));
+        tipoPorId = new Map((infos || []).map((p) => [p.id, p]));
+    }
+    const seFabrica = (id) => { const p = tipoPorId.get(id); return p && p.tipo === 'producto' && p.abastecimiento !== 'comprado'; };
+
+    // Lotes a surtir (FIFO/FEFO): la vista solo trae órdenes en proceso.
+    let lotes = [];
+    if (o.estado === 'en_proceso') {
+        const { data: lv } = await supabaseClient.from('v_ot_orden_componentes')
+            .select('producto_id, producto_nombre, unidad, numero_lote, lote_proveedor, fecha_caducidad, tomar_de_lote, criterio')
+            .eq('orden_id', o.id);
+        lotes = (lv || []).filter((l) => l.tomar_de_lote > 0);
+    }
+
+    // Tiempos registrados por proceso y empleado.
+    const procesos = o.orden_produccion_procesos || [];
+    const procIds = procesos.map((p) => p.id);
+    const segPor = new Map();   // `${proc}|${emp}` -> segundos
+    const activos = new Set();
+    if (procIds.length) {
+        const { data: regs } = await supabaseClient.from('registros_tiempo')
+            .select('orden_produccion_proceso_id, empleado_id, inicio, fin').in('orden_produccion_proceso_id', procIds);
+        (regs || []).forEach((r) => {
+            const k = `${r.orden_produccion_proceso_id}|${r.empleado_id}`;
+            const fin = r.fin ? new Date(r.fin).getTime() : Date.now();
+            segPor.set(k, (segPor.get(k) || 0) + Math.max(0, (fin - new Date(r.inicio).getTime()) / 1000));
+            if (!r.fin) activos.add(k);
+        });
+    }
+
+    const reqs = await requisicionesDeOrden(o.id);   // null = aún sin la migración de la liga
+
+    // ---- Encabezado
+    const nFalta = filas.filter((f) => !f.suficiente).length;
+    const loteTxt = req.loteInfo
+        ? `<p style="${ST.nota}">Receta pensada para un lote de ${formatoCantidad(req.loteInfo.rendimientoLote)} ${escD(req.loteInfo.unidad)} → esta orden equivale a ${formatoCantidad(req.loteInfo.factorLote)} lote(s).</p>` : '';
+    const encabezado = `
+        <table style="${ST.tabla}">
+            <tr><td style="${ST.td}width:22%;"><b>Folio</b></td><td style="${ST.td}">${escD(folio)}</td>
+                <td style="${ST.td}width:18%;"><b>Estado</b></td><td style="${ST.td}"><b>${escD(ESTADO_TXT[o.estado] || o.estado)}</b></td></tr>
+            <tr><td style="${ST.td}"><b>Producto</b></td><td style="${ST.td}" colspan="3">${escD(o.productos?.nombre || '')}${o.productos?.sku ? ` (${escD(o.productos.sku)})` : ''}</td></tr>
+            <tr><td style="${ST.td}"><b>Cantidad</b></td><td style="${ST.td}">${formatoCantidad(o.cantidad_producida)} ${escD(unidadProd)}</td>
+                <td style="${ST.td}"><b>Lote</b></td><td style="${ST.td}">${escD(o.numero_lote || 'S/L')}</td></tr>
+            <tr><td style="${ST.td}"><b>Creada</b></td><td style="${ST.td}">${fechaHora(o.created_at)}</td>
+                <td style="${ST.td}"><b>Abierta / Cerrada</b></td><td style="${ST.td}">${fechaHora(o.abierta_at)} / ${fechaHora(o.cerrada_at)}</td></tr>
+        </table>
+        ${loteTxt}
+        <p style="margin-top:8px;font-weight:700;">${cerrada ? '✔ Orden cerrada: los insumos ya se descontaron del inventario.'
+            : (o.estado === 'cancelada' ? 'Orden cancelada.'
+            : (nFalta ? `⛔ Faltan ${nFalta} de ${filas.length} insumos (existencias al ${fechaHora(new Date().toISOString())}).`
+                      : `✅ Hay existencias de los ${filas.length} insumos (al ${fechaHora(new Date().toISOString())}).`))}</p>`;
+
+    // ---- Insumos
+    const mostrarExist = !cerrada && o.estado !== 'cancelada';
+    const filasHtml = filas.map((f) => {
+        const receta = f.recetaUnidad && f.recetaUnidadConsistente ? `${formatoCantidad(f.recetaCantidad)} ${escD(f.recetaUnidad)}` : `${formatoCantidad(f.requerido)} ${escD(f.unidad)}`;
+        const falta = Math.max(0, f.requerido - f.disponible);
+        const estado = f.suficiente ? '✅ Hay' : (seFabrica(f.componenteId) ? '🏭 Falta — se fabrica' : '⛔ Falta — comprar');
+        return `<tr>
+            <td style="${ST.td}">${escD(f.nombre)}${f.nota && f.notaTipo === 'aviso' ? `<div style="${ST.nota}">⚠ ${escD(f.nota)}</div>` : ''}</td>
+            <td style="${ST.tdR}">${receta}</td>
+            <td style="${ST.tdR}">${formatoCantidad(f.requerido)} ${escD(f.unidad)}</td>
+            ${mostrarExist ? `<td style="${ST.tdR}">${formatoCantidad(f.disponible)} ${escD(f.unidad)}</td>
+            <td style="${ST.tdR}${falta > 0 ? 'color:#b91c1c;font-weight:700;' : ''}">${falta > 0 ? formatoCantidad(falta) + ' ' + escD(f.unidad) : '—'}</td>
+            <td style="${ST.td}white-space:nowrap;">${estado}</td>` : ''}
+        </tr>`;
+    }).join('');
+    const insumos = req.error
+        ? `<p style="${ST.nota}">${escD(req.error)}</p>`
+        : `<table style="${ST.tabla}"><thead><tr>
+                <th style="${ST.th}">Insumo</th><th style="${ST.thR}">Receta</th><th style="${ST.thR}">Requerido</th>
+                ${mostrarExist ? `<th style="${ST.thR}">Disponible</th><th style="${ST.thR}">Faltante</th><th style="${ST.th}">Estado</th>` : ''}
+           </tr></thead><tbody>${filasHtml}</tbody></table>`;
+
+    // ---- Lotes a surtir
+    const lotesHtml = o.estado !== 'en_proceso' ? '' : `
+        <p style="${ST.h}">Lotes a surtir (FIFO / FEFO)</p>
+        ${lotes.length ? `<table style="${ST.tabla}"><thead><tr><th style="${ST.th}">Insumo</th><th style="${ST.th}">Lote</th><th style="${ST.th}">Caducidad</th><th style="${ST.thR}">Tomar</th><th style="${ST.th}">Criterio</th></tr></thead><tbody>
+            ${lotes.map((l) => `<tr><td style="${ST.td}">${escD(l.producto_nombre)}</td><td style="${ST.td}" class="campo-lote">${escD(l.numero_lote || l.lote_proveedor || 'S/L')}</td>
+                <td style="${ST.td}">${escD(l.fecha_caducidad || '—')}</td><td style="${ST.tdR}">${formatoCantidad(l.tomar_de_lote)} ${escD(l.unidad || '')}</td><td style="${ST.td}">${escD(l.criterio || '')}</td></tr>`).join('')}
+            </tbody></table>` : `<p style="${ST.nota}">Sin lotes con existencia para surtir.</p>`}`;
+
+    // ---- Procesos y equipo
+    const procesosHtml = procesos.length ? `<table style="${ST.tabla}"><thead><tr><th style="${ST.th}">Proceso</th><th style="${ST.th}">Empleado</th><th style="${ST.thR}">Tiempo registrado</th><th style="${ST.th}">Situación</th></tr></thead><tbody>
+        ${procesos.map((p) => {
+            const emps = p.orden_produccion_proceso_empleados || [];
+            if (!emps.length) return `<tr><td style="${ST.td}"><b>${escD(p.proceso_nombre)}</b></td><td style="${ST.td}" colspan="3">Sin equipo asignado</td></tr>`;
+            return emps.map((e, idx) => {
+                const k = `${p.id}|${e.empleado_id}`;
+                const seg = segPor.get(k) || 0;
+                const sit = e.finalizado_at ? `Terminó ${fechaHora(e.finalizado_at)}` : (activos.has(k) ? 'Trabajando ahora' : (seg > 0 ? 'En pausa' : 'Sin iniciar'));
+                return `<tr><td style="${ST.td}">${idx === 0 ? `<b>${escD(p.proceso_nombre)}</b>` : ''}</td><td style="${ST.td}">${escD(e.empleados?.nombre || 'Empleado')}</td>
+                    <td style="${ST.tdR}">${seg > 0 ? duracion(seg) : '—'}</td><td style="${ST.td}">${sit}</td></tr>`;
+            }).join('');
+        }).join('')}</tbody></table>` : `<p style="${ST.nota}">Sin procesos capturados.</p>`;
+
+    // ---- Requisiciones ligadas
+    const reqsHtml = reqs === null
+        ? `<p style="${ST.nota}">Falta correr sql/2026-09-22_requisicion_orden_produccion.sql para ligar requisiciones a la orden.</p>`
+        : (reqs.length ? `<table style="${ST.tabla}"><thead><tr><th style="${ST.th}">Folio</th><th style="${ST.th}">Fecha</th><th style="${ST.th}">Estado</th><th style="${ST.th}">Partidas</th></tr></thead><tbody>
+            ${reqs.map((r) => `<tr><td style="${ST.td}">${escD(r.folio)}</td><td style="${ST.td}">${escD(r.fecha || '')}</td><td style="${ST.td}">${escD(r.estadoTexto)}</td>
+                <td style="${ST.td}">${escD(r.detalle.map((d) => `${d.nombre}: ${formatoCantidad(d.cantidad)}${d.unidad ? ' ' + d.unidad : ''}`).join(', '))}</td></tr>`).join('')}
+            </tbody></table>` : `<p style="${ST.nota}">No hay requisiciones de compra ligadas a esta orden.</p>`);
+
+    // ---- Costos (solo cerrada)
+    const costosHtml = !cerrada ? '' : `
+        <div class="campo-costo"><p style="${ST.h}">Costos</p>
+        <table style="${ST.tabla}">
+            <tr><td style="${ST.td}">Materiales</td><td style="${ST.tdR}">${money(o.costo_total_materiales)}</td></tr>
+            <tr><td style="${ST.td}">Mano de obra</td><td style="${ST.tdR}">${money(o.costo_total_mano_obra)}</td></tr>
+            <tr><td style="${ST.td}"><b>Costo unitario final</b></td><td style="${ST.tdR}"><b>${money(o.costo_unitario_final)}</b> / ${escD(unidadProd)}</td></tr>
+        </table></div>`;
+
+    const firma = (t) => `<td style="width:33%;padding:28px 10px 0;text-align:center;"><div style="border-top:1px solid #333;padding-top:4px;font-size:11px;">${t}</div></td>`;
+
+    return {
+        folio,
+        cuerpo: `<div style="${ST.hoja}">
+            ${encabezado}
+            <p style="${ST.h}">Insumos${cerrada ? ' (receta de la orden)' : ' — existencias de hoy'}</p>
+            ${insumos}
+            ${lotesHtml}
+            <p style="${ST.h}">Procesos y equipo</p>
+            ${procesosHtml}
+            <p style="${ST.h}">Requisiciones de compra ligadas</p>
+            ${reqsHtml}
+            ${costosHtml}
+            <table style="width:100%;margin-top:18px;"><tr>${firma('Elaboró')}${firma('Revisó')}${firma('Autorizó')}</tr></table>
+        </div>`,
+    };
 }
