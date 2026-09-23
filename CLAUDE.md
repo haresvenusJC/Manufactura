@@ -268,6 +268,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - Pasar la rama `claude/exciting-euler-wquccn` a `main`: la app publicada sigue con el código viejo y su Auxiliar de
   inventarios muestra un descuadre falso (resta 2 veces los reversos: #49, #51, #79, #80).
 - Correr `sql/2026-09-22_fix_salida_fifo_costo_ambiguo.sql`, `sql/2026-09-22_factor_conversion_sin_densidad.sql` y `sql/2026-09-22_requisicion_orden_produccion.sql` (las demás de `sql/` ya están corridas, verificado 2026-09-22).
+- Rendimiento sugerido (suma de la receta, análisis 🧮): Granel Aceite Sey Fresa Kiwi (id 231) y Piña Colada (id 232)
+  → 14.64 L; el usuario lo va a capturar (Piña Colada estaba vacío, Fresa Kiwi en 15).
 - Capturar "Rendimiento del lote" (Catálogo → Más detalles) en cada producto "Granel ..." cuyo BOM se
   escribió para el lote completo y no por 1 unidad — si no, `calcularRequerimientosProduccion` sigue
   pidiendo insumos de más. El usuario confirmó que sus lotes son de 10-15 Litros según el producto; hay
