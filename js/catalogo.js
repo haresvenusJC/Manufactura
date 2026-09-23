@@ -309,6 +309,7 @@ export async function cargarCatalogoInicial() {
                                     <label class="block text-[11px] text-slate-400 mb-1">Rendimiento del lote (para el BOM)</label>
                                     <input type="number" step="0.0001" min="0" id="prodRendimientoLote" placeholder="Déjalo vacío si el BOM ya está por 1 unidad" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
                                     <p class="text-[10px] text-slate-500 mt-0.5"><b class="text-slate-400">Para graneles:</b> cuántos Litros (o Kilos, según la Unidad de Medida de arriba) salen de UNA tanda de la receta del BOM — lo que mides en el tanque al terminar. Ej.: Granel Aceite Sey Fresa Kiwi → <b>15</b>. Luego en Producción, "CANTIDAD A PRODUCIR" va en esa misma unidad: 15 = 1 tanda, 30 = 2 tandas, 7.5 = media. Vacío = el BOM está escrito para 1 unidad (ej. 1 pieza de producto terminado); si dejas vacío un granel cuya receta es de tanda, Producción pide los insumos multiplicados de más.</p>
+                                    <p class="text-[10px] text-slate-500 mt-1"><b class="text-slate-400">¿Por qué importa si la materia prima ya se descuenta a su costo real?</b> La receta decide cuánto se <b>gasta</b> en la tanda; el rendimiento decide <b>entre cuántos litros</b> se reparte ese gasto y cuántos litros dice el sistema que hay. Ej.: tanda de $1,000 → con 15 L el litro cuesta $66.67 y cada tanda deja 0.36 L que no existen; con 14.64 L cuesta $68.31 (el real). Un número inflado da inventario fantasma y un costo del terminado más bajo que el real (<a href="manual-costos-produccion.html#m-granel-rendimiento" target="_blank" class="text-sky-400 underline">ver manual</a>).</p>
                                 </div>
 
                                 <div class="border-t border-slate-800 pt-3 ${cuentasContables.length ? '' : 'hidden'}">
@@ -2082,7 +2083,7 @@ const PISTAS_CAMPO_PRODUCTO = {
     tipo: 'Un granel es "Producto terminado" + la casilla "Es semiterminado (granel)" marcada (más abajo).',
     unidad_medida_id: 'En qué se cuenta en almacén y se descuenta. Granel: Litros o Kilogramos, nunca Pieza.',
     densidad_kg_l: 'Kilos que pesa 1 litro. Solo para insumos que la receta pide en volumen y se llevan en peso (o al revés). Ej.: Glicerina Vegetal Usp = 1.26. En un granel que va en Litros y se consume en mL, déjalo vacío.',
-    rendimiento_lote_bom: 'Granel: Litros (o Kilos) que salen de UNA tanda de la receta. Usa el tamaño real que calcula el análisis 🧮 de abajo (Fresa Kiwi: 14.64). En Producción: 1 tanda = este número. Vacío = el BOM es para 1 unidad (ej. 1 pieza).',
+    rendimiento_lote_bom: 'Granel: Litros (o Kilos) que salen de UNA tanda de la receta. Usa el tamaño real que calcula el análisis 🧮 de abajo (Fresa Kiwi: 14.64). En Producción: 1 tanda = este número. Vacío = el BOM es para 1 unidad (ej. 1 pieza). ¿Por qué importa si la materia prima ya se descuenta a su costo real? La receta decide cuánto se GASTA en la tanda; el rendimiento decide ENTRE CUÁNTOS LITROS se reparte ese gasto y cuántos litros dice el sistema que hay. Ej.: tanda de $1,000 → con 15 L el litro cuesta $66.67 y cada tanda deja 0.36 L que no existen; con 14.64 L cuesta $68.31 (el real). Un número inflado da inventario fantasma y costo del terminado más bajo que el real.',
     es_semiterminado: 'Márcalo en los graneles: se fabrican y los consumen otros productos.',
     costo_unitario: 'Se actualiza solo con compras y al cerrar cada orden; normalmente no se edita a mano.',
     stock_actual: 'Se mueve solo con entradas y salidas; no se edita aquí.',
@@ -2182,7 +2183,7 @@ function htmlAnalisisTanda(res, unidadNombre, rendActual) {
         <p>${comparacion}</p>
         ${res.sinDensidad.length ? `<p class="text-amber-400/90">⚠ Sin densidad (se tomó como agua, 1 kg/L): ${res.sinDensidad.map(escaparHtml).join(', ')} — captúrala en ⚖️ Densidades para afinar el cálculo.</p>` : ''}
         ${res.ignorados.length ? `<p class="text-slate-500">No cuentan para el tamaño (no son volumen ni peso): ${res.ignorados.map(escaparHtml).join(', ')}.</p>` : ''}
-        <p class="text-slate-500">Es teórico: al mezclar, el volumen real puede salir un poco menor. Mide la primera tanda en el tanque y, si difiere, captura lo medido.</p>
+        <p class="text-slate-500">Es teórico: al mezclar, el volumen real puede salir un poco menor. Mide la primera tanda en el tanque y, si difiere, captura lo medido. <a href="manual-costos-produccion.html#m-granel-rendimiento" target="_blank" class="text-sky-400 underline">¿Por qué importa el rendimiento?</a></p>
         ${Math.abs(rend - sugerido) >= 0.005 ? `<button type="button" class="btn-usar-rend mt-1 text-[11px] bg-sky-700 hover:bg-sky-600 text-white font-semibold px-3 py-1 rounded-lg cursor-pointer" data-valor="${sugerido}">Usar ${fmt(sugerido, 2)} ${u} como Rendimiento del lote</button>` : ''}
     </div>`;
 }
