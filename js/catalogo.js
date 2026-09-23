@@ -2400,7 +2400,6 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                 }).join('')}
             </div>
             ${llevaBom ? renderBomResumen(bomFilas, componentesPorId, resUm.data) : ''}
-            <div id="rcAnalisisTanda" class="mt-3"></div>
             ${renderClavesProveedorResumen(resClaves.data, resProv.data)}`;
 
         // Granel: tamaño real de la tanda y botón para pasarlo a "Rendimiento del lote" (se guarda con "Guardar cambios").
@@ -2413,7 +2412,13 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                 return { nombre: c ? c.nombre : `#${b.componente_id}`, cantidad: b.cantidad_requerida,
                     unidadNombre: /^\d+$/.test(raw) ? (mapaUni.get(raw) || '') : raw, densidad: c?.densidad_kg_l };
             }), uniProd);
-            const contAn = cuerpo.querySelector('#rcAnalisisTanda');
+            // Justo debajo del campo "Rendimiento del lote", a todo lo ancho: ahí es donde se decide el número.
+            const campoRend = cuerpo.querySelector('#rc_rendimiento_lote_bom');
+            const contAn = document.createElement('div');
+            contAn.id = 'rcAnalisisTanda';
+            contAn.className = 'sm:col-span-2';
+            if (campoRend?.parentElement) campoRend.parentElement.insertAdjacentElement('afterend', contAn);
+            else cuerpo.appendChild(contAn);
             const pintarAn = () => {
                 const elRend = cuerpo.querySelector('#rc_rendimiento_lote_bom');
                 contAn.innerHTML = htmlAnalisisTanda(res, uniProd, elRend ? elRend.value : art.rendimiento_lote_bom);
@@ -2421,7 +2426,6 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                     e.stopPropagation();   // el recuadro se re-dibuja: que no cuente como "clic fuera" de la subventana
                     if (!elRend) return;
                     elRend.value = e.currentTarget.dataset.valor;
-                    elRend.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     elRend.classList.add('ring-2', 'ring-sky-500');
                     setTimeout(() => elRend.classList.remove('ring-2', 'ring-sky-500'), 1500);
                     pintarAn();
