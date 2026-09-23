@@ -328,9 +328,9 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   `entidad_tipo`, no aplica. (2) código ya en `main` (2026-09-23; la 1.ª publicación de Pages falló por un error de certificado de GitHub y se
   relanzó). (3) `sql/2026-09-24b_quitar_es_semiterminado.sql` YA CORRIDA 2026-09-23 (columna, trigger puente y
   función borrados; 32 semiterminado, 65 producto, 41 MP, 122 insumo). Pedidos de venta todavía lista todos los artículos (sin filtro de tipo).
-- Correr `sql/2026-09-23f_graneles_aplicar.sql` DESPUÉS de la migración del tipo semiterminado (revisión `…e` ya corrida 2026-09-23: 6 graneles en Litros, 115.02, sin
-  existencia; quedarían en 14.64 L). Antes, revisar la receta de Granel Love Oil Fresa Kiwi 15 Litros (id 227): suma solo
-  7.99 L con 3 componentes. Al crear graneles nuevos, volver a correr revisión + aplicar.
+- `sql/2026-09-23f_graneles_aplicar.sql` YA CORRIDA 2026-09-23: 6 graneles semiterminado, 115.02, todos ok; ids 231, 232,
+  254, 255, 256 en 14.64 L. Falta: Granel Love Oil Fresa Kiwi 15 Litros (id 227) quedó en 7.99 L porque su fórmula está
+  incompleta (3 componentes) — completar el BOM y usar "Usar X como Rendimiento del lote" en "Editar o ver BOM". Al crear graneles nuevos, volver a correr revisión + aplicar.
 - Verificado 2026-09-23 en la base: corridas todas las migraciones de 2026-09-22 y 2026-09-23 (`…23d` no, es opcional).
   Documentos vacíos de los cierres fallidos (ids 22-25, PROD-000001/-MP y PROD-000002/-MP) marcados `cancelado` (no
   borrados, para dejar rastro y que no bloqueen el candado de cierre de septiembre).
