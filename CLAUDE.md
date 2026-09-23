@@ -293,24 +293,21 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Pendiente
 
+- Correr `sql/2026-09-23f_graneles_aplicar.sql` (revisión `…e` ya corrida 2026-09-23: 6 graneles en Litros, 115.02, sin
+  existencia; quedarían en 14.64 L). Antes, revisar la receta de Granel Love Oil Fresa Kiwi 15 Litros (id 227): suma solo
+  7.99 L con 3 componentes. Al crear graneles nuevos, volver a correr revisión + aplicar.
 - Correr `sql/2026-09-23c_fix_candado_recibo_redondeo.sql` si no se ha corrido (`documento_detalles.cantidad` guarda 2
   decimales: sin esto el candado rechaza recibir exacto 152.015). Ya hecho 2026-09-23: `2026-09-23_candados_cuadre_inventario.sql`,
   recibos duplicados #17 y #19 cancelados, `cuadre_inventario_contable()` en 0 en 115.01/115.02/115.04.
-- Pasar la rama `claude/exciting-euler-wquccn` a `main`: la app publicada sigue con el código viejo y su Auxiliar de
-  inventarios muestra un descuadre falso (resta 2 veces los reversos: #49, #51, #79, #80).
-- Correr `sql/2026-09-22_fix_salida_fifo_costo_ambiguo.sql`, `sql/2026-09-22_factor_conversion_sin_densidad.sql` y `sql/2026-09-22_requisicion_orden_produccion.sql` (las demás de `sql/` ya están corridas, verificado 2026-09-22).
-- Rendimiento sugerido (suma de la receta, análisis 🧮): Granel Aceite Sey Fresa Kiwi (id 231) y Piña Colada (id 232)
-  → 14.64 L; el usuario lo va a capturar (Piña Colada estaba vacío, Fresa Kiwi en 15).
-- Capturar "Rendimiento del lote" (Catálogo → Más detalles) en cada producto "Granel ..." cuyo BOM se
-  escribió para el lote completo y no por 1 unidad — si no, `calcularRequerimientosProduccion` sigue
-  pidiendo insumos de más. El usuario confirmó que sus lotes son de 10-15 Litros según el producto; hay
-  que preguntarle el rendimiento exacto de cada uno (no asumir 15 parejo).
-- En Catálogo → "⚖️ Densidades", capturar densidad de los "Granel ..." (Gel/Miel/Lubricante, son mezclas
-  propias — no hay ficha técnica externa que buscar): Anal Xtasi, Bubblegum, Cherry, Chocolate, Essence,
-  Fresa Kiwi, Mango, Mint, Piña Colada, Prolongel Retardador, Vcream, Watermelon, Miel Bee Power,
-  Lubricante Silicón. Sabores (Chocolate/Fresa Kiwi/Piña Colada) y Ácido Cítrico se dejaron sin sembrar
-  a propósito (varían demasiado) — capturarlos a mano solo si su BOM los usa en volumen y de verdad
-  importa la precisión.
+- Confirmar si ya se corrieron `sql/2026-09-22_fix_salida_fifo_costo_ambiguo.sql`, `sql/2026-09-22_factor_conversion_sin_densidad.sql`
+  y `sql/2026-09-22_requisicion_orden_produccion.sql`; limpiar los documentos vacíos (`PROD-…-MP` / `PROD-…`) que dejaron
+  los cierres fallidos. `sql/2026-09-23d_rendimiento_real_orden.sql` es opcional (el cierre ya no pregunta lo real).
+- Graneles en Kilogramos: el usuario confirmó que sus terminados los consumen en GRAMOS → no hace falta la densidad del
+  granel (solo la de los insumos que la receta pida en L/mL). Si algún terminado pidiera un granel en mL, capturar la
+  densidad del granel (el 🧮 da "densidad estimada de la mezcla"; se propuso un botón "Usar X como densidad").
+- Los demás graneles de Gel/Miel/Lubricante (Anal Xtasi, Bubblegum, Cherry, Chocolate, Essence, Mango, Mint, Prolongel
+  Retardador, Vcream, Watermelon, Miel Bee Power, Lubricante Silicón) no salieron en la revisión: o no tienen BOM o su
+  nombre no dice "granel". Cuando tengan receta, se configuran con la revisión ✅/⚠ o con los SQL `…e`/`…f`.
 - Evaluar si extender el buscador de selects a otras pantallas (Salidas, Órdenes de compra, alta de BOM).
 - Pendiente de responder: ¿aplicar también el default Desde=inicio de mes/Hasta=hoy a Cuentas por
   cobrar/pagar, historial de Recibo de mercancía e Historial de tareas? (se dejaron igual, ver arriba).
