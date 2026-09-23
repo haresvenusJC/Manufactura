@@ -1821,7 +1821,7 @@ async function abrirTablaDensidades() {
     document.getElementById('modalDensidades')?.remove();
     const modal = document.createElement('div');
     modal.id = 'modalDensidades';
-    modal.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4';
+    modal.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4';
     modal.innerHTML = `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
             <div class="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-start gap-3 rounded-t-2xl">
@@ -1928,7 +1928,7 @@ async function abrirTablaUnidades() {
     document.getElementById('modalUnidades')?.remove();
     const modal = document.createElement('div');
     modal.id = 'modalUnidades';
-    modal.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4';
+    modal.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4';
     modal.innerHTML = `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
             <div class="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-start gap-3 rounded-t-2xl">

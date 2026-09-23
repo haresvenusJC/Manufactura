@@ -951,7 +951,7 @@ async function abrirModalContabilizarSalida(doc) {
     const cobro = ctas.filter(c => c.tipo === 'activo' && /^(101|102|105)/.test(c.codigo));
 
     const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4';
+    modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4';
     modal.innerHTML = `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
             <div class="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-center">

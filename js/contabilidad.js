@@ -1275,7 +1275,7 @@ function gaAbrirAltaProveedor(c) {
         `<option value="${esc(k)}"${k === (c.regimenEmisor || '') ? ' selected' : ''}>${esc(k)} · ${esc(v)}</option>`).join('');
     const ov = document.createElement('div');
     ov.id = 'gaAltaModal';
-    ov.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4';
+    ov.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4';
     ov.innerHTML = `
       <div class="bg-slate-950 border border-slate-700 rounded-xl w-full max-w-md p-4 space-y-3 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between">
@@ -2452,7 +2452,7 @@ window.rcVerPoliza = async function (polId) {
     if (!cont) {
         cont = document.createElement('div');
         cont.id = 'rcModalPoliza';
-        cont.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4';
+        cont.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4';
         cont.addEventListener('click', (e) => { if (e.target === cont) window.rcCerrarModalPoliza(); });
         document.body.appendChild(cont);
     }

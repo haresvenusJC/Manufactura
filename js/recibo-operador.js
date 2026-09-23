@@ -1,5 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { accesoOperador } from './patron-login.js';
+import './subventanas-movibles.js'; // todas las subventanas se pueden arrastrar (ver CLAUDE.md)
 
 // ---------------------------------------------------------------------------
 //  Pre-recibo de mercancía (móvil, para operadores de almacén).
@@ -230,7 +231,7 @@ function mostrarModal(html) {
     if (!wrap) {
         wrap = document.createElement('div');
         wrap.id = 'prModalWrap';
-        wrap.className = 'fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-4';
+        wrap.className = 'fixed inset-0 bg-slate-950/40 flex items-end sm:items-center justify-center z-50 p-4';
         document.body.appendChild(wrap);
     }
     wrap.innerHTML = html;

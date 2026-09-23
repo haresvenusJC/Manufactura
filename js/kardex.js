@@ -352,7 +352,7 @@ window.abrirDetalleDocumento = async function(docId) {
     if (!modalContainer) {
         modalContainer = document.createElement('div');
         modalContainer.id = 'modalDetalleDocKardex';
-        modalContainer.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4';
+        modalContainer.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4';
         document.body.appendChild(modalContainer);
     }
 

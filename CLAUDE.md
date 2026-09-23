@@ -4,6 +4,12 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/subventanas-movibles.js` (nuevo), `js/app.js` y los 3 módulos de operador (lo importan),
+  fondos de subventanas en `asistente-contable`, `catalogo`, `contabilidad`, `documentos`, `kardex`, `ordenes-compra`,
+  `recibo-operador`, `salidas`. Todas las subventanas se arrastran desde su barra de título (mouse y dedo) sin tocar cada
+  módulo: un MutationObserver detecta `div.fixed.inset-0` (panel = primer hijo) y `div.fixed.rounded-2xl` flotantes; se
+  mueven con CSS `translate`, quedan 60 px a la vista y el clic al soltar no las cierra. Fondos opacos (`/80` + blur,
+  `bg-black/70`) → `bg-slate-950/40`. Excluir una: `data-no-movible`. Probado en Chromium. Pendiente: probar en el celular.
 - Archivos tocados (lo último): `js/produccion.js`, `js/app.js`, y texto de `js/catalogo.js`, `js/ordenes-produccion.js`,
   `js/importador-bom.js`, `js/conversion-unidades.js`, `js/bienvenida.js`, `manual-costos-produccion.html`.
   Orden sugerida de granel sin tanda redonda: la pregunta ya no es subventana, va en "EXISTENCIAS PARA ESTA PRODUCCIÓN"
@@ -200,6 +206,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   autorización → Orden de compra real.
 - `salidas.js` — salidas de inventario (venta/merma/ajuste) con FEFO y póliza de ingreso si es venta.
 - `state.js` — estado global simple compartido (insumos/productos/historial de producción cacheados).
+- `subventanas-movibles.js` — hace arrastrables TODAS las subventanas (detección automática, sin llamar nada desde
+  cada módulo); se importa en `app.js` y en las 3 apps de operador.
 - `supabase.js` — cliente y credenciales de Supabase.
 - `tareas.js` — bandeja de pendientes (inventario bajo mínimo, caducidad próxima, nómina en borrador...) con historial.
 - `trazabilidad.js` — antecedentes de proceso: Requisición → Orden de compra → Documento(s) de recepción.
@@ -247,7 +255,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
     navega fuera de la pantalla de origen.
   - **Siempre movibles**: se arrastran desde su barra de título (mouse y touch en el celular) a cualquier parte de la
     pantalla, sin salirse por completo del área visible, para destapar lo que haya detrás. Un solo mecanismo
-    reutilizable para todas (no uno por módulo); si una subventana abre otra, cada una se mueve por su cuenta.
+    reutilizable para todas (`js/subventanas-movibles.js`, automático); si una subventana abre otra, cada una se
+    mueve por su cuenta. Fondo: `bg-slate-950/40`, sin `backdrop-blur`.
 
 ## Estado del proyecto (módulos clave)
 
@@ -322,5 +331,5 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   cobrar/pagar, historial de Recibo de mercancía e Historial de tareas? (se dejaron igual, ver arriba).
 - Auditar los reportes existentes contra la regla "documentos y pólizas citados se pueden abrir desde ahí"
   (hecho solo en Auxiliar de inventarios y costeo de la orden).
-- Revisar las subventanas/modales que ya existen en la app contra la convención ("nunca ocultar el contenido que
-  las originó" y "siempre movibles") — no se ha auditado ni implementado todavía, solo se documentó la regla.
+- Subventanas: ya movibles y con fondo semitransparente todas las detectadas; una nueva queda cubierta sola si usa
+  `fixed inset-0` (fondo + panel) o `fixed rounded-2xl` (flotante) y su barra de título es el primer hijo del panel.

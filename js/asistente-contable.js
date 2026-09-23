@@ -355,7 +355,7 @@ export function abrirManual(hash, titulo) {
     if (document.getElementById('manualModal')) return;
     const ov = document.createElement('div');
     ov.id = 'manualModal';
-    ov.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-6';
+    ov.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-3 sm:p-6';
     ov.innerHTML = `
       <div class="bg-slate-950 border border-slate-700 rounded-xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden shadow-2xl">
         <div class="flex items-center justify-between gap-2 px-4 py-2 border-b border-slate-800 bg-slate-900">

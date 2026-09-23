@@ -39,6 +39,7 @@ import { cargarModuloReportes } from './reportes.js';
 import { cargarModuloFreshStart } from './fresh-start.js';
 import { montarLogin, cerrarSesion } from './auth.js';
 import { abrirManual } from './asistente-contable.js';
+import './subventanas-movibles.js'; // todas las subventanas se pueden arrastrar (ver CLAUDE.md)
 
 // 1. Exposición de funciones al scope global para eventos HTML (onclick)
 window.toggleSubmenu = function(submenuId) {

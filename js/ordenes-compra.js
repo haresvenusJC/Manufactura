@@ -1876,7 +1876,7 @@ function rmMostrarModal(html) {
     if (!wrap) {
         wrap = document.createElement('div');
         wrap.id = 'rmModalWrap';
-        wrap.className = 'fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4';
+        wrap.className = 'fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4';
         document.body.appendChild(wrap);
     }
     wrap.innerHTML = html;
@@ -2086,7 +2086,7 @@ function rmPreguntarLandedCost(cargos) {
         const total = cargos.reduce((s, c) => s + (c.monto || 0), 0);
         const detalle = cargos.map((c) => `<div>· ${esc(c.concepto)}: <b class="font-mono">${money(c.monto)}</b></div>`).join('');
         const modal = document.createElement('div');
-        modal.className = 'fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4';
+        modal.className = 'fixed inset-0 bg-slate-950/40 z-50 flex items-center justify-center p-4';
         modal.innerHTML = `
           <div class="bg-slate-900 border border-slate-700 rounded-xl p-5 max-w-md w-full text-sm text-slate-200 shadow-2xl">
             <h3 class="text-sky-400 font-semibold mb-1">⚠ Detecté cargos de flete / seguro en la factura</h3>

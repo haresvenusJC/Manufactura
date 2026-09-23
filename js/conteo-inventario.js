@@ -1,5 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { accesoOperador } from './patron-login.js';
+import './subventanas-movibles.js'; // todas las subventanas se pueden arrastrar (ver CLAUDE.md)
 
 // ---------------------------------------------------------------------------
 //  Conteo de Inventario (móvil, para operadores externos).
