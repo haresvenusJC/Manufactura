@@ -240,8 +240,14 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - **Versión de los .js**: en cada commit que toque `js/` correr `python3 actualizar-version.py` (regenera `version.json`,
   que usa `cargador.js`); si no, los navegadores pueden seguir con los archivos viejos en caché. Un módulo nuevo en
   `js/` entra solo a la lista al regenerar.
-- **Subventanas (modales)**: nunca ocultar el contenido que originó la subventana — la pantalla de atrás
-  debe seguir visible detrás (overlay semitransparente, no un fondo opaco que la tape por completo).
+- **Subventanas (modales)** — aplica a TODAS las que se generen en cualquier proceso (nuevas y existentes), para que
+  el usuario pueda analizar la información de la pantalla que la originó:
+  - **Nunca ocultar el contenido que originó la subventana**: la pantalla de atrás sigue visible detrás (overlay
+    semitransparente, no un fondo opaco que la tape por completo). Abrir una subventana no cierra, re-dibuja ni
+    navega fuera de la pantalla de origen.
+  - **Siempre movibles**: se arrastran desde su barra de título (mouse y touch en el celular) a cualquier parte de la
+    pantalla, sin salirse por completo del área visible, para destapar lo que haya detrás. Un solo mecanismo
+    reutilizable para todas (no uno por módulo); si una subventana abre otra, cada una se mueve por su cuenta.
 
 ## Estado del proyecto (módulos clave)
 
@@ -316,5 +322,5 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   cobrar/pagar, historial de Recibo de mercancía e Historial de tareas? (se dejaron igual, ver arriba).
 - Auditar los reportes existentes contra la regla "documentos y pólizas citados se pueden abrir desde ahí"
   (hecho solo en Auxiliar de inventarios y costeo de la orden).
-- Revisar las subventanas/modales que ya existen en la app contra la convención nueva ("nunca ocultar el
-  contenido que las originó") — no se ha auditado el código todavía, solo se documentó la regla.
+- Revisar las subventanas/modales que ya existen en la app contra la convención ("nunca ocultar el contenido que
+  las originó" y "siempre movibles") — no se ha auditado ni implementado todavía, solo se documentó la regla.
