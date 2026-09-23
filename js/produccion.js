@@ -905,12 +905,68 @@ export async function cargarModuloProduccion() {
             }
             selectProd.value = String(item.id);
             selectProd.dispatchEvent(new Event('change', { bubbles: true }));
-            inputCantidadProd.value = String(item.cantidad);
-            inputCantidadProd.dispatchEvent(new Event('input', { bubbles: true }));
             const n = pre.total - pre.lista.length + 1;
-            aviso.textContent = `🏭 Orden sugerida ${n} de ${pre.total}: ${item.nombre} × ${formatoCantidad(item.cantidad)}${item.unidad ? ' ' + item.unidad : ''}. ${pre.origen}. Ajusta la cantidad si conviene, captura el lote, agrega los procesos y genera la orden.`;
-            aviso.classList.remove('hidden');
-            document.getElementById('numeroLoteResultante')?.focus();
+            const u = item.unidad ? ' ' + item.unidad : '';
+            const cargar = (cantidad, nota) => {
+                inputCantidadProd.value = String(cantidad);
+                inputCantidadProd.dispatchEvent(new Event('input', { bubbles: true }));
+                aviso.textContent = `🏭 Orden sugerida ${n} de ${pre.total}: ${item.nombre} × ${formatoCantidad(cantidad)}${u}${nota ? ` (${nota})` : ''}. ${pre.origen}. Ajusta la cantidad si conviene, captura el lote, agrega los procesos y genera la orden.`;
+                aviso.classList.remove('hidden');
+                document.getElementById('numeroLoteResultante')?.focus();
+            };
+            // Granel con "Rendimiento del lote": si lo que falta no es una tanda redonda, se pregunta si se
+            // fabrica el lote completo (menos de 1 tanda → 1; más → siguiente media tanda: 1.5, 2, 2.5…) o
+            // solo lo necesario.
+            const info = rendimientoPorProducto.get(String(item.id));
+            const tandasExactas = info ? redondear(item.cantidad / info.rend) : 0;
+            const tandasSugeridas = tandasExactas < 1 ? 1 : Math.ceil(tandasExactas * 2) / 2;
+            if (!info || !(tandasExactas > 0) || tandasSugeridas <= tandasExactas) { cargar(item.cantidad, ''); return; }
+            preguntarTandaCompleta(item, info, tandasExactas, tandasSugeridas, cargar);
+        }
+
+        // Subventana: fabricar tandas completas (lo que sobra queda en inventario) o solo lo que se necesita.
+        function preguntarTandaCompleta(item, info, tandasExactas, tandasSugeridas, cargar) {
+            const u = info.unidad ? ' ' + info.unidad : (item.unidad ? ' ' + item.unidad : '');
+            const cantSugerida = redondear(tandasSugeridas * info.rend);
+            const sobra = redondear(cantSugerida - item.cantidad);
+            const txtTandas = (t) => `${formatoCantidad(t)} tanda${t === 1 ? '' : 's'}`;
+            const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+            const titulo = tandasExactas < 1 ? 'Fabricar el lote mínimo' : 'Redondear a tanda completa';
+            document.getElementById('modalTandaCompleta')?.remove();
+            const modal = document.createElement('div');
+            modal.id = 'modalTandaCompleta';
+            // Fondo semitransparente: el formulario de la orden sigue visible detrás.
+            modal.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4';
+            modal.innerHTML = `
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-5 text-sm text-slate-300 space-y-3">
+                    <div class="flex justify-between items-start gap-3">
+                        <div>
+                            <h3 class="text-base font-bold text-slate-100">${esc(item.nombre)}</h3>
+                            <p class="text-xs text-slate-500 mt-0.5">${esc(window.__prodPre?.origen || '')}</p>
+                        </div>
+                        <button type="button" id="tcCerrar" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 cursor-pointer">&times;</button>
+                    </div>
+                    <p>Se necesitan <b class="text-slate-100">${esc(formatoCantidad(item.cantidad))}${esc(u)}</b> (${esc(formatoCantidad(tandasExactas))} de tanda).
+                        1 tanda completa rinde <b class="text-slate-100">${esc(formatoCantidad(info.rend))}${esc(u)}</b>.</p>
+                    <button type="button" id="tcCompleta" class="w-full text-left bg-amber-700 hover:bg-amber-600 text-white text-xs font-medium px-3 py-2 rounded-lg cursor-pointer">
+                        🧪 ${esc(titulo)}: ${esc(txtTandas(tandasSugeridas))} = ${esc(formatoCantidad(cantSugerida))}${esc(u)}
+                        <span class="block text-[11px] text-amber-100/80 font-normal">Sobran ${esc(formatoCantidad(sobra))}${esc(u)} que quedan en inventario.</span>
+                    </button>
+                    <button type="button" id="tcNecesario" class="w-full text-left bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-medium px-3 py-2 rounded-lg cursor-pointer">
+                        🎯 Solo lo necesario: ${esc(formatoCantidad(item.cantidad))}${esc(u)} = ${esc(formatoCantidad(tandasExactas))} de tanda
+                        <span class="block text-[11px] text-slate-400 font-normal">La receta se escala a ${esc(formatoCantidad(tandasExactas))}; no sobra nada.</span>
+                    </button>
+                </div>`;
+            document.body.appendChild(modal);
+            const elegir = (completa) => {
+                modal.remove();
+                if (completa) cargar(cantSugerida, `${txtTandas(tandasSugeridas)}; se necesitaban ${formatoCantidad(item.cantidad)}${u}`);
+                else cargar(item.cantidad, `solo lo necesario, ${formatoCantidad(tandasExactas)} de tanda`);
+            };
+            modal.addEventListener('click', (e) => { if (e.target === modal) elegir(false); });
+            modal.querySelector('#tcCerrar').addEventListener('click', () => elegir(false));
+            modal.querySelector('#tcCompleta').addEventListener('click', () => elegir(true));
+            modal.querySelector('#tcNecesario').addEventListener('click', () => elegir(false));
         }
         // Lote sugerido al abrir el formulario ("🎲 Sugerir" lo vuelve a calcular a partir de hoy).
         document.getElementById('numeroLoteResultante').value = generarLoteSugerido();
