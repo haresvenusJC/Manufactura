@@ -443,8 +443,9 @@ export async function cargarModuloProduccion() {
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs font-medium text-slate-400 mb-1">CANTIDAD A PRODUCIR</label>
+                                <label class="block text-xs font-medium text-slate-400 mb-1" title="En la Unidad de Medida del producto (Catálogo). Granel: los Litros o Kilos que quieres obtener; si tiene Rendimiento del lote, abajo aparece a cuántas tandas equivale.">CANTIDAD A PRODUCIR <span class="text-slate-500 cursor-help">ⓘ</span></label>
                                 <input type="number" id="cantidadProducida" min="1" step="any" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
+                                <p class="text-[10px] text-slate-500 mt-0.5">En la unidad del producto. Granel: litros (o kilos) a obtener — ej. Fresa Kiwi: 15 = 1 tanda.</p>
                             </div>
                             <div>
                                 <div class="flex justify-between items-center mb-1">

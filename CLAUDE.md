@@ -4,6 +4,11 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/catalogo.js`, `js/produccion.js` — pistas explicativas para dar de alta un granel:
+  "Unidad de Medida" (granel en Litros/Kilogramos, nunca Pieza), "Densidad (kg por litro)", "Rendimiento del lote (para el
+  BOM)" (litros de UNA tanda; ej. Fresa Kiwi 15), aviso en "Editar o ver BOM" (receta por tanda / por 1 unidad / falta
+  rendimiento) y en "CANTIDAD A PRODUCIR". Pendiente: `rendimiento_lote_bom` vacío en Granel Aceite Sey Piña Colada (id 232)
+  y revisar los demás graneles; propuesta sin aprobar: campo "Tandas" y rendimiento real al cerrar la orden.
 - Archivos tocados (lo último): `js/polizas-saldo.js` (nuevo), `js/contabilidad.js`, `js/auxiliar-inventarios.js`,
   `js/bancos-tesoreria.js`, `js/ordenes-compra.js`, `sql/2026-09-23_candados_cuadre_inventario.sql` (nuevo),
   `sql/2026-09-23b_diagnostico_cuadre_recepciones.sql` (nuevo, solo lectura). Descuadre 115.01 de (3,435.22): cancelar
