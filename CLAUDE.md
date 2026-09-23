@@ -11,6 +11,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   PREPARAR" (default 1) y "CANTIDAD A PRODUCIR" se llena sola = tandas × rendimiento (y al revés); la orden sigue guardando
   la cantidad en la unidad del producto. Pendiente: `rendimiento_lote_bom` vacío en Granel Aceite Sey Piña Colada (id 232)
   y revisar los demás graneles; propuesta sin aprobar: rendimiento real al cerrar la orden.
+  Análisis "🧮 Tamaño real de la tanda" (`tamanoTeoricoTanda` en `js/conversion-unidades.js`): suma la receta de un
+  semiterminado llevando cada insumo a la unidad del granel con su densidad (sin densidad = agua, se avisa; piezas se
+  ignoran), compara contra "Rendimiento del lote" y ofrece "Usar X como Rendimiento del lote" — en el formulario del
+  Catálogo (bajo la lista del BOM) y en "Editar o ver BOM" (ahí guarda directo). Fresa Kiwi da 14.64 L (capturado 15).
 - Archivos tocados (lo último): `js/polizas-saldo.js` (nuevo), `js/contabilidad.js`, `js/auxiliar-inventarios.js`,
   `js/bancos-tesoreria.js`, `js/ordenes-compra.js`, `sql/2026-09-23_candados_cuadre_inventario.sql` (nuevo),
   `sql/2026-09-23b_diagnostico_cuadre_recepciones.sql` (nuevo, solo lectura). Descuadre 115.01 de (3,435.22): cancelar

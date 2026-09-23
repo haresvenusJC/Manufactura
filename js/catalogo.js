@@ -1,7 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { irAKardexDeProducto } from './kardex.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
-import { factorConversion } from './conversion-unidades.js';
+import { factorConversion, tamanoTeoricoTanda } from './conversion-unidades.js';
 import { opcionesPresentacionHtml } from './presentaciones-proveedor.js';
 
 let catBusqueda = ''; // texto del buscador en vivo del Catálogo General (SKU y/o nombre)
@@ -414,6 +414,7 @@ export async function cargarCatalogoInicial() {
                                 <div id="listaBomTemporal" class="text-xs text-slate-400 bg-slate-900 p-2 rounded-lg border border-slate-800 min-h-[40px]">
                                     Sin elementos agregados.
                                 </div>
+                                <div id="analisisTandaForm" class="hidden mt-2"></div>
                             </div>
                         </details>
 
@@ -513,6 +514,7 @@ export async function cargarCatalogoInicial() {
             }
             marcarBotonAbast(inputAbast.value);
             marcarBotonTipoActivo();
+            pintarAnalisisTandaForm();
         }
         document.querySelectorAll('.abast-btn').forEach((b) => {
             b.addEventListener('click', () => {
@@ -754,7 +756,35 @@ export async function cargarCatalogoInicial() {
             await actualizarSelectProveedores();
         });
 
+        // Semiterminado (granel) con receta: tamaño real de la tanda y propuesta de "Rendimiento del lote".
+        function pintarAnalisisTandaForm() {
+            const cont = document.getElementById('analisisTandaForm');
+            if (!cont) return;
+            if (!chkSemi.checked || !itemsBomTemp.length) { cont.classList.add('hidden'); cont.innerHTML = ''; return; }
+            const selUni = document.getElementById('prodUnidadMedidaId');
+            const unidadNombre = selUni.value ? (selUni.options[selUni.selectedIndex]?.text || '') : '';
+            const res = tamanoTeoricoTanda(itemsBomTemp.map((i) => ({
+                nombre: i.componenteNombre, cantidad: i.cantidad,
+                unidadNombre: i.unidadNombre || mapaUnidades[i.unidadId] || '',
+                densidad: mapaArticulos[i.componenteId]?.densidad_kg_l,
+            })), unidadNombre);
+            const elRend = document.getElementById('prodRendimientoLote');
+            cont.innerHTML = htmlAnalisisTanda(res, unidadNombre, elRend.value);
+            cont.classList.remove('hidden');
+            cont.querySelector('.btn-usar-rend')?.addEventListener('click', (e) => {
+                elRend.value = e.currentTarget.dataset.valor;
+                const det = elRend.closest('details');
+                if (det) det.open = true;
+                elRend.classList.add('ring-2', 'ring-sky-500');
+                setTimeout(() => elRend.classList.remove('ring-2', 'ring-sky-500'), 1500);
+                pintarAnalisisTandaForm();
+            });
+        }
+        document.getElementById('prodUnidadMedidaId').addEventListener('change', () => pintarAnalisisTandaForm());
+        document.getElementById('prodRendimientoLote').addEventListener('input', () => pintarAnalisisTandaForm());
+
         function actualizarListaBomVisual() {
+            pintarAnalisisTandaForm();
             if (itemsBomTemp.length === 0) {
                 listaTempEl.innerHTML = "Sin elementos agregados.";
                 return;
@@ -1532,6 +1562,7 @@ async function abrirVentanaBom(producto) {
         btnGuardar.disabled = !sucio;
         if (sucio) { msg.dataset.fijo = ''; msg.className = 'text-xs text-amber-400 min-w-0'; msg.textContent = 'Hay cambios sin guardar.'; }
         else if (!msg.dataset.fijo) { msg.className = 'text-xs text-slate-500 min-w-0'; msg.textContent = ''; }
+        refrescarAnalisisModal();
     };
 
     const opcionesUnidad = (sel) => `<option value="">(sin unidad)</option>` +
@@ -1591,10 +1622,34 @@ async function abrirVentanaBom(producto) {
         return `<p class="text-[11px] text-slate-400 bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 mb-3">Receta para <b>1 ${escaparHtml(uni)}</b> de este producto: cada componente en la unidad en que lo mides (un granel en mL, un frasco en Pieza); el sistema convierte solo a la unidad de inventario de cada componente.</p>`;
     }
 
+    // Granel: tamaño real de la tanda según lo capturado (se recalcula al editar).
+    function refrescarAnalisisModal() {
+        const cont = cuerpo.querySelector('#bomAnalisis');
+        if (!cont) return;
+        if (!(producto.es_semiterminado || Number(producto.rendimiento_lote_bom) > 0) || !filas.length) { cont.innerHTML = ''; return; }
+        const uni = nombreUnidadPorId.get(String(producto.unidad_medida_id ?? '')) || '';
+        const res = tamanoTeoricoTanda(filas.map((f) => {
+            const p = nombreDe(f.compId);
+            const raw = String(f.unidad || '');
+            return { nombre: p ? p.nombre : `#${f.compId}`, cantidad: f.cantidad,
+                unidadNombre: /^\d+$/.test(raw) ? (nombreUnidadPorId.get(raw) || '') : raw, densidad: p?.densidad_kg_l };
+        }), uni);
+        cont.innerHTML = htmlAnalisisTanda(res, uni, producto.rendimiento_lote_bom);
+        cont.querySelector('.btn-usar-rend')?.addEventListener('click', async (e) => {
+            const valor = Number(e.currentTarget.dataset.valor);
+            if (!confirm(`¿Guardar ${valor} ${uni} como "Rendimiento del lote" de ${producto.nombre}?\n\nProducción tomará esta receta como UNA tanda que rinde ${valor} ${uni}.`)) return;
+            const { error } = await supabaseClient.from('productos').update({ rendimiento_lote_bom: valor }).eq('id', id);
+            if (error) { alert('No se pudo guardar el Rendimiento del lote: ' + error.message); return; }
+            producto.rendimiento_lote_bom = valor;
+            pintar();
+        });
+    }
+
     function pintar(enfocarIdx = -1) {
         const cls = 'bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-sm text-slate-100';
         cuerpo.innerHTML = `
             ${pistaReceta()}
+            <div id="bomAnalisis" class="mb-3"></div>
             ${filas.length ? `
             <div class="overflow-x-auto">
               <table class="w-full text-left">
@@ -1646,6 +1701,7 @@ async function abrirVentanaBom(producto) {
             pintar(filas.length - 1); actualizarEstado();
         });
         if (enfocarIdx >= 0) cuerpo.querySelector(`.bom-cant[data-i="${enfocarIdx}"]`)?.focus();
+        refrescarAnalisisModal();
     }
 
     async function cargar() {
@@ -2021,6 +2077,37 @@ const ETIQUETA_TIPO_PRODUCTO = {
     insumo: 'Insumo / componente',
 };
 
+
+// Análisis del tamaño real de una tanda (suma de la receta con densidades) para proponer el
+// "Rendimiento del lote" de un granel. Lo usan el formulario del Catálogo y "Editar o ver BOM".
+// El botón lleva la clase `btn-usar-rend` y `data-valor`; quien lo pinta decide qué hace al clic.
+function htmlAnalisisTanda(res, unidadNombre, rendActual) {
+    const fmt = (n, d = 3) => Number(n).toLocaleString('es-MX', { maximumFractionDigits: d });
+    if (res.total == null) {
+        return `<div class="text-[11px] text-amber-300/90 bg-amber-950/30 border border-amber-900/60 rounded-lg px-3 py-2">🧮 Para calcular el tamaño real de la tanda, la Unidad de Medida del granel debe ser de volumen o de peso (Litros, Kilogramos…), no "${escaparHtml(unidadNombre || 'sin unidad')}".</div>`;
+    }
+    const sugerido = Math.round(res.total * 100) / 100;
+    const u = escaparHtml(unidadNombre || '');
+    const rend = Number(rendActual) || 0;
+    let comparacion;
+    if (rend > 0) {
+        const dif = (rend - sugerido) / sugerido * 100;
+        comparacion = Math.abs(dif) < 0.5
+            ? `<span class="text-emerald-400">✅ Coincide con el Rendimiento del lote capturado (${fmt(rend)} ${u}).</span>`
+            : `<span class="text-amber-300">Rendimiento del lote capturado: ${fmt(rend)} ${u} — ${fmt(Math.abs(dif), 1)}% ${dif > 0 ? 'MÁS' : 'menos'} que lo que suma la receta.${dif > 0 ? ' Entrarían al inventario litros/kilos que no existen y el costo por unidad saldría bajo.' : ''}</span>`;
+    } else {
+        comparacion = '<span class="text-amber-300">Aún no tiene "Rendimiento del lote": sin él, Producción toma esta receta como la de 1 unidad.</span>';
+    }
+    return `<div class="text-[11px] text-slate-300 bg-sky-950/20 border border-sky-900/60 rounded-lg px-3 py-2 space-y-1">
+        <p>🧮 <b>Tamaño real de la tanda (suma de la receta):</b> <b class="text-sky-300 font-mono">${fmt(res.total)} ${u}</b>
+           <span class="text-slate-500">· ≈ ${fmt(res.litros)} L / ${fmt(res.kilos)} kg${res.densidadMezcla ? ` · densidad estimada de la mezcla ${fmt(res.densidadMezcla, 3)} kg/L` : ''}</span></p>
+        <p>${comparacion}</p>
+        ${res.sinDensidad.length ? `<p class="text-amber-400/90">⚠ Sin densidad (se tomó como agua, 1 kg/L): ${res.sinDensidad.map(escaparHtml).join(', ')} — captúrala en ⚖️ Densidades para afinar el cálculo.</p>` : ''}
+        ${res.ignorados.length ? `<p class="text-slate-500">No cuentan para el tamaño (no son volumen ni peso): ${res.ignorados.map(escaparHtml).join(', ')}.</p>` : ''}
+        <p class="text-slate-500">Es teórico: al mezclar, el volumen real puede salir un poco menor. Mide la primera tanda en el tanque y, si difiere, captura lo medido.</p>
+        ${Math.abs(rend - sugerido) >= 0.005 ? `<button type="button" class="btn-usar-rend mt-1 text-[11px] bg-sky-700 hover:bg-sky-600 text-white font-semibold px-3 py-1 rounded-lg cursor-pointer" data-valor="${sugerido}">Usar ${fmt(sugerido, 2)} ${u} como Rendimiento del lote</button>` : ''}
+    </div>`;
+}
 
 function escaparHtml(valor) {
     return String(valor).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
