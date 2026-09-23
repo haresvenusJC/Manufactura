@@ -4,6 +4,11 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-09-23e_graneles_revision.sql` (solo lectura) y `sql/2026-09-23f_graneles_aplicar.sql`
+  (nuevos). Aplica a todos los graneles con BOM (nombre "granel" o semiterminado, unidad de volumen/peso): semiterminado +
+  fabricado, `rendimiento_lote_bom` = suma de la receta (misma cuenta que 🧮) y cuenta 115.02 solo si no tiene existencia.
+  Probado en Postgres local. Pendiente: que el usuario corra primero la revisión y luego la aplicación; los que tengan
+  existencia en otra cuenta necesitan póliza de reclasificación.
 - Archivos tocados (lo último): `js/catalogo.js` — en "✏️ Editar artículo" la casilla "Es semiterminado (granel)" va
   justo después de "Tipo" (`ORDEN_CAMPOS_PRODUCTO`), antes quedaba al final.
 - Archivos tocados (lo último): `js/catalogo.js`, `manual-costos-produccion.html` — explicación de por qué importa el
