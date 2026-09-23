@@ -4,13 +4,20 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/produccion.js`, `js/ordenes-produccion.js`, `sql/2026-09-23d_rendimiento_real_orden.sql`
+  (nuevo). "🔒 Cerrar orden" pregunta "¿Cuánto salió REALMENTE?" (default = planeado): insumos por lo planeado, al
+  inventario entra lo real, costo unitario = total ÷ real. Al cerrar, `cantidad_producida` = REAL y
+  `cantidad_planeada` = lo pedido (así `contabilizar_produccion` y el prorrateo de CIF, que dividen entre
+  `cantidad_producida`, ya usan lo real sin reescribirlos). "Estado de la orden" muestra planeado/obtenido/% merma y la
+  receta sobre lo planeado. Pendiente: correr `sql/2026-09-23d_rendimiento_real_orden.sql` (sin ella cierra con lo real
+  pero no guarda lo planeado).
 - Archivos tocados (lo último): `js/catalogo.js`, `js/produccion.js` — pistas explicativas para dar de alta un granel:
   "Unidad de Medida" (granel en Litros/Kilogramos, nunca Pieza), "Densidad (kg por litro)", "Rendimiento del lote (para el
   BOM)" (litros de UNA tanda; ej. Fresa Kiwi 15), aviso en "Editar o ver BOM" (receta por tanda / por 1 unidad / falta
   rendimiento) y en "CANTIDAD A PRODUCIR". Producción: si el producto tiene `rendimiento_lote_bom`, aparece "TANDAS A
   PREPARAR" (default 1) y "CANTIDAD A PRODUCIR" se llena sola = tandas × rendimiento (y al revés); la orden sigue guardando
   la cantidad en la unidad del producto. Pendiente: `rendimiento_lote_bom` vacío en Granel Aceite Sey Piña Colada (id 232)
-  y revisar los demás graneles; propuesta sin aprobar: rendimiento real al cerrar la orden.
+  y revisar los demás graneles.
   Análisis "🧮 Tamaño real de la tanda" (`tamanoTeoricoTanda` en `js/conversion-unidades.js`): suma la receta de un
   semiterminado llevando cada insumo a la unidad del granel con su densidad (sin densidad = agua, se avisa; piezas se
   ignoran), compara contra "Rendimiento del lote" y ofrece "Usar X como Rendimiento del lote" — en el formulario del
