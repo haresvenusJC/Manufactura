@@ -613,7 +613,8 @@ async function abrirDetalleReq(id) {
         </div>`;
     document.body.appendChild(modal);
 
-    const cerrarFuera = (e) => { if (!modal.contains(e.target)) cerrar(); };
+    // e.target.isConnected: un botón que se re-dibujó al hacer clic ya no está en la página y NO es "clic fuera".
+    const cerrarFuera = (e) => { if (e.target.isConnected && !modal.contains(e.target)) cerrar(); };
     const cerrarEsc = (e) => { if (e.key === 'Escape') cerrar(); };
     function cerrar() {
         modal.remove();
@@ -808,7 +809,8 @@ window.reqEditar = async (id) => {
         </div>`;
     document.body.appendChild(modal);
 
-    const cerrarFuera = (e) => { if (!modal.contains(e.target)) cerrar(); };
+    // e.target.isConnected: un botón que se re-dibujó al hacer clic ya no está en la página y NO es "clic fuera".
+    const cerrarFuera = (e) => { if (e.target.isConnected && !modal.contains(e.target)) cerrar(); };
     const cerrarEsc = (e) => { if (e.key === 'Escape') cerrar(); };
     function cerrar() {
         modal.remove();
@@ -899,7 +901,8 @@ window.reqAutorizar = async (id) => {
     document.body.appendChild(modal);
     if (mxn) document.getElementById('autMoneda').value = mxn.id;
 
-    const cerrarFuera = (e) => { if (!modal.contains(e.target)) cerrar(); };
+    // e.target.isConnected: un botón que se re-dibujó al hacer clic ya no está en la página y NO es "clic fuera".
+    const cerrarFuera = (e) => { if (e.target.isConnected && !modal.contains(e.target)) cerrar(); };
     const cerrarEsc = (e) => { if (e.key === 'Escape') cerrar(); };
     function cerrar() {
         modal.remove();

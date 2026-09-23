@@ -2248,7 +2248,8 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
     `;
     modal.classList.remove('hidden');
 
-    const cerrarFuera = (e) => { if (!modal.contains(e.target)) cerrar(); };
+    // e.target.isConnected: un botón que se re-dibujó al hacer clic ya no está en la página y NO es "clic fuera".
+    const cerrarFuera = (e) => { if (e.target.isConnected && !modal.contains(e.target)) cerrar(); };
     const cerrarEsc = (e) => { if (e.key === 'Escape') cerrar(); };
     function cerrar() {
         modal.remove();
@@ -2417,6 +2418,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                 const elRend = cuerpo.querySelector('#rc_rendimiento_lote_bom');
                 contAn.innerHTML = htmlAnalisisTanda(res, uniProd, elRend ? elRend.value : art.rendimiento_lote_bom);
                 contAn.querySelector('.btn-usar-rend')?.addEventListener('click', (e) => {
+                    e.stopPropagation();   // el recuadro se re-dibuja: que no cuente como "clic fuera" de la subventana
                     if (!elRend) return;
                     elRend.value = e.currentTarget.dataset.valor;
                     elRend.scrollIntoView({ behavior: 'smooth', block: 'center' });
