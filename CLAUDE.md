@@ -4,6 +4,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/catalogo.js` — "✏️ Editar artículo" (menú ☰, el editor genérico por columnas) no
+  tenía pistas: nombres legibles (`ETIQUETAS_CAMPO_PRODUCTO`), pista bajo cada campo clave (`PISTAS_CAMPO_PRODUCTO`:
+  tipo, unidad, densidad, rendimiento, semiterminado…) y el análisis 🧮 del tamaño de la tanda con botón que llena
+  "Rendimiento del lote" (se guarda con "Guardar cambios").
 - Archivos tocados (lo último): `js/produccion.js`, `js/ordenes-produccion.js`, `sql/2026-09-23d_rendimiento_real_orden.sql`
   (nuevo). `cerrarOrdenDeProduccion(id, cantidadReal)` acepta lo realmente obtenido (insumos por lo planeado, al inventario
   lo real, costo = total ÷ real) — el usuario pidió NO preguntarlo al cerrar: el botón cierra con lo planeado. Al cerrar, `cantidad_producida` = REAL y

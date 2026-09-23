@@ -2067,8 +2067,28 @@ function tipoDeCampo(valor) {
     return 'text';
 }
 
+// Nombres legibles para las columnas que muestra "Editar artículo" (el resto se arma del nombre de la columna).
+const ETIQUETAS_CAMPO_PRODUCTO = {
+    sku: 'SKU / Código', clave_sat: 'Clave SAT (ClaveProdServ)', densidad_kg_l: 'Densidad (kg por litro)',
+    rendimiento_lote_bom: 'Rendimiento del lote (para el BOM)', unidad_medida_id: 'Unidad de Medida',
+    es_semiterminado: 'Es semiterminado (granel)', descripcion: 'Descripción',
+};
+// Pistas bajo cada campo de "Editar artículo" (las mismas ideas que el formulario del Catálogo).
+const PISTAS_CAMPO_PRODUCTO = {
+    tipo: 'Un granel es "Producto terminado" + la casilla "Es semiterminado (granel)" marcada (más abajo).',
+    unidad_medida_id: 'En qué se cuenta en almacén y se descuenta. Granel: Litros o Kilogramos, nunca Pieza.',
+    densidad_kg_l: 'Kilos que pesa 1 litro. Solo para insumos que la receta pide en volumen y se llevan en peso (o al revés). Ej.: Glicerina Vegetal Usp = 1.26. En un granel que va en Litros y se consume en mL, déjalo vacío.',
+    rendimiento_lote_bom: 'Granel: Litros (o Kilos) que salen de UNA tanda de la receta. Usa el tamaño real que calcula el análisis 🧮 de abajo (Fresa Kiwi: 14.64). En Producción: 1 tanda = este número. Vacío = el BOM es para 1 unidad (ej. 1 pieza).',
+    es_semiterminado: 'Márcalo en los graneles: se fabrican y los consumen otros productos.',
+    costo_unitario: 'Se actualiza solo con compras y al cerrar cada orden; normalmente no se edita a mano.',
+    stock_actual: 'Se mueve solo con entradas y salidas; no se edita aquí.',
+};
+function pistaCampo(clave) {
+    const t = PISTAS_CAMPO_PRODUCTO[clave];
+    return t ? `<p class="text-[10px] text-slate-500 mt-0.5 leading-snug">${escaparHtml(t)}</p>` : '';
+}
 function etiquetaCampo(clave) {
-    return clave.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    return ETIQUETAS_CAMPO_PRODUCTO[clave] || clave.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 const ETIQUETA_TIPO_PRODUCTO = {
@@ -2261,7 +2281,8 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
         let componentesPorId = new Map();
         if (bomFilas.length) {
             const idsComp = [...new Set(bomFilas.map((b) => b.componente_id))];
-            const { data: comps } = await supabaseClient.from('productos').select('id, nombre, sku').in('id', idsComp);
+            let { data: comps, error: errComps } = await supabaseClient.from('productos').select('id, nombre, sku, densidad_kg_l').in('id', idsComp);
+            if (errComps) ({ data: comps } = await supabaseClient.from('productos').select('id, nombre, sku').in('id', idsComp));
             componentesPorId = new Map((comps || []).map((c) => [c.id, c]));
         }
 
@@ -2334,6 +2355,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                             <div>
                                 <label class="block text-[10px] text-slate-500 mb-1">${etiquetaCampo(clave)}</label>
                                 <p class="text-xs font-mono text-slate-200 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 break-all">${escaparHtml(textoMostrado ?? '—')}</p>
+                                ${pistaCampo(clave)}
                             </div>`;
                     }
                     if (clave === 'tipo') {
@@ -2345,6 +2367,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                                     <option value="materia_prima" ${valor === 'materia_prima' ? 'selected' : ''}>Materia prima</option>
                                     <option value="insumo" ${valor === 'insumo' ? 'selected' : ''}>Insumo</option>
                                 </select>
+                                ${pistaCampo(clave)}
                             </div>`;
                     }
                     if (opcionesPorCampo[clave]) {
@@ -2354,24 +2377,61 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                                 <select id="rc_${clave}" data-campo="${clave}" data-tipo="number" class="campo-resumen-prod w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
                                     ${opcionesPorCampo[clave]}
                                 </select>
+                                ${pistaCampo(clave)}
                             </div>`;
                     }
                     if (tipo === 'boolean') {
                         return `
-                            <div class="flex items-center gap-2 pt-4">
-                                <input type="checkbox" id="rc_${clave}" data-campo="${clave}" data-tipo="boolean" class="campo-resumen-prod w-4 h-4" ${valor ? 'checked' : ''}>
-                                <label for="rc_${clave}" class="text-xs text-slate-300">${etiquetaCampo(clave)}</label>
+                            <div class="pt-4">
+                                <div class="flex items-center gap-2">
+                                    <input type="checkbox" id="rc_${clave}" data-campo="${clave}" data-tipo="boolean" class="campo-resumen-prod w-4 h-4" ${valor ? 'checked' : ''}>
+                                    <label for="rc_${clave}" class="text-xs text-slate-300">${etiquetaCampo(clave)}</label>
+                                </div>
+                                ${pistaCampo(clave)}
                             </div>`;
                     }
                     return `
                         <div>
                             <label class="block text-[10px] text-slate-400 mb-1">${etiquetaCampo(clave)}</label>
                             <input type="${tipo === 'number' ? 'number' : 'text'}" ${tipo === 'number' ? 'step="any"' : ''} id="rc_${clave}" data-campo="${clave}" data-tipo="${tipo}" value="${escaparHtml(valor ?? '')}" class="campo-resumen-prod w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                            ${pistaCampo(clave)}
                         </div>`;
                 }).join('')}
             </div>
             ${llevaBom ? renderBomResumen(bomFilas, componentesPorId, resUm.data) : ''}
+            <div id="rcAnalisisTanda" class="mt-3"></div>
             ${renderClavesProveedorResumen(resClaves.data, resProv.data)}`;
+
+        // Granel: tamaño real de la tanda y botón para pasarlo a "Rendimiento del lote" (se guarda con "Guardar cambios").
+        if (art.es_semiterminado && bomFilas.length) {
+            const mapaUni = new Map((resUm.data || []).map((u) => [String(u.id), u.nombre]));
+            const uniProd = mapaUni.get(String(art.unidad_medida_id ?? '')) || '';
+            const res = tamanoTeoricoTanda(bomFilas.map((b) => {
+                const c = componentesPorId.get(b.componente_id);
+                const raw = String(b.unidad_medida ?? '');
+                return { nombre: c ? c.nombre : `#${b.componente_id}`, cantidad: b.cantidad_requerida,
+                    unidadNombre: /^\d+$/.test(raw) ? (mapaUni.get(raw) || '') : raw, densidad: c?.densidad_kg_l };
+            }), uniProd);
+            const contAn = cuerpo.querySelector('#rcAnalisisTanda');
+            const pintarAn = () => {
+                const elRend = cuerpo.querySelector('#rc_rendimiento_lote_bom');
+                contAn.innerHTML = htmlAnalisisTanda(res, uniProd, elRend ? elRend.value : art.rendimiento_lote_bom);
+                contAn.querySelector('.btn-usar-rend')?.addEventListener('click', (e) => {
+                    if (!elRend) return;
+                    elRend.value = e.currentTarget.dataset.valor;
+                    elRend.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    elRend.classList.add('ring-2', 'ring-sky-500');
+                    setTimeout(() => elRend.classList.remove('ring-2', 'ring-sky-500'), 1500);
+                    pintarAn();
+                });
+                if (contAn.querySelector('.btn-usar-rend') && !soloLectura) {
+                    contAn.querySelector('.btn-usar-rend').insertAdjacentHTML('afterend', '<span class="text-[10px] text-slate-500 ml-2">Luego da "Guardar cambios".</span>');
+                }
+                if (soloLectura) contAn.querySelector('.btn-usar-rend')?.remove();
+            };
+            pintarAn();
+            cuerpo.querySelector('#rc_rendimiento_lote_bom')?.addEventListener('input', pintarAn);
+        }
     } catch (err) {
         cuerpo.innerHTML = `<p class="text-rose-400 text-xs">No se pudo cargar el artículo: ${err.message || err}</p>`;
         return;
