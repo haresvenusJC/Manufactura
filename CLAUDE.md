@@ -171,7 +171,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `devoluciones.js` — devoluciones de cliente y a proveedor, con su efecto de inventario y póliza propia.
 - `documentos.js` — expediente de todos los documentos del sistema, imprimible, cancelación de recibos.
 - `empleados.js` — catálogo de empleados.
-- `enlaces-reporte.js` — `linkDoc`/`linkPoliza`: folio o póliza como enlace que abre su subventana (regla de reportes).
+- `enlaces-reporte.js` — `linkDoc`/`linkPoliza`: folio o póliza como enlace que abre su subventana (regla de reportes);
+  todo `[data-pol-id]` se rotula solo como "Egreso #34" (tipo + número, consulta en lote), nunca el id interno.
 - `entradas.js` — entradas directas de inventario sin compra de por medio (ajuste, inventario inicial...).
 - `folios.js` — folios consecutivos por serie asignados por la base.
 - `fresh-start.js` — diagnóstico para el reset de datos de prueba; nunca borra, solo muestra el SQL a pegar a mano.

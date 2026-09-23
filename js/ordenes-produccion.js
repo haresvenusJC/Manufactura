@@ -243,7 +243,7 @@ function duracion(seg) {
 // js/documentos.js (abrirDetalleDocumentoGlobal) y js/contabilidad.js (rcVerPoliza).
 const lnkDoc = (id, texto) => id
     ? `<button type="button" onclick="window.abrirDetalleDocumentoGlobal(${Number(id)}); const m=document.getElementById('modalDetalleDocKardex'); if(m){m.style.zIndex=70;m.classList.remove('hidden');}" style="color:#0369a1;text-decoration:underline;cursor:pointer;">${escD(texto)}</button>` : escD(texto);
-const lnkPol = (id) => `<button type="button" onclick="window.rcVerPoliza(${Number(id)}); const m=document.getElementById('rcModalPoliza'); if(m) m.style.zIndex=70;" style="color:#0369a1;text-decoration:underline;cursor:pointer;">#${Number(id)}</button>`;
+const lnkPol = (id) => `<button type="button" onclick="window.rcVerPoliza(${Number(id)}); const m=document.getElementById('rcModalPoliza'); if(m) m.style.zIndex=70;" data-pol-id="${Number(id)}" style="color:#0369a1;text-decoration:underline;cursor:pointer;">póliza…</button>`;
 const ESTADO_TXT = { borrador: 'Pendiente por insumos', en_proceso: 'En proceso', cerrada: 'Cerrada', cancelada: 'Cancelada' };
 
 const ST = {
