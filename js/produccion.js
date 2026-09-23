@@ -443,9 +443,16 @@ export async function cargarModuloProduccion() {
                         </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs font-medium text-slate-400 mb-1" title="En la Unidad de Medida del producto (Catálogo). Granel: los Litros o Kilos que quieres obtener; si tiene Rendimiento del lote, abajo aparece a cuántas tandas equivale.">CANTIDAD A PRODUCIR <span class="text-slate-500 cursor-help">ⓘ</span></label>
-                                <input type="number" id="cantidadProducida" min="1" step="any" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
-                                <p class="text-[10px] text-slate-500 mt-0.5">En la unidad del producto. Granel: litros (o kilos) a obtener — ej. Fresa Kiwi: 15 = 1 tanda.</p>
+                                <!-- Solo para productos con "Rendimiento del lote" (graneles): se pide en tandas y
+                                     CANTIDAD A PRODUCIR se llena sola (tandas × rendimiento), y al revés. -->
+                                <div id="bloqueTandas" class="hidden mb-3">
+                                    <label class="block text-xs font-medium text-amber-400 mb-1" title="Cuántas veces vas a preparar la receta del BOM. Una tanda rinde lo capturado en Catálogo → Más detalles → Rendimiento del lote.">TANDAS A PREPARAR <span class="text-slate-500 cursor-help">ⓘ</span></label>
+                                    <input type="number" id="tandasProducir" min="0" step="any" class="w-full bg-slate-950 border border-amber-800/60 rounded-lg p-2 text-sm text-slate-100">
+                                    <p id="notaTandas" class="text-[10px] text-slate-500 mt-0.5"></p>
+                                </div>
+                                <label class="block text-xs font-medium text-slate-400 mb-1" title="En la Unidad de Medida del producto (Catálogo). En un granel con Rendimiento del lote se llena sola al escribir las tandas.">CANTIDAD A PRODUCIR <span class="text-slate-500 cursor-help">ⓘ</span></label>
+                                <input type="number" id="cantidadProducida" min="0.0001" step="any" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
+                                <p id="notaCantidadProd" class="text-[10px] text-slate-500 mt-0.5">En la unidad del producto (pieza, litro, kilo…).</p>
                             </div>
                             <div>
                                 <div class="flex justify-between items-center mb-1">
@@ -623,6 +630,51 @@ export async function cargarModuloProduccion() {
             }).join('');
         }
 
+        // --- Tandas: productos con "Rendimiento del lote" (graneles) se piden en tandas ---
+        // CANTIDAD A PRODUCIR (lo que se guarda en la orden y entra al inventario) = tandas × rendimiento.
+        const bloqueTandas = document.getElementById('bloqueTandas');
+        const inputTandas = document.getElementById('tandasProducir');
+        const notaTandas = document.getElementById('notaTandas');
+        const notaCantidadProd = document.getElementById('notaCantidadProd');
+        const NOTA_CANTIDAD_BASE = notaCantidadProd.textContent;
+        const rendimientoPorProducto = new Map();   // id -> { rend, unidad }
+        {
+            const r = await supabaseClient.from('productos')
+                .select('id, rendimiento_lote_bom, unidades_medida ( nombre )')
+                .gt('rendimiento_lote_bom', 0);
+            if (!r.error) (r.data || []).forEach((p) => rendimientoPorProducto.set(String(p.id), {
+                rend: Number(p.rendimiento_lote_bom), unidad: p.unidades_medida?.nombre || '',
+            }));
+        }
+        const redondear = (n) => Math.round(n * 10000) / 10000;
+        function aplicarModoTandas() {
+            const info = rendimientoPorProducto.get(String(selectProd.value));
+            bloqueTandas.classList.toggle('hidden', !info);
+            if (!info) { inputTandas.value = ''; notaCantidadProd.textContent = NOTA_CANTIDAD_BASE; return; }
+            const u = info.unidad ? ` ${info.unidad}` : '';
+            notaTandas.textContent = `1 tanda = ${formatoCantidad(info.rend)}${u} (Rendimiento del lote). Puedes poner 0.5 para media tanda.`;
+            notaCantidadProd.textContent = `Se llena sola: tandas × ${formatoCantidad(info.rend)}${u}. Es lo que entra al inventario al cerrar.`;
+            inputTandas.value = '1';
+            inputCantidadProd.value = String(info.rend);
+        }
+        inputTandas.addEventListener('input', () => {
+            const info = rendimientoPorProducto.get(String(selectProd.value));
+            const t = parseFloat(inputTandas.value);
+            if (!info || !(t > 0)) return;
+            inputCantidadProd.value = String(redondear(t * info.rend));
+            actualizarPanelExistencias();
+        });
+        inputCantidadProd.addEventListener('input', () => {
+            const info = rendimientoPorProducto.get(String(selectProd.value));
+            const c = parseFloat(inputCantidadProd.value);
+            if (info && c > 0) inputTandas.value = String(redondear(c / info.rend));
+        });
+        document.getElementById('formOrdenProduccion').addEventListener('reset', () => {
+            bloqueTandas.classList.add('hidden');
+            notaCantidadProd.textContent = NOTA_CANTIDAD_BASE;
+        });
+
+        selectProd.addEventListener('change', aplicarModoTandas);   // antes del panel: deja la cantidad lista
         selectProd.addEventListener('change', actualizarPanelExistencias);
         inputCantidadProd.addEventListener('input', actualizarPanelExistencias);
 
