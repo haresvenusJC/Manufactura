@@ -334,9 +334,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 ## Pendiente
 
 - Semiterminado como tipo: TERMINADO (verificado 2026-09-23): migración 1, código en `main`, `…24b` (columna `es_semiterminado`
-  borrada) y `…23f` (graneles de aceite en 14.64 L, 115.02) corridos. Pendiente de datos: ids 232 (Aceite Sey Piña Colada) y
-  254 (Aceite Sey Chocolate) seguían como `producto` → se le dio al usuario un `update … set tipo='semiterminado'` (confirmar).
-  Granel Love Oil Fresa Kiwi (id 227) quedó en 7.99 L: su fórmula tiene solo 3 componentes, completarla. Al crear graneles
+  borrada) y `…23f` (graneles de aceite en 14.64 L, 115.02) corridos. Ids 232 y 254 (Aceite Sey Piña Colada/Chocolate)
+  corregidos a semiterminado (verificado). Pendiente: Granel Love Oil Fresa Kiwi (id 227) quedó en 7.99 L: su fórmula tiene solo 3 componentes, completarla. Al crear graneles
   nuevos, volver a correr revisión `…23e` + aplicar `…23f` (o usar "🧪 Revisión del granel").
 - Verificado 2026-09-23 en la base: corridas todas las migraciones de 2026-09-22 y 2026-09-23 (`…23d` no, es opcional).
   Documentos vacíos de los cierres fallidos (ids 22-25, PROD-000001/-MP y PROD-000002/-MP) marcados `cancelado` (no
