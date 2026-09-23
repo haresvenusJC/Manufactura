@@ -952,6 +952,7 @@
     </script>
 
     <!-- Script principal de lógica estructurado como módulo -->
-    <script type="module" src="js/app.js"></script>
+    <!-- Carga los módulos con versión (cargador.js + version.json) para no quedarse con .js viejos en caché -->
+    <script src="cargador.js" data-entrada="js/app.js"></script>
 </body>
 </html>

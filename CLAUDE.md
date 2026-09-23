@@ -4,6 +4,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `cargador.js`, `version.json`, `actualizar-version.py` (nuevos), `index.html` y las 3 apps de
+  operador, `js/app.js`, `js/conteo-inventario.js`. El celular seguía con los .js viejos en caché tras publicar: las
+  páginas ya no cargan su módulo directo, sino `cargador.js` → lee `version.json` sin caché → import map que pide cada
+  `js/*.js?v=<versión>`. `app.js`/`conteo-inventario.js` arrancan aunque el DOM ya esté listo.
 - Archivos tocados (lo último): `js/catalogo.js` — "✏️ Editar artículo" (menú ☰, el editor genérico por columnas) no
   tenía pistas: nombres legibles (`ETIQUETAS_CAMPO_PRODUCTO`), pista bajo cada campo clave (`PISTAS_CAMPO_PRODUCTO`:
   tipo, unidad, densidad, rendimiento, semiterminado…) y el análisis 🧮 del tamaño de la tanda con botón que llena
@@ -207,6 +211,9 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   `poliza_en_saldo()` en SQL.
 - **Reglas de integridad en la base, no solo en pantalla**: lo que protege saldos/existencias (ej. no recibir más de lo
   pedido, `cantidad_recibida` derivada de documentos) va como trigger/constraint; la pantalla solo avisa antes.
+- **Versión de los .js**: en cada commit que toque `js/` correr `python3 actualizar-version.py` (regenera `version.json`,
+  que usa `cargador.js`); si no, los navegadores pueden seguir con los archivos viejos en caché. Un módulo nuevo en
+  `js/` entra solo a la lista al regenerar.
 - **Subventanas (modales)**: nunca ocultar el contenido que originó la subventana — la pantalla de atrás
   debe seguir visible detrás (overlay semitransparente, no un fondo opaco que la tape por completo).
 

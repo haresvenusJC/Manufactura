@@ -22,6 +22,7 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
     <div id="app" class="min-h-screen"></div>
-    <script type="module" src="js/orden-trabajo.js"></script>
+    <!-- Carga los módulos con versión (cargador.js + version.json) para no quedarse con .js viejos en caché -->
+    <script src="cargador.js" data-entrada="js/orden-trabajo.js"></script>
 </body>
 </html>
