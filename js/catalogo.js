@@ -1425,7 +1425,7 @@ const CAMPOS_NO_EDITABLES_PRODUCTO = new Set(['id', 'created_at', 'updated_at'])
 // las banderas. Los que no estén aquí (columnas nuevas a futuro) caen
 // después, en orden alfabético; los de solo lectura siempre van al final.
 const ORDEN_CAMPOS_PRODUCTO = [
-    'sku', 'nombre', 'tipo', 'descripcion', 'clave_sat', 'densidad_kg_l', 'rendimiento_lote_bom',
+    'sku', 'nombre', 'tipo', 'es_semiterminado', 'descripcion', 'clave_sat', 'densidad_kg_l', 'rendimiento_lote_bom',
     'unidad_medida_id', 'proveedor_id', 'moneda_id',
     'costo_unitario', 'precio_venta', 'tasa_iva', 'tasa_ieps',
     'cuenta_inventario_id', 'cuenta_costo_id',
@@ -2080,7 +2080,7 @@ const ETIQUETAS_CAMPO_PRODUCTO = {
 };
 // Pistas bajo cada campo de "Editar artículo" (las mismas ideas que el formulario del Catálogo).
 const PISTAS_CAMPO_PRODUCTO = {
-    tipo: 'Un granel es "Producto terminado" + la casilla "Es semiterminado (granel)" marcada (más abajo).',
+    tipo: 'Un granel es "Producto terminado" + la casilla "Es semiterminado (granel)" marcada (junto a este campo).',
     unidad_medida_id: 'En qué se cuenta en almacén y se descuenta. Granel: Litros o Kilogramos, nunca Pieza.',
     densidad_kg_l: 'Kilos que pesa 1 litro. Solo para insumos que la receta pide en volumen y se llevan en peso (o al revés). Ej.: Glicerina Vegetal Usp = 1.26. En un granel que va en Litros y se consume en mL, déjalo vacío.',
     rendimiento_lote_bom: 'Granel: Litros (o Kilos) que salen de UNA tanda de la receta. Usa el tamaño real que calcula el análisis 🧮 de abajo (Fresa Kiwi: 14.64). En Producción: 1 tanda = este número. Vacío = el BOM es para 1 unidad (ej. 1 pieza). ¿Por qué importa si la materia prima ya se descuenta a su costo real? La receta decide cuánto se GASTA en la tanda; el rendimiento decide ENTRE CUÁNTOS LITROS se reparte ese gasto y cuántos litros dice el sistema que hay. Ej.: tanda de $1,000 → con 15 L el litro cuesta $66.67 y cada tanda deja 0.36 L que no existen; con 14.64 L cuesta $68.31 (el real). Un número inflado da inventario fantasma y costo del terminado más bajo que el real.',
@@ -2117,7 +2117,7 @@ function htmlGuiaGranel(d) {
     if (d.esSemi) ok('Marcado como <b>semiterminado (granel)</b>: se fabrica y lo consumen otros productos.');
     else mal('No está marcado como semiterminado.', d.enBom
         ? 'En ☰ → ✏️ Editar artículo marca la casilla "Es semiterminado (granel)" y guarda.'
-        : 'Marca la casilla "Es semiterminado (granel)" (más abajo) y da "Guardar cambios".');
+        : 'Marca la casilla "Es semiterminado (granel)" (junto a "Tipo") y da "Guardar cambios".');
 
     const fam = familiaDeUnidad(u);
     if (fam) ok(`Unidad de Medida: <b>${escaparHtml(u)}</b> — el granel se cuenta en ${fam.familia === 'volumen' ? 'volumen' : 'peso'} y el terminado le descuenta ${fam.familia === 'volumen' ? 'mL' : 'g'}.`);
