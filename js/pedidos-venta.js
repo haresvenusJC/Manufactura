@@ -281,7 +281,8 @@ window.pvAbrirDetalle = async (id) => {
         </div>
         <div id="pvCuerpoDetalle" class="p-4 overflow-y-auto flex-1"><p class="text-slate-500 text-sm text-center">Cargando...</p></div>`;
     document.body.appendChild(modal);
-    const cerrarFuera = (e) => { if (!modal.contains(e.target)) cerrar(); };
+    // e.target.isConnected: un botón que se re-dibujó al hacer clic ya no está en la página y NO es "clic fuera".
+    const cerrarFuera = (e) => { if (e.target.isConnected && !modal.contains(e.target)) cerrar(); };
     const cerrarEsc = (e) => { if (e.key === 'Escape') cerrar(); };
     function cerrar() { modal.remove(); document.removeEventListener('click', cerrarFuera); document.removeEventListener('keydown', cerrarEsc); }
     document.getElementById('pvCerrarDetalle').onclick = cerrar;

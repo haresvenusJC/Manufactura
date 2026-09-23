@@ -447,7 +447,8 @@ async function abrirDetalleOC(id) {
         </div>`;
     document.body.appendChild(modal);
 
-    const cerrarFuera = (e) => { if (!modal.contains(e.target)) cerrar(); };
+    // e.target.isConnected: un botón que se re-dibujó al hacer clic ya no está en la página y NO es "clic fuera".
+    const cerrarFuera = (e) => { if (e.target.isConnected && !modal.contains(e.target)) cerrar(); };
     const cerrarEsc = (e) => { if (e.key === 'Escape') cerrar(); };
     function cerrar() {
         modal.remove();
