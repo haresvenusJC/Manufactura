@@ -6,20 +6,20 @@ import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs';
 // =====================================================================
 //  Importador de Estructura de Componentes (BOM)
 //  - Sube un archivo .xlsx / .xls / .csv con una fila por cada componente
-//    de una receta: Producto (padre), Componente, Cantidad y Unidad.
+//    de una fórmula: Producto (padre), Componente, Cantidad y Unidad.
 //  - El producto padre DEBE existir y ser de tipo "producto" (terminado);
 //    el componente DEBE existir (materia prima, insumo u otro producto).
 //    Este importador nunca crea productos nuevos — solo relaciona los que
 //    ya están dados de alta en el Catálogo.
 //  - Si el par (producto, componente) ya existe en `bom`, se ACTUALIZA la
 //    cantidad/unidad; si no, se CREA la relación.
-//  - Casilla opcional "Reemplazar receta completa": antes de cargar, borra
+//  - Casilla opcional "Reemplazar fórmula completa": antes de cargar, borra
 //    todos los componentes que ya tenía cada producto tocado por el
-//    archivo (útil para resincronizar una receta completa de una vez).
+//    archivo (útil para resincronizar una fórmula completa de una vez).
 // =====================================================================
 
 const CAMPOS = [
-    { key: 'producto_padre', label: 'Producto (padre) — SKU o nombre', hints: ['producto', 'sku producto', 'producto padre', 'padre', 'articulo', 'terminado', 'receta'] },
+    { key: 'producto_padre', label: 'Producto (padre) — SKU o nombre', hints: ['producto', 'sku producto', 'producto padre', 'padre', 'articulo', 'terminado', 'receta', 'formula', 'fórmula'] },
     { key: 'componente', label: 'Componente — SKU o nombre', hints: ['componente', 'insumo', 'material', 'sku componente', 'ingrediente', 'materia prima'] },
     { key: 'cantidad', label: 'Cantidad requerida', hints: ['cantidad', 'qty', 'consumo', 'cantidad requerida', 'cant'] },
     { key: 'unidad', label: 'Unidad de consumo', hints: ['unidad', 'um', 'u/m', 'unit', 'medida', 'uom', 'u de m'] },
@@ -53,7 +53,7 @@ export async function cargarModuloImportadorBom() {
         <div class="space-y-4">
             <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-2">
                 <h3 class="text-md font-semibold text-amber-400">1 · Archivo</h3>
-                <p class="text-xs text-slate-400">Una fila por cada componente de la receta. El mismo producto se repite tantas filas como componentes tenga.</p>
+                <p class="text-xs text-slate-400">Una fila por cada componente de la fórmula. El mismo producto se repite tantas filas como componentes tenga.</p>
                 <input type="file" id="bomiArchivoLocal" accept=".xlsx,.xls,.csv"
                     class="w-full text-xs text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 cursor-pointer">
                 <div class="text-[11px] text-slate-400 pt-2 border-t border-slate-800 mt-2">
@@ -63,7 +63,7 @@ export async function cargarModuloImportadorBom() {
                 </div>
                 <div class="text-[11px] text-slate-400 pt-2 border-t border-slate-800 mt-2">
                     <button type="button" id="bomiExportarXlsx" class="w-full bg-slate-800 hover:bg-slate-700 text-amber-300 font-medium py-1.5 rounded-lg text-xs transition cursor-pointer">⬇️ Exportar BOM actual (Excel)</button>
-                    <span class="text-slate-600 block mt-1">Descarga la receta completa de todos los productos tal como está hoy en la base de datos — mismos encabezados que la plantilla, así se puede editar y volver a subir.</span>
+                    <span class="text-slate-600 block mt-1">Descarga la fórmula completa de todos los productos tal como está hoy en la base de datos — mismos encabezados que la plantilla, así se puede editar y volver a subir.</span>
                 </div>
             </div>
         </div>
@@ -99,7 +99,7 @@ export async function cargarModuloImportadorBom() {
                 </div>
                 <label class="flex items-start gap-2 text-xs text-slate-300">
                     <input type="checkbox" id="bomiReemplazar" class="accent-amber-500 mt-0.5">
-                    <span>Reemplazar la receta completa de cada producto tocado por el archivo (borra los componentes que ya tenía y deja solo los del archivo). Si lo dejas sin marcar, solo se agregan o actualizan los componentes que vengan en el archivo.</span>
+                    <span>Reemplazar la fórmula completa de cada producto tocado por el archivo (borra los componentes que ya tenía y deja solo los del archivo). Si lo dejas sin marcar, solo se agregan o actualizan los componentes que vengan en el archivo.</span>
                 </label>
 
                 <div class="flex gap-2">
@@ -154,7 +154,7 @@ function cablearEventos() {
 
 // --------------------------- exportar a Excel ---------------------------
 
-// Exporta la receta completa (todos los productos) tal como está hoy en
+// Exporta la fórmula completa (todos los productos) tal como está hoy en
 // `bom`, con los mismos encabezados que la plantilla de importación —
 // para poder editar el archivo y volver a subirlo sin transformarlo.
 async function exportarBom() {
@@ -197,7 +197,7 @@ async function exportarBom() {
         const stamp = new Date().toISOString().slice(0, 10);
         const notas = [
             [`# BOM exportado el ${stamp} desde Catálogos > Importar Excel/CSV > "Estructura de Componentes (BOM)".`],
-            ['# Esta es la receta completa de TODOS los productos que ya tienen componentes cargados.'],
+            ['# Esta es la fórmula completa de TODOS los productos que ya tienen componentes cargados.'],
             ['# Puedes editar cantidades/unidades (o borrar filas) y volver a subir este mismo archivo para actualizar.'],
             ['# Detalle de cada columna: ejemplos/LEEME_plantilla_bom.md'],
         ];
@@ -418,7 +418,7 @@ function renderPreResumen() {
         <div class="mb-2">${mapPairs}</div>
         <div class="flex flex-wrap gap-3 mb-2">
             <span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">${s.total} filas</span>
-            <span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">${s.productosTocados} producto(s) con receta en el archivo</span>
+            <span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">${s.productosTocados} producto(s) con fórmula en el archivo</span>
         </div>
         ${avisos.length ? `<ul class="list-disc pl-4 space-y-0.5 text-amber-300/90">${avisos.map((a) => `<li>${a}</li>`).join('')}</ul>` : `<div class="text-emerald-400">Sin avisos: el mapeo se ve completo.</div>`}
         <div class="mt-2 text-slate-500">Pulsa <span class="text-amber-300">Validar</span> para el detalle fila por fila y elegir cuales importar.</div>
@@ -680,7 +680,7 @@ async function importar() {
     const resultados = [];
     let creados = 0, actualizados = 0, fallidos = 0, omitidos = 0;
 
-    // "Reemplazar receta completa": borra de una vez todo lo que ya tenia
+    // "Reemplazar fórmula completa": borra de una vez todo lo que ya tenia
     // cada producto tocado por filas incluidas, y las que ya existian en
     // bom (accion 'actualizar') pasan a insertarse de nuevo como si fueran
     // nuevas (su fila vieja ya no existe tras el borrado).
@@ -688,7 +688,7 @@ async function importar() {
         const productosATocar = [...new Set(incluidas.map((p) => p.padreId))];
         for (const pid of productosATocar) {
             const { error } = await supabaseClient.from('bom').delete().eq('producto_id', pid);
-            if (error) console.warn(`No se pudo limpiar la receta previa del producto ${pid}: ${error.message}`);
+            if (error) console.warn(`No se pudo limpiar la fórmula previa del producto ${pid}: ${error.message}`);
         }
     }
 

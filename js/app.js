@@ -325,9 +325,21 @@ async function iniciarApp() {
     appIniciada = true;
     console.log("Iniciando Hares de México (Sistema Modular)...");
 
-    // Historial: tope (erpBase) + Inicio, para que ← nunca saque del ERP (ver registrarVistaEnHistorial).
-    history.replaceState({ erpVista: 'bienvenida', erpBase: true }, '');
-    history.pushState({ erpVista: 'bienvenida' }, '');
+    // F5: el navegador conserva history.state al recargar → se vuelve a abrir la misma pantalla (no Inicio)
+    // y el historial ya armado se respeta. Solo en la primera carga se pone el tope (erpBase) + Inicio,
+    // para que ← nunca saque del ERP (ver registrarVistaEnHistorial).
+    const st = history.state;
+    const vistaRecargada = st && st.erpVista && !st.erpBase && st.erpVista !== 'bienvenida' ? st.erpVista : null;
+    if (!st || !st.erpVista) {
+        history.replaceState({ erpVista: 'bienvenida', erpBase: true }, '');
+        history.pushState({ erpVista: 'bienvenida' }, '');
+    } else if (st.erpBase) {
+        history.pushState({ erpVista: 'bienvenida' }, '');
+    }
+    if (vistaRecargada) {   // mientras cargan los módulos, se muestra ya la sección de esa pantalla
+        document.querySelectorAll('.vista-seccion').forEach((s) => s.classList.add('hidden'));
+        document.getElementById(`view-${vistaRecargada}`)?.classList.remove('hidden');
+    }
 
     // Pantalla de Inicio: se pinta de inmediato, sin esperar a las cargas de abajo.
     montarBienvenida().catch((e) => console.warn('No se pudo armar la bienvenida:', e));
@@ -353,6 +365,7 @@ async function iniciarApp() {
     } catch (error) {
         console.error("Error al inicializar la base de la aplicación:", error);
     }
+    if (vistaRecargada) window.loadView(vistaRecargada, { desdeHistorial: true });
 }
 
 window.cerrarSesionAdmin = async () => { await cerrarSesion(); };
