@@ -356,7 +356,7 @@ async function armarDocumentoEstado(ordenId) {
     // ---- Encabezado
     const nFalta = filas.filter((f) => !f.suficiente).length;
     const loteTxt = req.loteInfo
-        ? `<p style="${ST.nota}">Receta pensada para un lote de ${formatoCantidad(req.loteInfo.rendimientoLote)} ${escD(req.loteInfo.unidad)} → esta orden equivale a ${formatoCantidad(req.loteInfo.factorLote)} lote(s).</p>` : '';
+        ? `<p style="${ST.nota}">Fórmula pensada para un lote de ${formatoCantidad(req.loteInfo.rendimientoLote)} ${escD(req.loteInfo.unidad)} → esta orden equivale a ${formatoCantidad(req.loteInfo.factorLote)} lote(s).</p>` : '';
     const encabezado = `
         <table style="${ST.tabla}">
             <tr><td style="${ST.td}width:22%;"><b>Folio</b></td><td style="${ST.td}">${escD(folio)}</td>
@@ -393,7 +393,7 @@ async function armarDocumentoEstado(ordenId) {
     const insumos = req.error
         ? `<p style="${ST.nota}">${escD(req.error)}</p>`
         : `<table style="${ST.tabla}"><thead><tr>
-                <th style="${ST.th}">Insumo</th><th style="${ST.thR}">Receta</th><th style="${ST.thR}">Requerido</th>
+                <th style="${ST.th}">Insumo</th><th style="${ST.thR}">Fórmula</th><th style="${ST.thR}">Requerido</th>
                 ${mostrarExist ? `<th style="${ST.thR}">Disponible</th><th style="${ST.thR}">Faltante</th><th style="${ST.th}">Estado</th>` : ''}
            </tr></thead><tbody>${filasHtml}</tbody></table>`;
 
@@ -434,7 +434,7 @@ async function armarDocumentoEstado(ordenId) {
         const consumos = await consumosDeOrden(docs);
         const pct = (x, tot) => tot > 0 ? `${(x / tot * 100).toFixed(1)}%` : '—';
 
-        // Materia prima: renglón por lote, agrupado por insumo, contra lo que pide la receta actual.
+        // Materia prima: renglón por lote, agrupado por insumo, contra lo que pide la fórmula actual.
         const porInsumo = new Map();
         consumos.forEach((m) => {
             const id = m.productos?.id;
@@ -465,11 +465,11 @@ async function armarDocumentoEstado(ordenId) {
         const mpHtml = porInsumo.size ? `<table style="${ST.tabla}"><thead><tr>
                 <th style="${ST.th}">Insumo</th><th style="${ST.th}">Lote</th><th style="${ST.thR}">Consumido</th>
                 <th style="${ST.thR}">Costo unit. (PEPS)</th><th style="${ST.thR}">Subtotal</th>
-                <th style="${ST.thR}">Receta</th><th style="${ST.thR}">Diferencia</th><th style="${ST.thR}">% MP</th>
+                <th style="${ST.thR}">Fórmula</th><th style="${ST.thR}">Diferencia</th><th style="${ST.thR}">% MP</th>
             </tr></thead><tbody>${mpFilas}
             <tr><td style="${ST.td}" colspan="4"><b>Total materia prima (kardex)</b></td><td style="${ST.tdR}font-weight:700;" class="campo-costo">${money(totalMP)}</td><td colspan="3" style="${ST.td}"></td></tr>
             </tbody></table>
-            <p style="${ST.nota}">"Receta" = lo que pide hoy el BOM para ${formatoCantidad(planeada)} ${escD(unidadProd)}${hayRendimiento ? ' planeados' : ''} (si la receta cambió después del cierre, puede no coincidir). "Diferencia" = consumido − receta.</p>`
+            <p style="${ST.nota}">"Fórmula" = lo que pide hoy el BOM para ${formatoCantidad(planeada)} ${escD(unidadProd)}${hayRendimiento ? ' planeados' : ''} (si la fórmula cambió después del cierre, puede no coincidir). "Diferencia" = consumido − fórmula.</p>`
             : `<p style="${ST.nota}">No se encontraron los movimientos de kardex de esta orden${docs.entrada ? '' : ' (no se localizó su documento de entrada)'}.</p>`;
 
         // Mano de obra por persona y por proceso (tiempo × costo/hora congelado, igual que el cierre).

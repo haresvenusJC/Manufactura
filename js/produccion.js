@@ -56,14 +56,14 @@ export async function calcularRequerimientosProduccion(productoId, cantidadProdu
 
     if (errComp) return { error: errComp.message, filas: [] };
     if (!componentes || componentes.length === 0) {
-        return { error: 'El producto seleccionado no tiene una receta o BOM registrada.', filas: [] };
+        return { error: 'El producto seleccionado no tiene una fórmula o BOM registrada.', filas: [] };
     }
 
     // Algunos semiterminados (los "Granel ... 15 Litros") tienen el BOM escrito para un LOTE
     // completo, no para 1 unidad — sql/2026-09-22_rendimiento_lote_bom.sql. Si el producto tiene
-    // rendimiento_lote_bom > 0, la cantidad pedida se traduce a "cuántos lotes de la receta"
+    // rendimiento_lote_bom > 0, la cantidad pedida se traduce a "cuántos lotes de la fórmula"
     // representa antes de escalar cada insumo; si no lo tiene, se comporta igual que siempre
-    // (1 unidad producida = 1 vez la receta).
+    // (1 unidad producida = 1 vez la fórmula).
     let rendimientoLote = null;
     let unidadLoteNombre = '';
     {
@@ -135,7 +135,7 @@ export async function calcularRequerimientosProduccion(productoId, cantidadProdu
         const conv = factorConversion(comp.unidad_medida, datosIns.unidad_medida_id, nombreUnidadPorId, unidadStockNombre, cantidadReqUnit, datosIns.densidad_kg_l);
         requerido *= conv.factor;
 
-        // ¿La receta pide este insumo en OTRA unidad que la del inventario? Para avisar "Receta: X → se descuentan Y".
+        // ¿La fórmula pide este insumo en OTRA unidad que la del inventario? Para avisar "Fórmula: X → se descuentan Y".
         const distinta = raw && String(datosIns.unidad_medida_id ?? '') !== raw;
         const nombreUnidadReceta = distinta ? (/^\d+$/.test(raw) ? (nombreUnidadPorId.get(raw) || '') : raw) : '';
 
@@ -446,7 +446,7 @@ export async function cargarModuloProduccion() {
                                 <!-- Solo para productos con "Rendimiento del lote" (graneles): se pide en tandas y
                                      CANTIDAD A PRODUCIR se llena sola (tandas × rendimiento), y al revés. -->
                                 <div id="bloqueTandas" class="hidden mb-3">
-                                    <label class="block text-xs font-medium text-amber-400 mb-1" title="Cuántas veces vas a preparar la receta del BOM. Una tanda rinde lo capturado en Catálogo → Más detalles → Rendimiento del lote.">TANDAS A PREPARAR <span class="text-slate-500 cursor-help">ⓘ</span></label>
+                                    <label class="block text-xs font-medium text-amber-400 mb-1" title="Cuántas veces vas a preparar la fórmula del BOM. Una tanda rinde lo capturado en Catálogo → Más detalles → Rendimiento del lote.">TANDAS A PREPARAR <span class="text-slate-500 cursor-help">ⓘ</span></label>
                                     <input type="number" id="tandasProducir" min="0" step="any" class="w-full bg-slate-950 border border-amber-800/60 rounded-lg p-2 text-sm text-slate-100">
                                     <p id="notaTandas" class="text-[10px] text-slate-500 mt-0.5"></p>
                                 </div>
@@ -464,9 +464,12 @@ export async function cargarModuloProduccion() {
                         </div>
                         <div id="panelExistenciasBOM" class="hidden bg-slate-950 border border-slate-800 rounded-lg p-3">
                             <div class="flex justify-between items-center mb-2">
-                                <span class="text-xs font-medium text-slate-400">EXISTENCIAS PARA ESTA PRODUCCIÓN (según receta / BOM)</span>
+                                <span class="text-xs font-medium text-slate-400">EXISTENCIAS PARA ESTA PRODUCCIÓN (según fórmula / BOM)</span>
                                 <span id="resumenExistenciasBOM" class="text-[11px] font-mono"></span>
                             </div>
+                            <!-- Orden sugerida de un granel cuya necesidad no es tanda redonda: se elige aquí mismo
+                                 tanda completa (por defecto) o solo lo necesario. Ver aplicarPreseleccionProduccion. -->
+                            <div id="preguntaTandaBOM" class="hidden mb-2 text-[11px] text-amber-200 bg-amber-950/30 border border-amber-800/60 rounded-lg px-2.5 py-2"></div>
                             <p id="notaLoteBOM" class="hidden text-[11px] text-sky-300/90 bg-sky-950/20 border border-sky-800/40 rounded-lg px-2.5 py-1.5 mb-2"></p>
                             <div id="tablaExistenciasBOM" class="space-y-1"></div>
                             <div id="accionesExistenciasBOM" class="hidden mt-3 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
@@ -595,7 +598,7 @@ export async function cargarModuloProduccion() {
 
             if (loteInfo) {
                 const u = loteInfo.unidad ? ` ${loteInfo.unidad}` : '';
-                notaLoteBOM.textContent = `📐 Receta pensada para un lote de ${formatoCantidad(loteInfo.rendimientoLote)}${u} → esta orden equivale a ${formatoCantidad(loteInfo.factorLote)} lote(s).`;
+                notaLoteBOM.textContent = `📐 Fórmula pensada para un lote de ${formatoCantidad(loteInfo.rendimientoLote)}${u} → esta orden equivale a ${formatoCantidad(loteInfo.factorLote)} lote(s).`;
                 notaLoteBOM.classList.remove('hidden');
             } else {
                 notaLoteBOM.classList.add('hidden');
@@ -612,7 +615,7 @@ export async function cargarModuloProduccion() {
                 const color = f.suficiente ? 'text-emerald-400' : 'text-rose-400';
                 const icono = f.suficiente ? '✅' : '⛔';
                 const falta = f.suficiente ? '' : ` · faltan ${formatoCantidad(f.requerido - f.disponible)}${u}`;
-                // "Receta: 13.7 Litros → se descuentan 17.262 Kilogramos" — solo cuando la receta pide
+                // "Fórmula: 13.7 Litros → se descuentan 17.262 Kilogramos" — solo cuando la fórmula pide
                 // este insumo en una unidad distinta a la del inventario (conversión real, no solo redondeo).
                 let notaHtml = '';
                 if (f.recetaUnidadConsistente && f.recetaCantidad != null && f.recetaUnidad) {
@@ -620,7 +623,7 @@ export async function cargarModuloProduccion() {
                         ? 'sin densidad capturada — se toma como agua (1 kg/L), agrégala en ⚖️ Densidades'
                         : (f.nota ? f.nota.replace(/^Convertido con /, '').replace(/\.$/, '') : 'conversión exacta de unidad');
                     const clase = f.notaTipo === 'aviso' ? 'text-amber-400/80' : 'text-emerald-400/70';
-                    notaHtml = `<span class="block text-[10px] ${clase} font-normal">Receta: ${formatoCantidad(f.recetaCantidad)} ${f.recetaUnidad} → se descuentan ${formatoCantidad(f.requerido)}${u} (${detalle})</span>`;
+                    notaHtml = `<span class="block text-[10px] ${clase} font-normal">Fórmula: ${formatoCantidad(f.recetaCantidad)} ${f.recetaUnidad} → se descuentan ${formatoCantidad(f.requerido)}${u} (${detalle})</span>`;
                 }
                 return `
                     <div class="flex justify-between items-center gap-2 text-xs border-b border-slate-900 last:border-0 py-1">
@@ -898,7 +901,7 @@ export async function cargarModuloProduccion() {
             const item = pre.lista[0];
             pre.aplicada = true;
             if (![...selectProd.options].some((o) => o.value === String(item.id))) {
-                alert(`"${item.nombre}" no aparece entre los productos a producir (¿tiene receta / BOM?). Se omite.`);
+                alert(`"${item.nombre}" no aparece entre los productos a producir (¿tiene fórmula / BOM?). Se omite.`);
                 pre.lista.shift();
                 aplicarPreseleccionProduccion();
                 return;
@@ -912,61 +915,58 @@ export async function cargarModuloProduccion() {
                 inputCantidadProd.dispatchEvent(new Event('input', { bubbles: true }));
                 aviso.textContent = `🏭 Orden sugerida ${n} de ${pre.total}: ${item.nombre} × ${formatoCantidad(cantidad)}${u}${nota ? ` (${nota})` : ''}. ${pre.origen}. Ajusta la cantidad si conviene, captura el lote, agrega los procesos y genera la orden.`;
                 aviso.classList.remove('hidden');
-                document.getElementById('numeroLoteResultante')?.focus();
             };
-            // Granel con "Rendimiento del lote": si lo que falta no es una tanda redonda, se pregunta si se
-            // fabrica el lote completo (menos de 1 tanda → 1; más → siguiente media tanda: 1.5, 2, 2.5…) o
-            // solo lo necesario.
+            // Granel con "Rendimiento del lote": si lo que falta no es una tanda redonda, se pregunta en el
+            // recuadro de existencias si se fabrica la tanda completa (menos de 1 → 1; más → siguiente media
+            // tanda: 1.5, 2, 2.5…; es lo que queda marcado) o solo lo necesario.
             const info = rendimientoPorProducto.get(String(item.id));
             const tandasExactas = info ? redondear(item.cantidad / info.rend) : 0;
             const tandasSugeridas = tandasExactas < 1 ? 1 : Math.ceil(tandasExactas * 2) / 2;
-            if (!info || !(tandasExactas > 0) || tandasSugeridas <= tandasExactas) { cargar(item.cantidad, ''); return; }
-            preguntarTandaCompleta(item, info, tandasExactas, tandasSugeridas, cargar);
+            if (!info || !(tandasExactas > 0) || tandasSugeridas <= tandasExactas) {
+                cargar(item.cantidad, '');
+            } else {
+                mostrarPreguntaTanda(item, info, tandasExactas, tandasSugeridas, cargar);
+            }
+            document.getElementById('numeroLoteResultante')?.focus();
         }
 
-        // Subventana: fabricar tandas completas (lo que sobra queda en inventario) o solo lo que se necesita.
-        function preguntarTandaCompleta(item, info, tandasExactas, tandasSugeridas, cargar) {
+        // Pregunta "tanda completa / solo lo necesario" dentro de EXISTENCIAS PARA ESTA PRODUCCIÓN (sin subventana).
+        const preguntaTanda = document.getElementById('preguntaTandaBOM');
+        const ocultarPreguntaTanda = () => { preguntaTanda.classList.add('hidden'); preguntaTanda.innerHTML = ''; delete preguntaTanda.dataset.producto; };
+        selectProd.addEventListener('change', () => { if (preguntaTanda.dataset.producto !== String(selectProd.value)) ocultarPreguntaTanda(); });
+        document.getElementById('formOrdenProduccion').addEventListener('reset', ocultarPreguntaTanda);
+        function mostrarPreguntaTanda(item, info, tandasExactas, tandasSugeridas, cargar) {
             const u = info.unidad ? ' ' + info.unidad : (item.unidad ? ' ' + item.unidad : '');
             const cantSugerida = redondear(tandasSugeridas * info.rend);
             const sobra = redondear(cantSugerida - item.cantidad);
             const txtTandas = (t) => `${formatoCantidad(t)} tanda${t === 1 ? '' : 's'}`;
-            const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-            const titulo = tandasExactas < 1 ? 'Fabricar el lote mínimo' : 'Redondear a tanda completa';
-            document.getElementById('modalTandaCompleta')?.remove();
-            const modal = document.createElement('div');
-            modal.id = 'modalTandaCompleta';
-            // Fondo semitransparente: el formulario de la orden sigue visible detrás.
-            modal.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4';
-            modal.innerHTML = `
-                <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-5 text-sm text-slate-300 space-y-3">
-                    <div class="flex justify-between items-start gap-3">
-                        <div>
-                            <h3 class="text-base font-bold text-slate-100">${esc(item.nombre)}</h3>
-                            <p class="text-xs text-slate-500 mt-0.5">${esc(window.__prodPre?.origen || '')}</p>
-                        </div>
-                        <button type="button" id="tcCerrar" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 cursor-pointer">&times;</button>
-                    </div>
-                    <p>Se necesitan <b class="text-slate-100">${esc(formatoCantidad(item.cantidad))}${esc(u)}</b> (${esc(formatoCantidad(tandasExactas))} de tanda).
-                        1 tanda completa rinde <b class="text-slate-100">${esc(formatoCantidad(info.rend))}${esc(u)}</b>.</p>
-                    <button type="button" id="tcCompleta" class="w-full text-left bg-amber-700 hover:bg-amber-600 text-white text-xs font-medium px-3 py-2 rounded-lg cursor-pointer">
-                        🧪 ${esc(titulo)}: ${esc(txtTandas(tandasSugeridas))} = ${esc(formatoCantidad(cantSugerida))}${esc(u)}
-                        <span class="block text-[11px] text-amber-100/80 font-normal">Sobran ${esc(formatoCantidad(sobra))}${esc(u)} que quedan en inventario.</span>
-                    </button>
-                    <button type="button" id="tcNecesario" class="w-full text-left bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-medium px-3 py-2 rounded-lg cursor-pointer">
-                        🎯 Solo lo necesario: ${esc(formatoCantidad(item.cantidad))}${esc(u)} = ${esc(formatoCantidad(tandasExactas))} de tanda
-                        <span class="block text-[11px] text-slate-400 font-normal">La receta se escala a ${esc(formatoCantidad(tandasExactas))}; no sobra nada.</span>
-                    </button>
-                </div>`;
-            document.body.appendChild(modal);
+            const etiqueta = tandasExactas < 1 ? 'Lote mínimo' : 'Tanda completa';
+            const pintar = (completa) => {
+                const clase = (activo) => activo
+                    ? 'bg-amber-700 border-amber-500 text-white'
+                    : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800';
+                preguntaTanda.innerHTML = `
+                    <p class="mb-1.5">Se necesitan <b class="text-slate-100">${formatoCantidad(item.cantidad)}${u}</b> (${formatoCantidad(tandasExactas)} de tanda) · 1 tanda rinde <b class="text-slate-100">${formatoCantidad(info.rend)}${u}</b>. ¿Cuánto fabricas?</p>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" data-tanda="completa" class="border rounded-lg px-2.5 py-1.5 text-left cursor-pointer ${clase(completa)}">
+                            ${completa ? '● ' : '○ '}🧪 ${etiqueta}: ${txtTandas(tandasSugeridas)} = ${formatoCantidad(cantSugerida)}${u}
+                            <span class="block text-[10px] opacity-80">Sobran ${formatoCantidad(sobra)}${u} que quedan en inventario.</span>
+                        </button>
+                        <button type="button" data-tanda="necesario" class="border rounded-lg px-2.5 py-1.5 text-left cursor-pointer ${clase(!completa)}">
+                            ${completa ? '○ ' : '● '}🎯 Solo lo necesario: ${formatoCantidad(item.cantidad)}${u}
+                            <span class="block text-[10px] opacity-80">La fórmula se escala a ${formatoCantidad(tandasExactas)} de tanda; no sobra nada.</span>
+                        </button>
+                    </div>`;
+                preguntaTanda.querySelectorAll('[data-tanda]').forEach((b) => b.addEventListener('click', () => elegir(b.dataset.tanda === 'completa')));
+            };
             const elegir = (completa) => {
-                modal.remove();
+                pintar(completa);
                 if (completa) cargar(cantSugerida, `${txtTandas(tandasSugeridas)}; se necesitaban ${formatoCantidad(item.cantidad)}${u}`);
                 else cargar(item.cantidad, `solo lo necesario, ${formatoCantidad(tandasExactas)} de tanda`);
             };
-            modal.addEventListener('click', (e) => { if (e.target === modal) elegir(false); });
-            modal.querySelector('#tcCerrar').addEventListener('click', () => elegir(false));
-            modal.querySelector('#tcCompleta').addEventListener('click', () => elegir(true));
-            modal.querySelector('#tcNecesario').addEventListener('click', () => elegir(false));
+            preguntaTanda.dataset.producto = String(item.id);
+            preguntaTanda.classList.remove('hidden');
+            elegir(true);   // por defecto: tanda completa
         }
         // Lote sugerido al abrir el formulario ("🎲 Sugerir" lo vuelve a calcular a partir de hoy).
         document.getElementById('numeroLoteResultante').value = generarLoteSugerido();

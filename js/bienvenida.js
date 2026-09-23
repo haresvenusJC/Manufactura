@@ -27,7 +27,7 @@ const ACCESOS = [
     ['produccion',       'fabrica', 'Producción',           'Órdenes y costos'],
     ['recibo-mercancia', 'caja',    'Recibo de mercancía',  'Entradas de compra'],
     ['inventario',       'capas',   'Inventario',           'Existencias y lotes'],
-    ['catalogo',         'matraz',  'Productos y BOM',      'Catálogo y recetas'],
+    ['catalogo',         'matraz',  'Productos y BOM',      'Catálogo y fórmulas'],
     ['ordenes-compra',   'carrito', 'Órdenes de compra',    'Abasto'],
     ['indice',           'brujula', 'Índice del ERP',       'Todos los módulos'],
 ];

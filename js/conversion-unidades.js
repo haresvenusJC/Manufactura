@@ -1,8 +1,8 @@
 // =====================================================================
-//  Conversión de unidades entre lo que pide una receta (BOM) y la unidad en
+//  Conversión de unidades entre lo que pide una fórmula (BOM) y la unidad en
 //  que se lleva el inventario de ese insumo. Compartido por js/produccion.js
 //  (para calcular cuánto descontar al producir) y js/catalogo.js (para
-//  avisar, al capturar la receta, cuánto se va a descontar de verdad).
+//  avisar, al capturar la fórmula, cuánto se va a descontar de verdad).
 // =====================================================================
 
 // Familias que se pueden convertir con exactitud: masa (mg, g, kg) y volumen (mL, L).
@@ -65,13 +65,13 @@ export function factorConversion(unidadOrigenRaw, unidadDestinoId, nombreUnidadP
 }
 
 /**
- * Tamaño teórico de UNA tanda de una receta (BOM): suma lo que aporta cada renglón, llevado a la
+ * Tamaño teórico de UNA tanda de una fórmula (BOM): suma lo que aporta cada renglón, llevado a la
  * unidad del producto (volumen o masa) con la densidad de cada insumo. Sirve para proponer el
  * "Rendimiento del lote" de un granel (ej. Granel Aceite Sey Fresa Kiwi: ≈ 14.64 L).
  *  - renglones: [{ nombre, cantidad, unidadNombre, densidad }] (densidad en kg/L del insumo).
  *  - Renglones en piezas u otras unidades sin masa/volumen se ignoran (frascos, etiquetas).
  *  - Sin densidad se toma como agua (1 kg/L); solo afecta el total si hay que cambiar de familia
- *    (insumo en kg en una receta que rinde litros, o al revés) — esos van en `sinDensidad`.
+ *    (insumo en kg en una fórmula que rinde litros, o al revés) — esos van en `sinDensidad`.
  * Es teórico: al mezclar líquidos el volumen real puede ser un poco menor que la suma.
  */
 export function tamanoTeoricoTanda(renglones, unidadProductoNombre) {

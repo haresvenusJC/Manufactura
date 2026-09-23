@@ -4,10 +4,12 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
-- Archivos tocados (lo último): `js/produccion.js` — orden sugerida de un granel (desde "Generar requisición de lo
-  faltante"): si lo que falta no es tanda redonda, subventana "Fabricar el lote mínimo" (<1 tanda → 1) / "Redondear a
-  tanda completa" (>1 → siguiente media tanda: 1.5, 2, 2.5…) vs. "Solo lo necesario" (✕ = solo lo necesario).
-  `preguntarTandaCompleta` dentro de `aplicarPreseleccionProduccion`. Pendiente: probarlo en el celular.
+- Archivos tocados (lo último): `js/produccion.js`, `js/app.js`, y texto de `js/catalogo.js`, `js/ordenes-produccion.js`,
+  `js/importador-bom.js`, `js/conversion-unidades.js`, `js/bienvenida.js`, `manual-costos-produccion.html`.
+  Orden sugerida de granel sin tanda redonda: la pregunta ya no es subventana, va en "EXISTENCIAS PARA ESTA PRODUCCIÓN"
+  (`#preguntaTandaBOM`, `mostrarPreguntaTanda`) con tanda completa marcada por defecto. F5 reabre la misma pantalla
+  (`iniciarApp` lee `history.state.erpVista`; no recupera lo capturado). En la UI "receta" → "fórmula" (variables igual;
+  el importador de BOM acepta encabezado "receta" o "fórmula"). Pendiente: probar en el celular.
 - Archivos tocados (lo último): `sql/2026-09-23e_graneles_revision.sql` (solo lectura) y `sql/2026-09-23f_graneles_aplicar.sql`
   (nuevos). Aplica a todos los graneles con BOM (nombre "granel" o semiterminado, unidad de volumen/peso): semiterminado +
   fabricado, `rendimiento_lote_bom` = suma de la receta (misma cuenta que 🧮) y cuenta 115.02 solo si no tiene existencia.
@@ -114,7 +116,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Mapa de módulos (`js/*.js`)
 
-- `app.js` — router de vistas (`window.loadView`, con historial del navegador: ← / → entre pantallas) + shell de
+- `app.js` — router de vistas (`window.loadView`, con historial del navegador: ← / → entre pantallas; F5 se queda en la pantalla) + shell de
   navegación (riel de iconos + cajón) y exposición de funciones al `window` para los `onclick` del HTML.
 - `areas-prorrateo.js` — declara m²/kW/personas por área para derivar los % de prorrateo de gastos compartidos.
 - `asistente-contable.js` — panel de ayuda colapsable ("¿Cómo llenar esta pantalla?") reutilizado por

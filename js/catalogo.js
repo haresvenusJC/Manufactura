@@ -302,14 +302,14 @@ export async function cargarCatalogoInicial() {
                                 <div>
                                     <label class="block text-[11px] text-slate-400 mb-1">Densidad (kg por litro)</label>
                                     <input type="number" step="0.0001" min="0" id="prodDensidad" placeholder="Ej. 1.26 (déjalo vacío si no aplica)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
-                                    <p class="text-[10px] text-slate-500 mt-0.5">Solo para insumos cuya receta (BOM) está en volumen (Litros/mL) pero se llevan en inventario por peso (Kilogramos/gramos), o al revés. Con ella, Producción convierte bien cuánto pedir y descontar; sin ella, se toma como agua (1 kg/L) y se avisa. Ej.: Glicerina Vegetal Usp = 1.26 (la receta dice 13.7 L y se descuentan 17.262 kg). En un granel que va en Litros y que los terminados consumen en mL, déjalo vacío.</p>
+                                    <p class="text-[10px] text-slate-500 mt-0.5">Solo para insumos cuya fórmula (BOM) está en volumen (Litros/mL) pero se llevan en inventario por peso (Kilogramos/gramos), o al revés. Con ella, Producción convierte bien cuánto pedir y descontar; sin ella, se toma como agua (1 kg/L) y se avisa. Ej.: Glicerina Vegetal Usp = 1.26 (la fórmula dice 13.7 L y se descuentan 17.262 kg). En un granel que va en Litros y que los terminados consumen en mL, déjalo vacío.</p>
                                 </div>
 
                                 <div>
                                     <label class="block text-[11px] text-slate-400 mb-1">Rendimiento del lote (para el BOM)</label>
                                     <input type="number" step="0.0001" min="0" id="prodRendimientoLote" placeholder="Déjalo vacío si el BOM ya está por 1 unidad" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
-                                    <p class="text-[10px] text-slate-500 mt-0.5"><b class="text-slate-400">Para graneles:</b> cuántos Litros (o Kilos, según la Unidad de Medida de arriba) salen de UNA tanda de la receta del BOM — lo que mides en el tanque al terminar. Ej.: Granel Aceite Sey Fresa Kiwi → <b>15</b>. Luego en Producción, "CANTIDAD A PRODUCIR" va en esa misma unidad: 15 = 1 tanda, 30 = 2 tandas, 7.5 = media. Vacío = el BOM está escrito para 1 unidad (ej. 1 pieza de producto terminado); si dejas vacío un granel cuya receta es de tanda, Producción pide los insumos multiplicados de más.</p>
-                                    <p class="text-[10px] text-slate-500 mt-1"><b class="text-slate-400">¿Por qué importa si la materia prima ya se descuenta a su costo real?</b> La receta decide cuánto se <b>gasta</b> en la tanda; el rendimiento decide <b>entre cuántos litros</b> se reparte ese gasto y cuántos litros dice el sistema que hay. Ej.: tanda de $1,000 → con 15 L el litro cuesta $66.67 y cada tanda deja 0.36 L que no existen; con 14.64 L cuesta $68.31 (el real). Un número inflado da inventario fantasma y un costo del terminado más bajo que el real (<a href="manual-costos-produccion.html#m-granel-rendimiento" target="_blank" class="text-sky-400 underline">ver manual</a>).</p>
+                                    <p class="text-[10px] text-slate-500 mt-0.5"><b class="text-slate-400">Para graneles:</b> cuántos Litros (o Kilos, según la Unidad de Medida de arriba) salen de UNA tanda de la fórmula del BOM — lo que mides en el tanque al terminar. Ej.: Granel Aceite Sey Fresa Kiwi → <b>15</b>. Luego en Producción, "CANTIDAD A PRODUCIR" va en esa misma unidad: 15 = 1 tanda, 30 = 2 tandas, 7.5 = media. Vacío = el BOM está escrito para 1 unidad (ej. 1 pieza de producto terminado); si dejas vacío un granel cuya fórmula es de tanda, Producción pide los insumos multiplicados de más.</p>
+                                    <p class="text-[10px] text-slate-500 mt-1"><b class="text-slate-400">¿Por qué importa si la materia prima ya se descuenta a su costo real?</b> La fórmula decide cuánto se <b>gasta</b> en la tanda; el rendimiento decide <b>entre cuántos litros</b> se reparte ese gasto y cuántos litros dice el sistema que hay. Ej.: tanda de $1,000 → con 15 L el litro cuesta $66.67 y cada tanda deja 0.36 L que no existen; con 14.64 L cuesta $68.31 (el real). Un número inflado da inventario fantasma y un costo del terminado más bajo que el real (<a href="manual-costos-produccion.html#m-granel-rendimiento" target="_blank" class="text-sky-400 underline">ver manual</a>).</p>
                                 </div>
 
                                 <div class="border-t border-slate-800 pt-3 ${cuentasContables.length ? '' : 'hidden'}">
@@ -430,7 +430,7 @@ export async function cargarCatalogoInicial() {
                         <div class="flex flex-wrap gap-2 items-center">
                             <button type="button" id="btnExportProdXlsx" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇️ Excel</button>
                             <button type="button" id="btnExportProdCsv" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇️ CSV</button>
-                            <button type="button" id="btnTablaDensidades" title="Kilogramos que pesa 1 litro de cada insumo — para convertir recetas en volumen contra inventario en peso" class="text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⚖️ Densidades</button>
+                            <button type="button" id="btnTablaDensidades" title="Kilogramos que pesa 1 litro de cada insumo — para convertir fórmulas en volumen contra inventario en peso" class="text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⚖️ Densidades</button>
                             <button type="button" id="btnTablaUnidades" title="Ver, editar y agregar unidades de medida (Piezas, Kilogramos, Litros...)" class="text-xs bg-slate-800 hover:bg-slate-700 text-indigo-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">📏 Unidades</button>
                         </div>
                     </div>
@@ -490,7 +490,7 @@ export async function cargarCatalogoInicial() {
 
         // Qué se muestra depende del tipo y de cómo se obtiene: el bloque
         // "¿Cómo se obtiene?" es solo para productos, y el BOM solo para los
-        // que se fabrican (un producto comprado para reventa no lleva receta).
+        // que se fabrican (un producto comprado para reventa no lleva fórmula).
         function marcarBotonAbast(valor) {
             document.querySelectorAll('.abast-btn').forEach((b) => {
                 const activo = b.dataset.abast === valor;
@@ -757,7 +757,7 @@ export async function cargarCatalogoInicial() {
             await actualizarSelectProveedores();
         });
 
-        // Semiterminado (granel) con receta: tamaño real de la tanda y propuesta de "Rendimiento del lote".
+        // Semiterminado (granel) con fórmula: tamaño real de la tanda y propuesta de "Rendimiento del lote".
         function pintarAnalisisTandaForm() {
             const cont = document.getElementById('analisisTandaForm');
             if (!cont) return;
@@ -1503,7 +1503,7 @@ function abrirMenuAccionesProducto(producto, botonAncla) {
 // producto — sin el resto del formulario. Se edita en la lista (cantidad,
 // unidad, quitar) y se agrega con un solo selector. Al guardar aplica solo
 // las diferencias (borra, actualiza, inserta) sobre la tabla `bom`; las
-// reglas de la base (sin ciclos, sin receta a un producto comprado) avisan
+// reglas de la base (sin ciclos, sin fórmula a un producto comprado) avisan
 // con su propio mensaje si algo no procede.
 // =====================================================================
 async function abrirVentanaBom(producto) {
@@ -1569,8 +1569,8 @@ async function abrirVentanaBom(producto) {
     const opcionesUnidad = (sel) => `<option value="">(sin unidad)</option>` +
         unidades.map((u) => `<option value="${u.id}" ${String(u.id) === String(sel) ? 'selected' : ''}>${escaparHtml(u.nombre)}</option>`).join('');
 
-    // "Receta: 13.7 Litros → se descontarán 17.262 Kilogramos (densidad 1.26 kg/L)" — el mismo aviso
-    // que verá Producción, pero aquí, al capturar la receta, antes de que falte algo el día del lote.
+    // "Fórmula: 13.7 Litros → se descontarán 17.262 Kilogramos (densidad 1.26 kg/L)" — el mismo aviso
+    // que verá Producción, pero aquí, al capturar la fórmula, antes de que falte algo el día del lote.
     const fmtNum = (n) => Number(Number(n || 0).toFixed(4)).toString();
     function notaConversionFila(f) {
         const p = nombreDe(f.compId);
@@ -1586,7 +1586,7 @@ async function abrirVentanaBom(producto) {
             ? 'sin densidad capturada — se toma como agua (1 kg/L), agrégala en ⚖️ Densidades'
             : (conv.nota ? conv.nota.replace(/^Convertido con /, '').replace(/\.$/, '') : 'conversión exacta de unidad');
         const clase = conv.tipo === 'aviso' ? 'text-amber-400' : 'text-emerald-400';
-        return `<span class="${clase}">Receta: ${fmtNum(cant)} ${escaparHtml(nombreUnidadReceta)} → se descontarán ${fmtNum(convertido)} ${escaparHtml(nombreUnidadStock)} (${detalle})</span>`;
+        return `<span class="${clase}">Fórmula: ${fmtNum(cant)} ${escaparHtml(nombreUnidadReceta)} → se descontarán ${fmtNum(convertido)} ${escaparHtml(nombreUnidadStock)} (${detalle})</span>`;
     }
     // Actualiza SOLO el renglón de aviso de una fila (sin repintar toda la tabla, para no
     // perder el foco/cursor mientras el usuario está escribiendo la cantidad).
@@ -1609,18 +1609,18 @@ async function abrirVentanaBom(producto) {
             + (otros.length ? `<optgroup label="Insumos, semiterminados y productos">${otros.map(opt).join('')}</optgroup>` : '');
     };
 
-    // Pista de cómo se lee esta receta: por tanda (semiterminado con "Rendimiento del lote")
+    // Pista de cómo se lee esta fórmula: por tanda (semiterminado con "Rendimiento del lote")
     // o por 1 unidad del producto.
     function pistaReceta() {
         const uni = nombreUnidadPorId.get(String(producto.unidad_medida_id ?? '')) || 'unidad';
         const rend = Number(producto.rendimiento_lote_bom) || 0;
         if (rend > 0) {
-            return `<p class="text-[11px] text-sky-300/90 bg-sky-950/30 border border-sky-900/60 rounded-lg px-3 py-2 mb-3">📐 <b>Receta de UNA tanda:</b> captura cada insumo como lo pones en el tanque para una tanda completa, en la unidad en que lo mides (L, mL, kg, g) — el sistema convierte solo a la unidad en que lo tienes en inventario. Esta tanda rinde <b>${escaparHtml(String(rend))} ${escaparHtml(uni)}</b> ("Rendimiento del lote" en Más detalles). En Producción, ${escaparHtml(String(rend))} = 1 tanda.</p>`;
+            return `<p class="text-[11px] text-sky-300/90 bg-sky-950/30 border border-sky-900/60 rounded-lg px-3 py-2 mb-3">📐 <b>Fórmula de UNA tanda:</b> captura cada insumo como lo pones en el tanque para una tanda completa, en la unidad en que lo mides (L, mL, kg, g) — el sistema convierte solo a la unidad en que lo tienes en inventario. Esta tanda rinde <b>${escaparHtml(String(rend))} ${escaparHtml(uni)}</b> ("Rendimiento del lote" en Más detalles). En Producción, ${escaparHtml(String(rend))} = 1 tanda.</p>`;
         }
         if (producto.es_semiterminado) {
-            return `<p class="text-[11px] text-amber-300/90 bg-amber-950/30 border border-amber-900/60 rounded-lg px-3 py-2 mb-3">⚠ Este semiterminado no tiene <b>"Rendimiento del lote"</b>: esta receta se toma como la de <b>1 ${escaparHtml(uni)}</b>. Si la escribiste para una tanda completa, captura cuánto rinde en Catálogo → Más detalles → "Rendimiento del lote (para el BOM)", o Producción pedirá los insumos multiplicados de más.</p>`;
+            return `<p class="text-[11px] text-amber-300/90 bg-amber-950/30 border border-amber-900/60 rounded-lg px-3 py-2 mb-3">⚠ Este semiterminado no tiene <b>"Rendimiento del lote"</b>: esta fórmula se toma como la de <b>1 ${escaparHtml(uni)}</b>. Si la escribiste para una tanda completa, captura cuánto rinde en Catálogo → Más detalles → "Rendimiento del lote (para el BOM)", o Producción pedirá los insumos multiplicados de más.</p>`;
         }
-        return `<p class="text-[11px] text-slate-400 bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 mb-3">Receta para <b>1 ${escaparHtml(uni)}</b> de este producto: cada componente en la unidad en que lo mides (un granel en mL, un frasco en Pieza); el sistema convierte solo a la unidad de inventario de cada componente.</p>`;
+        return `<p class="text-[11px] text-slate-400 bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 mb-3">Fórmula para <b>1 ${escaparHtml(uni)}</b> de este producto: cada componente en la unidad en que lo mides (un granel en mL, un frasco en Pieza); el sistema convierte solo a la unidad de inventario de cada componente.</p>`;
     }
 
     // Granel: tamaño real de la tanda según lo capturado (se recalcula al editar).
@@ -1642,7 +1642,7 @@ async function abrirVentanaBom(producto) {
         }) + (filas.length ? htmlAnalisisTanda(res, uni, producto.rendimiento_lote_bom) : '');
         cont.querySelector('.btn-usar-rend')?.addEventListener('click', async (e) => {
             const valor = Number(e.currentTarget.dataset.valor);
-            if (!confirm(`¿Guardar ${valor} ${uni} como "Rendimiento del lote" de ${producto.nombre}?\n\nProducción tomará esta receta como UNA tanda que rinde ${valor} ${uni}.`)) return;
+            if (!confirm(`¿Guardar ${valor} ${uni} como "Rendimiento del lote" de ${producto.nombre}?\n\nProducción tomará esta fórmula como UNA tanda que rinde ${valor} ${uni}.`)) return;
             const { error } = await supabaseClient.from('productos').update({ rendimiento_lote_bom: valor }).eq('id', id);
             if (error) { alert('No se pudo guardar el Rendimiento del lote: ' + error.message); return; }
             producto.rendimiento_lote_bom = valor;
@@ -1827,7 +1827,7 @@ async function abrirTablaDensidades() {
             <div class="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-start gap-3 rounded-t-2xl">
                 <div class="min-w-0">
                     <h3 class="text-sm font-bold text-slate-100">⚖️ Tabla de densidades</h3>
-                    <p class="text-[11px] text-slate-500 mt-0.5">Kilogramos que pesa 1 litro de cada insumo. Se usa para convertir cuando la receta (BOM) está en volumen (Litros/mL) y el insumo se lleva en inventario por peso (Kilogramos/gramos), o al revés. Los cambios se guardan solos.</p>
+                    <p class="text-[11px] text-slate-500 mt-0.5">Kilogramos que pesa 1 litro de cada insumo. Se usa para convertir cuando la fórmula (BOM) está en volumen (Litros/mL) y el insumo se lleva en inventario por peso (Kilogramos/gramos), o al revés. Los cambios se guardan solos.</p>
                 </div>
                 <button type="button" id="densBtnX" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 cursor-pointer shrink-0">&times;</button>
             </div>
@@ -2082,8 +2082,8 @@ const ETIQUETAS_CAMPO_PRODUCTO = {
 const PISTAS_CAMPO_PRODUCTO = {
     tipo: 'Un granel es "Producto terminado" + la casilla "Es semiterminado (granel)" marcada (junto a este campo).',
     unidad_medida_id: 'En qué se cuenta en almacén y se descuenta. Granel: Litros o Kilogramos, nunca Pieza.',
-    densidad_kg_l: 'Kilos que pesa 1 litro. Solo para insumos que la receta pide en volumen y se llevan en peso (o al revés). Ej.: Glicerina Vegetal Usp = 1.26. En un granel que va en Litros y se consume en mL, déjalo vacío.',
-    rendimiento_lote_bom: 'Granel: Litros (o Kilos) que salen de UNA tanda de la receta. Usa el tamaño real que calcula el análisis 🧮 de abajo (Fresa Kiwi: 14.64). En Producción: 1 tanda = este número. Vacío = el BOM es para 1 unidad (ej. 1 pieza). ¿Por qué importa si la materia prima ya se descuenta a su costo real? La receta decide cuánto se GASTA en la tanda; el rendimiento decide ENTRE CUÁNTOS LITROS se reparte ese gasto y cuántos litros dice el sistema que hay. Ej.: tanda de $1,000 → con 15 L el litro cuesta $66.67 y cada tanda deja 0.36 L que no existen; con 14.64 L cuesta $68.31 (el real). Un número inflado da inventario fantasma y costo del terminado más bajo que el real.',
+    densidad_kg_l: 'Kilos que pesa 1 litro. Solo para insumos que la fórmula pide en volumen y se llevan en peso (o al revés). Ej.: Glicerina Vegetal Usp = 1.26. En un granel que va en Litros y se consume en mL, déjalo vacío.',
+    rendimiento_lote_bom: 'Granel: Litros (o Kilos) que salen de UNA tanda de la fórmula. Usa el tamaño real que calcula el análisis 🧮 de abajo (Fresa Kiwi: 14.64). En Producción: 1 tanda = este número. Vacío = el BOM es para 1 unidad (ej. 1 pieza). ¿Por qué importa si la materia prima ya se descuenta a su costo real? La fórmula decide cuánto se GASTA en la tanda; el rendimiento decide ENTRE CUÁNTOS LITROS se reparte ese gasto y cuántos litros dice el sistema que hay. Ej.: tanda de $1,000 → con 15 L el litro cuesta $66.67 y cada tanda deja 0.36 L que no existen; con 14.64 L cuesta $68.31 (el real). Un número inflado da inventario fantasma y costo del terminado más bajo que el real.',
     es_semiterminado: 'Márcalo en los graneles: se fabrican y los consumen otros productos.',
     costo_unitario: 'Se actualiza solo con compras y al cerrar cada orden; normalmente no se edita a mano.',
     stock_actual: 'Se mueve solo con entradas y salidas; no se edita aquí.',
@@ -2123,24 +2123,24 @@ function htmlGuiaGranel(d) {
     if (fam) ok(`Unidad de Medida: <b>${escaparHtml(u)}</b> — el granel se cuenta en ${fam.familia === 'volumen' ? 'volumen' : 'peso'} y el terminado le descuenta ${fam.familia === 'volumen' ? 'mL' : 'g'}.`);
     else mal(`Unidad de Medida: "${escaparHtml(u || 'sin unidad')}".`, 'Cámbiala a <b>Litros</b> (o Kilogramos). En Pieza, el producto terminado no le puede descontar mL.');
 
-    if (d.nComponentes > 0) ok(`Receta (BOM) con ${d.nComponentes} componente(s), escrita para <b>UNA tanda</b>.`);
-    else mal('Sin receta (BOM).', 'Captúrala en ☰ → 🧪 Editar o ver BOM, tal como preparas UNA tanda en el tanque.');
+    if (d.nComponentes > 0) ok(`Fórmula (BOM) con ${d.nComponentes} componente(s), escrita para <b>UNA tanda</b>.`);
+    else mal('Sin fórmula (BOM).', 'Captúrala en ☰ → 🧪 Editar o ver BOM, tal como preparas UNA tanda en el tanque.');
 
     const rend = Number(d.rend) || 0;
     const sug = d.res && d.res.total != null ? Math.round(d.res.total * 100) / 100 : null;
     if (!(rend > 0)) {
-        mal('Sin "Rendimiento del lote".', sug ? `Usa <b>${fmt(sug)} ${escaparHtml(u)}</b> (lo que suma la receta) con el botón 🧮 "Usar ${fmt(sug)} …" de abajo.` : 'Captura cuántos litros (o kilos) salen de UNA tanda.');
+        mal('Sin "Rendimiento del lote".', sug ? `Usa <b>${fmt(sug)} ${escaparHtml(u)}</b> (lo que suma la fórmula) con el botón 🧮 "Usar ${fmt(sug)} …" de abajo.` : 'Captura cuántos litros (o kilos) salen de UNA tanda.');
     } else if (sug && Math.abs(rend - sug) / sug >= 0.005) {
         const dif = (rend - sug) / sug * 100;
-        mal(`Rendimiento del lote: ${fmt(rend)} ${escaparHtml(u)} — ${fmt(Math.abs(dif), 1)}% ${dif > 0 ? 'MÁS' : 'menos'} que lo que suma la receta (${fmt(sug)}).`, `Usa el botón 🧮 "Usar ${fmt(sug)} …" o captura lo que mediste en el tanque.`);
+        mal(`Rendimiento del lote: ${fmt(rend)} ${escaparHtml(u)} — ${fmt(Math.abs(dif), 1)}% ${dif > 0 ? 'MÁS' : 'menos'} que lo que suma la fórmula (${fmt(sug)}).`, `Usa el botón 🧮 "Usar ${fmt(sug)} …" o captura lo que mediste en el tanque.`);
     } else {
         ok(`Rendimiento del lote: <b>${fmt(rend)} ${escaparHtml(u)}</b> = 1 tanda en Producción ("TANDAS A PREPARAR").`);
     }
 
     if (d.res && d.nComponentes > 0) {
-        if (d.res.sinDensidad.length) mal(`Insumos sin densidad: ${d.res.sinDensidad.map(escaparHtml).join(', ')} (se tomaron como agua).`, 'Captúrala en Catálogo → ⚖️ Densidades. Solo importa si la receta los pide en otra unidad (ej. en L y se compran en kg).');
+        if (d.res.sinDensidad.length) mal(`Insumos sin densidad: ${d.res.sinDensidad.map(escaparHtml).join(', ')} (se tomaron como agua).`, 'Captúrala en Catálogo → ⚖️ Densidades. Solo importa si la fórmula los pide en otra unidad (ej. en L y se compran en kg).');
         else ok('Todos los insumos se convierten a la unidad del granel (densidades completas).');
-        if (d.res.ignorados.length) mal(`La receta lleva piezas: ${d.res.ignorados.map(escaparHtml).join(', ')}.`, 'Un granel normalmente no lleva frascos ni etiquetas: esos van en el BOM del producto terminado.');
+        if (d.res.ignorados.length) mal(`La fórmula lleva piezas: ${d.res.ignorados.map(escaparHtml).join(', ')}.`, 'Un granel normalmente no lleva frascos ni etiquetas: esos van en el BOM del producto terminado.');
     }
 
     if (d.cuentaConocida) {
@@ -2157,7 +2157,7 @@ function htmlGuiaGranel(d) {
     </div>`;
 }
 
-// Análisis del tamaño real de una tanda (suma de la receta con densidades) para proponer el
+// Análisis del tamaño real de una tanda (suma de la fórmula con densidades) para proponer el
 // "Rendimiento del lote" de un granel. Lo usan el formulario del Catálogo y "Editar o ver BOM".
 // El botón lleva la clase `btn-usar-rend` y `data-valor`; quien lo pinta decide qué hace al clic.
 function htmlAnalisisTanda(res, unidadNombre, rendActual) {
@@ -2173,12 +2173,12 @@ function htmlAnalisisTanda(res, unidadNombre, rendActual) {
         const dif = (rend - sugerido) / sugerido * 100;
         comparacion = Math.abs(dif) < 0.5
             ? `<span class="text-emerald-400">✅ Coincide con el Rendimiento del lote capturado (${fmt(rend)} ${u}).</span>`
-            : `<span class="text-amber-300">Rendimiento del lote capturado: ${fmt(rend)} ${u} — ${fmt(Math.abs(dif), 1)}% ${dif > 0 ? 'MÁS' : 'menos'} que lo que suma la receta.${dif > 0 ? ' Entrarían al inventario litros/kilos que no existen y el costo por unidad saldría bajo.' : ''}</span>`;
+            : `<span class="text-amber-300">Rendimiento del lote capturado: ${fmt(rend)} ${u} — ${fmt(Math.abs(dif), 1)}% ${dif > 0 ? 'MÁS' : 'menos'} que lo que suma la fórmula.${dif > 0 ? ' Entrarían al inventario litros/kilos que no existen y el costo por unidad saldría bajo.' : ''}</span>`;
     } else {
-        comparacion = '<span class="text-amber-300">Aún no tiene "Rendimiento del lote": sin él, Producción toma esta receta como la de 1 unidad.</span>';
+        comparacion = '<span class="text-amber-300">Aún no tiene "Rendimiento del lote": sin él, Producción toma esta fórmula como la de 1 unidad.</span>';
     }
     return `<div class="text-[11px] text-slate-300 bg-sky-950/20 border border-sky-900/60 rounded-lg px-3 py-2 space-y-1">
-        <p>🧮 <b>Tamaño real de la tanda (suma de la receta):</b> <b class="text-sky-300 font-mono">${fmt(res.total)} ${u}</b>
+        <p>🧮 <b>Tamaño real de la tanda (suma de la fórmula):</b> <b class="text-sky-300 font-mono">${fmt(res.total)} ${u}</b>
            <span class="text-slate-500">· ≈ ${fmt(res.litros)} L / ${fmt(res.kilos)} kg${res.densidadMezcla ? ` · densidad estimada de la mezcla ${fmt(res.densidadMezcla, 3)} kg/L` : ''}</span></p>
         <p>${comparacion}</p>
         ${res.sinDensidad.length ? `<p class="text-amber-400/90">⚠ Sin densidad (se tomó como agua, 1 kg/L): ${res.sinDensidad.map(escaparHtml).join(', ')} — captúrala en ⚖️ Densidades para afinar el cálculo.</p>` : ''}
