@@ -225,7 +225,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - **Selects** siempre desde la tabla real de Supabase, nunca hardcodeados.
 - **Migraciones SQL**: idempotentes (`if not exists`, `create or replace`), envueltas en `begin;`/`commit;`.
   Nunca se edita una ya corrida — se agrega una nueva. Se pegan a mano en Supabase → SQL Editor.
-- **Push a GitHub** solo cuando el usuario dice "comitea" (cualquier forma). El repo local NO está
+- **Push a GitHub** solo cuando el usuario dice "comitea" (cualquier forma), y siempre directo a `main` (así lo pidió el usuario). El repo local NO está
   conectado a git: se sube con un script temporal que usa la API de GitHub (blob→tree→commit→PATCH ref);
   el token nunca se guarda y el script se borra justo después de usarlo. GitHub Pages (URL principal) +
   Netlify (respaldo) despliegan solo desde `main`.
