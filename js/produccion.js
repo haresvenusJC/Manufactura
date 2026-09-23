@@ -1419,18 +1419,12 @@ async function cargarOrdenesEnProceso() {
 
     cont.querySelectorAll('.btn-cerrar-orden').forEach(btn => {
         btn.onclick = async () => {
-            const planeado = Number(btn.dataset.cant) || 0;
-            const u = btn.dataset.unidad ? ` ${btn.dataset.unidad}` : '';
-            const resp = prompt(`Cerrar la orden ${btn.dataset.folio}.\n\n¿Cuánto salió REALMENTE? (planeado: ${formatoCantidad(planeado)}${u})\n\nMide lo que quedó en el tanque o cuenta lo terminado. Los insumos se descuentan por lo planeado; al inventario entra lo que escribas aquí y el costo unitario se calcula sobre eso.`, String(planeado));
-            if (resp === null) return;
-            const real = parseFloat(String(resp).replace(',', '.'));
-            if (!(real > 0)) { alert('Escribe una cantidad mayor a 0.'); return; }
-            const dif = planeado > 0 ? (real - planeado) / planeado * 100 : 0;
-            const aviso = Math.abs(dif) > 20 ? `\n\n⚠ Es ${formatoCantidad(Math.abs(dif))}% ${dif < 0 ? 'menos' : 'más'} que lo planeado — revisa que la cantidad esté en ${btn.dataset.unidad || 'la unidad del producto'}.` : '';
-            if (!confirm(`¿Cerrar la orden ${btn.dataset.folio} con ${formatoCantidad(real)}${u} obtenidos (planeado ${formatoCantidad(planeado)}${u})?${aviso}\n\nSe descontará el inventario (FIFO) y se calcularán los costos. Esto no se puede deshacer.`)) return;
+            if (!confirm(`¿Cerrar la orden ${btn.dataset.folio}? Se descontará el inventario (FIFO) y se calcularán los costos. Esto no se puede deshacer.`)) return;
             btn.disabled = true;
             btn.textContent = 'Cerrando...';
-            const res = await cerrarOrdenDeProduccion(Number(btn.dataset.id), real);
+            // Se cierra con lo planeado. cerrarOrdenDeProduccion acepta una cantidad real como 2º
+            // parámetro (merma medida), pero por ahora no se pregunta.
+            const res = await cerrarOrdenDeProduccion(Number(btn.dataset.id));
             if (res.success) {
                 alert('✅ ' + res.mensaje);
                 await cargarOrdenesEnProceso();
