@@ -9,6 +9,7 @@ import { obtenerInfoProveedorProducto } from './info-proveedor-producto.js';
 import { opcionesPresentacionHtml, sugerirPresetPorUnidadCfdi } from './presentaciones-proveedor.js';
 import './trazabilidad.js';
 import { convertirEnBuscador } from './buscador-select.js';
+import { etiquetaPoliza } from './enlaces-reporte.js';
 
 // =====================================================================
 //  Órdenes de compra + Recibo de mercancía  (Fase 1: captura y recepción
@@ -1905,7 +1906,7 @@ window.rmAbrirEdicionRecepcion = async (documentoId) => {
     }
 
     if (doc.poliza_id) {
-        alert(`Esta recepción ya está contabilizada (póliza #${doc.poliza_id}). Cancélala primero desde el historial si necesitas corregir cantidades o costos, y vuelve a capturarla.`);
+        alert(`Esta recepción ya está contabilizada (póliza ${await etiquetaPoliza(doc.poliza_id)}). Cancélala primero desde el historial si necesitas corregir cantidades o costos, y vuelve a capturarla.`);
         return;
     }
 

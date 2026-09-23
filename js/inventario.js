@@ -1,5 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+import { etiquetaPoliza } from './enlaces-reporte.js';
 
 const invResumenOrden = crearOrdenTabla();
 const invLotesOrden = crearOrdenTabla();
@@ -364,7 +365,7 @@ window.registrarDeterioroLote = async function(loteId, numeroLote, costoActual) 
             p_lote_id: loteId, p_costo_nuevo: costoNuevo, p_motivo: motivo.trim(),
         });
         if (error) throw error;
-        alert(`Deterioro registrado — castigo de ${money(data.monto_castigo)} (póliza #${data.poliza_id}). Nuevo costo del lote: $${Number(data.costo_nuevo).toFixed(4)}.`);
+        alert(`Deterioro registrado — castigo de ${money(data.monto_castigo)} (póliza ${await etiquetaPoliza(data.poliza_id)}). Nuevo costo del lote: $${Number(data.costo_nuevo).toFixed(4)}.`);
         await renderizarTablaLotes(document.getElementById('contenedorExistenciasLote'));
     } catch (err) {
         const m = err?.message || String(err);
@@ -455,4 +456,4 @@ document.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && (e.target.id === 'filtroFechaInicio' || e.target.id === 'filtroFechaFin')) {
         window.aplicarFiltroFechasLotes();
     }
-});
+});

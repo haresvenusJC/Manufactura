@@ -24,6 +24,20 @@ function rotular(el) {
     el.textContent = p ? `${p.tipo} #${p.numero}` : 'ver póliza';
     el.dataset.polLbl = '1';
 }
+// Texto "Egreso #34" de una póliza para mensajes y avisos (nunca el id interno). Si no se encuentra: "(sin número)".
+export async function etiquetaPoliza(id) {
+    id = Number(id);
+    if (!id) return '';
+    if (!cachePol.has(id)) {
+        try {
+            const { supabaseClient } = await import('./supabase.js');
+            const { data } = await supabaseClient.from('polizas').select('id, tipo, numero').eq('id', id).maybeSingle();
+            if (data) cachePol.set(data.id, data);
+        } catch (_) { /* sin etiqueta */ }
+    }
+    const p = cachePol.get(id);
+    return p ? `${p.tipo} #${p.numero}` : "(sin número)";
+}
 async function rotularPolizas() {
     pendiente = null;
     const els = [...document.querySelectorAll('[data-pol-id]:not([data-pol-lbl])')];

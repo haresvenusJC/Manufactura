@@ -1,7 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
-import { linkDoc, linkPoliza } from './enlaces-reporte.js';
+import { linkDoc, linkPoliza, etiquetaPoliza } from './enlaces-reporte.js';
 
 // =====================================================================
 //  Devoluciones a proveedor y de cliente. El IVA se calcula solo con la
@@ -213,7 +213,7 @@ async function devGuardarCliente() {
             },
         });
         if (error) throw error;
-        msg.textContent = `Devolución registrada (póliza #${data.poliza_id}) — Subtotal ${money(data.subtotal)} + IVA ${money(data.iva)} = ${money(data.total)}.`;
+        msg.textContent = `Devolución registrada (póliza ${await etiquetaPoliza(data.poliza_id)}) — Subtotal ${money(data.subtotal)} + IVA ${money(data.iva)} = ${money(data.total)}.`;
         msg.className = 'text-xs mt-2 text-emerald-400';
         devPartidasCliente = [];
         devRenderPartidasCliente();
@@ -419,7 +419,7 @@ async function devGuardarProveedor() {
             },
         });
         if (error) throw error;
-        msg.textContent = `Devolución registrada (póliza #${data.poliza_id}) — Subtotal ${money(data.subtotal)} + IVA ${money(data.iva)} = ${money(data.total)}.`;
+        msg.textContent = `Devolución registrada (póliza ${await etiquetaPoliza(data.poliza_id)}) — Subtotal ${money(data.subtotal)} + IVA ${money(data.iva)} = ${money(data.total)}.`;
         msg.className = 'text-xs mt-2 text-emerald-400';
         devPartidasProveedor = [];
         devRenderPartidasProveedor();

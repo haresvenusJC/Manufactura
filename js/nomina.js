@@ -2,6 +2,7 @@ import { supabaseClient } from './supabase.js';
 import { imprimirConPlantilla } from './impresion.js';
 import { montarGuia } from './asistente-contable.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+import { etiquetaPoliza } from './enlaces-reporte.js';
 
 // =====================================================================
 // Contabilidad · Nómina — arma y postea la póliza de sueldos y salarios
@@ -556,7 +557,7 @@ export async function nomAutorizar(id, btn) {
         if (error) throw error;
         await nomBuscar();
         await actualizarBannerNominaPendiente();
-        alert(`Nómina #${data.nomina_id} autorizada — póliza #${data.poliza_id} generada (total ${money(data.total)}).`);
+        alert(`Nómina #${data.nomina_id} autorizada — póliza ${await etiquetaPoliza(data.poliza_id)} generada (total ${money(data.total)}).`);
     } catch (err) {
         alert('No se pudo autorizar: ' + (err.message || err));
     } finally {

@@ -2457,7 +2457,7 @@ window.rcVerPoliza = async function (polId) {
         document.body.appendChild(cont);
     }
     cont.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 text-sm text-slate-300">
-        <p class="text-slate-500">Cargando póliza #${polId}...</p></div>`;
+        <p class="text-slate-500">Cargando póliza...</p></div>`;
 
     const ctaMapa = new Map((rcCache?.ctas || rcAuxCtas || []).map((c) => [c.id, c]));
     try {
@@ -2534,7 +2534,7 @@ window.rcVerPoliza = async function (polId) {
         </div>`;
     } catch (err) {
         cont.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 text-sm">
-            <p class="text-rose-400">No se pudo cargar la póliza #${polId}.<br>${err.message || err}</p>
+            <p class="text-rose-400">No se pudo cargar la póliza.<br>${err.message || err}</p>
             <div class="text-right mt-3"><button onclick="window.rcCerrarModalPoliza()" class="text-xs bg-slate-800 px-4 py-2 rounded-xl text-slate-200">Cerrar</button></div>
         </div>`;
     }

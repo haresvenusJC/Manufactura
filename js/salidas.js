@@ -1,7 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { siguienteFolio, proximoFolio, SERIE_SALIDA } from './folios.js';
 import { cargarInventarioCompleto, registrarMovimientoAlmacen } from './inventario.js';
-import { linkDoc, linkPoliza } from './enlaces-reporte.js';
+import { linkDoc, linkPoliza, etiquetaPoliza } from './enlaces-reporte.js';
 
 let partidasSalidaTemp = [];
 let listaProductosGlobal = [];
@@ -817,7 +817,7 @@ async function contabilizarSalidaUI(tipoMovimiento, documentoId) {
             const { data, error } = await supabaseClient.rpc('contabilizar_venta', { p_documento_id: documentoId, p_datos });
             if (error) throw error;
             await ligarClienteAlDocumento(documentoId, clienteVentaSelId);
-            return `\nPóliza de venta #${data.poliza_id} generada (cobro $${Number(data.total).toFixed(2)}, costo $${Number(data.costo).toFixed(2)}).`;
+            return `\nPóliza de venta ${await etiquetaPoliza(data.poliza_id)} generada (cobro $${Number(data.total).toFixed(2)}, costo $${Number(data.costo).toFixed(2)}).`;
         }
         // salida / merma / ajuste
         const ctaCargo = document.getElementById('salCuentaCargo').value;
@@ -826,7 +826,7 @@ async function contabilizarSalidaUI(tipoMovimiento, documentoId) {
             p_documento_id: documentoId, p_datos: { cuenta_cargo_id: parseInt(ctaCargo) }
         });
         if (error) throw error;
-        return `\nPóliza #${data.poliza_id} generada (total $${Number(data.total).toFixed(2)}).`;
+        return `\nPóliza ${await etiquetaPoliza(data.poliza_id)} generada (total $${Number(data.total).toFixed(2)}).`;
     } catch (e) {
         return `\nLa salida se registró, pero NO se contabilizó: ${e.message || e}`;
     }
