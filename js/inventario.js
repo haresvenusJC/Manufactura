@@ -66,22 +66,15 @@ export async function cargarInventarioCompleto() {
         if (!supabaseClient) return;
 
         if (contenedorInv) {
-            // Con es_semiterminado (migración 2026-10-18); si aún no está, sin esa columna.
             const colsInv = `
                     id, nombre, sku, tipo, costo_unitario, stock_actual, unidad_medida_id, moneda_id,
                     unidades_medida ( nombre ),
                     monedas ( codigo )
                 `;
-            let { data: productos, error: errProd } = await supabaseClient
+            const { data: productos, error: errProd } = await supabaseClient
                 .from('productos')
-                .select(colsInv.replace('tipo,', 'tipo, es_semiterminado,'))
+                .select(colsInv)
                 .order('id', { ascending: true });
-            if (errProd) {
-                ({ data: productos, error: errProd } = await supabaseClient
-                    .from('productos')
-                    .select(colsInv)
-                    .order('id', { ascending: true }));
-            }
 
             if (errProd) throw errProd;
 
@@ -118,8 +111,8 @@ function renderInventarioResumen() {
         || (p.nombre || '').toLowerCase().includes(filtro)
         || (p.sku || '').toLowerCase().includes(filtro);
 
-    const productosTerminados = invProductosCache.filter(p => p.tipo === 'producto' && !p.es_semiterminado && pasaFiltro(p));
-    const semiterminados = invProductosCache.filter(p => p.tipo === 'producto' && p.es_semiterminado && pasaFiltro(p));
+    const productosTerminados = invProductosCache.filter(p => p.tipo === 'producto' && pasaFiltro(p));
+    const semiterminados = invProductosCache.filter(p => p.tipo === 'semiterminado' && pasaFiltro(p));
     const materiasPrimas = invProductosCache.filter(p => (p.tipo === 'materia_prima' || !p.tipo) && pasaFiltro(p));
     const componentes = invProductosCache.filter(p => (p.tipo === 'componente' || p.tipo === 'refaccion' || p.tipo === 'insumo') && pasaFiltro(p));
 
@@ -462,4 +455,4 @@ document.addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && (e.target.id === 'filtroFechaInicio' || e.target.id === 'filtroFechaFin')) {
         window.aplicarFiltroFechasLotes();
     }
-});
+});

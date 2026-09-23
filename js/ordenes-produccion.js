@@ -322,7 +322,7 @@ async function armarDocumentoEstado(ordenId) {
         const { data: infos } = await supabaseClient.from('productos').select('id, tipo, abastecimiento').in('id', filas.map((f) => f.componenteId));
         tipoPorId = new Map((infos || []).map((p) => [p.id, p]));
     }
-    const seFabrica = (id) => { const p = tipoPorId.get(id); return p && p.tipo === 'producto' && p.abastecimiento !== 'comprado'; };
+    const seFabrica = (id) => { const p = tipoPorId.get(id); return p && (p.tipo === 'producto' || p.tipo === 'semiterminado') && p.abastecimiento !== 'comprado'; };
 
     // Lotes a surtir (FIFO/FEFO): la vista solo trae órdenes en proceso.
     let lotes = [];

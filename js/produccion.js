@@ -204,7 +204,7 @@ export async function generarRequisicionFaltantes(faltan, nombreProducto, cantid
         if (!(cantidad > 0)) continue;
         const item = { id: f.componenteId, nombre: f.nombre, unidad: f.unidad, cantidad, proveedorId: p.proveedor_id || null };
         // un producto fabricado en casa (granel, terminado) se produce, no se compra
-        if (p.tipo === 'producto' && p.abastecimiento !== 'comprado') seFabrican.push(item); else comprables.push(item);
+        if ((p.tipo === 'producto' || p.tipo === 'semiterminado') && p.abastecimiento !== 'comprado') seFabrican.push(item); else comprables.push(item);
     }
 
     // Lo ya pedido para esta orden (requisiciones pendientes/autorizadas que aún no llegan) se descuenta.
@@ -532,13 +532,13 @@ export async function cargarModuloProduccion() {
         let { data: productos, error: errProd } = await supabaseClient
             .from('productos')
             .select('id, nombre, sku, tipo')
-            .eq('tipo', 'producto')
+            .in('tipo', ['producto', 'semiterminado'])
             .or('abastecimiento.is.null,abastecimiento.eq.fabricado');
         if (errProd) {
             ({ data: productos, error: errProd } = await supabaseClient
                 .from('productos')
                 .select('id, nombre, sku, tipo')
-                .eq('tipo', 'producto'));
+                .in('tipo', ['producto', 'semiterminado']));
         }
 
         const selectProd = document.getElementById('productoProducirId');

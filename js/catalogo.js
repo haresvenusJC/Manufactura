@@ -197,6 +197,7 @@ export async function cargarCatalogoInicial() {
                             <label class="block text-xs font-medium text-slate-400 mb-1">¿Qué estás dando de alta?</label>
                             <select id="tipoElemento" class="hidden">
                                 <option value="producto">Producto (Terminado / Ensamblado)</option>
+                                <option value="semiterminado">Semiterminado (granel)</option>
                                 <option value="materia_prima">Materia Prima</option>
                                 <option value="insumo">Insumo / Componente Auxiliar</option>
                             </select>
@@ -218,8 +219,6 @@ export async function cargarCatalogoInicial() {
                                 </div>
                             </div>
                         </div>
-                        <!-- Lo activa el botón "Semiterminado" de arriba (tipo real = producto + es_semiterminado) -->
-                        <input type="checkbox" id="prodSemiterminado" class="hidden" tabindex="-1" aria-hidden="true">
 
                         <div class="relative">
                             <label class="block text-xs font-medium text-slate-400 mb-1">Nombre del Artículo</label>
@@ -478,7 +477,8 @@ export async function cargarCatalogoInicial() {
         const formArticulo = document.getElementById('formCrearProducto');
         const bloqueAbast = document.getElementById('bloqueAbastecimiento');
         const inputAbast = document.getElementById('prodAbastecimiento');
-        const chkSemi = document.getElementById('prodSemiterminado');
+        // Semiterminado (granel) es un tipo propio: productos.tipo = 'semiterminado'.
+        const esSemiForm = () => selectTipoElemento.value === 'semiterminado';
 
         if (btnRefrescarProveedores) {
             btnRefrescarProveedores.addEventListener('click', async () => {
@@ -501,13 +501,12 @@ export async function cargarCatalogoInicial() {
         }
         function sincronizarAbastecimiento() {
             const esProducto = selectTipoElemento.value === 'producto';
-            if (!esProducto) chkSemi.checked = false;
-            const semi = esProducto && chkSemi.checked;
+            const semi = esSemiForm();
             if (semi) inputAbast.value = 'fabricado';          // un semiterminado siempre se fabrica
             const comprado = esProducto && inputAbast.value === 'comprado';
             // "¿Cómo se obtiene?" solo aplica a Producto terminado (el semiterminado no lo pregunta)
-            bloqueAbast.classList.toggle('hidden', !esProducto || semi);
-            const llevaBom = esProducto && !comprado;
+            bloqueAbast.classList.toggle('hidden', !esProducto);
+            const llevaBom = semi || (esProducto && !comprado);
             seccionBomContainer.classList.toggle('hidden', !llevaBom);
             if (!llevaBom) {
                 itemsBomTemp = [];
@@ -528,10 +527,8 @@ export async function cargarCatalogoInicial() {
         // sigue siendo la fuente de verdad para el resto del formulario —
         // así no hay que tocar la lógica de guardar/cargar/BOM de abajo).
         const botonesTipoElemento = document.querySelectorAll('.tipo-elemento-btn');
-        // El botón activo sale del <select> (tipo real) y de la casilla oculta de
-        // semiterminado: "Semiterminado" es tipo producto + es_semiterminado.
         function marcarBotonTipoActivo() {
-            const clave = (selectTipoElemento.value === 'producto' && chkSemi.checked) ? 'semiterminado' : (selectTipoElemento.value || 'producto');
+            const clave = selectTipoElemento.value || 'producto';
             botonesTipoElemento.forEach((b) => {
                 const activo = b.dataset.tipo === clave;
                 b.className = `tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition ${activo
@@ -541,10 +538,8 @@ export async function cargarCatalogoInicial() {
         }
         botonesTipoElemento.forEach((b) => {
             b.addEventListener('click', () => {
-                const esSemi = b.dataset.tipo === 'semiterminado';
-                selectTipoElemento.value = esSemi ? 'producto' : b.dataset.tipo;
-                chkSemi.checked = esSemi;
-                if (esSemi) inputAbast.value = 'fabricado';
+                selectTipoElemento.value = b.dataset.tipo;
+                if (esSemiForm()) inputAbast.value = 'fabricado';
                 selectTipoElemento.dispatchEvent(new Event('change'));   // -> sincronizarAbastecimiento()
             });
         });
@@ -621,7 +616,6 @@ export async function cargarCatalogoInicial() {
                 selectTipoElemento.value = art.tipo || 'producto';
                 marcarBotonTipoActivo(art.tipo || 'producto');
                 inputAbast.value = art.abastecimiento || 'fabricado';
-                chkSemi.checked = !!art.es_semiterminado;
                 formArticulo.dataset.tieneAbast = ('abastecimiento' in art) ? '1' : '';   // ¿ya está la migración 2026-10-18?
                 sincronizarAbastecimiento();
                 inputNombre.value = art.nombre;
@@ -664,7 +658,7 @@ export async function cargarCatalogoInicial() {
                 btnGuardar.textContent = "Actualizar Artículo";
                 btnNuevoModo.classList.remove('hidden');
 
-                if (art.tipo === 'producto' && inputAbast.value === 'fabricado') {
+                if (art.tipo === 'semiterminado' || (art.tipo === 'producto' && inputAbast.value === 'fabricado')) {
                     seccionBomContainer.classList.remove('hidden');
 
                     const { data: bomItems, error: errBom } = await supabaseClient
@@ -746,7 +740,6 @@ export async function cargarCatalogoInicial() {
             selectTipoElemento.value = 'producto';
             marcarBotonTipoActivo('producto');
             inputAbast.value = 'fabricado';
-            chkSemi.checked = false;
             formArticulo.dataset.tieneAbast = '';
             sincronizarAbastecimiento();
             document.getElementById('prodExistenciaActual').classList.add('hidden');
@@ -761,7 +754,7 @@ export async function cargarCatalogoInicial() {
         function pintarAnalisisTandaForm() {
             const cont = document.getElementById('analisisTandaForm');
             if (!cont) return;
-            if (!chkSemi.checked || !itemsBomTemp.length) { cont.classList.add('hidden'); cont.innerHTML = ''; return; }
+            if (!esSemiForm() || !itemsBomTemp.length) { cont.classList.add('hidden'); cont.innerHTML = ''; return; }
             const selUni = document.getElementById('prodUnidadMedidaId');
             const unidadNombre = selUni.value ? (selUni.options[selUni.selectedIndex]?.text || '') : '';
             const res = tamanoTeoricoTanda(itemsBomTemp.map((i) => ({
@@ -946,7 +939,7 @@ export async function cargarCatalogoInicial() {
             // no dio clic en "＋ Agregar Componente al BOM", lo sumamos aquí
             // en silencio para que no se pierda al guardar (ver definición
             // de agregarItemBomPendiente más arriba).
-            if (selectTipoElemento.value === 'producto' && inputAbast.value === 'fabricado' && !agregarItemBomPendiente({ mostrarAlertas: false })) {
+            if (['producto', 'semiterminado'].includes(selectTipoElemento.value) && inputAbast.value === 'fabricado' && !agregarItemBomPendiente({ mostrarAlertas: false })) {
                 alert("Revisa el componente del BOM que estás agregando: falta seleccionar un insumo válido o poner una cantidad mayor a 0.");
                 return;
             }
@@ -1006,15 +999,14 @@ export async function cargarCatalogoInicial() {
             }
             const rendimientoLotePayload = (rendLoteVal || elRendLote.dataset.tenia === '1') ? { rendimiento_lote_bom: rendLoteVal ? parseFloat(rendLoteVal) : null } : {};
 
-            // Cómo se obtiene (fabricado / comprado) y semiterminado. Igual que la clave SAT:
-            // solo se manda si se sale del valor por defecto (fabricado, no semiterminado) o
-            // si el artículo ya tenía estos datos — así guardar no depende de haber corrido
-            // sql/2026-10-18_producto_abastecimiento_semiterminado.sql.
+            // Cómo se obtiene (fabricado / comprado). Igual que la clave SAT: solo se manda si
+            // se sale del valor por defecto o si el artículo ya tenía el dato. El semiterminado
+            // es un tipo propio (productos.tipo = 'semiterminado') y siempre es fabricado.
             const esProductoTipo = tipo === 'producto';
-            const abastVal = esProductoTipo ? inputAbast.value : 'comprado';
-            const semiVal = esProductoTipo && abastVal === 'fabricado' && chkSemi.checked;
-            const abastPayload = ((esProductoTipo && (abastVal !== 'fabricado' || semiVal)) || formArticulo.dataset.tieneAbast === '1')
-                ? { abastecimiento: abastVal, es_semiterminado: semiVal }
+            const esSemiTipo = tipo === 'semiterminado';
+            const abastVal = esSemiTipo ? 'fabricado' : esProductoTipo ? inputAbast.value : 'comprado';
+            const abastPayload = ((esProductoTipo && abastVal !== 'fabricado') || esSemiTipo || formArticulo.dataset.tieneAbast === '1')
+                ? { abastecimiento: abastVal }
                 : {};
 
             // Datos contables (opcionales; solo si el modulo esta instalado)
@@ -1083,7 +1075,7 @@ export async function cargarCatalogoInicial() {
                     articuloId = artIns.id;
                 }
 
-                if (tipo === 'producto' && abastVal === 'fabricado' && itemsBomTemp.length > 0) {
+                if ((tipo === 'producto' || tipo === 'semiterminado') && abastVal === 'fabricado' && itemsBomTemp.length > 0) {
                     const itemsBom = itemsBomTemp.map(i => ({
                         producto_id: articuloId,
                         componente_id: i.componenteId,
@@ -1140,8 +1132,10 @@ export async function cargarCatalogoInicial() {
                 console.error("Error al guardar el artículo:", err);
                 if (err.code === '23505') {
                     alert('Error al guardar el artículo: El SKU o clave ya está registrado.');
-                } else if (/abastecimiento|es_semiterminado/.test(err.message || '')) {
-                    alert('Falta correr la migración sql/2026-10-18_producto_abastecimiento_semiterminado.sql en Supabase (SQL Editor) para guardar "Cómo se obtiene" y "Semiterminado".');
+                } else if (/semiterminado|tipo_check/.test(err.message || '')) {
+                    alert('Falta correr la migración sql/2026-09-24_tipo_semiterminado.sql en Supabase (SQL Editor) para guardar el tipo "Semiterminado".');
+                } else if (/abastecimiento/.test(err.message || '')) {
+                    alert('Falta correr la migración sql/2026-10-18_producto_abastecimiento_semiterminado.sql en Supabase (SQL Editor) para guardar "Cómo se obtiene".');
                 } else if (/densidad_kg_l/.test(err.message || '')) {
                     alert('Falta correr la migración sql/2026-10-23_densidad_conversion_bom.sql en Supabase (SQL Editor) para guardar la Densidad.');
                 } else if (/rendimiento_lote_bom/.test(err.message || '')) {
@@ -1272,10 +1266,10 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
     if (!contenedorTabla) return;
 
     try {
-        // Con "abastecimiento / es_semiterminado" (migración 2026-10-18); si aún no está, sin ellos.
+        // Con "abastecimiento" (migración 2026-10-18); si aún no está, sin él.
         const colsProd = 'id, nombre, sku, tipo, unidad_medida_id, proveedor_id, stock_actual, stock_minimo, activo';
         const consultarProductos = async () => {
-            let r = await supabaseClient.from('productos').select(colsProd + ', abastecimiento, es_semiterminado').order('id', { ascending: true });
+            let r = await supabaseClient.from('productos').select(colsProd + ', abastecimiento').order('id', { ascending: true });
             if (r.error) r = await supabaseClient.from('productos').select(colsProd).order('id', { ascending: true });
             return r;
         };
@@ -1344,6 +1338,7 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
 
         const OPCIONES_TIPO_LABEL = {
             producto: 'Producto terminado',
+            semiterminado: 'Semiterminado',
             materia_prima: 'Materia prima',
             insumo: 'Insumo',
         };
@@ -1354,8 +1349,7 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
             if (tipoActual === 'materia_prima') tipoColor = "text-amber-400 border-amber-800";
             if (tipoActual === 'insumo') tipoColor = "text-emerald-400 border-emerald-800";
             let etiquetaTipo = OPCIONES_TIPO_LABEL[tipoActual] || tipoActual;
-            if (tipoActual === 'producto' && item.es_semiterminado) {
-                etiquetaTipo = 'Semiterminado';
+            if (tipoActual === 'semiterminado') {
                 tipoColor = "text-indigo-400 border-indigo-800";
             } else if (tipoActual === 'producto' && item.abastecimiento === 'comprado') {
                 etiquetaTipo = 'Terminado (reventa)';
@@ -1419,13 +1413,16 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
 // =====================================================================
 
 const CAMPOS_NO_EDITABLES_PRODUCTO = new Set(['id', 'created_at', 'updated_at']);
+// Columnas que "Editar artículo" no muestra (es_semiterminado: la reemplazó tipo = 'semiterminado'; se borra en
+// sql/2026-09-24b_quitar_es_semiterminado.sql, mientras tanto la base la mantiene sola).
+const CAMPOS_OCULTOS_PRODUCTO = new Set(['es_semiterminado']);
 
 // Orden lógico del formulario "Editar artículo" — identificación primero,
 // luego catálogos/relaciones, costos/precios, inventario, y por último
 // las banderas. Los que no estén aquí (columnas nuevas a futuro) caen
 // después, en orden alfabético; los de solo lectura siempre van al final.
 const ORDEN_CAMPOS_PRODUCTO = [
-    'sku', 'nombre', 'tipo', 'es_semiterminado', 'descripcion', 'clave_sat', 'densidad_kg_l', 'rendimiento_lote_bom',
+    'sku', 'nombre', 'tipo', 'descripcion', 'clave_sat', 'densidad_kg_l', 'rendimiento_lote_bom',
     'unidad_medida_id', 'proveedor_id', 'moneda_id',
     'costo_unitario', 'precio_venta', 'tasa_iva', 'tasa_ieps',
     'cuenta_inventario_id', 'cuenta_costo_id',
@@ -1454,7 +1451,7 @@ function abrirMenuAccionesProducto(producto, botonAncla) {
     menu.style.left = `${Math.max(8, rect.right - 224)}px`;
 
     // El BOM solo aplica a lo que se fabrica: producto que no está marcado como comprado para reventa.
-    const llevaBom = (producto.tipo || 'producto') === 'producto' && producto.abastecimiento !== 'comprado';
+    const llevaBom = ['producto', 'semiterminado'].includes(producto.tipo || 'producto') && producto.abastecimiento !== 'comprado';
 
     menu.innerHTML = `
         <button type="button" id="btnMenuProdKardex" class="w-full text-left px-3 py-2.5 hover:bg-slate-800 text-slate-200 flex items-center gap-2 cursor-pointer">
@@ -1518,7 +1515,7 @@ async function abrirVentanaBom(producto) {
     modal.style.transform = 'translateX(-50%)';
     modal.style.width = 'calc(100% - 2rem)';
     modal.style.maxWidth = '40rem';
-    const etiquetaProd = producto.es_semiterminado ? 'Semiterminado' : 'Producto terminado';
+    const etiquetaProd = producto.tipo === 'semiterminado' ? 'Semiterminado' : 'Producto terminado';
     modal.innerHTML = `
         <div class="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-start rounded-t-2xl gap-3">
             <div class="min-w-0">
@@ -1617,7 +1614,7 @@ async function abrirVentanaBom(producto) {
         if (rend > 0) {
             return `<p class="text-[11px] text-sky-300/90 bg-sky-950/30 border border-sky-900/60 rounded-lg px-3 py-2 mb-3">📐 <b>Fórmula de UNA tanda:</b> captura cada insumo como lo pones en el tanque para una tanda completa, en la unidad en que lo mides (L, mL, kg, g) — el sistema convierte solo a la unidad en que lo tienes en inventario. Esta tanda rinde <b>${escaparHtml(String(rend))} ${escaparHtml(uni)}</b> ("Rendimiento del lote" en Más detalles). En Producción, ${escaparHtml(String(rend))} = 1 tanda.</p>`;
         }
-        if (producto.es_semiterminado) {
+        if (producto.tipo === 'semiterminado') {
             return `<p class="text-[11px] text-amber-300/90 bg-amber-950/30 border border-amber-900/60 rounded-lg px-3 py-2 mb-3">⚠ Este semiterminado no tiene <b>"Rendimiento del lote"</b>: esta fórmula se toma como la de <b>1 ${escaparHtml(uni)}</b>. Si la escribiste para una tanda completa, captura cuánto rinde en Catálogo → Más detalles → "Rendimiento del lote (para el BOM)", o Producción pedirá los insumos multiplicados de más.</p>`;
         }
         return `<p class="text-[11px] text-slate-400 bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 mb-3">Fórmula para <b>1 ${escaparHtml(uni)}</b> de este producto: cada componente en la unidad en que lo mides (un granel en mL, un frasco en Pieza); el sistema convierte solo a la unidad de inventario de cada componente.</p>`;
@@ -1627,7 +1624,7 @@ async function abrirVentanaBom(producto) {
     function refrescarAnalisisModal() {
         const cont = cuerpo.querySelector('#bomAnalisis');
         if (!cont) return;
-        const esGranel = producto.es_semiterminado || Number(producto.rendimiento_lote_bom) > 0 || /granel/i.test(producto.nombre || '');
+        const esGranel = producto.tipo === 'semiterminado' || Number(producto.rendimiento_lote_bom) > 0 || /granel/i.test(producto.nombre || '');
         if (!esGranel) { cont.innerHTML = ''; return; }
         const uni = nombreUnidadPorId.get(String(producto.unidad_medida_id ?? '')) || '';
         const res = tamanoTeoricoTanda(filas.map((f) => {
@@ -1637,7 +1634,7 @@ async function abrirVentanaBom(producto) {
                 unidadNombre: /^\d+$/.test(raw) ? (nombreUnidadPorId.get(raw) || '') : raw, densidad: p?.densidad_kg_l };
         }), uni);
         cont.innerHTML = htmlGuiaGranel({
-            esSemi: !!producto.es_semiterminado, unidadNombre: uni, nComponentes: filas.length,
+            esSemi: producto.tipo === 'semiterminado', unidadNombre: uni, nComponentes: filas.length,
             rend: producto.rendimiento_lote_bom, res: filas.length ? res : null, cuentaConocida: false, enBom: true,
         }) + (filas.length ? htmlAnalisisTanda(res, uni, producto.rendimiento_lote_bom) : '');
         cont.querySelector('.btn-usar-rend')?.addEventListener('click', async (e) => {
@@ -2076,15 +2073,14 @@ function tipoDeCampo(valor) {
 const ETIQUETAS_CAMPO_PRODUCTO = {
     sku: 'SKU / Código', clave_sat: 'Clave SAT (ClaveProdServ)', densidad_kg_l: 'Densidad (kg por litro)',
     rendimiento_lote_bom: 'Rendimiento del lote (para el BOM)', unidad_medida_id: 'Unidad de Medida',
-    es_semiterminado: 'Es semiterminado (granel)', descripcion: 'Descripción',
+    descripcion: 'Descripción',
 };
 // Pistas bajo cada campo de "Editar artículo" (las mismas ideas que el formulario del Catálogo).
 const PISTAS_CAMPO_PRODUCTO = {
-    tipo: 'Un granel es "Producto terminado" + la casilla "Es semiterminado (granel)" marcada (junto a este campo).',
+    tipo: 'Un granel es "Semiterminado": se fabrica (lleva fórmula) y lo consumen otros productos; no se vende.',
     unidad_medida_id: 'En qué se cuenta en almacén y se descuenta. Granel: Litros o Kilogramos, nunca Pieza.',
     densidad_kg_l: 'Kilos que pesa 1 litro. Solo para insumos que la fórmula pide en volumen y se llevan en peso (o al revés). Ej.: Glicerina Vegetal Usp = 1.26. En un granel que va en Litros y se consume en mL, déjalo vacío.',
     rendimiento_lote_bom: 'Granel: Litros (o Kilos) que salen de UNA tanda de la fórmula. Usa el tamaño real que calcula el análisis 🧮 de abajo (Fresa Kiwi: 14.64). En Producción: 1 tanda = este número. Vacío = el BOM es para 1 unidad (ej. 1 pieza). ¿Por qué importa si la materia prima ya se descuenta a su costo real? La fórmula decide cuánto se GASTA en la tanda; el rendimiento decide ENTRE CUÁNTOS LITROS se reparte ese gasto y cuántos litros dice el sistema que hay. Ej.: tanda de $1,000 → con 15 L el litro cuesta $66.67 y cada tanda deja 0.36 L que no existen; con 14.64 L cuesta $68.31 (el real). Un número inflado da inventario fantasma y costo del terminado más bajo que el real.',
-    es_semiterminado: 'Márcalo en los graneles: se fabrican y los consumen otros productos.',
     costo_unitario: 'Se actualiza solo con compras y al cerrar cada orden; normalmente no se edita a mano.',
     stock_actual: 'Se mueve solo con entradas y salidas; no se edita aquí.',
 };
@@ -2098,6 +2094,7 @@ function etiquetaCampo(clave) {
 
 const ETIQUETA_TIPO_PRODUCTO = {
     producto: 'Producto terminado',
+    semiterminado: 'Semiterminado (granel)',
     materia_prima: 'Materia prima',
     insumo: 'Insumo / componente',
 };
@@ -2115,9 +2112,9 @@ function htmlGuiaGranel(d) {
     const mal = (t, como) => items.push({ ok: false, t, como });
 
     if (d.esSemi) ok('Marcado como <b>semiterminado (granel)</b>: se fabrica y lo consumen otros productos.');
-    else mal('No está marcado como semiterminado.', d.enBom
-        ? 'En ☰ → ✏️ Editar artículo marca la casilla "Es semiterminado (granel)" y guarda.'
-        : 'Marca la casilla "Es semiterminado (granel)" (junto a "Tipo") y da "Guardar cambios".');
+    else mal('Su tipo no es Semiterminado.', d.enBom
+        ? 'En ☰ → ✏️ Editar artículo cambia "Tipo" a "Semiterminado (granel)" y guarda.'
+        : 'Cambia "Tipo" a "Semiterminado (granel)" y da "Guardar cambios".');
 
     const fam = familiaDeUnidad(u);
     if (fam) ok(`Unidad de Medida: <b>${escaparHtml(u)}</b> — el granel se cuenta en ${fam.familia === 'volumen' ? 'volumen' : 'peso'} y el terminado le descuenta ${fam.familia === 'volumen' ? 'mL' : 'g'}.`);
@@ -2336,7 +2333,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
         if (error) throw error;
 
         // Componentes del BOM (solo lectura) — únicamente para lo que se fabrica.
-        const llevaBom = (art.tipo || 'producto') === 'producto' && art.abastecimiento !== 'comprado';
+        const llevaBom = ['producto', 'semiterminado'].includes(art.tipo || 'producto') && art.abastecimiento !== 'comprado';
         const bomFilas = llevaBom ? (resBom.data || []) : [];
         let componentesPorId = new Map();
         if (bomFilas.length) {
@@ -2387,7 +2384,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
         // El resto sigue el orden lógico de ORDEN_CAMPOS_PRODUCTO; los de
         // solo lectura (id, created_at, updated_at) siempre al final.
         const claves = Object.keys(art)
-            .filter((c) => c !== 'activo')
+            .filter((c) => c !== 'activo' && !CAMPOS_OCULTOS_PRODUCTO.has(c))
             .sort((a, b) => {
                 const soloLecturaA = CAMPOS_NO_EDITABLES_PRODUCTO.has(a);
                 const soloLecturaB = CAMPOS_NO_EDITABLES_PRODUCTO.has(b);
@@ -2424,6 +2421,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                                 <label class="block text-[10px] text-slate-400 mb-1">${etiquetaCampo(clave)}</label>
                                 <select id="rc_${clave}" data-campo="${clave}" data-tipo="text" class="campo-resumen-prod w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
                                     <option value="producto" ${valor === 'producto' ? 'selected' : ''}>Producto terminado</option>
+                                    <option value="semiterminado" ${valor === 'semiterminado' ? 'selected' : ''}>Semiterminado (granel)</option>
                                     <option value="materia_prima" ${valor === 'materia_prima' ? 'selected' : ''}>Materia prima</option>
                                     <option value="insumo" ${valor === 'insumo' ? 'selected' : ''}>Insumo</option>
                                 </select>
@@ -2463,7 +2461,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
 
         // Granel: revisión arriba (✅/⚠ por punto) + tamaño real de la tanda junto al campo "Rendimiento del
         // lote", con botón que lo llena (se guarda con "Guardar cambios"). Se recalcula al editar los campos.
-        const esGranel = art.es_semiterminado || /granel/i.test(art.nombre || '');
+        const esGranel = art.tipo === 'semiterminado' || /granel/i.test(art.nombre || '');
         if (esGranel && llevaBom) {
             const mapaUni = new Map((resUm.data || []).map((u) => [String(u.id), u.nombre]));
             const mapaCta = new Map((resCta.data || []).map((c) => [String(c.id), c]));
@@ -2496,7 +2494,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                 const rend = val('rendimiento_lote_bom', art.rendimiento_lote_bom);
                 const cta = mapaCta.get(String(val('cuenta_inventario_id', art.cuenta_inventario_id) ?? ''));
                 contGuia.innerHTML = htmlGuiaGranel({
-                    esSemi: !!val('es_semiterminado', art.es_semiterminado), unidadNombre: uniProd,
+                    esSemi: val('tipo', art.tipo) === 'semiterminado', unidadNombre: uniProd,
                     nComponentes: bomFilas.length, rend, res,
                     cuentaCodigo: cta?.codigo || '', cuentaNombre: cta?.nombre || '',
                     cuentaConocida: 'cuenta_inventario_id' in art, enBom: false, stock: art.stock_actual,
@@ -2517,7 +2515,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                 });
             };
             pintarGranel();
-            ['unidad_medida_id', 'rendimiento_lote_bom', 'es_semiterminado', 'cuenta_inventario_id'].forEach((campo) => {
+            ['unidad_medida_id', 'rendimiento_lote_bom', 'tipo', 'cuenta_inventario_id'].forEach((campo) => {
                 const el = cuerpo.querySelector(`#rc_${campo}`);
                 el?.addEventListener('input', pintarGranel);
                 el?.addEventListener('change', pintarGranel);

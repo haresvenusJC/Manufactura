@@ -5,7 +5,7 @@
 --  Correr DESPUÉS de revisar sql/2026-09-23e_graneles_revision.sql.
 --  Para cada producto cuyo nombre dice "granel" (o ya es semiterminado) y
 --  tiene BOM, y cuya Unidad de Medida es de volumen o peso:
---   1) es_semiterminado = true, abastecimiento = 'fabricado' (solo tipo producto)
+--   1) tipo = 'semiterminado', abastecimiento = 'fabricado' (solo si era producto o ya semiterminado)
 --   2) rendimiento_lote_bom = lo que suma la receta (misma cuenta que 🧮)
 --   3) cuenta de inventario = 115.02, SOLO si no tiene existencia (si tiene,
 --      cambiarla descuadra el Auxiliar de inventarios: se deja igual)
@@ -36,8 +36,8 @@ granel as (
     select p.id, p.tipo, p.stock_actual, p.cuenta_inventario_id, up.familia, up.a_base
       from public.productos p
       join um up on up.id = p.unidad_medida_id::text
-     where (p.nombre ilike '%granel%' or coalesce(p.es_semiterminado, false))
-       and p.tipo = 'producto'
+     where (p.nombre ilike '%granel%' or p.tipo = 'semiterminado')
+       and p.tipo in ('producto', 'semiterminado')
        and up.familia is not null
        and exists (select 1 from public.bom b where b.producto_id = p.id)
 ),
@@ -59,7 +59,7 @@ select g.id,
   from granel g join suma s on s.producto_id = g.id;
 
 update public.productos p
-   set es_semiterminado = true,
+   set tipo             = 'semiterminado',
        abastecimiento   = 'fabricado',
        rendimiento_lote_bom = case when t.rendimiento > 0 then t.rendimiento else p.rendimiento_lote_bom end
   from _granel_sug t
@@ -75,7 +75,7 @@ update public.productos p
 commit;
 
 -- Resultado (se ve en Supabase porque es lo último que corre)
-select p.id, p.nombre, p.es_semiterminado, p.rendimiento_lote_bom, cc.codigo as cuenta,
+select p.id, p.nombre, p.tipo, p.rendimiento_lote_bom, cc.codigo as cuenta,
        case when t.con_existencia and cc.codigo is distinct from '115.02'
             then 'cuenta sin cambiar: tiene existencia (pedir póliza de reclasificación)' else 'ok' end as nota
   from _granel_sug t

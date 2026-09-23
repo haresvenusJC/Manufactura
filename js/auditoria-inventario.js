@@ -13,7 +13,7 @@ import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const num = (n, d = 4) => Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: d });
 const TABLA_FALTA = /does not exist|schema cache|could not find/i;
-const TIPO_LABEL = { producto: 'Producto terminado', materia_prima: 'Materia prima', insumo: 'Insumo' };
+const TIPO_LABEL = { producto: 'Producto terminado', semiterminado: 'Semiterminado', materia_prima: 'Materia prima', insumo: 'Insumo' };
 
 let auditActual = null;      // { id, nombre } de la que se está revisando
 let resultadoCache = [];
@@ -47,6 +47,7 @@ export async function cargarModuloAuditoriaInventario() {
               <label class="block text-xs text-slate-400 mb-1">Incluir productos del catálogo por tipo</label>
               <div class="flex flex-wrap gap-3 bg-slate-900 border border-slate-800 rounded-lg p-3">
                 <label class="flex items-center gap-1.5 text-xs text-slate-300"><input type="checkbox" id="audTipoProducto" class="accent-sky-500"> Producto terminado</label>
+                <label class="flex items-center gap-1.5 text-xs text-slate-300"><input type="checkbox" id="audTipoSemi" class="accent-sky-500"> Semiterminado</label>
                 <label class="flex items-center gap-1.5 text-xs text-slate-300"><input type="checkbox" id="audTipoMateria" class="accent-sky-500"> Materia prima</label>
                 <label class="flex items-center gap-1.5 text-xs text-slate-300"><input type="checkbox" id="audTipoInsumo" class="accent-sky-500"> Insumo</label>
                 <label class="flex items-center gap-1.5 text-xs text-slate-300 ml-auto"><input type="checkbox" id="audSoloActivos" class="accent-sky-500" checked> Solo activos</label>
@@ -225,6 +226,7 @@ async function crearAuditoria(e) {
 
     const tipos = [];
     if (document.getElementById('audTipoProducto').checked) tipos.push('producto');
+    if (document.getElementById('audTipoSemi').checked) tipos.push('semiterminado');
     if (document.getElementById('audTipoMateria').checked) tipos.push('materia_prima');
     if (document.getElementById('audTipoInsumo').checked) tipos.push('insumo');
     const libres = document.getElementById('audLibres').value.split('\n').map((s) => s.trim()).filter(Boolean);

@@ -32,7 +32,7 @@ granel as (
     select p.*, up.nombre as unidad, up.familia, up.a_base
       from public.productos p
       left join um up on up.id = p.unidad_medida_id::text
-     where (p.nombre ilike '%granel%' or coalesce(p.es_semiterminado, false))
+     where (p.nombre ilike '%granel%' or p.tipo = 'semiterminado')
        and exists (select 1 from public.bom b where b.producto_id = p.id)
 ),
 renglon as (
@@ -55,7 +55,7 @@ suma as (
       from renglon group by producto_id
 )
 select g.id, g.nombre, g.unidad,
-       g.es_semiterminado                                   as semiterminado_hoy,
+       (g.tipo = 'semiterminado')                           as semiterminado_hoy,
        g.rendimiento_lote_bom                               as rendimiento_hoy,
        case g.familia when 'volumen' then round(s.ml / g.a_base, 2)
                       when 'masa'    then round(s.g  / g.a_base, 2) end as rendimiento_sugerido,

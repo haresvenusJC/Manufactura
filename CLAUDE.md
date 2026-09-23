@@ -4,6 +4,14 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-09-24_tipo_semiterminado.sql` y `sql/2026-09-24b_quitar_es_semiterminado.sql`
+  (nuevos), `sql/…23e`/`…23f` (usan tipo), `js/catalogo.js`, `produccion.js`, `ordenes-produccion.js`, `importador-bom.js`,
+  `importador.js`, `inventario.js`, `auxiliar-inventarios.js`, `auditoria-inventario.js`, `reportes.js`, `salidas.js`, manual.
+  Semiterminado ya es un TIPO: `productos.tipo = 'semiterminado'` (antes `producto` + `es_semiterminado`). Se elige con
+  su botón en el alta y en "✏️ Editar artículo" → "Tipo"; lo que "se fabrica" = `producto` o `semiterminado`; un granel
+  NO se vende (Salida por Venta solo `producto`); sin cuenta → 115.02. Migración 1 amplía la regla de `tipo`, convierte los
+  fabricados marcados o con "granel" en el nombre (por nombre solo la 1.ª vez), 115.02 si no hay existencia, y un trigger
+  puente mantiene `es_semiterminado` hasta el paso 2. Probado en Postgres local. Pendiente: correr la 1, publicar, correr la 2.
 - Archivos tocados (lo último): `js/subventanas-movibles.js` (nuevo), `js/app.js` y los 3 módulos de operador (lo importan),
   fondos de subventanas en `asistente-contable`, `catalogo`, `contabilidad`, `documentos`, `kardex`, `ordenes-compra`,
   `recibo-operador`, `salidas`. Todas las subventanas se arrastran desde su barra de título (mouse y dedo) sin tocar cada
@@ -264,8 +272,9 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   PEPS/FEFO, landed cost). Reportes contables: Balanza, Estado de resultados, Balance general y **Auxiliar
   de cuentas contables** (saldo inicial + movimientos + saldo final; selector de UNA cuenta -padre trae
   sus hijos, de detalle solo ella- o "Todas las cuentas", sin desde/hasta).
-- Clasificación de productos: `productos.tipo` + `abastecimiento` (fabricado/comprado) + `es_semiterminado`
-  (granel). Vista `v_productos_bom`. En Catálogo: botones Producto terminado/Semiterminado/Materia
+- Clasificación de productos: `productos.tipo` (producto / semiterminado / materia_prima / insumo) + `abastecimiento`
+  (fabricado/comprado; semiterminado siempre fabricado). `es_semiterminado` quedó obsoleta (se borra con
+  `sql/2026-09-24b_…`). Vista `v_productos_bom`. En Catálogo: botones Producto terminado/Semiterminado/Materia
   prima/Insumo; BOM editable en ventana propia (☰ → "Editar o ver BOM") y visible en "Ver artículo".
 - Cálculo de necesidades de producción (`calcularRequerimientosProduccion`, `js/produccion.js`) convierte
   por la unidad de cada renglón del BOM vs. la unidad de inventario del insumo: misma familia (g/kg, mL/L)
@@ -314,7 +323,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Pendiente
 
-- Correr `sql/2026-09-23f_graneles_aplicar.sql` (revisión `…e` ya corrida 2026-09-23: 6 graneles en Litros, 115.02, sin
+- Semiterminado como tipo, en este orden: (1) correr `sql/2026-09-24_tipo_semiterminado.sql` (al final lista funciones
+  vivas que comparan el tipo o usan la bandera: si sale alguna, revisarla); (2) publicar el código a `main`; (3) correr
+  `sql/2026-09-24b_quitar_es_semiterminado.sql`. Pedidos de venta todavía lista todos los artículos (sin filtro de tipo).
+- Correr `sql/2026-09-23f_graneles_aplicar.sql` DESPUÉS de la migración del tipo semiterminado (revisión `…e` ya corrida 2026-09-23: 6 graneles en Litros, 115.02, sin
   existencia; quedarían en 14.64 L). Antes, revisar la receta de Granel Love Oil Fresa Kiwi 15 Litros (id 227): suma solo
   7.99 L con 3 componentes. Al crear graneles nuevos, volver a correr revisión + aplicar.
 - Verificado 2026-09-23 en la base: corridas todas las migraciones de 2026-09-22 y 2026-09-23 (`…23d` no, es opcional).

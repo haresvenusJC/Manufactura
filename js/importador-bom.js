@@ -496,7 +496,7 @@ function validar() {
         else {
             padre = buscarProducto(padreTxt);
             if (!padre) problemas.push(`producto "${padreTxt}" no existe en el Catálogo`);
-            else if (padre.tipo !== 'producto') problemas.push(`"${padre.nombre}" no es un Producto terminado (tipo actual: ${padre.tipo || 'sin tipo'})`);
+            else if (padre.tipo !== 'producto' && padre.tipo !== 'semiterminado') problemas.push(`"${padre.nombre}" no es un Producto terminado ni Semiterminado (tipo actual: ${padre.tipo || 'sin tipo'})`);
         }
 
         if (!compTxt) problemas.push('sin componente');

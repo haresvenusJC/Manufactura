@@ -10,7 +10,7 @@
 //
 //  Al final, "Cuadre contra la balanza": por cada cuenta de inventario
 //  (productos.cuenta_inventario_id; sin cuenta -> 115.04 si es producto,
-//  115.01 si no, igual que contabilizar_produccion / compras) compara la
+//  115.02 si es semiterminado, 115.01 si no, igual que contabilizar_produccion / compras) compara la
 //  suma del kardex de TODOS sus artículos contra el saldo de la cuenta en
 //  la balanza a la fecha "Hasta", y lista las pólizas que movieron la
 //  cuenta sin un movimiento de inventario detrás (ajustes manuales,
@@ -57,12 +57,11 @@ const TIPO_MOV = {
     cancelacion_recibo: 'Cancelación de recibo', ajuste_recepcion: 'Ajuste de recepción',
 };
 
-let productosCache = null;   // [{ id, nombre, sku, tipo, es_semiterminado, cuenta_inventario_id, unidad }]
+let productosCache = null;   // [{ id, nombre, sku, tipo, cuenta_inventario_id, unidad }]
 let cuentasCache = null;     // [{ id, codigo, nombre, naturaleza }]
 
 function clasificacion(p) {
-    if (p.tipo === 'producto') return p.es_semiterminado ? 'semiterminado' : 'producto';
-    return p.tipo || 'producto';
+    return p.tipo || 'producto';   // producto / semiterminado / materia_prima / insumo
 }
 
 async function cargarCatalogos() {
@@ -72,19 +71,17 @@ async function cargarCatalogos() {
         cuentasCache = data || [];
     }
     if (!productosCache) {
-        const cols = 'id, nombre, sku, tipo, es_semiterminado, cuenta_inventario_id, unidades_medida ( nombre )';
-        let { data, error } = await supabaseClient.from('productos').select(cols).order('nombre');
-        if (error) {   // sin es_semiterminado (migración 2026-10-18) o sin cuenta_inventario_id
-            ({ data, error } = await supabaseClient.from('productos').select(cols.replace('es_semiterminado, ', '')).order('nombre'));
-        }
+        const cols = 'id, nombre, sku, tipo, cuenta_inventario_id, unidades_medida ( nombre )';
+        const { data, error } = await supabaseClient.from('productos').select(cols).order('nombre');
         if (error) throw error;
         const c = (cod) => cuentasCache.find((x) => x.codigo === cod)?.id || null;
-        const c01 = c('115.01'), c04 = c('115.04');
+        const c01 = c('115.01'), c02 = c('115.02'), c04 = c('115.04');
         productosCache = (data || []).map((p) => ({
-            id: p.id, nombre: p.nombre, sku: p.sku, tipo: p.tipo, es_semiterminado: !!p.es_semiterminado,
+            id: p.id, nombre: p.nombre, sku: p.sku, tipo: p.tipo,
             unidad: p.unidades_medida?.nombre || '',
             cuentaAsignada: !!p.cuenta_inventario_id,
-            cuentaId: p.cuenta_inventario_id || (p.tipo === 'producto' ? c04 : c01),
+            // Misma regla que cuadre_inventario_contable() en la base.
+            cuentaId: p.cuenta_inventario_id || (p.tipo === 'producto' ? c04 : p.tipo === 'semiterminado' ? (c02 || c04) : c01),
         }));
     }
 }

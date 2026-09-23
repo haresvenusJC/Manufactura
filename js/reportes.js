@@ -25,6 +25,7 @@ const ETIQUETAS_TIPO_PRODUCTO = {
     materia_prima: 'Materia prima',
     insumo: 'Insumo',
     producto: 'Producto terminado',
+    semiterminado: 'Semiterminado',
     sin_tipo: 'Sin tipo',
 };
 

@@ -26,7 +26,7 @@ const CAMPOS = [
     { key: 'proveedor',      label: 'Proveedor',            grupo: 'basico',   hints: ['proveedor', 'supplier', 'fabricante', 'marca', 'vendor'] },
     { key: 'nombre',         label: 'Nombre del producto',  grupo: 'basico',   hints: ['producto', 'nombre', 'articulo', 'item', 'material', 'insumo'] },
     { key: 'sku',            label: 'SKU / Codigo',         grupo: 'basico',   hints: ['sku', 'codigo', 'clave', 'code', 'parte', 'part', 'no. parte', 'referencia', 'no parte'] },
-    { key: 'tipo',           label: 'Tipo (MP / insumo / producto)', grupo: 'basico', hints: ['tipo', 'categoria', 'category', 'clase', 'familia', 'segmento'] },
+    { key: 'tipo',           label: 'Tipo (MP / insumo / producto / semiterminado)', grupo: 'basico', hints: ['tipo', 'categoria', 'category', 'clase', 'familia', 'segmento'] },
     { key: 'precio_venta',   label: 'Precio de venta (s/ IVA)', grupo: 'basico', hints: ['precio venta', 'precio de venta', 'precio publico', 'pvp', 'sale price', 'precio lista', 'lista de precios', 'venta mayoreo', 'venta menudeo', 'precio menudeo', 'precio mayoreo'] },
     { key: 'costo_unitario', label: 'Costo unitario / de compra', grupo: 'basico', hints: ['costo', 'cost', 'precio compra', 'precio de compra', 'importe', 'unitario', 'unit price', 'pu', 'p.u', 'precio'] },
     { key: 'moneda',         label: 'Moneda',               grupo: 'basico',   hints: ['moneda', 'currency', 'divisa'] },
@@ -84,6 +84,7 @@ function parseAbastecimiento(raw) {
 function parseTipoProducto(raw) {
     const s = norm(raw);
     if (!s) return '';
+    if (/semi|granel/.test(s)) return 'semiterminado';
     if (/materia|prima|\bmp\b/.test(s)) return 'materia_prima';
     if (/insumo|componente|auxiliar/.test(s)) return 'insumo';
     if (/producto|terminad|\bpt\b|articulo|final|venta/.test(s)) return 'producto';
@@ -195,6 +196,7 @@ export async function cargarModuloImportador() {
                             <option value="materia_prima">Materia prima</option>
                             <option value="insumo">Insumo / componente</option>
                             <option value="producto">Producto terminado</option>
+                            <option value="semiterminado">Semiterminado (granel)</option>
                         </select>
                     </div>
                     <div>
@@ -265,7 +267,7 @@ function cablearEventos() {
     $('impDescClasif').addEventListener('click', descargarHojaClasificacion);
 }
 
-// Baja los productos (tipo "producto") en un Excel ya listo para clasificar:
+// Baja los productos (tipo "producto" y "semiterminado") en un Excel ya listo para clasificar:
 // sugiere "semiterminado" cuando el producto tiene BOM propio y se usa como
 // componente de otro. Se corrige a mano y se sube en este mismo importador
 // (las columnas Abastecimiento / Semiterminado se detectan solas).
@@ -291,11 +293,11 @@ async function descargarHojaClasificacion() {
         let conColumnas = true;
         try {
             prods = await paginar(() => supabaseClient.from('productos')
-                .select('id, sku, nombre, abastecimiento, es_semiterminado').eq('tipo', 'producto').order('id'));
+                .select('id, sku, nombre, tipo, abastecimiento').in('tipo', ['producto', 'semiterminado']).order('id'));
         } catch (_) {
             conColumnas = false;   // aún no está la migración 2026-10-18
             prods = await paginar(() => supabaseClient.from('productos')
-                .select('id, sku, nombre').eq('tipo', 'producto').order('id'));
+                .select('id, sku, nombre, tipo').in('tipo', ['producto', 'semiterminado']).order('id'));
         }
         const bom = await paginar(() => supabaseClient.from('bom').select('producto_id, componente_id').order('id'));
 
@@ -307,7 +309,7 @@ async function descargarHojaClasificacion() {
         for (const p of prods) {
             const tiene = conBom.has(p.id);
             const usaOtros = usado.has(p.id);
-            const semi = (conColumnas && p.es_semiterminado === true) || (tiene && usaOtros);
+            const semi = p.tipo === 'semiterminado' || (tiene && usaOtros);
             aoa.push([
                 p.sku || '', p.nombre || '',
                 tiene ? 'si' : 'no', usaOtros ? 'si' : 'no',
@@ -849,18 +851,19 @@ function validar() {
                 semi = parseBooleano(rawSm);
                 if (semi === undefined) { problemas.push('semiterminado "' + rawSm + '" no reconocido (usa si / no), revisa antes de incluir esta fila'); requiereRevision = true; }
             }
+            // "Semiterminado: si/no" se traduce al tipo (productos.tipo = 'semiterminado').
             const tipoEf = tipoCol || (existente && existente.tipo) || document.getElementById('impTipo').value;
-            if (semi === true && abast === 'comprado') {
+            const esSemi = semi === true || (semi === undefined && tipoEf === 'semiterminado');
+            if (esSemi && abast === 'comprado') {
                 problemas.push('un semiterminado se fabrica: no puede ser "comprado"');
                 requiereRevision = true;
-            } else if (semi === true && tipoEf && tipoEf !== 'producto') {
+            } else if (semi === true && tipoEf && !['producto', 'semiterminado'].includes(tipoEf)) {
                 problemas.push('solo un producto puede ser semiterminado (este es "' + tipoEf + '")');
                 requiereRevision = true;
             } else {
                 if (abast) extras.abastecimiento = abast;
-                if (semi === true) { extras.es_semiterminado = true; extras.abastecimiento = 'fabricado'; }
-                else if (semi === false) extras.es_semiterminado = false;
-                else if (abast === 'comprado') extras.es_semiterminado = false;
+                if (semi === true) { tipoCol = 'semiterminado'; extras.abastecimiento = 'fabricado'; }
+                else if (semi === false && tipoEf === 'semiterminado') tipoCol = 'producto';
             }
         }
 
@@ -893,6 +896,7 @@ const TIPOS = [
     { v: 'materia_prima', t: 'Materia prima' },
     { v: 'insumo', t: 'Insumo' },
     { v: 'producto', t: 'Producto' },
+    { v: 'semiterminado', t: 'Semiterminado' },
 ];
 
 function renderPreview(plan) {
@@ -921,7 +925,7 @@ function renderPreview(plan) {
 
     const clasifTag = (p) => {
         const x = p.extras || {};
-        if (x.es_semiterminado === true) return ' <span class="text-indigo-400 text-[10px]">· semiterminado</span>';
+        if (p.tipoCol === 'semiterminado') return ' <span class="text-indigo-400 text-[10px]">· semiterminado</span>';
         if (x.abastecimiento === 'comprado') return ' <span class="text-rose-400 text-[10px]">· comprado</span>';
         if (x.abastecimiento === 'fabricado') return ' <span class="text-slate-400 text-[10px]">· fabricado</span>';
         return '';
@@ -1083,7 +1087,7 @@ const ETIQ_CAMPO = {
     proveedor_id: 'proveedor', descripcion: 'descripción', precio_venta: 'precio venta',
     tasa_iva: 'IVA', tasa_ieps: 'IEPS', cuenta_inventario_id: 'cta. inventario', cuenta_costo_id: 'cta. costo',
     stock_minimo: 'stock mín.', tiempo_entrega_dias: 'entrega (días)', cantidad_minima_compra: 'MOQ',
-    activo: 'activo', requiere_caducidad: 'caducidad', abastecimiento: 'abastecimiento', es_semiterminado: 'semiterminado',
+    activo: 'activo', requiere_caducidad: 'caducidad', abastecimiento: 'abastecimiento',
 };
 
 // [[campo, "etiqueta: valor"], ...] de lo que se escribiría en esta fila.
@@ -1106,7 +1110,7 @@ async function importar() {
 
     // La clasificación necesita las columnas de sql/2026-10-18_producto_abastecimiento_semiterminado.sql
     if (estado.mapeo.abastecimiento || estado.mapeo.semiterminado) {
-        const { error: errCol } = await supabaseClient.from('productos').select('abastecimiento, es_semiterminado').limit(1);
+        const { error: errCol } = await supabaseClient.from('productos').select('abastecimiento').limit(1);
         if (errCol) {
             alert('Falta correr sql/2026-10-18_producto_abastecimiento_semiterminado.sql en Supabase (SQL Editor) antes de importar la clasificación.');
             btn.textContent = 'Importar';

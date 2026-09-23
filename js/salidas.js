@@ -190,7 +190,7 @@ export async function cargarModuloSalidas() {
                     return;
                 }
 
-                // En "Salida por Venta" solo se venden productos terminados.
+                // En "Salida por Venta" solo se venden productos terminados (un semiterminado/granel no se vende).
                 const soloTerminados = document.getElementById('tipoSalida')?.value === 'salida_venta';
 
                 // Limitar a máximo 15 coincidencias para mejor rendimiento
@@ -1035,4 +1035,4 @@ async function abrirModalContabilizarSalida(doc) {
             modal.querySelector('#cbxGuardar').disabled = false;
         }
     };
-}
+}
