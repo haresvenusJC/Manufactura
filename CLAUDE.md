@@ -4,6 +4,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/catalogo.js` — "🧪 Revisión del granel" (`htmlGuiaGranel`) arriba de "✏️ Editar
+  artículo" (si es semiterminado o el nombre dice "granel") y de "🧪 Editar o ver BOM": ✅/⚠ por punto con qué hacer —
+  semiterminado, unidad (L/kg), BOM, rendimiento vs. suma de la receta, densidades, piezas en la receta, cuenta 115.02
+  (solo en Editar artículo; avisa reclasificación si ya hay existencia). Se recalcula al editar los campos.
 - Archivos tocados (lo último): `js/catalogo.js`, `js/ordenes-compra.js`, `js/pedidos-venta.js`, `js/requisiciones-compra.js`,
   `js/trazabilidad.js`. "Usar X como Rendimiento del lote" cerraba "Editar artículo": el recuadro se re-dibuja, el botón
   tocado sale del DOM y `cerrarFuera` lo tomaba como clic fuera. Ahora `cerrarFuera` ignora nodos desconectados

@@ -1,7 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { irAKardexDeProducto } from './kardex.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
-import { factorConversion, tamanoTeoricoTanda } from './conversion-unidades.js';
+import { factorConversion, tamanoTeoricoTanda, familiaDeUnidad } from './conversion-unidades.js';
 import { opcionesPresentacionHtml } from './presentaciones-proveedor.js';
 
 let catBusqueda = ''; // texto del buscador en vivo del Catálogo General (SKU y/o nombre)
@@ -1626,7 +1626,8 @@ async function abrirVentanaBom(producto) {
     function refrescarAnalisisModal() {
         const cont = cuerpo.querySelector('#bomAnalisis');
         if (!cont) return;
-        if (!(producto.es_semiterminado || Number(producto.rendimiento_lote_bom) > 0) || !filas.length) { cont.innerHTML = ''; return; }
+        const esGranel = producto.es_semiterminado || Number(producto.rendimiento_lote_bom) > 0 || /granel/i.test(producto.nombre || '');
+        if (!esGranel) { cont.innerHTML = ''; return; }
         const uni = nombreUnidadPorId.get(String(producto.unidad_medida_id ?? '')) || '';
         const res = tamanoTeoricoTanda(filas.map((f) => {
             const p = nombreDe(f.compId);
@@ -1634,7 +1635,10 @@ async function abrirVentanaBom(producto) {
             return { nombre: p ? p.nombre : `#${f.compId}`, cantidad: f.cantidad,
                 unidadNombre: /^\d+$/.test(raw) ? (nombreUnidadPorId.get(raw) || '') : raw, densidad: p?.densidad_kg_l };
         }), uni);
-        cont.innerHTML = htmlAnalisisTanda(res, uni, producto.rendimiento_lote_bom);
+        cont.innerHTML = htmlGuiaGranel({
+            esSemi: !!producto.es_semiterminado, unidadNombre: uni, nComponentes: filas.length,
+            rend: producto.rendimiento_lote_bom, res: filas.length ? res : null, cuentaConocida: false, enBom: true,
+        }) + (filas.length ? htmlAnalisisTanda(res, uni, producto.rendimiento_lote_bom) : '');
         cont.querySelector('.btn-usar-rend')?.addEventListener('click', async (e) => {
             const valor = Number(e.currentTarget.dataset.valor);
             if (!confirm(`¿Guardar ${valor} ${uni} como "Rendimiento del lote" de ${producto.nombre}?\n\nProducción tomará esta receta como UNA tanda que rinde ${valor} ${uni}.`)) return;
@@ -2098,6 +2102,60 @@ const ETIQUETA_TIPO_PRODUCTO = {
 };
 
 
+// Revisión de un granel (semiterminado): cada punto que lo deja bien armado, con ✅ / ⚠ y qué hacer.
+// Lo usan "Editar artículo" y "Editar o ver BOM".
+//  d = { esSemi, unidadNombre, nComponentes, rend, res (tamanoTeoricoTanda o null), cuentaCodigo,
+//        cuentaNombre, cuentaConocida, enBom, stock }
+function htmlGuiaGranel(d) {
+    const fmt = (n, dec = 2) => Number(n).toLocaleString('es-MX', { maximumFractionDigits: dec });
+    const u = d.unidadNombre || '';
+    const items = [];
+    const ok = (t) => items.push({ ok: true, t });
+    const mal = (t, como) => items.push({ ok: false, t, como });
+
+    if (d.esSemi) ok('Marcado como <b>semiterminado (granel)</b>: se fabrica y lo consumen otros productos.');
+    else mal('No está marcado como semiterminado.', d.enBom
+        ? 'En ☰ → ✏️ Editar artículo marca la casilla "Es semiterminado (granel)" y guarda.'
+        : 'Marca la casilla "Es semiterminado (granel)" (más abajo) y da "Guardar cambios".');
+
+    const fam = familiaDeUnidad(u);
+    if (fam) ok(`Unidad de Medida: <b>${escaparHtml(u)}</b> — el granel se cuenta en ${fam.familia === 'volumen' ? 'volumen' : 'peso'} y el terminado le descuenta ${fam.familia === 'volumen' ? 'mL' : 'g'}.`);
+    else mal(`Unidad de Medida: "${escaparHtml(u || 'sin unidad')}".`, 'Cámbiala a <b>Litros</b> (o Kilogramos). En Pieza, el producto terminado no le puede descontar mL.');
+
+    if (d.nComponentes > 0) ok(`Receta (BOM) con ${d.nComponentes} componente(s), escrita para <b>UNA tanda</b>.`);
+    else mal('Sin receta (BOM).', 'Captúrala en ☰ → 🧪 Editar o ver BOM, tal como preparas UNA tanda en el tanque.');
+
+    const rend = Number(d.rend) || 0;
+    const sug = d.res && d.res.total != null ? Math.round(d.res.total * 100) / 100 : null;
+    if (!(rend > 0)) {
+        mal('Sin "Rendimiento del lote".', sug ? `Usa <b>${fmt(sug)} ${escaparHtml(u)}</b> (lo que suma la receta) con el botón 🧮 "Usar ${fmt(sug)} …" de abajo.` : 'Captura cuántos litros (o kilos) salen de UNA tanda.');
+    } else if (sug && Math.abs(rend - sug) / sug >= 0.005) {
+        const dif = (rend - sug) / sug * 100;
+        mal(`Rendimiento del lote: ${fmt(rend)} ${escaparHtml(u)} — ${fmt(Math.abs(dif), 1)}% ${dif > 0 ? 'MÁS' : 'menos'} que lo que suma la receta (${fmt(sug)}).`, `Usa el botón 🧮 "Usar ${fmt(sug)} …" o captura lo que mediste en el tanque.`);
+    } else {
+        ok(`Rendimiento del lote: <b>${fmt(rend)} ${escaparHtml(u)}</b> = 1 tanda en Producción ("TANDAS A PREPARAR").`);
+    }
+
+    if (d.res && d.nComponentes > 0) {
+        if (d.res.sinDensidad.length) mal(`Insumos sin densidad: ${d.res.sinDensidad.map(escaparHtml).join(', ')} (se tomaron como agua).`, 'Captúrala en Catálogo → ⚖️ Densidades. Solo importa si la receta los pide en otra unidad (ej. en L y se compran en kg).');
+        else ok('Todos los insumos se convierten a la unidad del granel (densidades completas).');
+        if (d.res.ignorados.length) mal(`La receta lleva piezas: ${d.res.ignorados.map(escaparHtml).join(', ')}.`, 'Un granel normalmente no lleva frascos ni etiquetas: esos van en el BOM del producto terminado.');
+    }
+
+    if (d.cuentaConocida) {
+        if (d.cuentaCodigo === '115.02') ok('Cuenta de inventario: <b>115.02</b> · Inventario de productos en proceso (semiterminados).');
+        else mal(`Cuenta de inventario: ${d.cuentaCodigo ? `${escaparHtml(d.cuentaCodigo)} ${escaparHtml(d.cuentaNombre || '')}` : 'sin cuenta (se usaría 115.04 Productos terminados)'}.`, 'Elige <b>115.02 · Inventario de productos en proceso (semiterminados)</b>, así la póliza de producción lo registra como granel.'
+            + (Number(d.stock) > 0 ? ' <span class="text-amber-300">Ojo: ya tiene existencia; lo que ya está en la otra cuenta necesita una póliza de reclasificación para que el Auxiliar de inventarios siga cuadrando.</span>' : ''));
+    }
+
+    const listos = items.filter((i) => i.ok).length;
+    const todoBien = listos === items.length;
+    return `<div class="text-[11px] rounded-lg border ${todoBien ? 'border-emerald-900/70 bg-emerald-950/20' : 'border-amber-900/70 bg-amber-950/20'} px-3 py-2 mb-3">
+        <p class="font-semibold ${todoBien ? 'text-emerald-300' : 'text-amber-300'} mb-1">🧪 Revisión del granel — ${listos} de ${items.length} listos${todoBien ? ': ya se puede producir por tandas.' : ''}</p>
+        <ul class="space-y-1">${items.map((i) => `<li class="flex gap-1.5"><span class="shrink-0">${i.ok ? '✅' : '⚠️'}</span><span class="${i.ok ? 'text-slate-300' : 'text-amber-200'}">${i.t}${i.como ? `<span class="block text-slate-400">→ ${i.como}</span>` : ''}</span></li>`).join('')}</ul>
+    </div>`;
+}
+
 // Análisis del tamaño real de una tanda (suma de la receta con densidades) para proponer el
 // "Rendimiento del lote" de un granel. Lo usan el formulario del Catálogo y "Editar o ver BOM".
 // El botón lleva la clase `btn-usar-rend` y `data-valor`; quien lo pinta decide qué hace al clic.
@@ -2402,16 +2460,27 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
             ${llevaBom ? renderBomResumen(bomFilas, componentesPorId, resUm.data) : ''}
             ${renderClavesProveedorResumen(resClaves.data, resProv.data)}`;
 
-        // Granel: tamaño real de la tanda y botón para pasarlo a "Rendimiento del lote" (se guarda con "Guardar cambios").
-        if (art.es_semiterminado && bomFilas.length) {
+        // Granel: revisión arriba (✅/⚠ por punto) + tamaño real de la tanda junto al campo "Rendimiento del
+        // lote", con botón que lo llena (se guarda con "Guardar cambios"). Se recalcula al editar los campos.
+        const esGranel = art.es_semiterminado || /granel/i.test(art.nombre || '');
+        if (esGranel && llevaBom) {
             const mapaUni = new Map((resUm.data || []).map((u) => [String(u.id), u.nombre]));
-            const uniProd = mapaUni.get(String(art.unidad_medida_id ?? '')) || '';
-            const res = tamanoTeoricoTanda(bomFilas.map((b) => {
+            const mapaCta = new Map((resCta.data || []).map((c) => [String(c.id), c]));
+            const val = (campo, porDefecto) => {
+                const el = cuerpo.querySelector(`#rc_${campo}`);
+                if (!el) return porDefecto;
+                return el.type === 'checkbox' ? el.checked : el.value;
+            };
+            const calcular = (uniProd) => bomFilas.length ? tamanoTeoricoTanda(bomFilas.map((b) => {
                 const c = componentesPorId.get(b.componente_id);
                 const raw = String(b.unidad_medida ?? '');
                 return { nombre: c ? c.nombre : `#${b.componente_id}`, cantidad: b.cantidad_requerida,
                     unidadNombre: /^\d+$/.test(raw) ? (mapaUni.get(raw) || '') : raw, densidad: c?.densidad_kg_l };
-            }), uniProd);
+            }), uniProd) : null;
+
+            const contGuia = document.createElement('div');
+            contGuia.id = 'rcGuiaGranel';
+            cuerpo.prepend(contGuia);
             // Justo debajo del campo "Rendimiento del lote", a todo lo ancho: ahí es donde se decide el número.
             const campoRend = cuerpo.querySelector('#rc_rendimiento_lote_bom');
             const contAn = document.createElement('div');
@@ -2419,24 +2488,39 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
             contAn.className = 'sm:col-span-2';
             if (campoRend?.parentElement) campoRend.parentElement.insertAdjacentElement('afterend', contAn);
             else cuerpo.appendChild(contAn);
-            const pintarAn = () => {
-                const elRend = cuerpo.querySelector('#rc_rendimiento_lote_bom');
-                contAn.innerHTML = htmlAnalisisTanda(res, uniProd, elRend ? elRend.value : art.rendimiento_lote_bom);
-                contAn.querySelector('.btn-usar-rend')?.addEventListener('click', (e) => {
+
+            const pintarGranel = () => {
+                const uniProd = mapaUni.get(String(val('unidad_medida_id', art.unidad_medida_id) ?? '')) || '';
+                const res = calcular(uniProd);
+                const rend = val('rendimiento_lote_bom', art.rendimiento_lote_bom);
+                const cta = mapaCta.get(String(val('cuenta_inventario_id', art.cuenta_inventario_id) ?? ''));
+                contGuia.innerHTML = htmlGuiaGranel({
+                    esSemi: !!val('es_semiterminado', art.es_semiterminado), unidadNombre: uniProd,
+                    nComponentes: bomFilas.length, rend, res,
+                    cuentaCodigo: cta?.codigo || '', cuentaNombre: cta?.nombre || '',
+                    cuentaConocida: 'cuenta_inventario_id' in art, enBom: false, stock: art.stock_actual,
+                });
+                contAn.innerHTML = res ? htmlAnalisisTanda(res, uniProd, rend) : '';
+                const btn = contAn.querySelector('.btn-usar-rend');
+                if (!btn) return;
+                if (soloLectura) { btn.remove(); return; }
+                btn.insertAdjacentHTML('afterend', '<span class="text-[10px] text-slate-500 ml-2">Luego da "Guardar cambios".</span>');
+                btn.addEventListener('click', (e) => {
                     e.stopPropagation();   // el recuadro se re-dibuja: que no cuente como "clic fuera" de la subventana
+                    const elRend = cuerpo.querySelector('#rc_rendimiento_lote_bom');
                     if (!elRend) return;
                     elRend.value = e.currentTarget.dataset.valor;
                     elRend.classList.add('ring-2', 'ring-sky-500');
                     setTimeout(() => elRend.classList.remove('ring-2', 'ring-sky-500'), 1500);
-                    pintarAn();
+                    pintarGranel();
                 });
-                if (contAn.querySelector('.btn-usar-rend') && !soloLectura) {
-                    contAn.querySelector('.btn-usar-rend').insertAdjacentHTML('afterend', '<span class="text-[10px] text-slate-500 ml-2">Luego da "Guardar cambios".</span>');
-                }
-                if (soloLectura) contAn.querySelector('.btn-usar-rend')?.remove();
             };
-            pintarAn();
-            cuerpo.querySelector('#rc_rendimiento_lote_bom')?.addEventListener('input', pintarAn);
+            pintarGranel();
+            ['unidad_medida_id', 'rendimiento_lote_bom', 'es_semiterminado', 'cuenta_inventario_id'].forEach((campo) => {
+                const el = cuerpo.querySelector(`#rc_${campo}`);
+                el?.addEventListener('input', pintarGranel);
+                el?.addEventListener('change', pintarGranel);
+            });
         }
     } catch (err) {
         cuerpo.innerHTML = `<p class="text-rose-400 text-xs">No se pudo cargar el artículo: ${err.message || err}</p>`;
