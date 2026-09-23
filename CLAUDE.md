@@ -11,7 +11,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   su botón en el alta y en "✏️ Editar artículo" → "Tipo"; lo que "se fabrica" = `producto` o `semiterminado`; un granel
   NO se vende (Salida por Venta solo `producto`); sin cuenta → 115.02. Migración 1 amplía la regla de `tipo`, convierte los
   fabricados marcados o con "granel" en el nombre (por nombre solo la 1.ª vez), 115.02 si no hay existencia, y un trigger
-  puente mantiene `es_semiterminado` hasta el paso 2. Probado en Postgres local. Pendiente: correr la 1, publicar, correr la 2.
+  puente mantiene `es_semiterminado` hasta el paso 2. Probado en Postgres local. Ya corridas la 1 y la 2 y publicado (2026-09-23): la columna ya no existe.
 - Archivos tocados (lo último): `js/subventanas-movibles.js` (nuevo), `js/app.js` y los 3 módulos de operador (lo importan),
   fondos de subventanas en `asistente-contable`, `catalogo`, `contabilidad`, `documentos`, `kardex`, `ordenes-compra`,
   `recibo-operador`, `salidas`. Todas las subventanas se arrastran desde su barra de título (mouse y dedo) sin tocar cada
@@ -273,7 +273,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   de cuentas contables** (saldo inicial + movimientos + saldo final; selector de UNA cuenta -padre trae
   sus hijos, de detalle solo ella- o "Todas las cuentas", sin desde/hasta).
 - Clasificación de productos: `productos.tipo` (producto / semiterminado / materia_prima / insumo) + `abastecimiento`
-  (fabricado/comprado; semiterminado siempre fabricado). `es_semiterminado` quedó obsoleta (se borra con
+  (fabricado/comprado; semiterminado siempre fabricado). `es_semiterminado` ya no existe (borrada con
   `sql/2026-09-24b_…`). Vista `v_productos_bom`. En Catálogo: botones Producto terminado/Semiterminado/Materia
   prima/Insumo; BOM editable en ventana propia (☰ → "Editar o ver BOM") y visible en "Ver artículo".
 - Cálculo de necesidades de producción (`calcularRequerimientosProduccion`, `js/produccion.js`) convierte
@@ -326,7 +326,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - Semiterminado como tipo: (1) migración 1 YA CORRIDA 2026-09-23 (pegada en 2 partes; el editor de Supabase cortaba el
   archivo completo): 32 semiterminados, 65 producto, 41 MP, 122 insumo; `tareas_sync_inventario` solo compara
   `entidad_tipo`, no aplica. (2) código ya en `main` (2026-09-23; la 1.ª publicación de Pages falló por un error de certificado de GitHub y se
-  relanzó). Falta: (3) correr `sql/2026-09-24b_quitar_es_semiterminado.sql`. Pedidos de venta todavía lista todos los artículos (sin filtro de tipo).
+  relanzó). (3) `sql/2026-09-24b_quitar_es_semiterminado.sql` YA CORRIDA 2026-09-23 (columna, trigger puente y
+  función borrados; 32 semiterminado, 65 producto, 41 MP, 122 insumo). Pedidos de venta todavía lista todos los artículos (sin filtro de tipo).
 - Correr `sql/2026-09-23f_graneles_aplicar.sql` DESPUÉS de la migración del tipo semiterminado (revisión `…e` ya corrida 2026-09-23: 6 graneles en Litros, 115.02, sin
   existencia; quedarían en 14.64 L). Antes, revisar la receta de Granel Love Oil Fresa Kiwi 15 Litros (id 227): suma solo
   7.99 L con 3 componentes. Al crear graneles nuevos, volver a correr revisión + aplicar.
