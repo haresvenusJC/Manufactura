@@ -4,6 +4,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/catalogo.js`, `manual-costos-produccion.html` — explicación de por qué importa el
+  "Rendimiento del lote" aunque la MP se descuente a costo real (la receta decide cuánto se gasta; el rendimiento, entre
+  cuántos litros se reparte y cuántos hay): pista en el formulario y en "Editar artículo", enlace desde el análisis 🧮 y
+  nueva sección del manual `#m-granel-rendimiento` (cómo se arma un granel + tabla 15 vs 14.64 L).
 - Archivos tocados (lo último): `js/catalogo.js` — "🧪 Revisión del granel" (`htmlGuiaGranel`) arriba de "✏️ Editar
   artículo" (si es semiterminado o el nombre dice "granel") y de "🧪 Editar o ver BOM": ✅/⚠ por punto con qué hacer —
   semiterminado, unidad (L/kg), BOM, rendimiento vs. suma de la receta, densidades, piezas en la receta, cuenta 115.02
