@@ -308,8 +308,14 @@ async function armarDocumentoEstado(ordenId) {
     const unidadProd = o.productos?.unidades_medida?.nombre || 'u';
     const cerrada = o.estado === 'cerrada';
 
+    // Cerrada con rendimiento real (sql/2026-09-23d): cantidad_producida = lo obtenido y
+    // cantidad_planeada = lo pedido, que es con lo que se descontaron los insumos.
+    const planeada = Number(o.cantidad_planeada) > 0 ? Number(o.cantidad_planeada) : Number(o.cantidad_producida) || 0;
+    const obtenida = Number(o.cantidad_producida) || 0;
+    const hayRendimiento = cerrada && Number(o.cantidad_planeada) > 0 && Math.abs(planeada - obtenida) > 1e-9;
+
     // Insumos: requerimiento y existencias de hoy (misma función que Producción).
-    const req = await calcularRequerimientosProduccion(o.producto_id, o.cantidad_producida);
+    const req = await calcularRequerimientosProduccion(o.producto_id, planeada);
     const filas = req.filas || [];
     let tipoPorId = new Map();
     if (filas.length) {
@@ -356,7 +362,9 @@ async function armarDocumentoEstado(ordenId) {
             <tr><td style="${ST.td}width:22%;"><b>Folio</b></td><td style="${ST.td}">${escD(folio)}</td>
                 <td style="${ST.td}width:18%;"><b>Estado</b></td><td style="${ST.td}"><b>${escD(ESTADO_TXT[o.estado] || o.estado)}</b></td></tr>
             <tr><td style="${ST.td}"><b>Producto</b></td><td style="${ST.td}" colspan="3">${escD(o.productos?.nombre || '')}${o.productos?.sku ? ` (${escD(o.productos.sku)})` : ''}</td></tr>
-            <tr><td style="${ST.td}"><b>Cantidad</b></td><td style="${ST.td}">${formatoCantidad(o.cantidad_producida)} ${escD(unidadProd)}</td>
+            <tr><td style="${ST.td}"><b>Cantidad</b></td><td style="${ST.td}">${hayRendimiento
+                ? `Planeado ${formatoCantidad(planeada)} ${escD(unidadProd)} · <b>obtenido ${formatoCantidad(obtenida)} ${escD(unidadProd)}</b> (${obtenida < planeada ? 'merma' : 'excedente'} ${formatoCantidad(Math.abs(planeada - obtenida) / planeada * 100)}%)`
+                : `${formatoCantidad(o.cantidad_producida)} ${escD(unidadProd)}`}</td>
                 <td style="${ST.td}"><b>Lote</b></td><td style="${ST.td}">${escD(o.numero_lote || 'S/L')}</td></tr>
             <tr><td style="${ST.td}"><b>Creada</b></td><td style="${ST.td}">${fechaHora(o.created_at)}</td>
                 <td style="${ST.td}"><b>Abierta / Cerrada</b></td><td style="${ST.td}">${fechaHora(o.abierta_at)} / ${fechaHora(o.cerrada_at)}</td></tr>
@@ -461,7 +469,7 @@ async function armarDocumentoEstado(ordenId) {
             </tr></thead><tbody>${mpFilas}
             <tr><td style="${ST.td}" colspan="4"><b>Total materia prima (kardex)</b></td><td style="${ST.tdR}font-weight:700;" class="campo-costo">${money(totalMP)}</td><td colspan="3" style="${ST.td}"></td></tr>
             </tbody></table>
-            <p style="${ST.nota}">"Receta" = lo que pide hoy el BOM para ${formatoCantidad(o.cantidad_producida)} ${escD(unidadProd)} (si la receta cambió después del cierre, puede no coincidir). "Diferencia" = consumido − receta.</p>`
+            <p style="${ST.nota}">"Receta" = lo que pide hoy el BOM para ${formatoCantidad(planeada)} ${escD(unidadProd)}${hayRendimiento ? ' planeados' : ''} (si la receta cambió después del cierre, puede no coincidir). "Diferencia" = consumido − receta.</p>`
             : `<p style="${ST.nota}">No se encontraron los movimientos de kardex de esta orden${docs.entrada ? '' : ' (no se localizó su documento de entrada)'}.</p>`;
 
         // Mano de obra por persona y por proceso (tiempo × costo/hora congelado, igual que el cierre).

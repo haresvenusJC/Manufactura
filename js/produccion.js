@@ -1043,7 +1043,10 @@ export async function generarOrdenDeProduccion(datos) {
  * la mano de obra a partir de registros_tiempo, re-valida existencias, descuenta
  * insumos (FIFO), da entrada al producto terminado y marca la orden como cerrada.
  */
-export async function cerrarOrdenDeProduccion(ordenId) {
+// cantidadReal: lo que salió de verdad (ej. 14.6 L de una tanda planeada de 15). Los insumos se
+// descuentan por lo planeado; al inventario entra lo real y el costo unitario = costo total ÷ real.
+// Sin cantidadReal (o inválida) se cierra con lo planeado, como antes.
+export async function cerrarOrdenDeProduccion(ordenId, cantidadReal = null) {
     try {
         if (!supabaseClient) throw new Error("Cliente de Supabase no inicializado.");
         ordenId = Number(ordenId);
@@ -1059,9 +1062,10 @@ export async function cerrarOrdenDeProduccion(ordenId) {
         if (orden.estado !== 'en_proceso') throw new Error(`La orden ya está "${orden.estado}".`);
 
         const productoId = Number(orden.producto_id);
-        const cantidadProducida = Number(orden.cantidad_producida) || 0;
+        const cantidadProducida = Number(orden.cantidad_producida) || 0;   // planeada: con ella se descuentan los insumos
         const numeroLote = String(orden.numero_lote || '').trim();
         if (cantidadProducida <= 0 || !numeroLote) throw new Error("La orden no tiene cantidad o lote válidos.");
+        const cantidadObtenida = Number(cantidadReal) > 0 ? Number(cantidadReal) : cantidadProducida;   // entra al inventario
 
         const { data: procesos, error: errP } = await supabaseClient
             .from('orden_produccion_procesos')
@@ -1172,11 +1176,11 @@ export async function cerrarOrdenDeProduccion(ordenId) {
             }
         }
 
-        const costoUnitarioFinal = cantidadProducida > 0 ? (costoTotalMateriales + costoTotalManoObra) / cantidadProducida : 0;
+        const costoUnitarioFinal = cantidadObtenida > 0 ? (costoTotalMateriales + costoTotalManoObra) / cantidadObtenida : 0;
 
         const { error: errEnt } = await supabaseClient.rpc('registrar_movimiento_inventario_fifo', {
             p_producto_id: productoId,
-            p_cantidad: cantidadProducida,
+            p_cantidad: cantidadObtenida,
             p_tipo_movimiento: 'entrada_produccion',
             p_documento_id: documentoId,
             p_costo_unitario: costoUnitarioFinal,
@@ -1197,9 +1201,9 @@ export async function cerrarOrdenDeProduccion(ordenId) {
             documento_id: documentoId,
             producto_id: productoId,
             lote_id: loteCreado?.id || null,
-            cantidad: cantidadProducida,
+            cantidad: cantidadObtenida,
             costo_unitario: costoUnitarioFinal,
-            subtotal: costoUnitarioFinal * cantidadProducida
+            subtotal: costoUnitarioFinal * cantidadObtenida
         }]);
 
         await supabaseClient.from('productos').update({ costo_unitario: costoUnitarioFinal }).eq('id', productoId);
@@ -1210,14 +1214,23 @@ export async function cerrarOrdenDeProduccion(ordenId) {
                 .eq('id', a.id);
         }
 
-        const { error: errUpd } = await supabaseClient.from('ordenes_produccion').update({
+        // cantidad_producida pasa a ser lo REAL (contabilizar_produccion y el prorrateo de CIF dividen el
+        // costo entre ella) y lo planeado se guarda en cantidad_planeada
+        // (sql/2026-09-23d_rendimiento_real_orden.sql; sin la migración se cierra igual, sin guardar lo planeado).
+        const datosCierre = {
             estado: 'cerrada',
             cerrada_at: new Date().toISOString(),
             costo_unitario_final: costoUnitarioFinal,
             costo_total_materiales: costoTotalMateriales,
             costo_total_mano_obra: costoTotalManoObra,
-            empleados_involucrados: empleadosSet.size
-        }).eq('id', ordenId);
+            empleados_involucrados: empleadosSet.size,
+            cantidad_producida: cantidadObtenida,
+        };
+        let { error: errUpd } = await supabaseClient.from('ordenes_produccion')
+            .update({ ...datosCierre, cantidad_planeada: cantidadProducida }).eq('id', ordenId);
+        if (errUpd && /cantidad_planeada/.test(errUpd.message || '')) {
+            ({ error: errUpd } = await supabaseClient.from('ordenes_produccion').update(datosCierre).eq('id', ordenId));
+        }
 
         if (errUpd) throw errUpd;
 
@@ -1250,7 +1263,10 @@ export async function cerrarOrdenDeProduccion(ordenId) {
             }
         }
 
-        return { success: true, mensaje: `Orden cerrada. Costo unitario: $${costoUnitarioFinal.toFixed(2)}.${msgContab}` };
+        const msgRend = Math.abs(cantidadObtenida - cantidadProducida) > 1e-9
+            ? ` Planeado ${formatoCantidad(cantidadProducida)}, obtenido ${formatoCantidad(cantidadObtenida)} (${cantidadObtenida < cantidadProducida ? 'merma' : 'excedente'} ${formatoCantidad(Math.abs(cantidadProducida - cantidadObtenida) / cantidadProducida * 100)}%).`
+            : '';
+        return { success: true, mensaje: `Orden cerrada. Costo unitario: $${costoUnitarioFinal.toFixed(2)}.${msgRend}${msgContab}` };
     } catch (error) {
         console.error("Error al cerrar la orden:", error.message);
         return { success: false, error: error.message };
@@ -1325,7 +1341,7 @@ async function cargarOrdenesEnProceso() {
         .from('ordenes_produccion')
         .select(`
             id, folio, numero_lote, cantidad_producida, abierta_at,
-            productos ( nombre ),
+            productos ( nombre, unidades_medida ( nombre ) ),
             orden_produccion_procesos (
                 id, proceso_nombre,
                 orden_produccion_proceso_empleados ( empleado_id, costo_hora_snapshot, finalizado_at, empleados ( nombre ) )
@@ -1403,10 +1419,18 @@ async function cargarOrdenesEnProceso() {
 
     cont.querySelectorAll('.btn-cerrar-orden').forEach(btn => {
         btn.onclick = async () => {
-            if (!confirm(`¿Cerrar la orden ${btn.dataset.folio}? Se descontará el inventario (FIFO) y se calcularán los costos. Esto no se puede deshacer.`)) return;
+            const planeado = Number(btn.dataset.cant) || 0;
+            const u = btn.dataset.unidad ? ` ${btn.dataset.unidad}` : '';
+            const resp = prompt(`Cerrar la orden ${btn.dataset.folio}.\n\n¿Cuánto salió REALMENTE? (planeado: ${formatoCantidad(planeado)}${u})\n\nMide lo que quedó en el tanque o cuenta lo terminado. Los insumos se descuentan por lo planeado; al inventario entra lo que escribas aquí y el costo unitario se calcula sobre eso.`, String(planeado));
+            if (resp === null) return;
+            const real = parseFloat(String(resp).replace(',', '.'));
+            if (!(real > 0)) { alert('Escribe una cantidad mayor a 0.'); return; }
+            const dif = planeado > 0 ? (real - planeado) / planeado * 100 : 0;
+            const aviso = Math.abs(dif) > 20 ? `\n\n⚠ Es ${formatoCantidad(Math.abs(dif))}% ${dif < 0 ? 'menos' : 'más'} que lo planeado — revisa que la cantidad esté en ${btn.dataset.unidad || 'la unidad del producto'}.` : '';
+            if (!confirm(`¿Cerrar la orden ${btn.dataset.folio} con ${formatoCantidad(real)}${u} obtenidos (planeado ${formatoCantidad(planeado)}${u})?${aviso}\n\nSe descontará el inventario (FIFO) y se calcularán los costos. Esto no se puede deshacer.`)) return;
             btn.disabled = true;
             btn.textContent = 'Cerrando...';
-            const res = await cerrarOrdenDeProduccion(Number(btn.dataset.id));
+            const res = await cerrarOrdenDeProduccion(Number(btn.dataset.id), real);
             if (res.success) {
                 alert('✅ ' + res.mensaje);
                 await cargarOrdenesEnProceso();
@@ -1481,7 +1505,7 @@ function renderTarjetaOrdenEnProceso(o, registros, solicitudes = []) {
                     <p class="text-xs text-slate-300">${o.productos?.nombre || 'Producto'} · ${o.cantidad_producida} u · Lote ${o.numero_lote || 'S/L'}</p>
                     <p class="text-[11px] text-slate-500">Abierta: ${abierta}</p>
                 </div>
-                <button type="button" class="btn-cerrar-orden bg-rose-700 hover:bg-rose-600 text-white text-xs px-3 py-1.5 rounded-lg" data-id="${o.id}" data-folio="${folio}">🔒 Cerrar orden</button>
+                <button type="button" class="btn-cerrar-orden bg-rose-700 hover:bg-rose-600 text-white text-xs px-3 py-1.5 rounded-lg" data-id="${o.id}" data-folio="${folio}" data-cant="${Number(o.cantidad_producida) || 0}" data-unidad="${String(o.productos?.unidades_medida?.nombre || '').replace(/"/g, '&quot;')}">🔒 Cerrar orden</button>
             </div>
             <div class="space-y-2">${procesosHtml}</div>
             <div class="flex justify-between items-center text-xs mt-3 pt-2 border-t border-slate-800">
