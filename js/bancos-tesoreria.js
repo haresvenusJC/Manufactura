@@ -1,6 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
+import { traerReversos, enSaldo } from './polizas-saldo.js';
 
 // =====================================================================
 //  Bancos y Tesorería: catálogo de cuentas bancarias (banco, número,
@@ -167,8 +168,12 @@ async function btRenderLista(ctasContables) {
 }
 
 async function btSaldoCuenta(cuentaContableId) {
-    const { data } = await supabaseClient.from('poliza_movimientos').select('cargo, abono').eq('cuenta_id', cuentaContableId);
-    return (data || []).reduce((a, m) => a + Number(m.cargo || 0) - Number(m.abono || 0), 0);
+    const [{ data }, reversos] = await Promise.all([
+        supabaseClient.from('poliza_movimientos').select('cargo, abono, polizas!inner ( id, estatus )').eq('cuenta_id', cuentaContableId),
+        traerReversos(),
+    ]);
+    return (data || []).filter((m) => enSaldo(m.polizas, reversos))
+        .reduce((a, m) => a + Number(m.cargo || 0) - Number(m.abono || 0), 0);
 }
 
 window.btEditarCuenta = (id) => {
@@ -194,13 +199,14 @@ window.btVerMovimientos = async (id) => {
     if (!c || !cont) return;
     cont.innerHTML = '<p class="text-slate-500 text-sm">Cargando movimientos...</p>';
     try {
-        const { data, error } = await supabaseClient
+        const [{ data, error }, reversos] = await Promise.all([supabaseClient
             .from('poliza_movimientos')
-            .select('id, cargo, abono, concepto, conciliado, fecha_conciliacion, referencia_banco, polizas ( fecha, numero, tipo, concepto )')
+            .select('id, cargo, abono, concepto, conciliado, fecha_conciliacion, referencia_banco, polizas!inner ( id, estatus, fecha, numero, tipo, concepto )')
             .eq('cuenta_id', c.cuenta_contable_id)
-            .order('id', { ascending: true });
+            .order('id', { ascending: true }), traerReversos()]);
         if (error) throw error;
-        const movs = data || [];
+        // Misma regla que la balanza: borradores y canceladas sin reverso no cuentan.
+        const movs = (data || []).filter((m) => enSaldo(m.polizas, reversos));
         let saldo = 0;
         movs.forEach((m) => { saldo += Number(m.cargo || 0) - Number(m.abono || 0); m._saldo = saldo; });
         movs.reverse();

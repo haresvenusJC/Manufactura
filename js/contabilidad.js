@@ -5,6 +5,7 @@ import { parsearCfdi, formaPagoSimple, extraerTextoPdf, parsearCfdiPdf } from '.
 import { REGIMENES } from './proveedores.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { prepararFiltrosAuxInv, generarAuxInventarios } from './auxiliar-inventarios.js';
+import { ESTATUS_CONSULTA, traerReversos, enSaldo } from './polizas-saldo.js';
 
 // =====================================================================
 //  Contabilidad - FASE 1: Plan de cuentas
@@ -1692,7 +1693,7 @@ async function gaCancelar(id) {
 // =====================================================================
 //  Contabilidad - FASE 5: Reportes contables
 //  Balanza de comprobacion + Estado de resultados, a partir de las
-//  polizas 'contabilizada'. Requiere: fases 1 y 2.
+//  polizas que cuentan para saldo (js/polizas-saldo.js). Requiere: fases 1 y 2.
 // =====================================================================
 
 const rcFmt = (n) => {
@@ -1715,8 +1716,9 @@ function rcMovsDeCuenta(cuentaId) {
         .sort((a, b) => (a.polizas.fecha < b.polizas.fecha ? -1 : a.polizas.fecha > b.polizas.fecha ? 1 : (a.id || 0) - (b.id || 0)));
 }
 
-// Movimientos de pólizas ya canceladas que tocan esta cuenta — solo para
-// mostrar (no se suman a ningún saldo).
+// Movimientos de pólizas canceladas SIN reverso que tocan esta cuenta — solo
+// para mostrar (no se suman a ningún saldo). Las canceladas CON reverso van en
+// la lista normal, junto a su reverso.
 function rcMovsCanceladosDeCuenta(cuentaId) {
     const lista = rcCache.movsCancelados || [];
     return lista
@@ -1743,6 +1745,7 @@ function rcFilaDetalleCuenta(cuenta, colspan) {
             <td class="p-1.5">
                 <button type="button" class="rc-ver-pol text-sky-400 hover:underline font-mono" data-pol="${p.id}">${p.tipo || '?'} #${p.numero ?? '?'}</button>
                 ${p.origen && p.origen !== 'manual' ? `<span class="text-[10px] text-slate-600 ml-1">(${p.origen})</span>` : ''}
+                ${p.estatus === 'cancelada' && lista.includes(m) ? '<span class="text-[10px] text-rose-400/80 ml-1">· cancelada (con reverso)</span>' : ''}
             </td>
             <td class="p-1.5 text-slate-400">${(m.concepto || p.concepto || '').replace(/</g, '&lt;')}</td>
             <td class="p-1.5 text-right font-mono">${Number(m.cargo) ? rcFmt(m.cargo) : ''}</td>
@@ -1755,7 +1758,7 @@ function rcFilaDetalleCuenta(cuenta, colspan) {
     }).join('');
 
     const bloqueCancelados = listaCancelados.length ? `
-        <div class="text-[11px] text-rose-400/80 mt-3 mb-1 font-semibold">⚠ Movimientos de pólizas canceladas — no se suman al saldo (${listaCancelados.length})</div>
+        <div class="text-[11px] text-rose-400/80 mt-3 mb-1 font-semibold">⚠ Movimientos de pólizas canceladas sin reverso — no se suman al saldo (${listaCancelados.length})</div>
         <div class="overflow-x-auto opacity-60">
         <table class="w-full text-left text-[11px] text-slate-400">
             <tbody>${listaCancelados.map(filaMov).join('')}</tbody>
@@ -1815,8 +1818,8 @@ function rcCablearDesglose() {
 //  SAP...): por cada cuenta, su saldo inicial, cada movimiento del periodo
 //  (fecha, póliza, concepto, cargo, abono) con el saldo corriendo, y el
 //  total del periodo con el saldo final. Se elige una cuenta o un rango; si
-//  eliges una cuenta-mayor (p. ej. 115) entran todas sus subcuentas. Solo
-//  pólizas contabilizadas (las canceladas no cuentan).
+//  eliges una cuenta-mayor (p. ej. 115) entran todas sus subcuentas. Cuentan
+//  las contabilizadas y las canceladas CON reverso (js/polizas-saldo.js).
 // ---------------------------------------------------------------------
 let rcAuxCtas = null;        // catálogo de cuentas para el selector
 let rcAuxResultado = null;   // { desde, hasta, seleccion, cuentaLabel, bloques } — lo usa el CSV
@@ -1878,18 +1881,19 @@ function rcCuentasSeleccionadas(ctas, seleccion) {
 // grupos de cuentas para no exceder el largo de la URL).
 async function rcTraerMovsAux(ids, hasta) {
     const out = [];
+    const reversos = await traerReversos();
     for (let i = 0; i < ids.length; i += 60) {
         const grupo = ids.slice(i, i + 60);
         for (let desdeFila = 0; ; desdeFila += 1000) {
             const { data, error } = await supabaseClient.from('poliza_movimientos')
                 .select('id, cuenta_id, cargo, abono, concepto, polizas!inner(id, fecha, estatus, tipo, numero, concepto, origen)')
                 .in('cuenta_id', grupo)
-                .eq('polizas.estatus', 'contabilizada')
+                .in('polizas.estatus', ESTATUS_CONSULTA)
                 .lte('polizas.fecha', hasta)
                 .order('id', { ascending: true })
                 .range(desdeFila, desdeFila + 999);
             if (error) throw error;
-            out.push(...(data || []));
+            out.push(...(data || []).filter((m) => enSaldo(m.polizas, reversos)));
             if (!data || data.length < 1000) break;
         }
     }
@@ -1954,6 +1958,7 @@ async function rcGenerarAuxiliar() {
                     fecha: f, polId: m.polizas.id, tipo: m.polizas.tipo, numero: m.polizas.numero,
                     concepto: m.concepto || m.polizas.concepto || '',
                     origen: m.polizas.origen && m.polizas.origen !== 'manual' ? m.polizas.origen : '',
+                    cancelada: m.polizas.estatus === 'cancelada',
                     cargo: cg, abono: ab, saldo,
                 });
             }
@@ -1992,7 +1997,7 @@ function rcAuxPintar() {
             <td class="p-1.5 whitespace-nowrap text-slate-400">${rcEsc(f.fecha)}</td>
             <td class="p-1.5 whitespace-nowrap"><button type="button" class="rc-ver-pol text-sky-400 hover:underline font-mono" data-pol="${f.polId}">${rcEsc(f.tipo || '?')} #${rcEsc(f.numero ?? '?')}</button></td>
             <td class="p-1.5 text-slate-300">${rcEsc(f.concepto)}</td>
-            <td class="p-1.5 text-[10px] text-slate-500">${rcEsc(f.origen)}</td>
+            <td class="p-1.5 text-[10px] text-slate-500">${rcEsc(f.origen)}${f.cancelada ? ' <span class="text-rose-400/80">· cancelada (con reverso)</span>' : ''}</td>
             <td class="p-1.5 text-right font-mono">${f.cargo ? rcFmt(f.cargo) : ''}</td>
             <td class="p-1.5 text-right font-mono">${f.abono ? rcFmt(f.abono) : ''}</td>
             <td class="p-1.5 text-right font-mono ${f.saldo < 0 ? 'text-rose-400' : ''}">${rcFmt(f.saldo)}</td>
@@ -2011,7 +2016,7 @@ function rcAuxPintar() {
         <div id="rcTabla" class="overflow-x-auto">
             <div class="mb-3">
                 <p class="text-sm font-bold text-slate-200">Auxiliar de cuentas contables</p>
-                <p class="text-[11px] text-slate-500">${rango} · Del ${rcEsc(r.desde)} al ${rcEsc(r.hasta)} · Solo pólizas contabilizadas · ${bloques.length} cuenta(s), ${nMovs} movimiento(s)</p>
+                <p class="text-[11px] text-slate-500">${rango} · Del ${rcEsc(r.desde)} al ${rcEsc(r.hasta)} · Pólizas contabilizadas + canceladas con su reverso · ${bloques.length} cuenta(s), ${nMovs} movimiento(s)</p>
             </div>
             <table class="w-full text-left text-[11px] text-slate-300">
                 <thead class="bg-slate-900 text-sky-400 uppercase border-b border-slate-800 sticky top-0">
@@ -2030,7 +2035,7 @@ function rcAuxPintar() {
                 </tbody>
             </table>
         </div>
-        <p class="text-[11px] text-slate-500 mt-2">El saldo corre en la naturaleza de cada cuenta (deudora: cargos − abonos; acreedora: abonos − cargos); entre paréntesis, si es contrario. Haz clic en una póliza para ver su detalle. Las pólizas canceladas no se incluyen.</p>`;
+        <p class="text-[11px] text-slate-500 mt-2">El saldo corre en la naturaleza de cada cuenta (deudora: cargos − abonos; acreedora: abonos − cargos); entre paréntesis, si es contrario. Haz clic en una póliza para ver su detalle. Una póliza cancelada se sigue mostrando junto con su reverso (contra-asiento): entre las dos quedan en cero, así el rastro no se pierde y nada se resta dos veces.</p>`;
     rcCablearDesglose();
 }
 
@@ -2045,7 +2050,7 @@ function rcExportarAuxiliarCSV() {
     r.bloques.filter((b) => !soloMov || b.filas.length || Math.abs(b.saldoIni) >= 0.005).forEach((b) => {
         const base = [b.cuenta.codigo, b.cuenta.nombre];
         filas.push([...base, r.desde, '', '', 'Saldo inicial', '', '', '', num(b.saldoIni)]);
-        b.filas.forEach((f) => filas.push([...base, f.fecha, f.tipo || '', f.numero ?? '', f.concepto, f.origen, f.cargo ? num(f.cargo) : '', f.abono ? num(f.abono) : '', num(f.saldo)]));
+        b.filas.forEach((f) => filas.push([...base, f.fecha, f.tipo || '', f.numero ?? '', f.concepto, f.origen + (f.cancelada ? ' (cancelada con reverso)' : ''), f.cargo ? num(f.cargo) : '', f.abono ? num(f.abono) : '', num(f.saldo)]));
         filas.push([...base, r.hasta, '', '', 'Saldo final del periodo', '', num(b.cargos), num(b.abonos), num(b.saldoFin)]);
     });
     const csv = '﻿' + filas.map((f) => f.map(celda).join(',')).join('\r\n');
@@ -2143,10 +2148,13 @@ async function rcGenerar(forzar) {
                 .order('codigo', { ascending: true });
             if (ctasR.error) throw ctasR.error;
 
-            // Movimientos con datos suficientes para el desglose por cuenta.
+            // Movimientos con datos suficientes para el desglose por cuenta. Se piden
+            // contabilizadas Y canceladas: una cancelada con reverso sigue contando
+            // (el reverso la neutraliza — js/polizas-saldo.js).
+            const reversos = await traerReversos();
             let movsR = await supabaseClient.from('poliza_movimientos')
                 .select('id, cuenta_id, cargo, abono, concepto, polizas!inner(id, fecha, estatus, tipo, numero, concepto, origen)')
-                .eq('polizas.estatus', 'contabilizada')
+                .in('polizas.estatus', ESTATUS_CONSULTA)
                 .lte('polizas.fecha', hasta)
                 .limit(50000);
             let sinDetalle = false;
@@ -2154,29 +2162,21 @@ async function rcGenerar(forzar) {
                 // esquema viejo: cae al select mínimo (sin desglose por documento)
                 sinDetalle = true;
                 movsR = await supabaseClient.from('poliza_movimientos')
-                    .select('cuenta_id, cargo, abono, polizas!inner(fecha, estatus)')
-                    .eq('polizas.estatus', 'contabilizada')
+                    .select('cuenta_id, cargo, abono, polizas!inner(id, fecha, estatus)')
+                    .in('polizas.estatus', ESTATUS_CONSULTA)
                     .lte('polizas.fecha', hasta)
                     .limit(50000);
             }
             if (movsR.error) throw movsR.error;
-            const movs = movsR.data || [];
+            const todos = movsR.data || [];
+            const movs = todos.filter((m) => enSaldo(m.polizas, reversos));
 
-            // Movimientos de pólizas YA canceladas en el periodo: no cuentan
-            // para el saldo, pero se muestran aparte al expandir la cuenta
-            // para que quede claro que se canceló y no que "desapareció".
-            let movsCancelados = [];
-            if (!sinDetalle) {
-                const cancR = await supabaseClient.from('poliza_movimientos')
-                    .select('id, cuenta_id, cargo, abono, concepto, polizas!inner(id, fecha, estatus, tipo, numero, concepto, origen)')
-                    .eq('polizas.estatus', 'cancelada')
-                    .gte('polizas.fecha', desde)
-                    .lte('polizas.fecha', hasta)
-                    .limit(2000);
-                if (!cancR.error) movsCancelados = cancR.data || [];
-            }
+            // Pólizas canceladas SIN reverso en el periodo: no cuentan para el
+            // saldo, pero se muestran aparte al expandir la cuenta para que
+            // quede claro que se canceló y no que "desapareció".
+            const movsCancelados = sinDetalle ? [] : todos.filter((m) => !enSaldo(m.polizas, reversos) && m.polizas.fecha >= desde);
 
-            rcCache = { desde, hasta, ctas: ctasR.data || [], movs, movsCancelados, truncado: movs.length >= 1000, sinDetalle };
+            rcCache = { desde, hasta, ctas: ctasR.data || [], movs, movsCancelados, truncado: todos.length >= 1000, sinDetalle };
         } catch (err) {
             res.innerHTML = `<p class="text-rose-400 text-xs">No se pudo generar. ¿Corriste los SQL de contabilidad (fases 1-2)?<br>${err.message || err}</p>`;
             rcCache = null;
