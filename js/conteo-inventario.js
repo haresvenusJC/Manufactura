@@ -517,8 +517,11 @@ async function pantallaCapturar(aud, item) {
     render();
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// cargador.js inyecta este módulo después de cargar version.json: el DOM puede estar listo ya.
+function arrancarPagina() {
     try { sesion = JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch (e) { sesion = null; }
     if (sesion && sesion.token) pantallaAuditorias();
     else pantallaLogin();
-});
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arrancarPagina);
+else arrancarPagina();

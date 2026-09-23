@@ -357,8 +357,11 @@ async function iniciarApp() {
 
 window.cerrarSesionAdmin = async () => { await cerrarSesion(); };
 
-document.addEventListener('DOMContentLoaded', () => {
+// cargador.js inyecta este módulo después de cargar version.json: el DOM puede estar listo ya.
+function arrancarPagina() {
     // Sincroniza el botón "fijar menú" con el estado guardado.
     window.fijarSidebar(document.documentElement.getAttribute('data-nav') === 'fijado');
     montarLogin(iniciarApp);
-});
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arrancarPagina);
+else arrancarPagina();
