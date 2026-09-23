@@ -4,7 +4,17 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
-- Archivos tocados (lo último): `js/auxiliar-inventarios.js`, `js/ordenes-produccion.js`, `js/contabilidad.js`,
+- Archivos tocados (lo último): `js/polizas-saldo.js` (nuevo), `js/contabilidad.js`, `js/auxiliar-inventarios.js`,
+  `js/bancos-tesoreria.js`, `js/ordenes-compra.js`, `sql/2026-09-23_candados_cuadre_inventario.sql` (nuevo),
+  `sql/2026-09-23b_diagnostico_cuadre_recepciones.sql` (nuevo, solo lectura). Descuadre 115.01 de (3,435.22): cancelar
+  una póliza hace contra-asiento Y marca la original 'cancelada'; los reportes solo sumaban 'contabilizada' → se restaba
+  2 veces. Ahora la regla única (`enSaldo` / `poliza_en_saldo()`) cuenta la cancelada CON reverso; el Auxiliar de
+  inventarios liga el reverso al movimiento `cancelacion_recibo`. Recibo de mercancía dejaba recibir 2 veces la misma OC
+  (sumaba `cantidad_recibida` sobre el dato viejo de pantalla): candado en pantalla + trigger que rechaza exceder lo
+  pedido y deriva `cantidad_recibida` de los documentos vivos. Candado nuevo de cierre: kardex vs. balanza por cuenta.
+  Probado en Postgres local. Pendiente: correr ambos SQL; cancelar los recibos duplicados de OC-000017/OC-000020
+  (Glicerina) que marque el diagnóstico (no el lote AL1541/220926, ya consumido).
+- Antes: `js/auxiliar-inventarios.js`, `js/ordenes-produccion.js`, `js/contabilidad.js`,
   `CLAUDE.md` — nueva regla "documentos y pólizas citados en un reporte se pueden abrir desde ahí": en el Auxiliar
   de inventarios el documento y la póliza de cada movimiento (y las pólizas del cuadre) son enlaces; igual en el
   costeo de la orden cerrada (folios PROD-… y póliza). Pendiente: auditar los demás reportes contra la regla.
@@ -101,6 +111,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `kardex.js` — navegación directa al Kardex de un producto específico.
 - `nomina.js` — nómina: cálculo (IMSS/ISR real vía RPC), autorización, póliza y recibo imprimible.
 - `orden-tabla.js` — ordenamiento client-side reutilizable para encabezados de tabla en toda la app.
+- `polizas-saldo.js` — regla única de qué pólizas cuentan para saldos (contabilizadas + canceladas con su reverso);
+  la usan Reportes contables, Auxiliar de inventarios y Bancos. Espejo SQL: `poliza_en_saldo()`.
 - `orden-trabajo.js` — app móvil del operario: registro de tiempos por proceso de una orden de producción;
   componentes/lotes a surtir vienen de la vista `v_ot_orden_componentes` (misma conversión que Producción).
 - `ordenes-compra.js` — Órdenes de compra + Recibo de mercancía (candado de pre-recibo, landed cost,
@@ -168,6 +180,11 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   detalle en subventana sin salir del reporte — documento → `window.abrirDetalleDocumentoGlobal(id)`
   (`js/documentos.js`), póliza → `window.rcVerPoliza(id)` (`js/contabilidad.js`). Si el reporte ya vive en una
   subventana, subir el `z-index` de la nueva (ver `lnkDoc`/`lnkPol` en `ordenes-produccion.js`).
+- **Cancelar = contra-asiento**: una póliza cancelada sigue contando para saldos junto con su reverso (se neutralizan);
+  nunca filtrar solo `estatus = 'contabilizada'` al sumar saldos — usar `enSaldo` (`js/polizas-saldo.js`) o
+  `poliza_en_saldo()` en SQL.
+- **Reglas de integridad en la base, no solo en pantalla**: lo que protege saldos/existencias (ej. no recibir más de lo
+  pedido, `cantidad_recibida` derivada de documentos) va como trigger/constraint; la pantalla solo avisa antes.
 - **Subventanas (modales)**: nunca ocultar el contenido que originó la subventana — la pantalla de atrás
   debe seguir visible detrás (overlay semitransparente, no un fondo opaco que la tape por completo).
 
@@ -227,6 +244,9 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Pendiente
 
+- Correr `sql/2026-09-23_candados_cuadre_inventario.sql` y luego `sql/2026-09-23b_diagnostico_cuadre_recepciones.sql`;
+  cancelar en Documentos los recibos duplicados que liste el diagnóstico (OC-000017 / OC-000020, Glicerina) y
+  verificar que el cuadre de 115.01 dé 0.
 - Correr `sql/2026-09-22_fix_salida_fifo_costo_ambiguo.sql`, `sql/2026-09-22_factor_conversion_sin_densidad.sql` y `sql/2026-09-22_requisicion_orden_produccion.sql` (las demás de `sql/` ya están corridas, verificado 2026-09-22).
 - Capturar "Rendimiento del lote" (Catálogo → Más detalles) en cada producto "Granel ..." cuyo BOM se
   escribió para el lote completo y no por 1 unidad — si no, `calcularRequerimientosProduccion` sigue

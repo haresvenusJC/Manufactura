@@ -2377,6 +2377,28 @@ async function rmConfirmar(ocs) {
     const btn = document.getElementById('rmConfirmar');
     btn.disabled = true;
     try {
+        // Candado: no recibir más de lo pedido. Se lee lo recibido FRESCO de la base (no el de
+        // la pantalla, que puede venir de antes de otra recepción de la misma orden — así entró
+        // dos veces OC-000017). La base tiene el mismo candado (trigger de
+        // sql/2026-09-23_candados_cuadre_inventario.sql); aquí se revisa antes de crear el
+        // documento para no dejar uno vacío.
+        const { data: detActual, error: eDetAct } = await supabaseClient.from('ordenes_compra_detalle')
+            .select('id, cantidad, cantidad_recibida').eq('orden_compra_id', oc.id);
+        if (eDetAct) throw eDetAct;
+        const recibidoFresco = new Map((detActual || []).map((d) => [d.id, Number(d.cantidad_recibida || 0)]));
+        const excesos = lineas.filter((l) => {
+            const d = (detActual || []).find((x) => x.id === l.det?.id);
+            return d && recibidoFresco.get(d.id) + l.cantidad > Number(d.cantidad || 0) + 0.0005;
+        }).map((l) => {
+            const d = detActual.find((x) => x.id === l.det.id);
+            return `· ${l.label}: pedido ${d.cantidad}, ya recibido ${recibidoFresco.get(d.id)}, intentas recibir ${l.cantidad}`;
+        });
+        if (excesos.length) {
+            alert(`⛔ No se registró la recepción: excede lo pedido en la orden ${oc.folio}.\n\n${excesos.join('\n')}\n\nSi es una recepción repetida, no la vuelvas a capturar. Si de verdad llegó de más, primero ajusta la cantidad de la orden de compra.`);
+            btn.disabled = false;
+            return;
+        }
+
         const { data: doc, error: eDoc } = await supabaseClient.from('documentos').insert([{
             tipo_movimiento: 'entrada_compra',
             folio: oc.folio,
@@ -2409,9 +2431,17 @@ async function rmConfirmar(ocs) {
             // Deja el costo del catálogo con el último costo de compra (landed, en MXN).
             await supabaseClient.from('productos').update({ costo_unitario: (l.landedUnit ?? l.costo) }).eq('id', productoId);
 
-            await supabaseClient.from('ordenes_compra_detalle')
-                .update({ cantidad_recibida: Number(l.det.cantidad_recibida || 0) + l.cantidad })
-                .eq('id', l.det.id);
+            // Con la migración 2026-09-23 la base ya recalculó cantidad_recibida desde los
+            // documentos (trigger); solo si no cambió (migración sin correr) se suma aquí,
+            // sobre el valor fresco y no sobre el de la pantalla.
+            const base = recibidoFresco.get(l.det.id) || 0;
+            const { data: trasInsert } = await supabaseClient.from('ordenes_compra_detalle')
+                .select('cantidad_recibida').eq('id', l.det.id).single();
+            if (Math.abs(Number(trasInsert?.cantidad_recibida || 0) - base) < 0.00005) {
+                await supabaseClient.from('ordenes_compra_detalle')
+                    .update({ cantidad_recibida: base + l.cantidad })
+                    .eq('id', l.det.id);
+            }
         }
 
         const msgContab = await rmContabilizarDoc(documentoId, landed.matSubtotal, landed.extras);

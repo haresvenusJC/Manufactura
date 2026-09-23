@@ -15,12 +15,16 @@
 //  la balanza a la fecha "Hasta", y lista las pólizas que movieron la
 //  cuenta sin un movimiento de inventario detrás (ajustes manuales,
 //  deterioro, prorrateo de CIF…), que es donde suele estar la diferencia.
+//  La balanza usa la misma regla que Reportes contables (js/polizas-saldo.js):
+//  una póliza cancelada CON reverso sigue contando, y el reverso de un recibo
+//  cancelado queda ligado a su movimiento 'cancelacion_recibo' del kardex.
 //
 //  Todo va en una sola tabla dentro de #rcTabla para que "Imprimir" y
 //  "Exportar CSV" de Reportes contables funcionen sin cambios.
 // =====================================================================
 import { supabaseClient } from './supabase.js';
 import { convertirEnBuscador } from './buscador-select.js';
+import { ESTATUS_CONSULTA, traerReversos, enSaldo } from './polizas-saldo.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fmt = (n) => {
@@ -50,6 +54,7 @@ const CLASIF = {
 const TIPO_MOV = {
     entrada_compra: 'Compra', entrada: 'Entrada', entrada_produccion: 'Entrada de producción',
     salida_produccion: 'Salida a producción', salida_venta: 'Venta', salida: 'Salida', merma: 'Merma',
+    cancelacion_recibo: 'Cancelación de recibo', ajuste_recepcion: 'Ajuste de recepción',
 };
 
 let productosCache = null;   // [{ id, nombre, sku, tipo, es_semiterminado, cuenta_inventario_id, unidad }]
@@ -161,18 +166,18 @@ async function traerMovimientos(productoIds, hastaISO) {
     return out;
 }
 
-async function traerPolizasCuenta(cuentaIds, hasta) {
+async function traerPolizasCuenta(cuentaIds, hasta, reversos) {
     const out = [];
     for (let desdeFila = 0; ; desdeFila += 1000) {
         const { data, error } = await supabaseClient.from('poliza_movimientos')
             .select('cuenta_id, cargo, abono, concepto, polizas!inner(id, fecha, estatus, tipo, numero, concepto, origen)')
             .in('cuenta_id', cuentaIds)
-            .eq('polizas.estatus', 'contabilizada')
+            .in('polizas.estatus', ESTATUS_CONSULTA)
             .lte('polizas.fecha', hasta)
             .order('id', { ascending: true })
             .range(desdeFila, desdeFila + 999);
         if (error) throw error;
-        out.push(...(data || []));
+        out.push(...(data || []).filter((x) => enSaldo(x.polizas, reversos)));
         if (!data || data.length < 1000) break;
     }
     return out;
@@ -196,7 +201,13 @@ export async function generarAuxInventarios(res, desde, hasta) {
         const cuentasInv = [...new Set(visibles.map((p) => p.cuentaId).filter(Boolean))];
         const todosDeCuentas = productosCache.filter((p) => cuentasInv.includes(p.cuentaId));
         const hastaISO = new Date(`${hasta}T23:59:59.999`).toISOString();
-        const movs = await traerMovimientos(todosDeCuentas.map((p) => p.id), hastaISO);
+        const [movs, reversos] = await Promise.all([traerMovimientos(todosDeCuentas.map((p) => p.id), hastaISO), traerReversos()]);
+        // La póliza de cada movimiento: la del documento, salvo la cancelación de un recibo,
+        // que se contabiliza en el reverso (contra-asiento) de esa póliza.
+        const polizaDeMov = (m) => {
+            const pol = m.documentos?.poliza_id || null;
+            return (m.tipo_movimiento === 'cancelacion_recibo' && pol && reversos.get(Number(pol))) || pol;
+        };
         const porProd = new Map();
         movs.forEach((m) => { if (!porProd.has(m.producto_id)) porProd.set(m.producto_id, []); porProd.get(m.producto_id).push(m); });
 
@@ -215,14 +226,14 @@ export async function generarAuxInventarios(res, desde, hasta) {
                 if (f < desde) { cantIni = cant; valIni = valor; continue; }
                 if (q >= 0) { eC += q; eV += v; } else { sC += -q; sV += -v; }
                 filas.push({ fecha: f, tipo: TIPO_MOV[m.tipo_movimiento] || m.tipo_movimiento || '—', docId: m.documento_id || null, folio: m.documentos?.folio || (m.documento_id ? '#' + m.documento_id : '—'),
-                    poliza: m.documentos?.poliza_id || null, lote: m.lotes_inventario?.numero_lote || '', q, cu: Number(m.costo_unitario || 0), v, cant, valor });
+                    poliza: polizaDeMov(m), lote: m.lotes_inventario?.numero_lote || '', q, cu: Number(m.costo_unitario || 0), v, cant, valor });
             }
             kardex.set(p.id, { p, cantIni, valIni, filas, eC, eV, sC, sV, cantFin: cant, valFin: valor });
         }
 
         // Balanza de las cuentas de inventario a la fecha "Hasta" + pólizas sin movimiento de inventario detrás
-        const pols = cuentasInv.length ? await traerPolizasCuenta(cuentasInv, hasta) : [];
-        const polizasConInventario = new Set(movs.map((m) => m.documentos?.poliza_id).filter(Boolean));
+        const pols = cuentasInv.length ? await traerPolizasCuenta(cuentasInv, hasta, reversos) : [];
+        const polizasConInventario = new Set(movs.map(polizaDeMov).filter(Boolean));
         const cuadre = cuentasInv.map((cid) => {
             const cta = cuentasCache.find((c) => c.id === cid) || { codigo: '?', nombre: 'Cuenta', naturaleza: 'D' };
             const signo = cta.naturaleza === 'A' ? -1 : 1;
@@ -285,7 +296,7 @@ function pintar(res, { desde, hasta, visibles, kardex, cuadre, soloMov }) {
         <tr class="bg-slate-800/60"><td class="p-2 font-bold ${ok ? 'text-emerald-400' : 'text-amber-400'}" colspan="11">${ok ? '✅' : '⚠️'} Cuadre ${esc(c.cta.codigo)} · ${esc(c.cta.nombre)} al ${esc(hasta)}
             <span class="font-normal text-[10px] text-slate-500 ml-2">${c.nArticulos} artículo(s) en esta cuenta${c.sinCuenta ? `, ${c.sinCuenta} sin cuenta asignada (se asumió)` : ''}</span></td></tr>
         <tr class="text-slate-300"><td class="${td}" colspan="10">Suma del kardex valorizado de TODOS los artículos de la cuenta</td><td class="${tdR}">${fmt(c.kardexTotal)}</td></tr>
-        <tr class="text-slate-300"><td class="${td}" colspan="10">Saldo de la cuenta en la balanza (pólizas contabilizadas)</td><td class="${tdR}">${fmt(c.saldoBalanza)}</td></tr>
+        <tr class="text-slate-300"><td class="${td}" colspan="10">Saldo de la cuenta en la balanza (contabilizadas + canceladas con su reverso)</td><td class="${tdR}">${fmt(c.saldoBalanza)}</td></tr>
         <tr class="font-semibold ${ok ? 'text-emerald-300' : 'text-amber-300'}"><td class="${td}" colspan="10">Diferencia (balanza − kardex)</td><td class="${tdR}">${fmt(c.dif)}</td></tr>
         ${c.ajenas.length ? `<tr class="text-slate-400"><td class="${td} text-[11px] italic" colspan="11">Pólizas que movieron esta cuenta sin un movimiento de inventario detrás (ahí suele estar la diferencia):</td></tr>
         ${c.ajenas.map((a) => `<tr class="text-slate-400 text-[11px]"><td class="${td} font-mono">${esc(a.pol.fecha)}</td><td class="${td}">Póliza ${linkPoliza(a.pol.id)}</td>
