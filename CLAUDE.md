@@ -325,7 +325,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 - Semiterminado como tipo: (1) migración 1 YA CORRIDA 2026-09-23 (pegada en 2 partes; el editor de Supabase cortaba el
   archivo completo): 32 semiterminados, 65 producto, 41 MP, 122 insumo; `tareas_sync_inventario` solo compara
-  `entidad_tipo`, no aplica. Falta: (2) publicar el código a `main`; (3) correr `sql/2026-09-24b_quitar_es_semiterminado.sql`. Pedidos de venta todavía lista todos los artículos (sin filtro de tipo).
+  `entidad_tipo`, no aplica. (2) código ya en `main` (2026-09-23; la 1.ª publicación de Pages falló por un error de certificado de GitHub y se
+  relanzó). Falta: (3) correr `sql/2026-09-24b_quitar_es_semiterminado.sql`. Pedidos de venta todavía lista todos los artículos (sin filtro de tipo).
 - Correr `sql/2026-09-23f_graneles_aplicar.sql` DESPUÉS de la migración del tipo semiterminado (revisión `…e` ya corrida 2026-09-23: 6 graneles en Litros, 115.02, sin
   existencia; quedarían en 14.64 L). Antes, revisar la receta de Granel Love Oil Fresa Kiwi 15 Litros (id 227): suma solo
   7.99 L con 3 componentes. Al crear graneles nuevos, volver a correr revisión + aplicar.
