@@ -296,12 +296,9 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - Correr `sql/2026-09-23f_graneles_aplicar.sql` (revisión `…e` ya corrida 2026-09-23: 6 graneles en Litros, 115.02, sin
   existencia; quedarían en 14.64 L). Antes, revisar la receta de Granel Love Oil Fresa Kiwi 15 Litros (id 227): suma solo
   7.99 L con 3 componentes. Al crear graneles nuevos, volver a correr revisión + aplicar.
-- Correr `sql/2026-09-23c_fix_candado_recibo_redondeo.sql` si no se ha corrido (`documento_detalles.cantidad` guarda 2
-  decimales: sin esto el candado rechaza recibir exacto 152.015). Ya hecho 2026-09-23: `2026-09-23_candados_cuadre_inventario.sql`,
-  recibos duplicados #17 y #19 cancelados, `cuadre_inventario_contable()` en 0 en 115.01/115.02/115.04.
-- Confirmar si ya se corrieron `sql/2026-09-22_fix_salida_fifo_costo_ambiguo.sql`, `sql/2026-09-22_factor_conversion_sin_densidad.sql`
-  y `sql/2026-09-22_requisicion_orden_produccion.sql`; limpiar los documentos vacíos (`PROD-…-MP` / `PROD-…`) que dejaron
-  los cierres fallidos. `sql/2026-09-23d_rendimiento_real_orden.sql` es opcional (el cierre ya no pregunta lo real).
+- Verificado 2026-09-23 en la base: corridas todas las migraciones de 2026-09-22 y 2026-09-23 (`…23d` no, es opcional).
+  Documentos vacíos de los cierres fallidos (ids 22-25, PROD-000001/-MP y PROD-000002/-MP) marcados `cancelado` (no
+  borrados, para dejar rastro y que no bloqueen el candado de cierre de septiembre).
 - Graneles en Kilogramos: el usuario confirmó que sus terminados los consumen en GRAMOS → no hace falta la densidad del
   granel (solo la de los insumos que la receta pida en L/mL). Si algún terminado pidiera un granel en mL, capturar la
   densidad del granel (el 🧮 da "densidad estimada de la mezcla"; se propuso un botón "Usar X como densidad").
