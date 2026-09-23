@@ -244,8 +244,9 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Pendiente
 
-- Correr `sql/2026-09-23_candados_cuadre_inventario.sql` y luego `sql/2026-09-23b_diagnostico_cuadre_recepciones.sql`;
-  cancelar en Documentos los recibos duplicados que liste el diagnóstico (OC-000017 / OC-000020, Glicerina) y
+- Correr `sql/2026-09-23c_fix_candado_recibo_redondeo.sql` (`documento_detalles.cantidad` guarda 2 decimales: sin esto el
+  candado rechaza recibir exacto 152.015). Ya corridos: `2026-09-23_candados_cuadre_inventario.sql` y el diagnóstico `…b`;
+  cancelar en Documentos los recibos duplicados #17 (OC-000017) y #19 (OC-000020), confirmados con el usuario, y
   verificar que el cuadre de 115.01 dé 0.
 - Correr `sql/2026-09-22_fix_salida_fifo_costo_ambiguo.sql`, `sql/2026-09-22_factor_conversion_sin_densidad.sql` y `sql/2026-09-22_requisicion_orden_produccion.sql` (las demás de `sql/` ya están corridas, verificado 2026-09-22).
 - Capturar "Rendimiento del lote" (Catálogo → Más detalles) en cada producto "Granel ..." cuyo BOM se

@@ -48,8 +48,8 @@ select oc.folio                           as orden,
                           and coalesce(d.estado, '') <> 'cancelado'
                           and exists (select 1 from public.documento_detalles dd
                                        where dd.documento_id = d.id and dd.producto_id = r.producto_id)
- where r.recibido > pe.pedido + 0.0005
-    or abs(r.recibido - coalesce(pe.recibido_en_oc, 0)) > 0.0005
+ where r.recibido > pe.pedido + 0.01   -- tolera el redondeo a 2 decimales de documento_detalles
+    or abs(r.recibido - coalesce(pe.recibido_en_oc, 0)) > 0.01
  order by oc.folio, p.nombre, d.id;
 
 -- 2) Pólizas canceladas y su reverso (contra-asiento). Ambas cuentan para
