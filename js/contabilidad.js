@@ -657,7 +657,7 @@ function renderFilaPoliza(p) {
     let html = `
         <tr class="pol-row border-b border-slate-900 hover:bg-slate-900/40 cursor-pointer ${p.estatus === 'cancelada' ? 'opacity-50' : ''}" data-id="${p.id}">
             <td class="p-2 whitespace-nowrap">${p.fecha}</td>
-            <td class="p-2 font-mono">${p.tipo} #${p.numero} <span class="text-slate-600">(id ${p.id})</span></td>
+            <td class="p-2 font-mono">${p.tipo} #${p.numero}</td>
             <td class="p-2">${p.concepto || ''}</td>
             <td class="p-2 text-right font-mono">${money(total)}</td>
             <td class="p-2 ${estColor}">${p.estatus}</td>
