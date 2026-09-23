@@ -1,6 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { siguienteFolio, proximoFolio, SERIE_SALIDA } from './folios.js';
 import { cargarInventarioCompleto, registrarMovimientoAlmacen } from './inventario.js';
+import { linkDoc, linkPoliza } from './enlaces-reporte.js';
 
 let partidasSalidaTemp = [];
 let listaProductosGlobal = [];
@@ -903,7 +904,7 @@ async function cargarHistorialSalidas() {
 
             html += `
                 <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition">
-                    <td class="p-3 font-mono text-xs text-red-400 font-bold">${doc.folio}</td>
+                    <td class="p-3">${linkDoc(doc.id, doc.folio || 'Sin Folio', 'font-mono text-xs text-red-400 font-bold')}</td>
                     <td class="p-3 text-xs uppercase font-semibold text-slate-400">${doc.tipo_movimiento}</td>
                     <td class="p-3 text-xs text-slate-400">${new Date(doc.fecha_emision).toLocaleDateString()}</td>
                     <td class="p-3 text-xs text-slate-200">${doc.descripcion || 'N/D'}</td>
@@ -1035,4 +1036,4 @@ async function abrirModalContabilizarSalida(doc) {
             modal.querySelector('#cbxGuardar').disabled = false;
         }
     };
-}
+}

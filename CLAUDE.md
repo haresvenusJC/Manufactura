@@ -4,6 +4,15 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/enlaces-reporte.js` (nuevo: `linkDoc`/`linkPoliza`), `js/documentos.js`, `js/contabilidad.js`,
+  `activos-fijos`, `compras`, `entradas`, `salidas`, `cuentas-por-cobrar`, `pagos-proveedor`, `devoluciones`, `trazabilidad`,
+  `pedidos-venta`, `tareas`, `ordenes-compra`. Auditoría "documentos y pólizas se abren desde el reporte": `verPolizaDeDocumento`
+  (todos los botones "Ver póliza") ya NO navega a Pólizas, abre `rcVerPoliza` en subventana; "Abrir documento" dentro de la
+  póliza tampoco navega; `window.zSubventanaSiguiente()` pone la nueva encima de las abiertas. Folios enlazados en historiales
+  de Compras/Entradas/Salidas, CxC, CxP (compras), Devoluciones (+ póliza), Activos fijos (póliza), Trazabilidad (REQ/OC).
+  Pedidos de venta: solo `tipo = 'producto'`. Desde = día 1 del mes / Hasta = hoy por default en CxC, CxP (con aviso de
+  pendientes fuera del rango + "Ver todas las fechas"), historial de Recibo de mercancía (antes 7 días) e Historial de tareas.
+  Sin enlazar a propósito: la tabla dinámica de `reportes.js` (el folio es agrupador). Pendiente: probar en el navegador.
 - Archivos tocados (lo último): `sql/2026-09-24_tipo_semiterminado.sql` y `sql/2026-09-24b_quitar_es_semiterminado.sql`
   (nuevos), `sql/…23e`/`…23f` (usan tipo), `js/catalogo.js`, `produccion.js`, `ordenes-produccion.js`, `importador-bom.js`,
   `importador.js`, `inventario.js`, `auxiliar-inventarios.js`, `auditoria-inventario.js`, `reportes.js`, `salidas.js`, manual.
@@ -162,6 +171,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `devoluciones.js` — devoluciones de cliente y a proveedor, con su efecto de inventario y póliza propia.
 - `documentos.js` — expediente de todos los documentos del sistema, imprimible, cancelación de recibos.
 - `empleados.js` — catálogo de empleados.
+- `enlaces-reporte.js` — `linkDoc`/`linkPoliza`: folio o póliza como enlace que abre su subventana (regla de reportes).
 - `entradas.js` — entradas directas de inventario sin compra de por medio (ajuste, inventario inicial...).
 - `folios.js` — folios consecutivos por serie asignados por la base.
 - `fresh-start.js` — diagnóstico para el reset de datos de prueba; nunca borra, solo muestra el SQL a pegar a mano.
@@ -326,7 +336,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - Semiterminado como tipo: (1) migración 1 YA CORRIDA 2026-09-23 (pegada en 2 partes; el editor de Supabase cortaba el
   archivo completo): 32 semiterminados, 65 producto, 41 MP, 122 insumo; `tareas_sync_inventario` solo compara
   `entidad_tipo`, no aplica. (2) código ya en `main` (2026-09-23; la 1.ª publicación de Pages falló por un error de certificado de GitHub y se
-  relanzó). Falta: (3) correr `sql/2026-09-24b_quitar_es_semiterminado.sql`. Pedidos de venta todavía lista todos los artículos (sin filtro de tipo).
+  relanzó). Falta: (3) correr `sql/2026-09-24b_quitar_es_semiterminado.sql`. 
 - Correr `sql/2026-09-23f_graneles_aplicar.sql` DESPUÉS de la migración del tipo semiterminado (revisión `…e` ya corrida 2026-09-23: 6 graneles en Litros, 115.02, sin
   existencia; quedarían en 14.64 L). Antes, revisar la receta de Granel Love Oil Fresa Kiwi 15 Litros (id 227): suma solo
   7.99 L con 3 componentes. Al crear graneles nuevos, volver a correr revisión + aplicar.
@@ -340,9 +350,5 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   Retardador, Vcream, Watermelon, Miel Bee Power, Lubricante Silicón) no salieron en la revisión: o no tienen BOM o su
   nombre no dice "granel". Cuando tengan receta, se configuran con la revisión ✅/⚠ o con los SQL `…e`/`…f`.
 - Evaluar si extender el buscador de selects a otras pantallas (Salidas, Órdenes de compra, alta de BOM).
-- Pendiente de responder: ¿aplicar también el default Desde=inicio de mes/Hasta=hoy a Cuentas por
-  cobrar/pagar, historial de Recibo de mercancía e Historial de tareas? (se dejaron igual, ver arriba).
-- Auditar los reportes existentes contra la regla "documentos y pólizas citados se pueden abrir desde ahí"
-  (hecho solo en Auxiliar de inventarios y costeo de la orden).
 - Subventanas: ya movibles y con fondo semitransparente todas las detectadas; una nueva queda cubierta sola si usa
   `fixed inset-0` (fondo + panel) o `fixed rounded-2xl` (flotante) y su barra de título es el primer hijo del panel.

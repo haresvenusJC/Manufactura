@@ -2,6 +2,7 @@ import { supabaseClient } from './supabase.js';
 import { siguienteFolio, proximoFolio } from './folios.js';
 import { cargarInventarioCompleto } from './inventario.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+import { linkDoc, linkPoliza } from './enlaces-reporte.js';
 
 let partidasEntradaDirecta = [];
 let catalogoInsumosCache = [];
@@ -393,7 +394,7 @@ async function cargarHistorialEntradas() {
 
             html += `
                 <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition">
-                    <td class="p-3 font-mono text-xs text-emerald-400 font-bold">${doc.folio || 'Sin Folio'}</td>
+                    <td class="p-3">${linkDoc(doc.id, doc.folio || 'Sin Folio', 'font-mono text-xs text-emerald-400 font-bold')}</td>
                     <td class="p-3 text-xs text-slate-400">${doc.fecha_emision ? new Date(doc.fecha_emision).toLocaleDateString() : ''}</td>
                     <td class="p-3 text-xs text-slate-200">${doc.descripcion || 'N/D'}</td>
                     <td class="p-3">${descDetalles}</td>

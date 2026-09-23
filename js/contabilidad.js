@@ -2483,7 +2483,7 @@ window.rcVerPoliza = async function (polId) {
         const totA = movs.reduce((s, m) => s + (Number(m.abono) || 0), 0);
 
         const enlacesDoc = docs.map((d) => `
-            <button type="button" onclick="window.rcCerrarModalPoliza(); window.loadView('documentos'); window.abrirDetalleDocumentoGlobal(${d.id});"
+            <button type="button" onclick="const z=window.zSubventanaSiguiente(); window.abrirDetalleDocumentoGlobal(${d.id}); const m=document.getElementById('modalDetalleDocKardex'); if(m){m.style.zIndex=z;m.classList.remove('hidden');}"
                 class="text-xs bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-800/60 px-3 py-1.5 rounded-lg font-semibold cursor-pointer">
                 Abrir documento #${d.id}${d.folio ? ' · ' + d.folio : ''}
             </button>`).join(' ');

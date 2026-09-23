@@ -544,11 +544,27 @@ window.cerrarDetalleDocumento = function() {
 };
 
 // Abre Contabilidad → Pólizas enfocado en la póliza de un documento.
-window.verPolizaDeDocumento = function(polizaId, fechaEmision) {
+// Abre la póliza en subventana (window.rcVerPoliza, js/contabilidad.js) encima de lo que esté abierto,
+// sin cerrar el documento ni salir de la pantalla (regla de CLAUDE.md). fechaEmision ya no se usa.
+window.verPolizaDeDocumento = async function(polizaId, fechaEmision) {
     if (!polizaId) return;
-    window.__polFoco = { id: Number(polizaId), fecha: fechaEmision || null };
-    if (typeof window.cerrarDetalleDocumento === 'function') window.cerrarDetalleDocumento();
-    if (typeof window.loadView === 'function') window.loadView('polizas');
+    if (typeof window.rcVerPoliza !== 'function') { alert('No se pudo abrir la póliza #' + polizaId + '.'); return; }
+    const z = window.zSubventanaSiguiente();
+    const p = window.rcVerPoliza(Number(polizaId));
+    const m = document.getElementById('rcModalPoliza');
+    if (m) m.style.zIndex = z;
+    await p;
+};
+
+// z-index para que la subventana que se abre quede encima de todas las que ya están abiertas.
+window.zSubventanaSiguiente = function() {
+    let max = 60;
+    document.querySelectorAll('body > div.fixed').forEach((el) => {
+        if (el.classList.contains('hidden')) return;
+        const z = parseInt(getComputedStyle(el).zIndex, 10);
+        if (!isNaN(z) && z > max) max = z;
+    });
+    return max + 1;
 };
 
 // Cancela un recibo de compra: revierte inventario + póliza. Bloquea si ya se consumió stock.

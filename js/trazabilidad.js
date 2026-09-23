@@ -82,7 +82,7 @@ export async function abrirAntecedentes(ordenCompraId) {
 
         const htmlReq = req.data
             ? `<div class="flex items-center justify-between gap-2 flex-wrap">
-                 <span class="font-mono text-sky-300 text-sm">${esc(req.data.folio || '#' + req.data.id)}</span>
+                 <button type="button" onclick="window.abrirDetalleReq && window.abrirDetalleReq(${req.data.id})" class="font-mono text-sky-300 text-sm hover:underline" title="Abrir la requisición">${esc(req.data.folio || '#' + req.data.id)}</button>
                  <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${REQ_ESTATUS[req.data.estatus] || 'text-slate-400 bg-slate-800'}">${esc(req.data.estatus)}</span>
                </div>
                <p class="text-[11px] text-slate-500 mt-1">${req.data.fecha || ''} · ${req.data.origen === 'stock_bajo_minimo' ? 'Generada por stock bajo mínimo' : 'Capturada a mano'}</p>
@@ -91,7 +91,7 @@ export async function abrirAntecedentes(ordenCompraId) {
 
         const o = oc.data;
         const htmlOc = `<div class="flex items-center justify-between gap-2 flex-wrap">
-                 <span class="font-mono text-emerald-300 text-sm">${esc(o.folio || '#' + o.id)}</span>
+                 <button type="button" onclick="window.verDetalleOC && window.verDetalleOC(${o.id})" class="font-mono text-emerald-300 text-sm hover:underline" title="Abrir la orden de compra">${esc(o.folio || '#' + o.id)}</button>
                  <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-sky-300 bg-sky-950/50">${esc(o.estatus)}</span>
                </div>
                <p class="text-[11px] text-slate-500 mt-1">${o.fecha || ''} · ${esc(o.proveedores?.nombre || 'sin proveedor')}</p>`;

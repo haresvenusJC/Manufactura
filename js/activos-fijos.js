@@ -1,6 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
+import { linkDoc, linkPoliza } from './enlaces-reporte.js';
 
 // =====================================================================
 //  Activos fijos y depreciación (NIF C-6, línea recta): catálogo de
@@ -328,7 +329,7 @@ async function afRenderHistorial() {
                   <td class="p-2 text-slate-100">${String(m.mes).padStart(2, '0')}/${m.anio}</td>
                   <td class="p-2 text-right font-mono text-slate-400">${m.n}</td>
                   <td class="p-2 text-right font-mono">${money(m.total)}</td>
-                  <td class="p-2 font-mono text-slate-400">${m.polizaId ? '#' + m.polizaId : '—'}</td>
+                  <td class="p-2">${linkPoliza(m.polizaId)}</td>
                   <td class="p-2 text-right"><button type="button" onclick="window.afCancelarMes(${m.anio}, ${m.mes})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded">Cancelar</button></td>
                 </tr>`).join('')}
             </tbody>

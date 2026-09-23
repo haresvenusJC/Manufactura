@@ -1,6 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { montarGuia } from './asistente-contable.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+import { linkDoc, linkPoliza } from './enlaces-reporte.js';
 
 // =====================================================================
 //  Cuentas por Cobrar / Cobros a clientes
@@ -12,14 +13,15 @@ import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-
 
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const hoyISO = () => new Date().toISOString().slice(0, 10);
+const primerDiaMesISO = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // Estado del filtro de visibilidad (Pendientes / Pagadas / Canceladas / Todas)
 // y el último dataset traído, para poder refiltrar sin volver a consultar.
 let cxcCache = [];
 let cxcFiltro = 'pendiente';
-let cxcDesde = '';
-let cxcHasta = '';
+let cxcDesde = primerDiaMesISO();
+let cxcHasta = hoyISO();
 let cxcClienteId = '';
 const CXC_FILTROS = [
     { v: 'pendiente', t: 'Pendientes de cobro' },
@@ -61,7 +63,7 @@ export async function cargarModuloCuentasPorCobrar() {
 
     cxcCache = cxc;
     cxcFiltro = 'pendiente';
-    cxcDesde = ''; cxcHasta = ''; cxcClienteId = '';
+    cxcDesde = primerDiaMesISO(); cxcHasta = hoyISO(); cxcClienteId = '';
 
     const optCta = '<option value="">— caja / banco —</option>' +
         ctasCobro.map(c => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
@@ -115,6 +117,10 @@ function cxcPintarDocumentos() {
 
     const filtrados = cxcFiltro === 'todas' ? porFechaCli : porFechaCli.filter((x) => x.estatus_cxc === cxcFiltro);
     const esPendiente = cxcFiltro === 'pendiente';
+    // Aviso: pendientes de fechas fuera del rango (el default es el mes actual) para no perder saldos viejos.
+    const fueraRango = cxcCache.filter((x) => x.estatus_cxc === 'pendiente'
+        && (!cxcClienteId || String(x.cliente_id || '') === cxcClienteId)
+        && (((cxcDesde && (x.fecha || '') < cxcDesde)) || (cxcHasta && (x.fecha || '') > cxcHasta)));
     const totalGeneral = filtrados.reduce((a, x) => a + Number(x.saldo || 0), 0);
 
     aplicarOrden(cxcOrden, filtrados, (x, campo) => {
@@ -163,6 +169,7 @@ function cxcPintarDocumentos() {
         <button type="button" id="cxcLimpiarFiltros" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg">Limpiar</button>
       </div>
       <div class="flex flex-wrap gap-2 mb-3">${pills}</div>
+      ${fueraRango.length ? `<div class="mb-3 text-xs text-amber-300 bg-amber-950/30 border border-amber-800 rounded-lg px-3 py-2">⚠ Hay ${fueraRango.length} ventas pendientes fuera del rango de fechas (saldo ${money(fueraRango.reduce((a, x) => a + Number(x.saldo || 0), 0))}). <button type="button" id="cxcVerFueraRango" class="underline hover:text-amber-200">Ver todas las fechas</button></div>` : ''}
       ${filtrados.length ? `
       <div class="overflow-x-auto border border-slate-800 rounded-lg">
         <table class="w-full text-left text-xs text-slate-300">
@@ -184,7 +191,7 @@ function cxcPintarDocumentos() {
                   ${esPendiente
                       ? `<td class="p-2 text-center"><input type="checkbox" class="cxc-chk accent-emerald-500 w-4 h-4"></td>`
                       : `<td class="p-2">${estatusBadge(x)}</td>`}
-                  <td class="p-2 font-mono text-slate-200">${esc(x.folio || '#' + x.id)}</td>
+                  <td class="p-2">${linkDoc(x.id, x.folio || '#' + x.id, 'font-mono text-slate-200')}</td>
                   <td class="p-2">${esc(x.cliente_nombre || '—')}</td>
                   <td class="p-2 whitespace-nowrap text-slate-400">${x.fecha || ''}</td>
                   <td class="p-2 text-right font-mono">${money(x.total)}</td>
@@ -212,6 +219,7 @@ function cxcPintarDocumentos() {
     document.getElementById('cxcDesde').onchange = (e) => { cxcDesde = e.target.value; cxcPintarDocumentos(); };
     document.getElementById('cxcHasta').onchange = (e) => { cxcHasta = e.target.value; cxcPintarDocumentos(); };
     document.getElementById('cxcFiltroCliente').onchange = (e) => { cxcClienteId = e.target.value; cxcPintarDocumentos(); };
+    document.getElementById('cxcVerFueraRango')?.addEventListener('click', () => { cxcDesde = ''; cxcHasta = ''; cxcPintarDocumentos(); });
     document.getElementById('cxcLimpiarFiltros').onclick = () => { cxcDesde = ''; cxcHasta = ''; cxcClienteId = ''; cxcPintarDocumentos(); };
     wireOrdenTabla(panel, cxcOrden, cxcPintarDocumentos);
 

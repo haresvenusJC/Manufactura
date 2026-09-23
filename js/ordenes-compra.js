@@ -819,14 +819,12 @@ let rmCatCuentasGasto = []; // cuentas_contables afectables/activas, para el alt
 let rmRecProveedores = [];      // catálogo para el filtro de "Recepciones registradas"
 let rmRecPagina = 1;
 const rmRecPorPagina = 20;
-// Default del historial: hoy hacia 7 días atrás (en vez de "todos" sin filtrar).
+// Default del historial: del día 1 del mes a hoy (en vez de "todos" sin filtrar).
 // "Limpiar" sí quita el filtro por completo si se necesita buscar más atrás.
 function rmFiltroPorDefecto() {
     const f = (d) => d.toISOString().split('T')[0];
     const hoy = new Date();
-    const hace7 = new Date(hoy);
-    hace7.setDate(hoy.getDate() - 7);
-    return { desde: f(hace7), hasta: f(hoy), proveedorId: '' };
+    return { desde: f(new Date(hoy.getFullYear(), hoy.getMonth(), 1)), hasta: f(hoy), proveedorId: '' };
 }
 let rmRecFiltro = rmFiltroPorDefecto();
 

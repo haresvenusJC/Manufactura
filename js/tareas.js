@@ -18,6 +18,7 @@ const histTareasOrden = crearOrdenTabla();
 
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const hoyISO = () => new Date().toISOString().slice(0, 10);
+const primerDiaMesISO = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const TABLA_FALTA = /does not exist|schema cache|could not find|relation .* does not exist/i;
 
@@ -400,7 +401,7 @@ async function cargarHistorialTareas() {
     cont.innerHTML = `<p class="text-slate-500">Cargando historial...</p>`;
 
     try {
-        histFilasCache = await fetchHistorialTareas({});
+        histFilasCache = await fetchHistorialTareas({ desde: primerDiaMesISO(), hasta: hoyISO() });
     } catch (err) {
         if (TABLA_FALTA.test(err.message || '')) {
             cont.innerHTML = `<p class="text-slate-600 text-xs">El historial de tareas aún no está activado (falta correr sql/2026-09-07_tareas_historial.sql).</p>`;
@@ -410,7 +411,7 @@ async function cargarHistorialTareas() {
         return;
     }
 
-    const tipos = [...new Set(histFilasCache.map((r) => r.tipo))];
+    const tipos = [...new Set([...Object.keys(TIPO_LABEL), ...histFilasCache.map((r) => r.tipo)])];
 
     cont.innerHTML = `
         <h3 class="text-sm font-semibold text-slate-300 mb-3">Historial de tareas</h3>
@@ -432,11 +433,11 @@ async function cargarHistorialTareas() {
             </div>
             <div>
                 <label class="block text-slate-500 mb-1">Desde</label>
-                <input type="date" id="histDesde" class="bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-slate-200">
+                <input type="date" id="histDesde" value="${primerDiaMesISO()}" class="bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-slate-200">
             </div>
             <div>
                 <label class="block text-slate-500 mb-1">Hasta</label>
-                <input type="date" id="histHasta" class="bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-slate-200">
+                <input type="date" id="histHasta" value="${hoyISO()}" class="bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-slate-200">
             </div>
             <div>
                 <label class="block text-slate-500 mb-1">Procesada por</label>

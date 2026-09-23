@@ -43,7 +43,8 @@ export async function cargarModuloPedidosVenta() {
     try {
         const [cl, pr] = await Promise.all([
             supabaseClient.from('clientes').select('id, nombre').order('nombre'),
-            supabaseClient.from('productos').select('id, nombre, sku, precio_venta, unidad_medida_id').order('nombre'),
+            // Solo producto terminado: materia prima, insumos y semiterminados (graneles) no se venden.
+            supabaseClient.from('productos').select('id, nombre, sku, precio_venta, unidad_medida_id').eq('tipo', 'producto').order('nombre'),
         ]);
         pvClientes = cl.data || [];
         pvProductos = pr.data || [];
@@ -71,7 +72,7 @@ export async function cargarModuloPedidosVenta() {
           <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
             <div class="col-span-2 relative">
               <label class="block text-[11px] text-slate-400 mb-1">Producto</label>
-              <input type="text" id="pvProdInput" autocomplete="off" placeholder="Buscar producto..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+              <input type="text" id="pvProdInput" autocomplete="off" placeholder="Buscar producto terminado..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
               <div id="pvProdSug" class="hidden absolute left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-40 max-h-44 overflow-y-auto"></div>
             </div>
             <div><label class="block text-[11px] text-slate-400 mb-1">Cantidad</label>

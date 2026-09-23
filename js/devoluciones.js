@@ -1,6 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
+import { linkDoc, linkPoliza } from './enlaces-reporte.js';
 
 // =====================================================================
 //  Devoluciones a proveedor y de cliente. El IVA se calcula solo con la
@@ -232,7 +233,7 @@ async function devRenderHistCliente() {
     try {
         const { data, error } = await supabaseClient
             .from('devoluciones_cliente')
-            .select('id, folio, fecha, motivo, estatus, poliza_id, clientes ( nombre ), devoluciones_cliente_detalle ( cantidad, precio_unitario ), documentos!documento_id ( subtotal, iva, total )')
+            .select('id, folio, fecha, motivo, estatus, poliza_id, clientes ( nombre ), devoluciones_cliente_detalle ( cantidad, precio_unitario ), documentos!documento_id ( id, subtotal, iva, total )')
             .order('id', { ascending: false }).limit(200);
         if (error) throw error;
         if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin devoluciones de cliente registradas.</p>'; return; }
@@ -255,7 +256,7 @@ async function devRenderHistCliente() {
             <tbody>
               ${data.map((d) => `
                 <tr class="border-b border-slate-900">
-                  <td class="p-2 font-mono text-emerald-300">${esc(d.folio)}</td>
+                  <td class="p-2">${linkDoc(d.documentos?.id, d.folio, 'font-mono text-emerald-300')}${d.poliza_id ? `<span class="block text-[10px] text-slate-500">póliza ${linkPoliza(d.poliza_id, 'font-mono text-sky-300')}</span>` : ''}</td>
                   <td class="p-2 whitespace-nowrap text-slate-400">${d.fecha || ''}</td>
                   <td class="p-2">${esc(d.clientes?.nombre || '—')}</td>
                   <td class="p-2 text-right font-mono text-slate-400">${money(d._subtotal)}</td>
@@ -438,7 +439,7 @@ async function devRenderHistProveedor() {
     try {
         const { data, error } = await supabaseClient
             .from('devoluciones_proveedor')
-            .select('id, folio, fecha, motivo, estatus, poliza_id, proveedores ( nombre ), devoluciones_proveedor_detalle ( cantidad, costo_unitario ), documentos!documento_id ( subtotal, iva, total )')
+            .select('id, folio, fecha, motivo, estatus, poliza_id, proveedores ( nombre ), devoluciones_proveedor_detalle ( cantidad, costo_unitario ), documentos!documento_id ( id, subtotal, iva, total )')
             .order('id', { ascending: false }).limit(200);
         if (error) throw error;
         if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin devoluciones a proveedor registradas.</p>'; return; }
@@ -461,7 +462,7 @@ async function devRenderHistProveedor() {
             <tbody>
               ${data.map((d) => `
                 <tr class="border-b border-slate-900">
-                  <td class="p-2 font-mono text-emerald-300">${esc(d.folio)}</td>
+                  <td class="p-2">${linkDoc(d.documentos?.id, d.folio, 'font-mono text-emerald-300')}${d.poliza_id ? `<span class="block text-[10px] text-slate-500">póliza ${linkPoliza(d.poliza_id, 'font-mono text-sky-300')}</span>` : ''}</td>
                   <td class="p-2 whitespace-nowrap text-slate-400">${d.fecha || ''}</td>
                   <td class="p-2">${esc(d.proveedores?.nombre || '—')}</td>
                   <td class="p-2 text-right font-mono text-slate-400">${money(d._subtotal)}</td>
