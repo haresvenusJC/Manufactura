@@ -8,7 +8,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   devuelve `densidadCalculada` (kg/L de la mezcla, 3 dec.; solo si ≥1 insumo trae densidad; los que no, como agua →
   `densidadFaltante`). `htmlDensidadMezcla` la muestra en el análisis 🧮 con botón "Usar X kg/L como Densidad". Alta/edición
   del Catálogo y "✏️ Editar artículo": el campo se llena solo si está vacío o conserva el último calculado (`dataset.auto`);
-  escrito a mano se respeta. "Editar o ver BOM": al guardar, si el granel no tiene densidad se guarda sola. Pendiente: probar.
+  escrito a mano se respeta. "Editar o ver BOM": al guardar, si el granel no tiene densidad se guarda sola. SOLO
+  semiterminados (el terminado no la necesita: quien lo consume ya lo pide en su unidad). Pendiente: probar.
 - Archivos tocados (lo último): `js/enlaces-reporte.js` (nuevo: `linkDoc`/`linkPoliza`), `js/documentos.js`, `js/contabilidad.js`,
   `activos-fijos`, `compras`, `entradas`, `salidas`, `cuentas-por-cobrar`, `pagos-proveedor`, `devoluciones`, `trazabilidad`,
   `pedidos-venta`, `tareas`, `ordenes-compra`. Auditoría "documentos y pólizas se abren desde el reporte": `verPolizaDeDocumento`

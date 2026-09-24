@@ -1654,8 +1654,8 @@ async function abrirVentanaBom(producto) {
         cont.innerHTML = htmlGuiaGranel({
             esSemi: producto.tipo === 'semiterminado', unidadNombre: uni, nComponentes: filas.length,
             rend: producto.rendimiento_lote_bom, res: filas.length ? res : null, cuentaConocida: false, enBom: true,
-        }) + (filas.length ? htmlAnalisisTanda(res, uni, producto.rendimiento_lote_bom, producto.densidad_kg_l) : '');
-        ultimaDensidadCalculada = filas.length ? res.densidadCalculada : null;
+        }) + (filas.length ? htmlAnalisisTanda(res, uni, producto.rendimiento_lote_bom, producto.tipo === 'semiterminado' ? (producto.densidad_kg_l ?? '') : undefined) : '');
+        ultimaDensidadCalculada = (filas.length && producto.tipo === 'semiterminado') ? res.densidadCalculada : null;
         cont.querySelector('.btn-usar-dens')?.addEventListener('click', async (e) => {
             e.stopPropagation();
             const valor = Number(e.currentTarget.dataset.valor);
@@ -2216,12 +2216,14 @@ function htmlAnalisisTanda(res, unidadNombre, rendActual, densActual) {
         ${res.sinDensidad.length ? `<p class="text-amber-400/90">⚠ Sin densidad (se tomó como agua, 1 kg/L): ${res.sinDensidad.map(escaparHtml).join(', ')} — captúrala en ⚖️ Densidades para afinar el cálculo.</p>` : ''}
         ${res.ignorados.length ? `<p class="text-slate-500">No cuentan para el tamaño (no son volumen ni peso): ${res.ignorados.map(escaparHtml).join(', ')}.</p>` : ''}
         <p class="text-slate-500">Es teórico: al mezclar, el volumen real puede salir un poco menor. Mide la primera tanda en el tanque y, si difiere, captura lo medido. <a href="manual-costos-produccion.html#m-granel-rendimiento" target="_blank" class="text-sky-400 underline">¿Por qué importa el rendimiento?</a></p>
-        ${htmlDensidadMezcla(res, densActual)}
+        ${densActual === undefined ? '' : htmlDensidadMezcla(res, densActual)}
         ${Math.abs(rend - sugerido) >= 0.005 ? `<button type="button" class="btn-usar-rend mt-1 text-[11px] bg-sky-700 hover:bg-sky-600 text-white font-semibold px-3 py-1 rounded-lg cursor-pointer" data-valor="${sugerido}">Usar ${fmt(sugerido, 2)} ${u} como Rendimiento del lote</button>` : ''}
     </div>`;
 }
 
 // Densidad del granel calculada de su fórmula (kg/L de la mezcla). `densActual` = lo capturado en "Densidad".
+// Solo semiterminados: un producto terminado no la necesita (quien lo consume ya lo pide en su propia unidad);
+// en htmlAnalisisTanda, densActual === undefined = no mostrar esta parte.
 function htmlDensidadMezcla(res, densActual) {
     const fmt = (n) => Number(n).toLocaleString('es-MX', { maximumFractionDigits: 3 });
     const d = res.densidadCalculada;
@@ -2552,7 +2554,8 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                 const rend = val('rendimiento_lote_bom', art.rendimiento_lote_bom);
                 // Densidad vacía: se llena sola con la de la mezcla (se guarda con "Guardar cambios").
                 const elDens = cuerpo.querySelector('#rc_densidad_kg_l');
-                if (elDens && !soloLectura && res?.densidadCalculada && (!elDens.value || elDens.dataset.auto === elDens.value)) {
+                const esSemi = val('tipo', art.tipo) === 'semiterminado';
+                if (esSemi && elDens && !soloLectura && res?.densidadCalculada && (!elDens.value || elDens.dataset.auto === elDens.value)) {
                     elDens.value = String(res.densidadCalculada);
                     elDens.dataset.auto = elDens.value;
                 }
@@ -2563,7 +2566,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                     cuentaCodigo: cta?.codigo || '', cuentaNombre: cta?.nombre || '',
                     cuentaConocida: 'cuenta_inventario_id' in art, enBom: false, stock: art.stock_actual,
                 });
-                contAn.innerHTML = res ? htmlAnalisisTanda(res, uniProd, rend, val('densidad_kg_l', art.densidad_kg_l)) : '';
+                contAn.innerHTML = res ? htmlAnalisisTanda(res, uniProd, rend, esSemi ? (val('densidad_kg_l', art.densidad_kg_l) ?? '') : undefined) : '';
                 const btnDens = contAn.querySelector('.btn-usar-dens');
                 if (btnDens && soloLectura) btnDens.remove();
                 else btnDens?.addEventListener('click', (e) => {
