@@ -4,6 +4,15 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/bienvenida.js`, `js/iconos-accesos.js` (nuevo), `js/indice.js` (exporta `SECCIONES`),
+  `css/bienvenida.css`, `sql/2026-09-24c_accesos_directos_usuario.sql` (nuevo). Inicio con accesos rápidos personalizables
+  por usuario: "✎ Personalizar accesos" → agregar/editar (pantalla de la lista del Índice, título, subtítulo, ícono de una
+  galería de ~50 íconos por categoría), quitar, reordenar con ◀ ▶ y "↺ Restablecer los de siempre". Se guardan en
+  `accesos_directos_usuario` (una fila por usuario, jsonb, RLS por `auth.uid()`); sin la tabla o sin red quedan en
+  `localStorage` (`hares_accesos_<uid>`) y se avisa. Máx. 12. Pendiente: correr la migración y probar en el navegador.
+- Ajuste local (`js/produccion.js`): la etiqueta "CANTIDAD A PRODUCIR" del formulario de orden muestra la unidad del
+  producto (Litros, Kilos, Piezas…) y la nota de abajo la repite en los graneles con tandas. Pendiente: subir con "comitea"
+  (y correr `python3 actualizar-version.py`).
 - Archivos tocados (lo último): `js/conversion-unidades.js`, `js/catalogo.js`. Densidad del granel automática: `tamanoTeoricoTanda`
   devuelve `densidadCalculada` (kg/L de la mezcla, 3 dec.; solo si ≥1 insumo trae densidad; los que no, como agua →
   `densidadFaltante`). `htmlDensidadMezcla` la muestra en el análisis 🧮 con botón "Usar X kg/L como Densidad". Alta/edición
@@ -159,7 +168,9 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   artículo/clasificación/cuenta + cuadre contra la balanza de cada cuenta de inventario.
 - `auth.js` — login del admin (los empleados no pasan por aquí) + bitácora de inicio/cierre de sesión.
 - `bancos-tesoreria.js` — cuentas bancarias ligadas a cuenta contable, conciliación y flujo proyectado simple.
-- `bienvenida.js` — pantalla de Inicio: saludo, nombre del usuario y accesos rápidos.
+- `bienvenida.js` — pantalla de Inicio: saludo, nombre del usuario y accesos rápidos personalizables por usuario
+  (tabla `accesos_directos_usuario`, respaldo en el navegador).
+- `iconos-accesos.js` — galería de íconos de línea (por categoría) para los accesos rápidos de Inicio.
 - `bitacora-cambios.js` — consulta de la bitácora de movimientos (quién/cuándo/qué cambió) de todo el negocio.
 - `buscador-select.js` — convierte un `<select>` largo en un buscador con teclado, sin cambiar su comportamiento.
 - `catalogo.js` — catálogo de productos: alta/edición, clasificación, BOM, tabla de Densidades y de

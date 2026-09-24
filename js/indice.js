@@ -5,7 +5,7 @@
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-const SECCIONES = [
+export const SECCIONES = [
     {
         grupo: 'Datos Maestros', ancla: 'cat', items: [
             { v: 'catalogo', t: 'Productos', d: 'Alta y edición de productos, materias primas e insumos: SKU, unidad, costo, bandera de control de caducidad.', cfg: true },

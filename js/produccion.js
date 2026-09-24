@@ -450,7 +450,7 @@ export async function cargarModuloProduccion() {
                                     <input type="number" id="tandasProducir" min="0" step="any" class="w-full bg-slate-950 border border-amber-800/60 rounded-lg p-2 text-sm text-slate-100">
                                     <p id="notaTandas" class="text-[10px] text-slate-500 mt-0.5"></p>
                                 </div>
-                                <label class="block text-xs font-medium text-slate-400 mb-1" title="En la Unidad de Medida del producto (Catálogo). En un granel con Rendimiento del lote se llena sola al escribir las tandas.">CANTIDAD A PRODUCIR <span class="text-slate-500 cursor-help">ⓘ</span></label>
+                                <label class="block text-xs font-medium text-slate-400 mb-1" title="En la Unidad de Medida del producto (Catálogo). En un granel con Rendimiento del lote se llena sola al escribir las tandas.">CANTIDAD A PRODUCIR <span id="unidadCantidadProd" class="text-amber-400 font-semibold"></span> <span class="text-slate-500 cursor-help">ⓘ</span></label>
                                 <input type="number" id="cantidadProducida" min="0.0001" step="any" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
                                 <p id="notaCantidadProd" class="text-[10px] text-slate-500 mt-0.5">En la unidad del producto (pieza, litro, kilo…).</p>
                             </div>
@@ -531,13 +531,13 @@ export async function cargarModuloProduccion() {
         // 2026-10-18) no se produce. Si la columna aún no existe, va sin ese filtro.
         let { data: productos, error: errProd } = await supabaseClient
             .from('productos')
-            .select('id, nombre, sku, tipo')
+            .select('id, nombre, sku, tipo, unidades_medida ( nombre )')
             .in('tipo', ['producto', 'semiterminado'])
             .or('abastecimiento.is.null,abastecimiento.eq.fabricado');
         if (errProd) {
             ({ data: productos, error: errProd } = await supabaseClient
                 .from('productos')
-                .select('id, nombre, sku, tipo')
+                .select('id, nombre, sku, tipo, unidades_medida ( nombre )')
                 .in('tipo', ['producto', 'semiterminado']));
         }
 
@@ -650,13 +650,17 @@ export async function cargarModuloProduccion() {
             }));
         }
         const redondear = (n) => Math.round(n * 10000) / 10000;
+        const unidadPorProducto = new Map((productos || []).map((p) => [String(p.id), p.unidades_medida?.nombre || '']));
+        const etiquetaUnidadCant = document.getElementById('unidadCantidadProd');
         function aplicarModoTandas() {
+            const unidadSel = unidadPorProducto.get(String(selectProd.value)) || '';
+            etiquetaUnidadCant.textContent = unidadSel ? `(${unidadSel})` : '';
             const info = rendimientoPorProducto.get(String(selectProd.value));
             bloqueTandas.classList.toggle('hidden', !info);
             if (!info) { inputTandas.value = ''; notaCantidadProd.textContent = NOTA_CANTIDAD_BASE; return; }
             const u = info.unidad ? ` ${info.unidad}` : '';
             notaTandas.textContent = `1 tanda = ${formatoCantidad(info.rend)}${u} (Rendimiento del lote). Puedes poner 0.5 para media tanda.`;
-            notaCantidadProd.textContent = `Se llena sola: tandas × ${formatoCantidad(info.rend)}${u}. Es lo que entra al inventario al cerrar.`;
+            notaCantidadProd.textContent = `Se llena sola: tandas × ${formatoCantidad(info.rend)}${u}. Es lo que entra al inventario al cerrar${u ? `, en${u}` : ''}.`;
             inputTandas.value = '1';
             inputCantidadProd.value = String(info.rend);
         }
