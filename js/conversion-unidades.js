@@ -70,6 +70,7 @@ export function factorConversion(unidadOrigenRaw, unidadDestinoId, nombreUnidadP
  * "Rendimiento del lote" de un granel (ej. Granel Aceite Sey Fresa Kiwi: ≈ 14.64 L).
  *  - renglones: [{ nombre, cantidad, unidadNombre, densidad }] (densidad en kg/L del insumo).
  *  - Renglones en piezas u otras unidades sin masa/volumen se ignoran (frascos, etiquetas).
+ *  - `densidadCalculada`: densidad de la mezcla (kg/L, 3 decimales) para la "Densidad" del granel.
  *  - Sin densidad se toma como agua (1 kg/L); solo afecta el total si hay que cambiar de familia
  *    (insumo en kg en una fórmula que rinde litros, o al revés) — esos van en `sinDensidad`.
  * Es teórico: al mezclar líquidos el volumen real puede ser un poco menor que la suma.
@@ -77,7 +78,8 @@ export function factorConversion(unidadOrigenRaw, unidadDestinoId, nombreUnidadP
 export function tamanoTeoricoTanda(renglones, unidadProductoNombre) {
     const fp = familiaDeUnidad(unidadProductoNombre);
     let mL = 0, g = 0;
-    const sinDensidad = [], ignorados = [];
+    const sinDensidad = [], ignorados = [], densidadFaltante = [];
+    let conDensidad = 0;
     for (const r of renglones || []) {
         const q = Number(r.cantidad) || 0;
         if (q <= 0) continue;
@@ -86,6 +88,7 @@ export function tamanoTeoricoTanda(renglones, unidadProductoNombre) {
         const d = Number(r.densidad) || 0;
         const dens = d > 0 ? d : 1;
         if (!(d > 0) && fp && f.familia !== fp.familia) sinDensidad.push(r.nombre);
+        if (d > 0) conDensidad++; else densidadFaltante.push(r.nombre);
         if (f.familia === 'volumen') { const v = q * f.aBase; mL += v; g += v * dens; }
         else { const m = q * f.aBase; g += m; mL += m / dens; }
     }
@@ -95,5 +98,9 @@ export function tamanoTeoricoTanda(renglones, unidadProductoNombre) {
         litros: mL / 1000, kilos: g / 1000,
         densidadMezcla: mL > 0 ? g / mL : null,
         sinDensidad, ignorados,
+        // Densidad de la mezcla (kg/L) para llenar la del granel: solo si al menos un insumo trae la suya;
+        // los que no la tienen (densidadFaltante) cuentan como agua.
+        densidadCalculada: (mL > 0 && conDensidad > 0) ? Math.round((g / mL) * 1000) / 1000 : null,
+        densidadFaltante,
     };
 }

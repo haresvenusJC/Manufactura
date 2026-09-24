@@ -4,6 +4,11 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/conversion-unidades.js`, `js/catalogo.js`. Densidad del granel automática: `tamanoTeoricoTanda`
+  devuelve `densidadCalculada` (kg/L de la mezcla, 3 dec.; solo si ≥1 insumo trae densidad; los que no, como agua →
+  `densidadFaltante`). `htmlDensidadMezcla` la muestra en el análisis 🧮 con botón "Usar X kg/L como Densidad". Alta/edición
+  del Catálogo y "✏️ Editar artículo": el campo se llena solo si está vacío o conserva el último calculado (`dataset.auto`);
+  escrito a mano se respeta. "Editar o ver BOM": al guardar, si el granel no tiene densidad se guarda sola. Pendiente: probar.
 - Archivos tocados (lo último): `js/enlaces-reporte.js` (nuevo: `linkDoc`/`linkPoliza`), `js/documentos.js`, `js/contabilidad.js`,
   `activos-fijos`, `compras`, `entradas`, `salidas`, `cuentas-por-cobrar`, `pagos-proveedor`, `devoluciones`, `trazabilidad`,
   `pedidos-venta`, `tareas`, `ordenes-compra`. Auditoría "documentos y pólizas se abren desde el reporte": `verPolizaDeDocumento`
@@ -345,7 +350,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   borrados, para dejar rastro y que no bloqueen el candado de cierre de septiembre).
 - Graneles en Kilogramos: el usuario confirmó que sus terminados los consumen en GRAMOS → no hace falta la densidad del
   granel (solo la de los insumos que la receta pida en L/mL). Si algún terminado pidiera un granel en mL, capturar la
-  densidad del granel (el 🧮 da "densidad estimada de la mezcla"; se propuso un botón "Usar X como densidad").
+  densidad del granel (ya se calcula sola de la fórmula; botón "Usar X kg/L como Densidad").
 - Los demás graneles de Gel/Miel/Lubricante (Anal Xtasi, Bubblegum, Cherry, Chocolate, Essence, Mango, Mint, Prolongel
   Retardador, Vcream, Watermelon, Miel Bee Power, Lubricante Silicón) no salieron en la revisión: o no tienen BOM o su
   nombre no dice "granel". Cuando tengan receta, se configuran con la revisión ✅/⚠ o con los SQL `…e`/`…f`.

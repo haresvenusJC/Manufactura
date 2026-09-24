@@ -301,7 +301,7 @@ export async function cargarCatalogoInicial() {
                                 <div>
                                     <label class="block text-[11px] text-slate-400 mb-1">Densidad (kg por litro)</label>
                                     <input type="number" step="0.0001" min="0" id="prodDensidad" placeholder="Ej. 1.26 (déjalo vacío si no aplica)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
-                                    <p class="text-[10px] text-slate-500 mt-0.5">Solo para insumos cuya fórmula (BOM) está en volumen (Litros/mL) pero se llevan en inventario por peso (Kilogramos/gramos), o al revés. Con ella, Producción convierte bien cuánto pedir y descontar; sin ella, se toma como agua (1 kg/L) y se avisa. Ej.: Glicerina Vegetal Usp = 1.26 (la fórmula dice 13.7 L y se descuentan 17.262 kg). En un granel que va en Litros y que los terminados consumen en mL, déjalo vacío.</p>
+                                    <p class="text-[10px] text-slate-500 mt-0.5">Solo para insumos cuya fórmula (BOM) está en volumen (Litros/mL) pero se llevan en inventario por peso (Kilogramos/gramos), o al revés. Con ella, Producción convierte bien cuánto pedir y descontar; sin ella, se toma como agua (1 kg/L) y se avisa. Ej.: Glicerina Vegetal Usp = 1.26 (la fórmula dice 13.7 L y se descuentan 17.262 kg). <b class="text-slate-400">En un granel se calcula sola</b> con su fórmula (densidad de la mezcla) al capturar el BOM; si la cambias a mano, se respeta.</p>
                                 </div>
 
                                 <div>
@@ -629,6 +629,7 @@ export async function cargarCatalogoInicial() {
                 document.getElementById('prodClaveSat').value = art.clave_sat || '';
                 document.getElementById('prodClaveSat').dataset.tenia = art.clave_sat ? '1' : '';
                 document.getElementById('prodDensidad').value = art.densidad_kg_l ?? '';
+                delete document.getElementById('prodDensidad').dataset.auto;
                 document.getElementById('prodDensidad').dataset.tenia = (art.densidad_kg_l !== null && art.densidad_kg_l !== undefined) ? '1' : '';
                 document.getElementById('prodRendimientoLote').value = art.rendimiento_lote_bom ?? '';
                 document.getElementById('prodRendimientoLote').dataset.tenia = (art.rendimiento_lote_bom !== null && art.rendimiento_lote_bom !== undefined) ? '1' : '';
@@ -731,6 +732,7 @@ export async function cargarCatalogoInicial() {
             document.getElementById('formCrearProducto').reset();
             document.getElementById('prodClaveSat').dataset.tenia = '';
             document.getElementById('prodDensidad').dataset.tenia = '';
+            delete document.getElementById('prodDensidad').dataset.auto;
             document.getElementById('prodRendimientoLote').dataset.tenia = '';
             itemsBomTemp = [];
             actualizarListaBomVisual();
@@ -763,8 +765,22 @@ export async function cargarCatalogoInicial() {
                 densidad: mapaArticulos[i.componenteId]?.densidad_kg_l,
             })), unidadNombre);
             const elRend = document.getElementById('prodRendimientoLote');
-            cont.innerHTML = htmlAnalisisTanda(res, unidadNombre, elRend.value);
+            // Densidad del granel = la de su mezcla: se llena sola mientras el campo esté vacío o conserve
+            // el último valor calculado; si la escriben a mano, se respeta y solo se ofrece el botón.
+            const elDens = document.getElementById('prodDensidad');
+            if (res.densidadCalculada && (!elDens.value || elDens.dataset.auto === elDens.value)) {
+                elDens.value = String(res.densidadCalculada);
+                elDens.dataset.auto = elDens.value;
+            }
+            cont.innerHTML = htmlAnalisisTanda(res, unidadNombre, elRend.value, elDens.value);
             cont.classList.remove('hidden');
+            cont.querySelector('.btn-usar-dens')?.addEventListener('click', (e) => {
+                elDens.value = e.currentTarget.dataset.valor;
+                elDens.dataset.auto = elDens.value;
+                elDens.classList.add('ring-2', 'ring-sky-500');
+                setTimeout(() => elDens.classList.remove('ring-2', 'ring-sky-500'), 1500);
+                pintarAnalisisTandaForm();
+            });
             cont.querySelector('.btn-usar-rend')?.addEventListener('click', (e) => {
                 elRend.value = e.currentTarget.dataset.valor;
                 const det = elRend.closest('details');
@@ -776,6 +792,7 @@ export async function cargarCatalogoInicial() {
         }
         document.getElementById('prodUnidadMedidaId').addEventListener('change', () => pintarAnalisisTandaForm());
         document.getElementById('prodRendimientoLote').addEventListener('input', () => pintarAnalisisTandaForm());
+        document.getElementById('prodDensidad').addEventListener('input', (e) => { delete e.target.dataset.auto; pintarAnalisisTandaForm(); });
 
         function actualizarListaBomVisual() {
             pintarAnalisisTandaForm();
@@ -1554,6 +1571,7 @@ async function abrirVentanaBom(producto) {
             || String(f.unidad || '') !== String(f.base.unidad || ''));
     };
     let baseIds = [];
+    let ultimaDensidadCalculada = null;   // densidad de la mezcla según la fórmula en pantalla (granel)
 
     const actualizarEstado = () => {
         sucio = hayCambios();
@@ -1636,7 +1654,17 @@ async function abrirVentanaBom(producto) {
         cont.innerHTML = htmlGuiaGranel({
             esSemi: producto.tipo === 'semiterminado', unidadNombre: uni, nComponentes: filas.length,
             rend: producto.rendimiento_lote_bom, res: filas.length ? res : null, cuentaConocida: false, enBom: true,
-        }) + (filas.length ? htmlAnalisisTanda(res, uni, producto.rendimiento_lote_bom) : '');
+        }) + (filas.length ? htmlAnalisisTanda(res, uni, producto.rendimiento_lote_bom, producto.densidad_kg_l) : '');
+        ultimaDensidadCalculada = filas.length ? res.densidadCalculada : null;
+        cont.querySelector('.btn-usar-dens')?.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const valor = Number(e.currentTarget.dataset.valor);
+            if (!confirm(`¿Guardar ${valor} kg/L como "Densidad" de ${producto.nombre}?\n\nEs la densidad de la mezcla según la fórmula.`)) return;
+            const { error } = await supabaseClient.from('productos').update({ densidad_kg_l: valor }).eq('id', id);
+            if (error) { alert('No se pudo guardar la Densidad: ' + error.message); return; }
+            producto.densidad_kg_l = valor;
+            pintar();
+        });
         cont.querySelector('.btn-usar-rend')?.addEventListener('click', async (e) => {
             const valor = Number(e.currentTarget.dataset.valor);
             if (!confirm(`¿Guardar ${valor} ${uni} como "Rendimiento del lote" de ${producto.nombre}?\n\nProducción tomará esta fórmula como UNA tanda que rinde ${valor} ${uni}.`)) return;
@@ -1780,12 +1808,19 @@ async function abrirVentanaBom(producto) {
                 const { error } = await supabaseClient.from('bom').insert(nuevos);
                 if (error) throw error;
             }
+            // Granel sin densidad: se guarda sola la de la mezcla (si ya tiene una, solo se ofrece el botón).
+            let notaDens = '';
+            const densNueva = ultimaDensidadCalculada;
+            if (densNueva && 'densidad_kg_l' in producto && !(Number(producto.densidad_kg_l) > 0)) {
+                const { error } = await supabaseClient.from('productos').update({ densidad_kg_l: densNueva }).eq('id', id);
+                if (!error) { producto.densidad_kg_l = densNueva; notaDens = ` · Densidad ${densNueva} kg/L calculada de la fórmula`; }
+            }
             await cargar();
             if (typeof window.refrescarFormularioSiEsProducto === 'function') await window.refrescarFormularioSiEsProducto(id);
             sucio = false;
             btnGuardar.disabled = true;
             msg.dataset.fijo = '1';
-            msg.className = 'text-xs text-emerald-400 min-w-0'; msg.textContent = 'BOM guardado ✓';
+            msg.className = 'text-xs text-emerald-400 min-w-0'; msg.textContent = 'BOM guardado ✓' + notaDens;
         } catch (err) {
             console.error('Error al guardar el BOM:', err);
             msg.dataset.fijo = '';
@@ -2079,7 +2114,7 @@ const ETIQUETAS_CAMPO_PRODUCTO = {
 const PISTAS_CAMPO_PRODUCTO = {
     tipo: 'Un granel es "Semiterminado": se fabrica (lleva fórmula) y lo consumen otros productos; no se vende.',
     unidad_medida_id: 'En qué se cuenta en almacén y se descuenta. Granel: Litros o Kilogramos, nunca Pieza.',
-    densidad_kg_l: 'Kilos que pesa 1 litro. Solo para insumos que la fórmula pide en volumen y se llevan en peso (o al revés). Ej.: Glicerina Vegetal Usp = 1.26. En un granel que va en Litros y se consume en mL, déjalo vacío.',
+    densidad_kg_l: 'Kilos que pesa 1 litro. Solo para insumos que la fórmula pide en volumen y se llevan en peso (o al revés). Ej.: Glicerina Vegetal Usp = 1.26. En un granel se calcula sola con su fórmula (densidad de la mezcla); el botón "Usar X kg/L como Densidad" la actualiza.',
     rendimiento_lote_bom: 'Granel: Litros (o Kilos) que salen de UNA tanda de la fórmula. Usa el tamaño real que calcula el análisis 🧮 de abajo (Fresa Kiwi: 14.64). En Producción: 1 tanda = este número. Vacío = el BOM es para 1 unidad (ej. 1 pieza). ¿Por qué importa si la materia prima ya se descuenta a su costo real? La fórmula decide cuánto se GASTA en la tanda; el rendimiento decide ENTRE CUÁNTOS LITROS se reparte ese gasto y cuántos litros dice el sistema que hay. Ej.: tanda de $1,000 → con 15 L el litro cuesta $66.67 y cada tanda deja 0.36 L que no existen; con 14.64 L cuesta $68.31 (el real). Un número inflado da inventario fantasma y costo del terminado más bajo que el real.',
     costo_unitario: 'Se actualiza solo con compras y al cerrar cada orden; normalmente no se edita a mano.',
     stock_actual: 'Se mueve solo con entradas y salidas; no se edita aquí.',
@@ -2157,7 +2192,7 @@ function htmlGuiaGranel(d) {
 // Análisis del tamaño real de una tanda (suma de la fórmula con densidades) para proponer el
 // "Rendimiento del lote" de un granel. Lo usan el formulario del Catálogo y "Editar o ver BOM".
 // El botón lleva la clase `btn-usar-rend` y `data-valor`; quien lo pinta decide qué hace al clic.
-function htmlAnalisisTanda(res, unidadNombre, rendActual) {
+function htmlAnalisisTanda(res, unidadNombre, rendActual, densActual) {
     const fmt = (n, d = 3) => Number(n).toLocaleString('es-MX', { maximumFractionDigits: d });
     if (res.total == null) {
         return `<div class="text-[11px] text-amber-300/90 bg-amber-950/30 border border-amber-900/60 rounded-lg px-3 py-2">🧮 Para calcular el tamaño real de la tanda, la Unidad de Medida del granel debe ser de volumen o de peso (Litros, Kilogramos…), no "${escaparHtml(unidadNombre || 'sin unidad')}".</div>`;
@@ -2181,8 +2216,31 @@ function htmlAnalisisTanda(res, unidadNombre, rendActual) {
         ${res.sinDensidad.length ? `<p class="text-amber-400/90">⚠ Sin densidad (se tomó como agua, 1 kg/L): ${res.sinDensidad.map(escaparHtml).join(', ')} — captúrala en ⚖️ Densidades para afinar el cálculo.</p>` : ''}
         ${res.ignorados.length ? `<p class="text-slate-500">No cuentan para el tamaño (no son volumen ni peso): ${res.ignorados.map(escaparHtml).join(', ')}.</p>` : ''}
         <p class="text-slate-500">Es teórico: al mezclar, el volumen real puede salir un poco menor. Mide la primera tanda en el tanque y, si difiere, captura lo medido. <a href="manual-costos-produccion.html#m-granel-rendimiento" target="_blank" class="text-sky-400 underline">¿Por qué importa el rendimiento?</a></p>
+        ${htmlDensidadMezcla(res, densActual)}
         ${Math.abs(rend - sugerido) >= 0.005 ? `<button type="button" class="btn-usar-rend mt-1 text-[11px] bg-sky-700 hover:bg-sky-600 text-white font-semibold px-3 py-1 rounded-lg cursor-pointer" data-valor="${sugerido}">Usar ${fmt(sugerido, 2)} ${u} como Rendimiento del lote</button>` : ''}
     </div>`;
+}
+
+// Densidad del granel calculada de su fórmula (kg/L de la mezcla). `densActual` = lo capturado en "Densidad".
+function htmlDensidadMezcla(res, densActual) {
+    const fmt = (n) => Number(n).toLocaleString('es-MX', { maximumFractionDigits: 3 });
+    const d = res.densidadCalculada;
+    if (!d) {
+        return res.densidadFaltante?.length
+            ? '<p class="text-slate-500">⚖️ Densidad de la mezcla: no se puede calcular — ningún insumo de la fórmula tiene su densidad capturada (⚖️ Densidades).</p>'
+            : '';
+    }
+    const actual = Number(densActual) || 0;
+    const faltan = res.densidadFaltante.length
+        ? `<span class="block text-amber-400/90">Sin densidad (contados como agua, 1 kg/L): ${res.densidadFaltante.map(escaparHtml).join(', ')}.</span>` : '';
+    const estado = !actual
+        ? '<span class="text-amber-300">— la "Densidad" del granel está vacía.</span>'
+        : Math.abs(actual - d) < 0.0005
+            ? '<span class="text-emerald-400">✅ Coincide con la "Densidad" capturada.</span>'
+            : `<span class="text-amber-300">— capturada: ${fmt(actual)} kg/L.</span>`;
+    const boton = Math.abs(actual - d) >= 0.0005
+        ? `<button type="button" class="btn-usar-dens mt-1 mr-2 text-[11px] bg-sky-700 hover:bg-sky-600 text-white font-semibold px-3 py-1 rounded-lg cursor-pointer" data-valor="${d}">Usar ${fmt(d)} kg/L como Densidad</button>` : '';
+    return `<p>⚖️ <b>Densidad de la mezcla (calculada de la fórmula):</b> <b class="text-sky-300 font-mono">${fmt(d)} kg/L</b> ${estado}${faltan}</p>${boton}`;
 }
 
 function escaparHtml(valor) {
@@ -2492,6 +2550,12 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                 const uniProd = mapaUni.get(String(val('unidad_medida_id', art.unidad_medida_id) ?? '')) || '';
                 const res = calcular(uniProd);
                 const rend = val('rendimiento_lote_bom', art.rendimiento_lote_bom);
+                // Densidad vacía: se llena sola con la de la mezcla (se guarda con "Guardar cambios").
+                const elDens = cuerpo.querySelector('#rc_densidad_kg_l');
+                if (elDens && !soloLectura && res?.densidadCalculada && (!elDens.value || elDens.dataset.auto === elDens.value)) {
+                    elDens.value = String(res.densidadCalculada);
+                    elDens.dataset.auto = elDens.value;
+                }
                 const cta = mapaCta.get(String(val('cuenta_inventario_id', art.cuenta_inventario_id) ?? ''));
                 contGuia.innerHTML = htmlGuiaGranel({
                     esSemi: val('tipo', art.tipo) === 'semiterminado', unidadNombre: uniProd,
@@ -2499,7 +2563,19 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                     cuentaCodigo: cta?.codigo || '', cuentaNombre: cta?.nombre || '',
                     cuentaConocida: 'cuenta_inventario_id' in art, enBom: false, stock: art.stock_actual,
                 });
-                contAn.innerHTML = res ? htmlAnalisisTanda(res, uniProd, rend) : '';
+                contAn.innerHTML = res ? htmlAnalisisTanda(res, uniProd, rend, val('densidad_kg_l', art.densidad_kg_l)) : '';
+                const btnDens = contAn.querySelector('.btn-usar-dens');
+                if (btnDens && soloLectura) btnDens.remove();
+                else btnDens?.addEventListener('click', (e) => {
+                    e.stopPropagation();   // el recuadro se re-dibuja: que no cuente como "clic fuera" de la subventana
+                    const el = cuerpo.querySelector('#rc_densidad_kg_l');
+                    if (!el) return;
+                    el.value = e.currentTarget.dataset.valor;
+                    el.dataset.auto = el.value;
+                    el.classList.add('ring-2', 'ring-sky-500');
+                    setTimeout(() => el.classList.remove('ring-2', 'ring-sky-500'), 1500);
+                    pintarGranel();
+                });
                 const btn = contAn.querySelector('.btn-usar-rend');
                 if (!btn) return;
                 if (soloLectura) { btn.remove(); return; }
@@ -2515,6 +2591,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                 });
             };
             pintarGranel();
+            cuerpo.querySelector('#rc_densidad_kg_l')?.addEventListener('input', (e) => { delete e.target.dataset.auto; pintarGranel(); });
             ['unidad_medida_id', 'rendimiento_lote_bom', 'tipo', 'cuenta_inventario_id'].forEach((campo) => {
                 const el = cuerpo.querySelector(`#rc_${campo}`);
                 el?.addEventListener('input', pintarGranel);
