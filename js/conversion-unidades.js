@@ -80,6 +80,7 @@ export function tamanoTeoricoTanda(renglones, unidadProductoNombre) {
     let mL = 0, g = 0;
     const sinDensidad = [], ignorados = [], densidadFaltante = [];
     let conDensidad = 0;
+    const detalle = [];   // por insumo: { nombre, litros, kilos, densidad, supuesta } — para explicar la densidad
     for (const r of renglones || []) {
         const q = Number(r.cantidad) || 0;
         if (q <= 0) continue;
@@ -89,8 +90,8 @@ export function tamanoTeoricoTanda(renglones, unidadProductoNombre) {
         const dens = d > 0 ? d : 1;
         if (!(d > 0) && fp && f.familia !== fp.familia) sinDensidad.push(r.nombre);
         if (d > 0) conDensidad++; else densidadFaltante.push(r.nombre);
-        if (f.familia === 'volumen') { const v = q * f.aBase; mL += v; g += v * dens; }
-        else { const m = q * f.aBase; g += m; mL += m / dens; }
+        if (f.familia === 'volumen') { const v = q * f.aBase; mL += v; g += v * dens; detalle.push({ nombre: r.nombre, litros: v / 1000, kilos: v * dens / 1000, densidad: dens, supuesta: !(d > 0) }); }
+        else { const m = q * f.aBase; g += m; mL += m / dens; detalle.push({ nombre: r.nombre, litros: m / dens / 1000, kilos: m / 1000, densidad: dens, supuesta: !(d > 0) }); }
     }
     const total = !fp ? null : (fp.familia === 'volumen' ? mL / fp.aBase : g / fp.aBase);
     return {
@@ -101,6 +102,6 @@ export function tamanoTeoricoTanda(renglones, unidadProductoNombre) {
         // Densidad de la mezcla (kg/L) para llenar la del granel: solo si al menos un insumo trae la suya;
         // los que no la tienen (densidadFaltante) cuentan como agua.
         densidadCalculada: (mL > 0 && conDensidad > 0) ? Math.round((g / mL) * 1000) / 1000 : null,
-        densidadFaltante,
+        densidadFaltante, detalle,
     };
 }

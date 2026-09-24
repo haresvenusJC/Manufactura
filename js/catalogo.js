@@ -630,6 +630,7 @@ export async function cargarCatalogoInicial() {
                 document.getElementById('prodClaveSat').dataset.tenia = art.clave_sat ? '1' : '';
                 document.getElementById('prodDensidad').value = art.densidad_kg_l ?? '';
                 delete document.getElementById('prodDensidad').dataset.auto;
+                delete document.getElementById('prodDensidad').dataset.manual;
                 document.getElementById('prodDensidad').dataset.tenia = (art.densidad_kg_l !== null && art.densidad_kg_l !== undefined) ? '1' : '';
                 document.getElementById('prodRendimientoLote').value = art.rendimiento_lote_bom ?? '';
                 document.getElementById('prodRendimientoLote').dataset.tenia = (art.rendimiento_lote_bom !== null && art.rendimiento_lote_bom !== undefined) ? '1' : '';
@@ -733,6 +734,7 @@ export async function cargarCatalogoInicial() {
             document.getElementById('prodClaveSat').dataset.tenia = '';
             document.getElementById('prodDensidad').dataset.tenia = '';
             delete document.getElementById('prodDensidad').dataset.auto;
+            delete document.getElementById('prodDensidad').dataset.manual;
             document.getElementById('prodRendimientoLote').dataset.tenia = '';
             itemsBomTemp = [];
             actualizarListaBomVisual();
@@ -753,13 +755,14 @@ export async function cargarCatalogoInicial() {
         });
 
         // Semiterminado (granel) con fórmula: tamaño real de la tanda y propuesta de "Rendimiento del lote".
+        let ultimoResForm = null;   // último análisis de la fórmula (para explicar la densidad si la cambian a mano)
         function pintarAnalisisTandaForm() {
             const cont = document.getElementById('analisisTandaForm');
             if (!cont) return;
-            if (!esSemiForm() || !itemsBomTemp.length) { cont.classList.add('hidden'); cont.innerHTML = ''; return; }
+            if (!esSemiForm() || !itemsBomTemp.length) { ultimoResForm = null; cont.classList.add('hidden'); cont.innerHTML = ''; return; }
             const selUni = document.getElementById('prodUnidadMedidaId');
             const unidadNombre = selUni.value ? (selUni.options[selUni.selectedIndex]?.text || '') : '';
-            const res = tamanoTeoricoTanda(itemsBomTemp.map((i) => ({
+            const res = ultimoResForm = tamanoTeoricoTanda(itemsBomTemp.map((i) => ({
                 nombre: i.componenteNombre, cantidad: i.cantidad,
                 unidadNombre: i.unidadNombre || mapaUnidades[i.unidadId] || '',
                 densidad: mapaArticulos[i.componenteId]?.densidad_kg_l,
@@ -768,7 +771,7 @@ export async function cargarCatalogoInicial() {
             // Densidad del granel = la de su mezcla: se llena sola mientras el campo esté vacío o conserve
             // el último valor calculado; si la escriben a mano, se respeta y solo se ofrece el botón.
             const elDens = document.getElementById('prodDensidad');
-            if (res.densidadCalculada && (!elDens.value || elDens.dataset.auto === elDens.value)) {
+            if (res.densidadCalculada && !elDens.dataset.manual && (!elDens.value || elDens.dataset.auto === elDens.value)) {
                 elDens.value = String(res.densidadCalculada);
                 elDens.dataset.auto = elDens.value;
             }
@@ -777,6 +780,7 @@ export async function cargarCatalogoInicial() {
             cont.querySelector('.btn-usar-dens')?.addEventListener('click', (e) => {
                 elDens.value = e.currentTarget.dataset.valor;
                 elDens.dataset.auto = elDens.value;
+                delete elDens.dataset.manual;
                 elDens.classList.add('ring-2', 'ring-sky-500');
                 setTimeout(() => elDens.classList.remove('ring-2', 'ring-sky-500'), 1500);
                 pintarAnalisisTandaForm();
@@ -792,7 +796,22 @@ export async function cargarCatalogoInicial() {
         }
         document.getElementById('prodUnidadMedidaId').addEventListener('change', () => pintarAnalisisTandaForm());
         document.getElementById('prodRendimientoLote').addEventListener('input', () => pintarAnalisisTandaForm());
-        document.getElementById('prodDensidad').addEventListener('input', (e) => { delete e.target.dataset.auto; pintarAnalisisTandaForm(); });
+        // Cambio a mano de la densidad de un semiterminado: se advierte (cómo se calculó y por qué no conviene);
+        // si no confirma, regresa a la calculada.
+        document.getElementById('prodDensidad').addEventListener('change', (e) => {
+            const el = e.target;
+            if (esSemiForm() && ultimoResForm?.densidadCalculada && el.dataset.auto !== el.value) {
+                if (!confirmarCambioDensidad(ultimoResForm, el.value, document.getElementById('prodNombre')?.value)) {
+                    el.value = String(ultimoResForm.densidadCalculada);
+                    el.dataset.auto = el.value;
+                    pintarAnalisisTandaForm();
+                    return;
+                }
+            }
+            delete el.dataset.auto;
+            el.dataset.manual = '1';   // la escribió (o vació) a mano y lo confirmó: ya no se llena sola
+            pintarAnalisisTandaForm();
+        });
 
         function actualizarListaBomVisual() {
             pintarAnalisisTandaForm();
@@ -1930,6 +1949,16 @@ function densPintar(cuerpo) {
                 estado.textContent = 'Debe ser > 0'; estado.className = 'p-2 text-[10px] dens-estado text-rose-400';
                 return;
             }
+            // Semiterminado: su densidad sale de la fórmula; cambiarla a mano pide confirmación con la explicación.
+            const filaDens = densFilas.find((p) => p.id === id);
+            if (filaDens?.tipo === 'semiterminado') {
+                const res = await analizarFormulaGuardada(id);
+                if (res?.densidadCalculada && !confirmarCambioDensidad(res, val, filaDens.nombre)) {
+                    inp.value = filaDens.densidad_kg_l ?? '';
+                    estado.textContent = 'Sin cambios'; estado.className = 'p-2 text-[10px] dens-estado text-slate-500';
+                    return;
+                }
+            }
             estado.textContent = 'Guardando…'; estado.className = 'p-2 text-[10px] dens-estado text-slate-500';
             try {
                 const { error } = await supabaseClient.from('productos').update({ densidad_kg_l: val ? parseFloat(val) : null }).eq('id', id);
@@ -2219,6 +2248,48 @@ function htmlAnalisisTanda(res, unidadNombre, rendActual, densActual) {
         ${densActual === undefined ? '' : htmlDensidadMezcla(res, densActual)}
         ${Math.abs(rend - sugerido) >= 0.005 ? `<button type="button" class="btn-usar-rend mt-1 text-[11px] bg-sky-700 hover:bg-sky-600 text-white font-semibold px-3 py-1 rounded-lg cursor-pointer" data-valor="${sugerido}">Usar ${fmt(sugerido, 2)} ${u} como Rendimiento del lote</button>` : ''}
     </div>`;
+}
+
+// Análisis de la fórmula GUARDADA de un producto (tamanoTeoricoTanda), para pantallas que no la traen cargada.
+async function analizarFormulaGuardada(productoId) {
+    try {
+        const [rProd, rBom, rUm] = await Promise.all([
+            supabaseClient.from('productos').select('unidad_medida_id').eq('id', productoId).single(),
+            supabaseClient.from('bom').select('componente_id, cantidad_requerida, unidad_medida').eq('producto_id', productoId),
+            supabaseClient.from('unidades_medida').select('id, nombre'),
+        ]);
+        if (rProd.error || rBom.error || rUm.error || !(rBom.data || []).length) return null;
+        const mapaUni = new Map((rUm.data || []).map((u) => [String(u.id), u.nombre]));
+        const ids = [...new Set(rBom.data.map((b) => b.componente_id))];
+        const { data: comps } = await supabaseClient.from('productos').select('id, nombre, densidad_kg_l').in('id', ids);
+        const porId = new Map((comps || []).map((c) => [c.id, c]));
+        return tamanoTeoricoTanda(rBom.data.map((b) => {
+            const c = porId.get(b.componente_id);
+            const raw = String(b.unidad_medida ?? '');
+            return { nombre: c ? c.nombre : `#${b.componente_id}`, cantidad: b.cantidad_requerida,
+                unidadNombre: /^\d+$/.test(raw) ? (mapaUni.get(raw) || '') : raw, densidad: c?.densidad_kg_l };
+        }), mapaUni.get(String(rProd.data.unidad_medida_id ?? '')) || '');
+    } catch (_) { return null; }
+}
+
+// Advertencia al cambiar a mano la densidad de un semiterminado que ya se calcula de su fórmula: explica
+// cómo salió y por qué no conviene cambiarla. Devuelve true si el usuario confirma el cambio.
+function confirmarCambioDensidad(res, valorNuevo, nombreProducto) {
+    const d = res?.densidadCalculada;
+    const nuevo = Number(valorNuevo) || 0;
+    if (!d || Math.abs(nuevo - d) < 0.0005) return true;
+    const n = (x, dec = 3) => Number(x).toLocaleString('es-MX', { maximumFractionDigits: dec });
+    const lineas = (res.detalle || []).map((r) =>
+        `  • ${r.nombre}: ${n(r.litros)} L × ${n(r.densidad)}${r.supuesta ? ' (sin densidad, se tomó como agua)' : ''} = ${n(r.kilos)} kg`);
+    const msg = `⚠ ${nombreProducto ? nombreProducto + ': l' : 'L'}a densidad de este semiterminado se calcula sola con su fórmula.\n\n`
+        + `CÓMO SE CALCULÓ (${n(d)} kg/L):\n${lineas.join('\n')}\n  Total: ${n(res.kilos)} kg ÷ ${n(res.litros)} L = ${n(d)} kg/L\n\n`
+        + `POR QUÉ NO CONVIENE CAMBIARLA${nuevo ? ` a ${n(nuevo, 4)}` : ' (dejarla vacía)'}:\n`
+        + `  • Producción la usa para convertir litros ↔ kilos cuando un terminado pide este granel en otra unidad: un número distinto descuenta de más o de menos del inventario y el costo del terminado sale mal.\n`
+        + `  • La calculada se actualiza sola si cambias la fórmula; una escrita a mano se queda fija y deja de coincidir con lo que realmente se mezcla.\n`
+        + `  • Si el número no te cuadra, lo que hay que corregir es la densidad del insumo (⚖️ Densidades)${res.densidadFaltante?.length ? ` — sin densidad: ${res.densidadFaltante.join(', ')}` : ''}, no la del granel.\n`
+        + `  • Solo conviene cambiarla si mediste la mezcla real (pesaste 1 litro del tanque).\n\n`
+        + `¿Cambiarla de todos modos?`;
+    return confirm(msg);
 }
 
 // Densidad del granel calculada de su fórmula (kg/L de la mezcla). `densActual` = lo capturado en "Densidad".
@@ -2555,7 +2626,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                 // Densidad vacía: se llena sola con la de la mezcla (se guarda con "Guardar cambios").
                 const elDens = cuerpo.querySelector('#rc_densidad_kg_l');
                 const esSemi = val('tipo', art.tipo) === 'semiterminado';
-                if (esSemi && elDens && !soloLectura && res?.densidadCalculada && (!elDens.value || elDens.dataset.auto === elDens.value)) {
+                if (esSemi && elDens && !soloLectura && res?.densidadCalculada && !elDens.dataset.manual && (!elDens.value || elDens.dataset.auto === elDens.value)) {
                     elDens.value = String(res.densidadCalculada);
                     elDens.dataset.auto = elDens.value;
                 }
@@ -2575,6 +2646,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                     if (!el) return;
                     el.value = e.currentTarget.dataset.valor;
                     el.dataset.auto = el.value;
+                    delete el.dataset.manual;
                     el.classList.add('ring-2', 'ring-sky-500');
                     setTimeout(() => el.classList.remove('ring-2', 'ring-sky-500'), 1500);
                     pintarGranel();
@@ -2594,7 +2666,20 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                 });
             };
             pintarGranel();
-            cuerpo.querySelector('#rc_densidad_kg_l')?.addEventListener('input', (e) => { delete e.target.dataset.auto; pintarGranel(); });
+            cuerpo.querySelector('#rc_densidad_kg_l')?.addEventListener('change', (e) => {
+                const el = e.target;
+                const uniProd = mapaUni.get(String(val('unidad_medida_id', art.unidad_medida_id) ?? '')) || '';
+                const res = calcular(uniProd);
+                if (val('tipo', art.tipo) === 'semiterminado' && res?.densidadCalculada && el.dataset.auto !== el.value
+                    && !confirmarCambioDensidad(res, el.value, art.nombre)) {
+                    el.value = String(res.densidadCalculada);
+                    el.dataset.auto = el.value;
+                } else {
+                    delete el.dataset.auto;
+                    el.dataset.manual = '1';
+                }
+                pintarGranel();
+            });
             ['unidad_medida_id', 'rendimiento_lote_bom', 'tipo', 'cuenta_inventario_id'].forEach((campo) => {
                 const el = cuerpo.querySelector(`#rc_${campo}`);
                 el?.addEventListener('input', pintarGranel);
