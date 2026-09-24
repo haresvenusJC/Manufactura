@@ -463,6 +463,8 @@ export async function cargarCatalogoInicial() {
         let itemsBomTemp = [];
         let clavesProvTemp = [];   // claves de proveedor del artículo en edición
         let productoSeleccionadoId = null;
+        // Antes de sincronizarAbastecimiento(), que la usa al abrir el formulario.
+        let ultimoResForm = null;   // último análisis de la fórmula (para explicar la densidad si la cambian a mano)
 
         const inputNombre = document.getElementById('prodNombre');
         const sugerenciasDiv = document.getElementById('sugerenciasProductos');
@@ -755,7 +757,6 @@ export async function cargarCatalogoInicial() {
         });
 
         // Semiterminado (granel) con fórmula: tamaño real de la tanda y propuesta de "Rendimiento del lote".
-        let ultimoResForm = null;   // último análisis de la fórmula (para explicar la densidad si la cambian a mano)
         function pintarAnalisisTandaForm() {
             const cont = document.getElementById('analisisTandaForm');
             if (!cont) return;

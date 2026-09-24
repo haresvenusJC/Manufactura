@@ -4,6 +4,9 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/catalogo.js`, `version.json`. Catálogo no abría ("Cannot access 'ultimoResForm' before
+  initialization"): `sincronizarAbastecimiento()` corre al abrir y usaba la variable antes de su `let`; se subió la
+  declaración junto a `productoSeleccionadoId`. Pendiente: que el usuario recargue (Ctrl+Shift+R si sigue).
 - Archivos tocados (lo último): `js/bienvenida.js`, `js/iconos-accesos.js` (nuevo), `js/indice.js` (exporta `SECCIONES`),
   `css/bienvenida.css`, `sql/2026-09-24c_accesos_directos_usuario.sql` (nuevo). Inicio con accesos rápidos personalizables
   por usuario: "✎ Personalizar accesos" → agregar/editar (pantalla de la lista del Índice, título, subtítulo, ícono de una
