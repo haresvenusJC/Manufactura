@@ -4,6 +4,39 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/catalogo.js`, `js/documentos.js`, `js/ordenes-compra.js`,
+  `js/pedidos-venta.js`, `js/trazabilidad.js`, `js/requisiciones-compra.js`, `js/ordenes-produccion.js`,
+  `version.json`. Bug reportado con captura: al abrir "Editar artículo" con Ctrl+clic teniendo ya abierta
+  "Ver artículo" del mismo producto, la nueva subventana se quedaba en "Cargando..." para siempre. Causa
+  raíz: el contenedor exterior de cada subventana sí recibía un id único (`window.idSubventana`), pero los
+  ids INTERNOS del `innerHTML` de la plantilla (botones, campos, el div de contenido) seguían siendo el
+  mismo literal en las dos instancias, y el código que después los llenaba los buscaba con
+  `document.getElementById('idInterno')` (global) en vez de escoparlos a SU modal — con dos instancias
+  abiertas, esa búsqueda global siempre resuelve al primer elemento del DOM (la instancia vieja), dejando a
+  la nueva con sus propios elementos nunca tocados. Se auditaron una por una TODAS las funciones que usan
+  `window.idSubventana` (la lista completa de la convención de Subventanas) y se corrigió cada
+  `document.getElementById('xxx')` que apuntara a un id definido dentro de esa misma plantilla, cambiándolo
+  a `modal.querySelector('#xxx')` (o la variable de closure ya existente: `cuerpo`, `cont`, `host`, `area`).
+  Alcance real, por archivo: `catalogo.js` (`abrirResumenCompletoProducto` — 7 sitios — y `abrirTablaDensidades`/
+  `abrirTablaUnidades` — 6 sitios más; `abrirVentanaBom` ya estaba bien); `ordenes-compra.js`
+  (`abrirDetalleOC`/`renderEdicionOC` — ~25 sitios, incluye el formulario completo de edición de la OC);
+  `requisiciones-compra.js` (`abrirDetalleReq`, `reqEditar`, `reqAutorizar` — ~20 sitios entre los tres);
+  `pedidos-venta.js` (`pvPintarDetalle`/`pvAbrirSurtir` — de paso corrigió un bug real independiente: el botón
+  "Cancelar pedido" llamaba `modal.remove()` sin que `modal` existiera en ese scope, `ReferenceError` en cada
+  clic); `trazabilidad.js` (`abrirAntecedentes` — 2 sitios); `ordenes-produccion.js` (`abrirDetalle`, el botón
+  Imprimir pasaba un id fijo `'opDocEstado'` a `imprimirConPlantilla`, que busca por id global). Bug hermano
+  encontrado de paso en `documentos.js`: `window.imprimirDocumentoActual` leía un solo `docActualParaImprimir`
+  global (no por instancia) — con 2 documentos abiertos, imprimir el primero después de haber cargado el
+  segundo imprimía el CONTENIDO correcto (ese sí ya iba por id único) pero con el TÍTULO/tipo de plantilla del
+  segundo; ahora es un `Map` por `idModal`. Mismo patrón aplicado también donde `imprimirConPlantilla` recibía
+  un id fijo (`ordenes-compra.js`/`requisiciones-compra.js`): se le da al div de contenido un id único por
+  instancia (`xxx__<idModal>`) antes de imprimir. Confirmados SIN este bug (ya estaban bien escopados):
+  `abrirVentanaBom` (catálogo), `rcVerPoliza` (contabilidad.js), `abrirManual` (asistente-contable.js),
+  `abrirDetalleDocumentoGlobal`/`cerrarDetalleDocumento` (documentos.js), `abrirDetalleDocumento` (kardex.js),
+  `modalFaltantesProd` (produccion.js). Pendiente: probar en el navegador con 2-3 subventanas Ctrl+clic
+  abiertas a la vez del mismo registro — sobre todo Editar artículo/Ver artículo de catálogo (el caso
+  reportado), Editar/Autorizar requisición, y el botón Imprimir de OC/Requisición/Orden de producción con dos
+  documentos abiertos.
 - Archivos tocados (lo último): `js/catalogo.js`, `js/subventanas-movibles.js` (nueva capacidad:
   `window.idSubventana`), `js/documentos.js`, `js/kardex.js`, `js/contabilidad.js`, `js/enlaces-reporte.js`,
   `js/ordenes-produccion.js`, `js/auxiliar-inventarios.js`, `js/auxiliar-anticipos.js`, `js/produccion.js`,

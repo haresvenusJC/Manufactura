@@ -463,6 +463,10 @@ async function abrirDetalleOC(id) {
             <p class="text-slate-500 text-sm text-center">Cargando...</p>
         </div>`;
     document.body.appendChild(modal);
+    // id único del cuerpo por instancia — imprimirConPlantilla busca por id global
+    // (document.getElementById), no escopado a este modal.
+    const idCuerpo = idModal === 'modalDetalleOC' ? 'cuerpoDetalleOC' : `cuerpoDetalleOC__${idModal}`;
+    modal.querySelector('#cuerpoDetalleOC').id = idCuerpo;
 
     // e.target.isConnected: un botón que se re-dibujó al hacer clic ya no está en la página y NO es "clic fuera".
     const cerrarFuera = (e) => { if (e.target.isConnected && !modal.contains(e.target)) cerrar(); };
@@ -472,7 +476,7 @@ async function abrirDetalleOC(id) {
         document.removeEventListener('click', cerrarFuera);
         document.removeEventListener('keydown', cerrarEsc);
     }
-    document.getElementById('cerrarDetalleOC').onclick = cerrar;
+    modal.querySelector('#cerrarDetalleOC').onclick = cerrar;
     setTimeout(() => {
         document.addEventListener('click', cerrarFuera);
         document.addEventListener('keydown', cerrarEsc);
@@ -492,22 +496,22 @@ async function abrirDetalleOC(id) {
             .single());
     }
 
-    const cuerpo = document.getElementById('cuerpoDetalleOC');
+    const cuerpo = modal.querySelector('#' + idCuerpo);
     if (!cuerpo) return;
     if (error || !o) { cuerpo.innerHTML = `<p class="text-rose-400 text-sm">Error: ${esc(error?.message || 'No encontrada')}</p>`; return; }
 
-    const tituloSpan = document.getElementById('tituloDetalleOCSub');
+    const tituloSpan = modal.querySelector('#tituloDetalleOCSub');
     if (tituloSpan) tituloSpan.textContent = o.folio || ('#' + o.id);
 
-    const btnImprimir = document.getElementById('btnImprimirOC');
+    const btnImprimir = modal.querySelector('#btnImprimirOC');
     if (btnImprimir) {
         btnImprimir.onclick = async () => {
             renderVistaOC(o, cuerpo);
-            await imprimirConPlantilla('orden_compra', 'Orden de compra ' + (o.folio || ('#' + o.id)), 'cuerpoDetalleOC');
+            await imprimirConPlantilla('orden_compra', 'Orden de compra ' + (o.folio || ('#' + o.id)), idCuerpo);
         };
     }
 
-    const btnEditar = document.getElementById('btnEditarOC');
+    const btnEditar = modal.querySelector('#btnEditarOC');
     const puedeEditar = o.estatus === 'abierta' || o.estatus === 'borrador';
     if (btnEditar) {
         btnEditar.classList.toggle('hidden', !puedeEditar);
@@ -636,7 +640,7 @@ function renderEdicionOC(o, cuerpo) {
         </div>`;
 
     function renderFilas() {
-        const b = document.getElementById('oceBody');
+        const b = cuerpo.querySelector('#oceBody');
         if (!b) return;
         if (!partidas.length) { b.innerHTML = '<tr><td colspan="6" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr>'; return; }
         b.innerHTML = partidas.map((p, i) => `
@@ -667,8 +671,8 @@ function renderEdicionOC(o, cuerpo) {
     }
     renderFilas();
 
-    const inp = document.getElementById('oceProdInput');
-    const sug = document.getElementById('oceProdSug');
+    const inp = cuerpo.querySelector('#oceProdInput');
+    const sug = cuerpo.querySelector('#oceProdSug');
     inp.addEventListener('input', () => {
         prodSel = null;
         const t = inp.value.toLowerCase().trim();
@@ -687,8 +691,8 @@ function renderEdicionOC(o, cuerpo) {
                 const p = ocProductos.find(x => x.id === Number(el.dataset.id));
                 prodSel = p || null;
                 inp.value = p ? p.nombre : inp.value;
-                if (p && p.costo_unitario != null) document.getElementById('oceProdCosto').value = p.costo_unitario;
-                if (p && p.unidad_medida_id) document.getElementById('oceProdUnidad').value = p.unidad_medida_id;
+                if (p && p.costo_unitario != null) cuerpo.querySelector('#oceProdCosto').value = p.costo_unitario;
+                if (p && p.unidad_medida_id) cuerpo.querySelector('#oceProdUnidad').value = p.unidad_medida_id;
                 sug.classList.add('hidden');
             };
         });
@@ -696,15 +700,15 @@ function renderEdicionOC(o, cuerpo) {
     const cerrarSugOnClick = (e) => { if (!inp.contains(e.target) && !sug.contains(e.target)) sug.classList.add('hidden'); };
     document.addEventListener('click', cerrarSugOnClick);
 
-    document.getElementById('oceAddPartida').onclick = async () => {
+    cuerpo.querySelector('#oceAddPartida').onclick = async () => {
         const nombre = inp.value.trim();
-        const cantidad = parseFloat(document.getElementById('oceProdCant').value) || 0;
-        const costo = parseFloat(document.getElementById('oceProdCosto').value) || 0;
-        const unidadId = document.getElementById('oceProdUnidad').value ? parseInt(document.getElementById('oceProdUnidad').value) : null;
+        const cantidad = parseFloat(cuerpo.querySelector('#oceProdCant').value) || 0;
+        const costo = parseFloat(cuerpo.querySelector('#oceProdCosto').value) || 0;
+        const unidadId = cuerpo.querySelector('#oceProdUnidad').value ? parseInt(cuerpo.querySelector('#oceProdUnidad').value) : null;
         if (!nombre || cantidad <= 0) { alert('Indica el producto y una cantidad mayor a 0.'); return; }
         const uNom = ocUnidades.find(u => u.id === unidadId)?.nombre || '';
 
-        const proveedorId = document.getElementById('oceProveedor').value ? parseInt(document.getElementById('oceProveedor').value) : null;
+        const proveedorId = cuerpo.querySelector('#oceProveedor').value ? parseInt(cuerpo.querySelector('#oceProveedor').value) : null;
         let datosProveedor = { skuProveedor: null, descripcionProveedor: null, unidadProveedor: null, factorConversion: null };
         if (prodSel && proveedorId) {
             try {
@@ -728,27 +732,27 @@ function renderEdicionOC(o, cuerpo) {
             ...datosProveedor,
         });
         renderFilas();
-        inp.value = ''; document.getElementById('oceProdCant').value = ''; document.getElementById('oceProdCosto').value = '';
-        document.getElementById('oceProdUnidad').value = ''; prodSel = null; inp.focus();
+        inp.value = ''; cuerpo.querySelector('#oceProdCant').value = ''; cuerpo.querySelector('#oceProdCosto').value = '';
+        cuerpo.querySelector('#oceProdUnidad').value = ''; prodSel = null; inp.focus();
     };
 
-    document.getElementById('oceCancelar').onclick = () => {
+    cuerpo.querySelector('#oceCancelar').onclick = () => {
         document.removeEventListener('click', cerrarSugOnClick);
         renderVistaOC(o, cuerpo);
     };
 
-    document.getElementById('oceGuardar').onclick = async () => {
-        const msg = document.getElementById('oceMsg');
+    cuerpo.querySelector('#oceGuardar').onclick = async () => {
+        const msg = cuerpo.querySelector('#oceMsg');
         if (!partidas.length) { msg.textContent = 'La orden debe tener al menos una partida.'; msg.className = 'text-xs mb-2 text-rose-400'; return; }
-        const btn = document.getElementById('oceGuardar');
+        const btn = cuerpo.querySelector('#oceGuardar');
         btn.disabled = true; btn.textContent = 'Guardando...';
         try {
             const { error: eUpd } = await supabaseClient.from('ordenes_compra').update({
-                proveedor_id: document.getElementById('oceProveedor').value ? parseInt(document.getElementById('oceProveedor').value) : null,
-                fecha: document.getElementById('oceFecha').value || o.fecha,
-                fecha_esperada: document.getElementById('oceFechaEsp').value || null,
-                moneda_id: document.getElementById('oceMoneda').value ? parseInt(document.getElementById('oceMoneda').value) : null,
-                notas: document.getElementById('oceNotas').value.trim() || null,
+                proveedor_id: cuerpo.querySelector('#oceProveedor').value ? parseInt(cuerpo.querySelector('#oceProveedor').value) : null,
+                fecha: cuerpo.querySelector('#oceFecha').value || o.fecha,
+                fecha_esperada: cuerpo.querySelector('#oceFechaEsp').value || null,
+                moneda_id: cuerpo.querySelector('#oceMoneda').value ? parseInt(cuerpo.querySelector('#oceMoneda').value) : null,
+                notas: cuerpo.querySelector('#oceNotas').value.trim() || null,
             }).eq('id', o.id);
             if (eUpd) throw eUpd;
 

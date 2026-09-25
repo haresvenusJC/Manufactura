@@ -613,6 +613,10 @@ async function abrirDetalleReq(id) {
             <p class="text-slate-500 text-sm text-center">Cargando...</p>
         </div>`;
     document.body.appendChild(modal);
+    // id único del cuerpo por instancia — imprimirConPlantilla busca por id global
+    // (document.getElementById), no escopado a este modal.
+    const idCuerpo = idModal === 'modalDetalleReq' ? 'cuerpoDetalleReq' : `cuerpoDetalleReq__${idModal}`;
+    modal.querySelector('#cuerpoDetalleReq').id = idCuerpo;
 
     // e.target.isConnected: un botón que se re-dibujó al hacer clic ya no está en la página y NO es "clic fuera".
     const cerrarFuera = (e) => { if (e.target.isConnected && !modal.contains(e.target)) cerrar(); };
@@ -622,7 +626,7 @@ async function abrirDetalleReq(id) {
         document.removeEventListener('click', cerrarFuera);
         document.removeEventListener('keydown', cerrarEsc);
     }
-    document.getElementById('cerrarDetalleReq').onclick = cerrar;
+    modal.querySelector('#cerrarDetalleReq').onclick = cerrar;
     setTimeout(() => {
         document.addEventListener('click', cerrarFuera);
         document.addEventListener('keydown', cerrarEsc);
@@ -649,10 +653,10 @@ async function abrirDetalleReq(id) {
         }
         if (error) throw error;
 
-        document.getElementById('tituloDetalleReqSub').textContent = r.folio || ('#' + r.id);
-        document.getElementById('btnImprimirReq').onclick = () => imprimirConPlantilla('requisicion_compra', 'Requisición ' + (r.folio || '#' + r.id), 'cuerpoDetalleReq');
+        modal.querySelector('#tituloDetalleReqSub').textContent = r.folio || ('#' + r.id);
+        modal.querySelector('#btnImprimirReq').onclick = () => imprimirConPlantilla('requisicion_compra', 'Requisición ' + (r.folio || '#' + r.id), idCuerpo);
 
-        const cuerpo = document.getElementById('cuerpoDetalleReq');
+        const cuerpo = modal.querySelector('#' + idCuerpo);
         const det = r.requisiciones_compra_detalle || [];
         const total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_estimado || 0), 0);
         const fmtFecha = (iso) => { try { return new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso || '—'; } };
@@ -709,7 +713,7 @@ async function abrirDetalleReq(id) {
                 <div><p class="border-t border-slate-600 pt-1 mt-8">Revisó y autorizó</p></div>
             </div>`;
     } catch (err) {
-        document.getElementById('cuerpoDetalleReq').innerHTML = `<p class="text-rose-400 text-xs">Error al cargar la requisición: ${esc(err.message || err)}</p>`;
+        modal.querySelector('#' + idCuerpo).innerHTML = `<p class="text-rose-400 text-xs">Error al cargar la requisición: ${esc(err.message || err)}</p>`;
     }
 }
 window.abrirDetalleReq = (id) => abrirDetalleReq(Number(id));
@@ -819,7 +823,7 @@ window.reqEditar = async (id) => {
         document.removeEventListener('click', cerrarFuera);
         document.removeEventListener('keydown', cerrarEsc);
     }
-    document.getElementById('cerrarEditarReq').onclick = cerrar;
+    modal.querySelector('#cerrarEditarReq').onclick = cerrar;
     setTimeout(() => {
         document.addEventListener('click', cerrarFuera);
         document.addEventListener('keydown', cerrarEsc);
@@ -827,8 +831,8 @@ window.reqEditar = async (id) => {
 
     modal.querySelectorAll('.edit-req-quitar').forEach((b) => b.onclick = () => b.closest('tr').remove());
 
-    document.getElementById('btnGuardarEditarReq').onclick = async () => {
-        const msg = document.getElementById('editReqMsg');
+    modal.querySelector('#btnGuardarEditarReq').onclick = async () => {
+        const msg = modal.querySelector('#editReqMsg');
         const filas = [...modal.querySelectorAll('#editReqPartidas tr[data-id]')];
         const idsRestantes = filas.map((tr) => Number(tr.dataset.id));
         const idsQuitados = det.map((d) => d.id).filter((dId) => !idsRestantes.includes(dId));
@@ -836,7 +840,7 @@ window.reqEditar = async (id) => {
 
         try {
             const { error: eHead } = await supabaseClient.from('requisiciones_compra')
-                .update({ fecha: document.getElementById('editReqFecha').value || r.fecha, notas: document.getElementById('editReqNotas').value.trim() || null })
+                .update({ fecha: modal.querySelector('#editReqFecha').value || r.fecha, notas: modal.querySelector('#editReqNotas').value.trim() || null })
                 .eq('id', id);
             if (eHead) throw eHead;
 
@@ -902,7 +906,7 @@ window.reqAutorizar = async (id) => {
             <p id="autMsg" class="text-xs min-h-[1rem]"></p>
         </div>`;
     document.body.appendChild(modal);
-    if (mxn) document.getElementById('autMoneda').value = mxn.id;
+    if (mxn) modal.querySelector('#autMoneda').value = mxn.id;
 
     // e.target.isConnected: un botón que se re-dibujó al hacer clic ya no está en la página y NO es "clic fuera".
     const cerrarFuera = (e) => { if (e.target.isConnected && !modal.contains(e.target)) cerrar(); };
@@ -912,23 +916,23 @@ window.reqAutorizar = async (id) => {
         document.removeEventListener('click', cerrarFuera);
         document.removeEventListener('keydown', cerrarEsc);
     }
-    document.getElementById('cerrarAutorizarReq').onclick = cerrar;
+    modal.querySelector('#cerrarAutorizarReq').onclick = cerrar;
     setTimeout(() => {
         document.addEventListener('click', cerrarFuera);
         document.addEventListener('keydown', cerrarEsc);
     }, 0);
 
-    document.getElementById('btnConfirmarAutorizar').onclick = async () => {
-        const autMsg = document.getElementById('autMsg');
-        const proveedorId = document.getElementById('autProveedor').value ? parseInt(document.getElementById('autProveedor').value) : null;
+    modal.querySelector('#btnConfirmarAutorizar').onclick = async () => {
+        const autMsg = modal.querySelector('#autMsg');
+        const proveedorId = modal.querySelector('#autProveedor').value ? parseInt(modal.querySelector('#autProveedor').value) : null;
         if (!proveedorId) { autMsg.textContent = 'Elige el proveedor.'; autMsg.className = 'text-xs min-h-[1rem] text-rose-400'; return; }
-        const btn = document.getElementById('btnConfirmarAutorizar');
+        const btn = modal.querySelector('#btnConfirmarAutorizar');
         btn.disabled = true;
         const { data, error } = await supabaseClient.rpc('requisicion_autorizar', {
             p_requisicion_id: id,
             p_proveedor_id: proveedorId,
-            p_fecha_esperada: document.getElementById('autFechaEsp').value || null,
-            p_moneda_id: document.getElementById('autMoneda').value ? parseInt(document.getElementById('autMoneda').value) : null,
+            p_fecha_esperada: modal.querySelector('#autFechaEsp').value || null,
+            p_moneda_id: modal.querySelector('#autMoneda').value ? parseInt(modal.querySelector('#autMoneda').value) : null,
             p_revisada_por: null,
         });
         if (error) {

@@ -287,21 +287,24 @@ window.pvAbrirDetalle = async (id) => {
     const cerrarFuera = (e) => { if (e.target.isConnected && !modal.contains(e.target)) cerrar(); };
     const cerrarEsc = (e) => { if (e.key === 'Escape') cerrar(); };
     function cerrar() { modal.remove(); document.removeEventListener('click', cerrarFuera); document.removeEventListener('keydown', cerrarEsc); }
-    document.getElementById('pvCerrarDetalle').onclick = cerrar;
+    modal.querySelector('#pvCerrarDetalle').onclick = cerrar;
     setTimeout(() => { document.addEventListener('click', cerrarFuera); document.addEventListener('keydown', cerrarEsc); }, 0);
 
-    await pvPintarDetalle(id);
+    await pvPintarDetalle(id, modal);
 };
 
-async function pvPintarDetalle(id) {
-    const cuerpo = document.getElementById('pvCuerpoDetalle');
+// modal: la instancia de esta subventana (window.idSubventana) — TODOS los ids
+// internos del template se buscan escopados a ella, nunca por document.getElementById,
+// para que con 2+ instancias abiertas (Ctrl+clic) cada una pinte/opere lo suyo.
+async function pvPintarDetalle(id, modal) {
+    const cuerpo = modal.querySelector('#pvCuerpoDetalle');
     try {
         const { data: p, error } = await supabaseClient
             .from('pedidos_venta')
             .select('id, folio, fecha, estatus, notas, clientes ( nombre ), pedidos_venta_detalle ( id, producto_id, descripcion, cantidad, cantidad_surtida, precio_unitario, unidad_medida_id, productos ( nombre, sku ) )')
             .eq('id', id).single();
         if (error) throw error;
-        document.getElementById('pvTituloDetalle').textContent = p.folio || ('#' + p.id);
+        modal.querySelector('#pvTituloDetalle').textContent = p.folio || ('#' + p.id);
 
         const det = p.pedidos_venta_detalle || [];
         const total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.precio_unitario || 0), 0);
@@ -339,9 +342,9 @@ async function pvPintarDetalle(id) {
             ` : ''}
             <p id="pvMsgDetalle" class="text-xs mt-2 min-h-[1rem]"></p>`;
 
-        const btnSurtir = document.getElementById('pvBtnSurtir');
-        if (btnSurtir) btnSurtir.onclick = () => pvAbrirSurtir(p, det.filter((d) => Number(d.cantidad) - Number(d.cantidad_surtida) > 0));
-        const btnCancelar = document.getElementById('pvBtnCancelar');
+        const btnSurtir = modal.querySelector('#pvBtnSurtir');
+        if (btnSurtir) btnSurtir.onclick = () => pvAbrirSurtir(p, det.filter((d) => Number(d.cantidad) - Number(d.cantidad_surtida) > 0), modal);
+        const btnCancelar = modal.querySelector('#pvBtnCancelar');
         if (btnCancelar) btnCancelar.onclick = async () => {
             const motivo = prompt('¿Por qué se cancela este pedido?');
             if (motivo === null) return;
@@ -356,8 +359,8 @@ async function pvPintarDetalle(id) {
 }
 
 // Surtido: por cada línea pendiente, elegir lote(s) y cantidad a surtir ahora.
-async function pvAbrirSurtir(pedido, lineasPendientes) {
-    const area = document.getElementById('pvSurtirArea');
+async function pvAbrirSurtir(pedido, lineasPendientes, modal) {
+    const area = modal.querySelector('#pvSurtirArea');
     if (!area) return;
     area.innerHTML = '<p class="text-slate-500 text-xs mb-2">Cargando lotes disponibles...</p>';
 
@@ -388,8 +391,8 @@ async function pvAbrirSurtir(pedido, lineasPendientes) {
       </div>
       <button type="button" id="pvConfirmarSurtir" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm mb-2">Confirmar surtido</button>`;
 
-    document.getElementById('pvConfirmarSurtir').onclick = async () => {
-        const msg = document.getElementById('pvMsgDetalle');
+    modal.querySelector('#pvConfirmarSurtir').onclick = async () => {
+        const msg = modal.querySelector('#pvMsgDetalle');
         const filas = [...area.querySelectorAll('[data-linea]')];
         const partidas = [];
         const actualizaciones = [];
@@ -413,7 +416,7 @@ async function pvAbrirSurtir(pedido, lineasPendientes) {
         }
         if (!partidas.length) { msg.textContent = 'Captura al menos una cantidad a surtir.'; msg.className = 'text-xs mt-2 text-rose-400'; return; }
 
-        const btn = document.getElementById('pvConfirmarSurtir');
+        const btn = modal.querySelector('#pvConfirmarSurtir');
         btn.disabled = true;
         try {
             // Surtidos del pedido en orden: PED-000012-S1, PED-000012-S2...
@@ -434,7 +437,7 @@ async function pvAbrirSurtir(pedido, lineasPendientes) {
 
             msg.textContent = `Surtido registrado (documento #${res.documentoId}). Pedido "${nuevoEstatus}".`;
             msg.className = 'text-xs mt-2 text-emerald-400';
-            await pvPintarDetalle(pedido.id);
+            await pvPintarDetalle(pedido.id, modal);
             await pvRenderLista();
         } catch (err) {
             msg.textContent = 'No se pudo surtir: ' + (err.message || err);

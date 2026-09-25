@@ -4,7 +4,8 @@ import './trazabilidad.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
 let documentosCache = [];
-let docActualParaImprimir = null;
+let docActualParaImprimir = null; // compat: instancia "de siempre" (modalDetalleDocKardex)
+const docsParaImprimirPorModal = new Map(); // idModal -> { tipoDocumento, titulo } — una entrada por subventana abierta con Ctrl+clic
 const docOrden = crearOrdenTabla('id', 'desc');
 
 function filaEncabezadoDocumentos() {
@@ -358,8 +359,11 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
         const fechaEmision = docInfo.fecha_emision ? new Date(docInfo.fecha_emision).toLocaleString() : 'N/D';
         const tercero = docInfo.proveedores?.nombre || docInfo.proveedor_cliente || docInfo.cliente_nombre || 'N/D';
 
-        // Se guarda para que window.imprimirDocumentoActual sepa qué plantilla y título usar
-        docActualParaImprimir = { tipoDocumento: docInfo.tipo_movimiento || 'generico', titulo: `Folio: ${docInfo.folio || 'S/Folio'} (Doc #${docId})` };
+        // Se guarda por instancia (idModal) para que window.imprimirDocumentoActual sepa qué
+        // plantilla y título usar de ESTA subventana, no de la última que se haya abierto/cargado.
+        const datosParaImprimir = { tipoDocumento: docInfo.tipo_movimiento || 'generico', titulo: `Folio: ${docInfo.folio || 'S/Folio'} (Doc #${docId})` };
+        docsParaImprimirPorModal.set(idModal, datosParaImprimir);
+        if (esPrincipal) docActualParaImprimir = datosParaImprimir;
 
         let html = `
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-950 p-4 rounded-xl border border-slate-800/80 print:bg-white print:border-black print:text-black">
@@ -539,12 +543,13 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
 // subventana lo manda) — así con dos documentos abiertos a la vez (Ctrl+clic)
 // cada una imprime lo suyo. Sin id (llamada vieja): la de siempre.
 window.imprimirDocumentoActual = function(idModal) {
-    if (!docActualParaImprimir) {
+    const datos = (idModal && docsParaImprimirPorModal.get(idModal)) || docActualParaImprimir;
+    if (!datos) {
         window.print();
         return;
     }
     const idContenido = (!idModal || idModal === 'modalDetalleDocKardex') ? 'contenidoModalDoc' : `contenidoModalDoc__${idModal}`;
-    imprimirConPlantilla(docActualParaImprimir.tipoDocumento, docActualParaImprimir.titulo, idContenido);
+    imprimirConPlantilla(datos.tipoDocumento, datos.titulo, idContenido);
 };
 
 // idModal: qué instancia cerrar — la de siempre ('modalDetalleDocKardex', o sin
@@ -555,7 +560,7 @@ window.cerrarDetalleDocumento = function(idModal) {
     const modalContainer = document.getElementById(idModal);
     if (!modalContainer) return;
     if (idModal === 'modalDetalleDocKardex') modalContainer.classList.add('hidden');
-    else modalContainer.remove();
+    else { modalContainer.remove(); docsParaImprimirPorModal.delete(idModal); }
 };
 
 // Abre Contabilidad → Pólizas enfocado en la póliza de un documento.

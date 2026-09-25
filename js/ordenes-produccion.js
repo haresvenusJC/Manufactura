@@ -286,14 +286,18 @@ export async function abrirDetalle(ordenId) {
     overlay.addEventListener('click', (e) => { if (e.target === overlay) cerrar(); });
     host.querySelector('#opModalCerrar').addEventListener('click', cerrar);
 
+    // id único por instancia — imprimirConPlantilla busca por id global (document.getElementById),
+    // no escopado a este host, así que con 2 instancias abiertas cada una debe tener el suyo.
+    const idDoc = idModal === 'opModalDetalle' ? 'opDocEstado' : `opDocEstado__${idModal}`;
     const doc = host.querySelector('#opDocEstado');
+    doc.id = idDoc;
     try {
         const html = await armarDocumentoEstado(ordenId);
         if (!document.body.contains(doc)) return;   // se cerró mientras cargaba
         doc.innerHTML = html.cuerpo;
         const btn = host.querySelector('#opDocImprimir');
         btn.disabled = false;
-        btn.addEventListener('click', () => imprimirConPlantilla('orden_produccion', `Estado de la orden de producción ${html.folio}`, 'opDocEstado'));
+        btn.addEventListener('click', () => imprimirConPlantilla('orden_produccion', `Estado de la orden de producción ${html.folio}`, idDoc));
     } catch (e) {
         doc.innerHTML = `<p class="text-rose-400 text-xs">No se pudo armar el documento: ${escD(e.message || e)}</p>`;
     }

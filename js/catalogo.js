@@ -1994,7 +1994,7 @@ async function abrirTablaDensidades() {
     modal.querySelector('#densBtnX').addEventListener('click', cerrar);
 
     const cuerpo = modal.querySelector('#densCuerpo');
-    document.getElementById('densBuscar').addEventListener('input', (e) => {
+    modal.querySelector('#densBuscar').addEventListener('input', (e) => {
         densFiltro = e.target.value.trim().toLowerCase();
         densPintar(cuerpo);
     });
@@ -2119,10 +2119,10 @@ async function abrirTablaUnidades() {
 
     const cuerpo = modal.querySelector('#unidCuerpo');
     const msg = modal.querySelector('#unidMsg');
-    document.getElementById('unidBuscar').addEventListener('input', (e) => { unidFiltro = e.target.value.trim().toLowerCase(); unidPintar(cuerpo); });
+    modal.querySelector('#unidBuscar').addEventListener('input', (e) => { unidFiltro = e.target.value.trim().toLowerCase(); unidPintar(cuerpo); });
 
-    document.getElementById('unidAgregar').addEventListener('click', async () => {
-        const inp = document.getElementById('unidNueva');
+    modal.querySelector('#unidAgregar').addEventListener('click', async () => {
+        const inp = modal.querySelector('#unidNueva');
         const nombre = inp.value.trim();
         msg.textContent = ''; msg.className = 'text-[11px] min-h-[1rem]';
         if (!nombre) { msg.textContent = 'Escribe el nombre de la unidad.'; msg.className = 'text-[11px] min-h-[1rem] text-rose-400'; return; }
@@ -2131,11 +2131,11 @@ async function abrirTablaUnidades() {
         }
         try {
             const { data, error } = await supabaseClient.from('unidades_medida')
-                .insert([{ nombre, es_fraccionable: document.getElementById('unidNuevaFrac').checked }])
+                .insert([{ nombre, es_fraccionable: modal.querySelector('#unidNuevaFrac').checked }])
                 .select('id, nombre, es_fraccionable').single();
             if (error) throw error;
             unidFilas.push({ ...data, _uso: 0 });
-            inp.value = ''; document.getElementById('unidNuevaFrac').checked = false;
+            inp.value = ''; modal.querySelector('#unidNuevaFrac').checked = false;
             msg.textContent = `"${data.nombre}" agregada ✓`; msg.className = 'text-[11px] min-h-[1rem] text-emerald-400';
             unidPintar(cuerpo);
         } catch (err) {
@@ -2547,14 +2547,17 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
         document.removeEventListener('click', cerrarFuera);
         document.removeEventListener('keydown', cerrarEsc);
     }
-    document.getElementById('btnCerrarResumenProd').addEventListener('click', cerrar);
-    document.getElementById('btnCancelarResumenProd').addEventListener('click', cerrar);
+    modal.querySelector('#btnCerrarResumenProd').addEventListener('click', cerrar);
+    modal.querySelector('#btnCancelarResumenProd').addEventListener('click', cerrar);
     setTimeout(() => {
         document.addEventListener('click', cerrarFuera);
         document.addEventListener('keydown', cerrarEsc);
     }, 0);
 
-    const cuerpo = document.getElementById('cuerpoResumenProd');
+    // Ids internos del template (cuerpoResumenProd, rc_activo...) se repiten
+    // literalmente si hay una segunda instancia abierta con Ctrl+clic — SIEMPRE
+    // se buscan escopados a "modal" (esta instancia), nunca por document.getElementById.
+    const cuerpo = modal.querySelector('#cuerpoResumenProd');
     // Si este mismo producto se guarda desde otra subventana abierta a la vez
     // (Alta de artículo o ☰ "Editar o ver BOM"), esta se vuelve a pintar con el
     // dato fresco en vez de quedarse con el que tenía al abrirse.
@@ -2585,14 +2588,14 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
             componentesPorId = new Map((comps || []).map((c) => [c.id, c]));
         }
 
-        const tituloSub = document.getElementById('tituloEditarProdSub');
+        const tituloSub = modal.querySelector('#tituloEditarProdSub');
         if (tituloSub) tituloSub.textContent = ` — #${art.id} · ${art.sku || 'sin SKU'} · ${art.nombre || 'sin nombre'}`;
 
         // "Activo" vive fijo en el pie (no se va con el scroll) — se marca
         // aparte, no como un campo más de la cuadrícula de abajo.
-        const chkActivo = document.getElementById('rc_activo');
+        const chkActivo = modal.querySelector('#rc_activo');
         if (chkActivo) chkActivo.checked = !!art.activo;
-        const txtActivo = document.getElementById('rc_activo_texto');
+        const txtActivo = modal.querySelector('#rc_activo_texto');
         if (txtActivo) txtActivo.textContent = `Activo: ${art.activo ? 'Sí' : 'No'}`;
 
         // Llaves foráneas conocidas: se muestran y editan como <select> por
@@ -2822,7 +2825,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
         return;
     }
 
-    const btnGuardarResumenProd = document.getElementById('btnGuardarResumenProd');
+    const btnGuardarResumenProd = modal.querySelector('#btnGuardarResumenProd');
     if (!btnGuardarResumenProd) return;
     btnGuardarResumenProd.addEventListener('click', async () => {
         const payload = {};
@@ -2837,7 +2840,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
             }
         });
 
-        const btnGuardar = document.getElementById('btnGuardarResumenProd');
+        const btnGuardar = modal.querySelector('#btnGuardarResumenProd');
         btnGuardar.disabled = true;
         btnGuardar.textContent = 'Guardando…';
         const { error } = await supabaseClient.from('productos').update(payload).eq('id', id);

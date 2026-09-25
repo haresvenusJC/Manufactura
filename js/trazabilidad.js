@@ -55,13 +55,13 @@ export async function abrirAntecedentes(ordenCompraId) {
         document.removeEventListener('click', cerrarFuera);
         document.removeEventListener('keydown', cerrarEsc);
     }
-    document.getElementById('cerrarAntecedentes').onclick = cerrar;
+    modal.querySelector('#cerrarAntecedentes').onclick = cerrar;
     setTimeout(() => {
         document.addEventListener('click', cerrarFuera);
         document.addEventListener('keydown', cerrarEsc);
     }, 0);
 
-    const cuerpo = document.getElementById('cuerpoAntecedentes');
+    const cuerpo = modal.querySelector('#cuerpoAntecedentes');
     try {
         const [oc, req, docs, anticipos] = await Promise.all([
             supabaseClient.from('ordenes_compra')
