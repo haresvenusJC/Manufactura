@@ -2465,19 +2465,23 @@ function rcPintarBalanceGeneral() {
 }
 
 // Modal: detalle completo de una póliza + enlaces a su documento / gasto de origen.
-window.rcCerrarModalPoliza = function () {
-    document.getElementById('rcModalPoliza')?.remove();
+window.rcCerrarModalPoliza = function (idModal) {
+    document.getElementById(idModal || 'rcModalPoliza')?.remove();
 };
 
+// Ctrl/Cmd + clic en "Ver póliza": instancia aparte (window.idSubventana,
+// subventanas-movibles.js); si no, se reusa/reemplaza la de siempre.
 window.rcVerPoliza = async function (polId) {
-    let cont = document.getElementById('rcModalPoliza');
+    const idModal = window.idSubventana('rcModalPoliza');
+    let cont = idModal === 'rcModalPoliza' ? document.getElementById(idModal) : null;
     if (!cont) {
         cont = document.createElement('div');
-        cont.id = 'rcModalPoliza';
+        cont.id = idModal;
         cont.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4';
-        cont.addEventListener('click', (e) => { if (e.target === cont) window.rcCerrarModalPoliza(); });
+        cont.addEventListener('click', (e) => { if (e.target === cont) window.rcCerrarModalPoliza(idModal); });
         document.body.appendChild(cont);
     }
+    cont.style.zIndex = window.zSubventanaSiguiente();
     cont.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 text-sm text-slate-300">
         <p class="text-slate-500">Cargando póliza...</p></div>`;
 
@@ -2505,7 +2509,7 @@ window.rcVerPoliza = async function (polId) {
         const totA = movs.reduce((s, m) => s + (Number(m.abono) || 0), 0);
 
         const enlacesDoc = docs.map((d) => `
-            <button type="button" onclick="const z=window.zSubventanaSiguiente(); window.abrirDetalleDocumentoGlobal(${d.id}); const m=document.getElementById('modalDetalleDocKardex'); if(m){m.style.zIndex=z;m.classList.remove('hidden');}"
+            <button type="button" onclick="window.abrirDetalleDocumentoGlobal(${d.id})"
                 class="text-xs bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-800/60 px-3 py-1.5 rounded-lg font-semibold cursor-pointer">
                 Abrir documento #${d.id}${d.folio ? ' · ' + d.folio : ''}
             </button>`).join(' ');
@@ -2514,7 +2518,7 @@ window.rcVerPoliza = async function (polId) {
         <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div class="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-center">
                 <h3 class="text-sm font-bold text-slate-200">Póliza ${pol.tipo} #${pol.numero} · ${pol.fecha}</h3>
-                <button onclick="window.rcCerrarModalPoliza()" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2">&times;</button>
+                <button onclick="window.rcCerrarModalPoliza('${idModal}')" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2">&times;</button>
             </div>
             <div class="p-5 space-y-3 overflow-y-auto text-sm">
                 <div class="text-xs text-slate-400">
@@ -2551,13 +2555,13 @@ window.rcVerPoliza = async function (polId) {
                     : `<p class="text-[11px] text-slate-500">Esta póliza no tiene un documento de almacén enlazado (origen: ${pol.origen || 'manual'}).</p>`}
             </div>
             <div class="bg-slate-950 px-5 py-3 border-t border-slate-800 text-right">
-                <button onclick="window.rcCerrarModalPoliza()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl font-semibold cursor-pointer">Cerrar</button>
+                <button onclick="window.rcCerrarModalPoliza('${idModal}')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl font-semibold cursor-pointer">Cerrar</button>
             </div>
         </div>`;
     } catch (err) {
         cont.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 text-sm">
             <p class="text-rose-400">No se pudo cargar la póliza.<br>${err.message || err}</p>
-            <div class="text-right mt-3"><button onclick="window.rcCerrarModalPoliza()" class="text-xs bg-slate-800 px-4 py-2 rounded-xl text-slate-200">Cerrar</button></div>
+            <div class="text-right mt-3"><button onclick="window.rcCerrarModalPoliza('${idModal}')" class="text-xs bg-slate-800 px-4 py-2 rounded-xl text-slate-200">Cerrar</button></div>
         </div>`;
     }
 };

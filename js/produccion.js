@@ -286,9 +286,10 @@ export async function generarRequisicionFaltantes(faltan, nombreProducto, cantid
     const nombreProv = new Map((provs || []).map((p) => [p.id, p.nombre]));
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-    document.getElementById('modalFaltantesProd')?.remove();
+    const idModal = window.idSubventana('modalFaltantesProd');
+    if (idModal === 'modalFaltantesProd') document.getElementById('modalFaltantesProd')?.remove();
     const modal = document.createElement('div');
-    modal.id = 'modalFaltantesProd';
+    modal.id = idModal;
     // Fondo semitransparente sin difuminar: la pantalla que abrió la subventana sigue visible detrás.
     modal.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4';
     modal.innerHTML = `

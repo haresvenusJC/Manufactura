@@ -5,6 +5,9 @@
 //   - se estiran desde una manija en la esquina inferior derecha.
 //   - un botón ⤢ en la barra de título las maximiza (casi pantalla
 //     completa) y las restaura a su tamaño original.
+//   - Ctrl/Cmd + clic en el enlace/botón que la abre: abre una instancia
+//     aparte en vez de reusar/reemplazar la que ya esté abierta
+//     (window.idSubventana, ver abajo).
 //
 //  No hay que llamar nada desde cada módulo: un MutationObserver detecta
 //  las subventanas en cuanto entran al DOM (o cambia su contenido):
@@ -24,6 +27,22 @@ const INTERACTIVOS = 'button, a, input, select, textarea, label, iframe, [conten
 const MARGEN = 60; // px del panel que siempre quedan a la vista al arrastrar
 const MARGEN_MAX = 16; // px de aire alrededor al maximizar
 const MIN_ANCHO = 260, MIN_ALTO = 160; // px mínimos al estirar desde la esquina
+
+// ---- Ctrl/Cmd + clic = "ábrela aparte" (no reusar/reemplazar la ya abierta) ----
+// Un solo listener global en captura: corre ANTES que el onclick del enlace/botón
+// que de verdad abre la subventana, así el estado de Ctrl ya está listo cuando
+// ese código llama a window.idSubventana().
+let __ctrlAlClic = false;
+document.addEventListener('click', (e) => { __ctrlAlClic = !!(e.ctrlKey || e.metaKey); }, true);
+
+// idBase: el id "de siempre" de esa subventana (ej. 'modalResumenProducto').
+// Sin Ctrl: regresa el mismo id de siempre (se reusa/reemplaza, como hasta ahora).
+// Con Ctrl: regresa un id nuevo único, para que la ya abierta se quede intacta y
+// esta se abra como una instancia independiente (nunca se sale con el resto).
+window.idSubventana = function (idBase) {
+    if (!__ctrlAlClic) return idBase;
+    return `${idBase}__${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+};
 
 function panelDe(el) {
     if (!(el instanceof HTMLElement) || !el.classList.contains('fixed')) return null;

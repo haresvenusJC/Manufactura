@@ -36,7 +36,7 @@ const fmt = (n) => {
 
 // Mismo patrón de enlaces que el resto de los Auxiliares (regla de CLAUDE.md).
 const linkDoc = (id, texto) => id
-    ? `<button type="button" onclick="window.abrirDetalleDocumentoGlobal(${Number(id)}); const m=document.getElementById('modalDetalleDocKardex'); if(m){m.style.zIndex=70;m.classList.remove('hidden');}" class="text-sky-300 hover:text-sky-200 hover:underline cursor-pointer font-mono" title="Abrir el documento">${esc(texto)}</button>`
+    ? `<button type="button" onclick="window.abrirDetalleDocumentoGlobal(${Number(id)})" class="text-sky-300 hover:text-sky-200 hover:underline cursor-pointer font-mono" title="Abrir el documento">${esc(texto)}</button>`
     : esc(texto);
 const linkPoliza = (id) => id
     ? `<button type="button" onclick="window.rcVerPoliza(${Number(id)}); const m=document.getElementById('rcModalPoliza'); if(m) m.style.zIndex=70;" data-pol-id="${Number(id)}" class="text-sky-300 hover:text-sky-200 hover:underline cursor-pointer font-mono" title="Abrir la póliza">póliza…</button>`

@@ -39,7 +39,7 @@ const fechaLocal = (iso) => { const d = new Date(iso); return `${d.getFullYear()
 // documento -> window.abrirDetalleDocumentoGlobal (js/documentos.js), póliza -> window.rcVerPoliza
 // (js/contabilidad.js). Ambos abren una subventana sin salir del reporte.
 const linkDoc = (id, texto) => id
-    ? `<button type="button" onclick="window.abrirDetalleDocumentoGlobal(${Number(id)}); const m=document.getElementById('modalDetalleDocKardex'); if(m){m.style.zIndex=70;m.classList.remove('hidden');}" class="text-sky-300 hover:text-sky-200 hover:underline cursor-pointer font-mono" title="Abrir el documento">${esc(texto)}</button>`
+    ? `<button type="button" onclick="window.abrirDetalleDocumentoGlobal(${Number(id)})" class="text-sky-300 hover:text-sky-200 hover:underline cursor-pointer font-mono" title="Abrir el documento">${esc(texto)}</button>`
     : esc(texto);
 const linkPoliza = (id) => id
     ? `<button type="button" onclick="window.rcVerPoliza(${Number(id)}); const m=document.getElementById('rcModalPoliza'); if(m) m.style.zIndex=70;" data-pol-id="${Number(id)}" class="text-sky-300 hover:text-sky-200 hover:underline cursor-pointer font-mono" title="Abrir la póliza">póliza…</button>`

@@ -486,11 +486,13 @@ export async function cargarModuloAltaArticulo() {
             const comprado = esProducto && inputAbast.value === 'comprado';
             // "¿Cómo se obtiene?" solo aplica a Producto terminado (el semiterminado no lo pregunta)
             bloqueAbast.classList.toggle('hidden', !esProducto);
-            // Densidad y Rendimiento del lote son para lo que se fabrica en granel (semiterminado,
-            // o materia prima/insumo cuya fórmula se convierte) — un Producto terminado ya recibe
-            // el granel en la unidad que necesita su BOM, no aplica.
+            // Densidad es para lo que se fabrica en granel (semiterminado) y también para materia
+            // prima/insumo cuando la fórmula del granel los pide en otra unidad — un Producto
+            // terminado ya recibe el granel en la unidad que necesita su BOM, no aplica.
             document.getElementById('bloqueProdDensidad')?.classList.toggle('hidden', esProducto);
-            document.getElementById('bloqueProdRendimientoLote')?.classList.toggle('hidden', esProducto);
+            // Rendimiento del lote es SOLO de quien tiene su propia fórmula/BOM (el semiterminado);
+            // materia prima e insumo son componentes de esa fórmula, no aplica.
+            document.getElementById('bloqueProdRendimientoLote')?.classList.toggle('hidden', !semi);
             // Control de caducidad tampoco se pregunta para Producto terminado en esta pantalla.
             document.getElementById('bloqueProdCaducidad')?.classList.toggle('hidden', esProducto);
             const llevaBom = semi || (esProducto && !comprado);
@@ -1616,11 +1618,14 @@ function abrirMenuAccionesProducto(producto, botonAncla) {
 // con su propio mensaje si algo no procede.
 // =====================================================================
 async function abrirVentanaBom(producto) {
-    document.getElementById('modalBomProducto')?.remove();
+    // Ctrl/Cmd + clic en "Editar o ver BOM": abre una instancia aparte, sin
+    // tocar la que ya esté abierta (window.idSubventana, subventanas-movibles.js).
+    const idModal = window.idSubventana('modalBomProducto');
+    if (idModal === 'modalBomProducto') document.getElementById('modalBomProducto')?.remove();
     const id = Number(producto.id);
 
     const modal = document.createElement('div');
-    modal.id = 'modalBomProducto';
+    modal.id = idModal;
     modal.className = 'fixed z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]';
     modal.style.top = '8vh';
     modal.style.left = '50%';
@@ -1963,9 +1968,10 @@ let densFiltro = '';
 let densFilas = [];
 
 async function abrirTablaDensidades() {
-    document.getElementById('modalDensidades')?.remove();
+    const idModal = window.idSubventana('modalDensidades');
+    if (idModal === 'modalDensidades') document.getElementById('modalDensidades')?.remove();
     const modal = document.createElement('div');
-    modal.id = 'modalDensidades';
+    modal.id = idModal;
     modal.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4';
     modal.innerHTML = `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
@@ -2080,9 +2086,10 @@ let unidFiltro = '';
 let unidFilas = [];
 
 async function abrirTablaUnidades() {
-    document.getElementById('modalUnidades')?.remove();
+    const idModal = window.idSubventana('modalUnidades');
+    if (idModal === 'modalUnidades') document.getElementById('modalUnidades')?.remove();
     const modal = document.createElement('div');
-    modal.id = 'modalUnidades';
+    modal.id = idModal;
     modal.className = 'fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4';
     modal.innerHTML = `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
@@ -2493,10 +2500,13 @@ function renderBomResumen(filas, componentesPorId, unidades) {
 }
 
 async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, soloLectura = false) {
-    let modal = document.getElementById('modalResumenProducto');
+    // Ctrl/Cmd + clic en "Ver"/"Editar artículo": abre una instancia aparte, sin
+    // tocar la que ya esté abierta (window.idSubventana, subventanas-movibles.js).
+    const idModal = window.idSubventana('modalResumenProducto');
+    let modal = document.getElementById(idModal);
     if (!modal) {
         modal = document.createElement('div');
-        modal.id = 'modalResumenProducto';
+        modal.id = idModal;
         document.body.appendChild(modal);
     }
     // Subventana flotante (no un modal de pantalla completa): sin fondo
@@ -2615,11 +2625,14 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
         // (ver checkbox #rc_activo), siempre visible sin importar el scroll.
         // El resto sigue el orden lógico de ORDEN_CAMPOS_PRODUCTO; los de
         // solo lectura (id, created_at, updated_at) siempre al final.
-        // Densidad, Rendimiento del lote y Requiere caducidad no aplican a Producto terminado
-        // (ver bloqueProdDensidad/bloqueProdRendimientoLote/bloqueProdCaducidad en el formulario
-        // de alta): el granel ya llega en la unidad que pide su BOM.
-        const camposOcultosPorTipo = art.tipo === 'producto'
-            ? new Set(['densidad_kg_l', 'rendimiento_lote_bom', 'requiere_caducidad']) : new Set();
+        // Densidad y Requiere caducidad no aplican a Producto terminado (ver bloqueProdDensidad/
+        // bloqueProdCaducidad en el formulario de alta): el granel ya llega en la unidad que pide
+        // su BOM. Rendimiento del lote es solo de quien tiene su propia fórmula/BOM (el
+        // semiterminado) — materia prima e insumo son componentes de esa fórmula, no aplica.
+        const camposOcultosPorTipo = new Set(
+            art.tipo === 'producto' ? ['densidad_kg_l', 'rendimiento_lote_bom', 'requiere_caducidad'] : []
+        );
+        if (art.tipo !== 'semiterminado') camposOcultosPorTipo.add('rendimiento_lote_bom');
         const claves = Object.keys(art)
             .filter((c) => c !== 'activo' && !CAMPOS_OCULTOS_PRODUCTO.has(c) && !camposOcultosPorTipo.has(c))
             .sort((a, b) => {

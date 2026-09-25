@@ -25,11 +25,12 @@ const DOC_ESTATUS = {
 };
 
 export async function abrirAntecedentes(ordenCompraId) {
-    document.getElementById('modalAntecedentes')?.remove();
+    const idModal = window.idSubventana('modalAntecedentes');
+    if (idModal === 'modalAntecedentes') document.getElementById('modalAntecedentes')?.remove();
     if (!ordenCompraId) { alert('Esta orden de compra no tiene antecedentes que mostrar.'); return; }
 
     const modal = document.createElement('div');
-    modal.id = 'modalAntecedentes';
+    modal.id = idModal;
     modal.className = 'fixed z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]';
     modal.style.top = '6vh';
     modal.style.left = '50%';

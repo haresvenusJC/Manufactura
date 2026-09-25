@@ -267,15 +267,22 @@ window.filtrarDocumentosTabla = function() {
     window.renderizarTablaDocumentos(filtrados);
 };
 
-// Modal de Expediente con formato imprimible
+// Modal de Expediente con formato imprimible.
+// Ctrl/Cmd + clic en el enlace que lo abre: instancia aparte (window.idSubventana,
+// subventanas-movibles.js) — ya no hace falta que quien llame calcule el z-index
+// ni busque el modal por su id de siempre, esto ya lo hace solo.
 window.abrirDetalleDocumentoGlobal = async function(docId) {
-    let modalContainer = document.getElementById('modalDetalleDocKardex');
+    const idModal = window.idSubventana('modalDetalleDocKardex');
+    const esPrincipal = idModal === 'modalDetalleDocKardex';
+    const idContenido = esPrincipal ? 'contenidoModalDoc' : `contenidoModalDoc__${idModal}`;
+    let modalContainer = esPrincipal ? document.getElementById(idModal) : null;
     if (!modalContainer) {
         modalContainer = document.createElement('div');
-        modalContainer.id = 'modalDetalleDocKardex';
+        modalContainer.id = idModal;
         modalContainer.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4';
         document.body.appendChild(modalContainer);
     }
+    modalContainer.style.zIndex = window.zSubventanaSiguiente();
 
     modalContainer.innerHTML = `
         <div id="modalImprimibleArea" class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]">
@@ -286,23 +293,23 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
                     Documento Oficial #${docId}
                 </h3>
                 <div class="flex items-center gap-2">
-                    <button onclick="window.imprimirDocumentoActual()" class="bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-sm" style="cursor: pointer;">
+                    <button onclick="window.imprimirDocumentoActual('${idModal}')" class="bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 shadow-sm" style="cursor: pointer;">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                         Imprimir
                     </button>
-                    <button onclick="window.cerrarDetalleDocumento()" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2">&times;</button>
+                    <button onclick="window.cerrarDetalleDocumento('${idModal}')" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2">&times;</button>
                 </div>
             </div>
 
             <!-- Cuerpo del Documento -->
-            <div class="p-6 text-slate-300 text-sm overflow-y-auto space-y-6 flex-1 print:p-2 print:text-black print:bg-white" id="contenidoModalDoc">
+            <div class="p-6 text-slate-300 text-sm overflow-y-auto space-y-6 flex-1 print:p-2 print:text-black print:bg-white" id="${idContenido}">
                 <div class="text-center py-8 text-slate-500">Consultando datos y partidas...</div>
             </div>
 
             <!-- Pie del Modal (No se imprime) -->
             <div class="bg-slate-950 px-6 py-3 border-t border-slate-800 flex justify-between items-center no-print">
                 <span class="text-[11px] text-slate-500 font-mono">ID Consecutivo Global: ${docId}</span>
-                <button onclick="window.cerrarDetalleDocumento()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl text-xs font-semibold transition" style="cursor: pointer;">Cerrar</button>
+                <button onclick="window.cerrarDetalleDocumento('${idModal}')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl text-xs font-semibold transition" style="cursor: pointer;">Cerrar</button>
             </div>
         </div>
     `;
@@ -347,7 +354,7 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
         const esVenta = (docInfo.tipo_movimiento === 'salida_venta');
         let ventaSubtotalCalc = 0, ventaIvaCalc = 0;
 
-        const contenidoModal = document.getElementById('contenidoModalDoc');
+        const contenidoModal = document.getElementById(idContenido);
         const fechaEmision = docInfo.fecha_emision ? new Date(docInfo.fecha_emision).toLocaleString() : 'N/D';
         const tercero = docInfo.proveedores?.nombre || docInfo.proveedor_cliente || docInfo.cliente_nombre || 'N/D';
 
@@ -524,23 +531,31 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
 
     } catch (err) {
         console.error("Error al consultar el expediente completo:", err);
-        document.getElementById('contenidoModalDoc').innerHTML = `<div class="text-rose-400 text-center py-6">Ocurrió un error al consultar los detalles en la base de datos.</div>`;
+        document.getElementById(idContenido).innerHTML = `<div class="text-rose-400 text-center py-6">Ocurrió un error al consultar los detalles en la base de datos.</div>`;
     }
 };
 
-window.imprimirDocumentoActual = function() {
+// idModal: la instancia desde la que se imprime (el botón "Imprimir" de esa
+// subventana lo manda) — así con dos documentos abiertos a la vez (Ctrl+clic)
+// cada una imprime lo suyo. Sin id (llamada vieja): la de siempre.
+window.imprimirDocumentoActual = function(idModal) {
     if (!docActualParaImprimir) {
         window.print();
         return;
     }
-    imprimirConPlantilla(docActualParaImprimir.tipoDocumento, docActualParaImprimir.titulo, 'contenidoModalDoc');
+    const idContenido = (!idModal || idModal === 'modalDetalleDocKardex') ? 'contenidoModalDoc' : `contenidoModalDoc__${idModal}`;
+    imprimirConPlantilla(docActualParaImprimir.tipoDocumento, docActualParaImprimir.titulo, idContenido);
 };
 
-window.cerrarDetalleDocumento = function() {
-    const modalContainer = document.getElementById('modalDetalleDocKardex');
-    if (modalContainer) {
-        modalContainer.classList.add('hidden');
-    }
+// idModal: qué instancia cerrar — la de siempre ('modalDetalleDocKardex', o sin
+// argumento) solo se oculta (se reusa la próxima vez); una abierta aparte con
+// Ctrl+clic se quita del todo, para no dejar instancias huérfanas acumulándose.
+window.cerrarDetalleDocumento = function(idModal) {
+    idModal = idModal || 'modalDetalleDocKardex';
+    const modalContainer = document.getElementById(idModal);
+    if (!modalContainer) return;
+    if (idModal === 'modalDetalleDocKardex') modalContainer.classList.add('hidden');
+    else modalContainer.remove();
 };
 
 // Abre Contabilidad → Pólizas enfocado en la póliza de un documento.
@@ -549,11 +564,7 @@ window.cerrarDetalleDocumento = function() {
 window.verPolizaDeDocumento = async function(polizaId, fechaEmision) {
     if (!polizaId) return;
     if (typeof window.rcVerPoliza !== 'function') { alert('No se pudo abrir la póliza #' + polizaId + '.'); return; }
-    const z = window.zSubventanaSiguiente();
-    const p = window.rcVerPoliza(Number(polizaId));
-    const m = document.getElementById('rcModalPoliza');
-    if (m) m.style.zIndex = z;
-    await p;
+    await window.rcVerPoliza(Number(polizaId));
 };
 
 // z-index para que la subventana que se abre quede encima de todas las que ya están abiertas.

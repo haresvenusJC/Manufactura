@@ -352,9 +352,12 @@ export const GUIAS = {
 // --- Manual en subventana (iframe desplazable), no en pestaña nueva ---
 // Reutilizable en cualquier módulo: abrirManual('#m-catalogo', 'Productos').
 export function abrirManual(hash, titulo) {
-    if (document.getElementById('manualModal')) return;
+    // Ctrl/Cmd + clic: instancia aparte (window.idSubventana, subventanas-movibles.js),
+    // para poder tener dos secciones del manual abiertas a la vez.
+    const idModal = window.idSubventana('manualModal');
+    if (idModal === 'manualModal' && document.getElementById('manualModal')) return;
     const ov = document.createElement('div');
-    ov.id = 'manualModal';
+    ov.id = idModal;
     ov.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-3 sm:p-6';
     ov.innerHTML = `
       <div class="bg-slate-950 border border-slate-700 rounded-xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden shadow-2xl">
@@ -371,7 +374,7 @@ export function abrirManual(hash, titulo) {
     const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
     const onKey = (e) => { if (e.key === 'Escape') close(); };
     ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
-    document.getElementById('manualModalX').onclick = close;
+    ov.querySelector('#manualModalX').onclick = close;
     document.addEventListener('keydown', onKey);
 }
 

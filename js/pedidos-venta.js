@@ -269,9 +269,10 @@ async function pvRenderLista() {
 
 // ---- Detalle / surtir un pedido ----
 window.pvAbrirDetalle = async (id) => {
-    document.getElementById('modalDetallePedido')?.remove();
+    const idModal = window.idSubventana('modalDetallePedido');
+    if (idModal === 'modalDetallePedido') document.getElementById('modalDetallePedido')?.remove();
     const modal = document.createElement('div');
-    modal.id = 'modalDetallePedido';
+    modal.id = idModal;
     modal.className = 'fixed z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]';
     modal.style.top = '6vh'; modal.style.left = '50%'; modal.style.transform = 'translateX(-50%)';
     modal.style.width = 'calc(100% - 2rem)'; modal.style.maxWidth = '44rem';
@@ -346,7 +347,7 @@ async function pvPintarDetalle(id) {
             if (motivo === null) return;
             const { error: eCan } = await supabaseClient.rpc('pedido_venta_cancelar', { p_pedido_id: p.id, p_motivo: motivo || null });
             if (eCan) { alert('No se pudo cancelar: ' + eCan.message); return; }
-            document.getElementById('modalDetallePedido')?.remove();
+            modal.remove();
             await pvRenderLista();
         };
     } catch (err) {

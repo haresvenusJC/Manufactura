@@ -590,10 +590,11 @@ async function reqRenderLista() {
 
 // ---- Detalle / versión imprimible de una requisición ----
 async function abrirDetalleReq(id) {
-    document.getElementById('modalDetalleReq')?.remove();
+    const idModal = window.idSubventana('modalDetalleReq');
+    if (idModal === 'modalDetalleReq') document.getElementById('modalDetalleReq')?.remove();
 
     const modal = document.createElement('div');
-    modal.id = 'modalDetalleReq';
+    modal.id = idModal;
     modal.className = 'fixed z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]';
     modal.style.top = '6vh';
     modal.style.left = '50%';
@@ -760,7 +761,8 @@ window.reqSincronizarCancelacion = async (id) => {
 // partida — quitar una partida también. Para agregar un producto nuevo,
 // rechaza y vuelve a capturar (mantiene el flujo simple).
 window.reqEditar = async (id) => {
-    document.getElementById('modalEditarReq')?.remove();
+    const idModal = window.idSubventana('modalEditarReq');
+    if (idModal === 'modalEditarReq') document.getElementById('modalEditarReq')?.remove();
 
     const { data: r, error } = await supabaseClient
         .from('requisiciones_compra')
@@ -771,7 +773,7 @@ window.reqEditar = async (id) => {
 
     const det = r.requisiciones_compra_detalle || [];
     const modal = document.createElement('div');
-    modal.id = 'modalEditarReq';
+    modal.id = idModal;
     modal.className = 'fixed z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]';
     modal.style.top = '6vh'; modal.style.left = '50%'; modal.style.transform = 'translateX(-50%)';
     modal.style.width = 'calc(100% - 2rem)'; modal.style.maxWidth = '36rem';
@@ -860,7 +862,8 @@ window.reqEditar = async (id) => {
 };
 
 window.reqAutorizar = async (id) => {
-    document.getElementById('modalAutorizarReq')?.remove();
+    const idModal = window.idSubventana('modalAutorizarReq');
+    if (idModal === 'modalAutorizarReq') document.getElementById('modalAutorizarReq')?.remove();
 
     const { data: r, error } = await supabaseClient
         .from('requisiciones_compra')
@@ -875,7 +878,7 @@ window.reqAutorizar = async (id) => {
     const mxn = reqMonedas.find(m => m.codigo === 'MXN');
 
     const modal = document.createElement('div');
-    modal.id = 'modalAutorizarReq';
+    modal.id = idModal;
     modal.className = 'fixed z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]';
     modal.style.top = '10vh';
     modal.style.left = '50%';

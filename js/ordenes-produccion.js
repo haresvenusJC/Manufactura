@@ -242,7 +242,7 @@ function duracion(seg) {
 // Documentos y pólizas citados en el reporte se abren desde ahí (regla de CLAUDE.md): subventanas de
 // js/documentos.js (abrirDetalleDocumentoGlobal) y js/contabilidad.js (rcVerPoliza).
 const lnkDoc = (id, texto) => id
-    ? `<button type="button" onclick="window.abrirDetalleDocumentoGlobal(${Number(id)}); const m=document.getElementById('modalDetalleDocKardex'); if(m){m.style.zIndex=70;m.classList.remove('hidden');}" style="color:#0369a1;text-decoration:underline;cursor:pointer;">${escD(texto)}</button>` : escD(texto);
+    ? `<button type="button" onclick="window.abrirDetalleDocumentoGlobal(${Number(id)})" style="color:#0369a1;text-decoration:underline;cursor:pointer;">${escD(texto)}</button>` : escD(texto);
 const lnkPol = (id) => `<button type="button" onclick="window.rcVerPoliza(${Number(id)}); const m=document.getElementById('rcModalPoliza'); if(m) m.style.zIndex=70;" data-pol-id="${Number(id)}" style="color:#0369a1;text-decoration:underline;cursor:pointer;">póliza…</button>`;
 const ESTADO_TXT = { borrador: 'Pendiente por insumos', en_proceso: 'En proceso', cerrada: 'Cerrada', cancelada: 'Cancelada' };
 
@@ -259,10 +259,13 @@ const ST = {
 
 // Exportada: también la usa Producción ("👁 Ver estado" en órdenes pendientes por insumos).
 export async function abrirDetalle(ordenId) {
-    let host = document.getElementById('opModalDetalle');
-    if (!host) {   // desde otra pantalla: contenedor propio pegado a <body>
+    // Ctrl/Cmd + clic: instancia aparte (window.idSubventana, subventanas-movibles.js) —
+    // siempre un contenedor nuevo pegado a <body>, sin tocar el de siempre.
+    const idModal = window.idSubventana('opModalDetalle');
+    let host = idModal === 'opModalDetalle' ? document.getElementById('opModalDetalle') : null;
+    if (!host) {   // desde otra pantalla (o Ctrl+clic): contenedor propio pegado a <body>
         host = document.createElement('div');
-        host.id = 'opModalDetalle';
+        host.id = idModal;
         document.body.appendChild(host);
     }
     host.innerHTML = `

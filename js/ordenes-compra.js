@@ -438,10 +438,11 @@ async function ocRenderLista() {
 }
 
 async function abrirDetalleOC(id) {
-    document.getElementById('modalDetalleOC')?.remove();
+    const idModal = window.idSubventana('modalDetalleOC');
+    if (idModal === 'modalDetalleOC') document.getElementById('modalDetalleOC')?.remove();
 
     const modal = document.createElement('div');
-    modal.id = 'modalDetalleOC';
+    modal.id = idModal;
     modal.className = 'fixed z-50 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]';
     modal.style.top = '6vh';
     modal.style.left = '50%';
@@ -776,7 +777,7 @@ function renderEdicionOC(o, cuerpo) {
             if (eIns) throw eIns;
 
             document.removeEventListener('click', cerrarSugOnClick);
-            document.getElementById('modalDetalleOC')?.remove();
+            modal.remove();
             await ocRenderLista();
         } catch (err) {
             msg.textContent = 'No se pudo guardar: ' + (err?.message || err);

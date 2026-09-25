@@ -4,6 +4,27 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/catalogo.js`, `js/subventanas-movibles.js` (nueva capacidad:
+  `window.idSubventana`), `js/documentos.js`, `js/kardex.js`, `js/contabilidad.js`, `js/enlaces-reporte.js`,
+  `js/ordenes-produccion.js`, `js/auxiliar-inventarios.js`, `js/auxiliar-anticipos.js`, `js/produccion.js`,
+  `js/ordenes-compra.js`, `js/pedidos-venta.js`, `js/trazabilidad.js`, `js/requisiciones-compra.js`,
+  `js/asistente-contable.js`, `CLAUDE.md`, `version.json`. Dos pedidos del usuario (con captura):
+  (1) "Editar artículo" de una Materia prima mostraba "Rendimiento del lote" — no aplica (esa materia prima/
+  insumo es COMPONENTE de la fórmula de un granel, no tiene su propia fórmula/BOM): ahora ese campo se oculta
+  para todo lo que no sea `tipo = 'semiterminado'` (antes solo se ocultaba para "Producto terminado"), tanto en
+  "Editar artículo" (`camposOcultosPorTipo`) como en el formulario de Alta (`bloqueProdRendimientoLote`);
+  Densidad sigue igual (si aplica a materia prima/insumo). (2) "Que Ctrl+clic en cualquier enlace abra una
+  subventana aparte, sin ocupar una ya desplegada" — ver la nueva convención en "Subventanas" arriba
+  (`window.idSubventana`, un solo mecanismo compartido) y la lista de qué se tocó ahí. De paso, dos bugs reales
+  encontrados al hacerlo: `js/asistente-contable.js` (`abrirManual`) y `js/contabilidad.js` (alta rápida de
+  proveedor) buscaban su botón "×" con `document.getElementById` (global) en vez de `ov.querySelector` (scoped
+  al modal) — con dos instancias abiertas, el "×" de la segunda no cerraba nada (buscaba en la primera); el de
+  `asistente-contable.js` se corrigió de paso (aparece en cualquier pantalla vía "📖 Cómo llenar esta
+  pantalla"); el de `contabilidad.js` (`gaApX`) se dejó igual a propósito (ese modal no se tocó, ver la
+  convención). Pendiente: probar Ctrl+clic en varios de los enlaces tocados (Ver póliza, Abrir documento,
+  Editar artículo, Editar o ver BOM, manual) — sobre todo abrir DOS documentos o DOS pólizas a la vez y
+  confirmar que cada una imprime/cierra la suya, no la del otro. Probar también que Rendimiento del lote ya
+  no aparece para Materia prima/Insumo, en Alta y en Editar artículo.
 - Archivos tocados (lo último): `js/catalogo.js`, `CLAUDE.md`, `version.json`. Bug reportado con captura (dos
   subventanas abiertas a la vez para el mismo producto): al usar "Usar 10 Kilogramos como Rendimiento del lote"
   en "🧪 Editar o ver BOM" (`abrirVentanaBom`), la "Revisión del granel" de "✏️ Editar artículo"
@@ -450,6 +471,23 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
     autoposicionan (`top`/`left`/`transform`, ej. "Editar o ver BOM") también se reubican al maximizar para no
     salirse de la pantalla; las que centra su overlay (`flex items-center justify-center`) se recentran solas al
     cambiar de tamaño.
+  - **Ctrl/Cmd + clic en el enlace/botón que la abre = ábrela aparte** (a petición del usuario 2026-09-25): no
+    reusa/reemplaza la que ya esté abierta — se abre una instancia independiente, con su propio id. Un solo
+    mecanismo compartido: `window.idSubventana('idDeSiempre')` (`js/subventanas-movibles.js`) regresa el id de
+    siempre en un clic normal, o uno nuevo único si hubo Ctrl/Cmd al hacer clic (un listener global en captura
+    ya lo sabe para cuando el `onclick` corre). Cada función que abre una subventana lo usa para decidir el id
+    de su contenedor (y de cualquier id interno que se busque por `document.getElementById` en vez de por
+    referencia directa al elemento — ojo ahí, es la parte fácil de pasar por alto). Ya aplicado a las que abren
+    algo por un enlace/botón "ver": `abrirDetalleDocumentoGlobal`/`cerrarDetalleDocumento` (`js/documentos.js`,
+    ahora la única definición — la de `js/kardex.js` se quitó, quedaba pisada porque documentos.js carga
+    después), `rcVerPoliza`/`rcCerrarModalPoliza` (`js/contabilidad.js`), `abrirManual` (`js/asistente-contable.js`),
+    y los modales de `js/catalogo.js` (BOM/Editar artículo/Densidades/Unidades), `js/produccion.js`,
+    `js/ordenes-compra.js`, `js/ordenes-produccion.js`, `js/pedidos-venta.js`, `js/trazabilidad.js` y
+    `js/requisiciones-compra.js`. A propósito sin tocar: el modal genérico `rmModalWrap` de
+    `js/ordenes-compra.js` (helper de bajo nivel con muchos llamadores, no una sola función "abrir X") y
+    `gaAltaModal` de `js/contabilidad.js` (alta rápida, no es un enlace a algo existente) — y las 3 apps de
+    operador (pantallas táctiles, Ctrl+clic no aplica ahí). Cualquier subventana nueva que abra un enlace/botón
+    "ver algo" debe usar `window.idSubventana` igual que las de arriba.
 
 ## Estado del proyecto (módulos clave)
 

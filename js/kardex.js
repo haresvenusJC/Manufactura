@@ -198,11 +198,18 @@ export async function renderizarKardexProducto(productoIdParam, contenedorResult
     }
 }
 
+// Ctrl/Cmd + clic en el "Doc ID" de una fila del Kardex: instancia aparte
+// (window.idSubventana, subventanas-movibles.js) — window.cerrarDetalleDocumento
+// (definición vigente: js/documentos.js, se carga después y pisa la de aquí)
+// ya sabe cerrar tanto la de siempre como una abierta aparte.
 window.abrirDetalleDocumento = async function(docId) {
-    let modalContainer = document.getElementById('modalDetalleDocKardex');
+    const idModal = window.idSubventana('modalDetalleDocKardex');
+    const esPrincipal = idModal === 'modalDetalleDocKardex';
+    const idContenido = esPrincipal ? 'contenidoModalDoc' : `contenidoModalDoc__${idModal}`;
+    let modalContainer = esPrincipal ? document.getElementById(idModal) : null;
     if (!modalContainer) {
         modalContainer = document.createElement('div');
-        modalContainer.id = 'modalDetalleDocKardex';
+        modalContainer.id = idModal;
         modalContainer.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4';
         document.body.appendChild(modalContainer);
     }
@@ -214,14 +221,14 @@ window.abrirDetalleDocumento = async function(docId) {
                     <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
                     Documento Oficial #${docId}
                 </h3>
-                <button onclick="window.cerrarDetalleDocumento()" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2">&times;</button>
+                <button onclick="window.cerrarDetalleDocumento('${idModal}')" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2">&times;</button>
             </div>
-            <div class="p-6 text-slate-300 text-sm max-h-[75vh] overflow-y-auto space-y-6" id="contenidoModalDoc">
+            <div class="p-6 text-slate-300 text-sm max-h-[75vh] overflow-y-auto space-y-6" id="${idContenido}">
                 <div class="text-center py-8 text-slate-500">Consultando datos del documento en la base de datos...</div>
             </div>
             <div class="bg-slate-950 px-6 py-3 border-t border-slate-800 flex justify-between items-center">
                 <span class="text-[11px] text-slate-500 font-mono">ID Registro: ${docId}</span>
-                <button onclick="window.cerrarDetalleDocumento()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl text-xs font-semibold transition">Cerrar</button>
+                <button onclick="window.cerrarDetalleDocumento('${idModal}')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl text-xs font-semibold transition">Cerrar</button>
             </div>
         </div>
     `;
@@ -243,7 +250,7 @@ window.abrirDetalleDocumento = async function(docId) {
 
         if (errDetalles) throw errDetalles;
 
-        const contenidoModal = document.getElementById('contenidoModalDoc');
+        const contenidoModal = document.getElementById(idContenido);
         const fechaEmision = docInfo.fecha_emision ? new Date(docInfo.fecha_emision).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : 'N/D';
         const proveedorNombre = docInfo.proveedores?.nombre || docInfo.proveedor_cliente || 'N/D';
 
@@ -320,16 +327,11 @@ window.abrirDetalleDocumento = async function(docId) {
 
     } catch (err) {
         console.error("Error al obtener el documento completo:", err);
-        const contenidoModal = document.getElementById('contenidoModalDoc');
+        const contenidoModal = document.getElementById(idContenido);
         if (contenidoModal) {
             contenidoModal.innerHTML = `<div class="text-rose-400 text-center py-6">Error al consultar la información del documento en la base de datos.</div>`;
         }
     }
 };
-
-window.cerrarDetalleDocumento = function() {
-    const modalContainer = document.getElementById('modalDetalleDocKardex');
-    if (modalContainer) {
-        modalContainer.classList.add('hidden');
-    }
-};
+// window.cerrarDetalleDocumento vive en js/documentos.js (se carga después y
+// pisa cualquier definición de aquí) — cierra tanto esta como esa, no se repite.
