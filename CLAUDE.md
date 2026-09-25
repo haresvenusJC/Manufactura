@@ -4,6 +4,20 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/catalogo.js`, `CLAUDE.md`, `version.json`. Bug reportado con captura (dos
+  subventanas abiertas a la vez para el mismo producto): al usar "Usar 10 Kilogramos como Rendimiento del lote"
+  en "🧪 Editar o ver BOM" (`abrirVentanaBom`), la "Revisión del granel" de "✏️ Editar artículo"
+  (`abrirResumenCompletoProducto`), ya abierta detrás, se quedaba con el dato viejo (4 de 5 ⚠) aunque BOM ya
+  lo había guardado — cada subventana solo refrescaba el formulario de Alta (`window.refrescarFormularioSi
+  EsProducto`, ya existía), nunca a las otras dos. Se agregaron `window.refrescarBomSiEsProducto` (dentro de
+  `abrirVentanaBom`) y `window.refrescarResumenSiEsProducto` (dentro de `abrirResumenCompletoProducto`, se
+  resuelve re-llamando a la función completa con los mismos parámetros — ya reconstruye todo el modal), mismo
+  patrón `if (typeof window.X === 'function') await window.X(id)` que el existente. Los 3 puntos donde se
+  guarda Densidad/Rendimiento del lote de un semiterminado (Alta al guardar, BOM "Guardar" y sus botones
+  rápidos "Usar X", Editar artículo "Guardar cambios") ahora llaman a los OTROS dos refrescos — cada subventana
+  sigue sin refrescarse a sí misma (ya está fresca). Nota: la tabla "⚖️ Densidades" (edición rápida por fila)
+  no quedó conectada a esto — mismo tipo de hueco, pero el usuario no lo reportó; pendiente si hace falta.
+  Pendiente: probar en el navegador con las 2-3 subventanas abiertas a la vez para el mismo producto.
 - Archivos tocados (lo último): `js/produccion.js`, `js/tareas.js`, `CLAUDE.md`, `version.json`. Bug de
   duplicidad reportado por el usuario (con captura de "Tareas de almacén"): cuando una orden de producción
   dispara sola una requisición de lo faltante (`generarRequisicionFaltantes`, al guardarse como "pendiente por

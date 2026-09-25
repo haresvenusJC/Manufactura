@@ -1148,7 +1148,9 @@ export async function cargarModuloAltaArticulo() {
                     .eq('id', articuloId);
 
                 alert(productoSeleccionadoId ? "¡Artículo actualizado con éxito!" : "¡Artículo registrado con éxito!");
-                
+
+                if (typeof window.refrescarBomSiEsProducto === 'function') await window.refrescarBomSiEsProducto(articuloId);
+                if (typeof window.refrescarResumenSiEsProducto === 'function') await window.refrescarResumenSiEsProducto(articuloId);
                 btnNuevoModo.click();
                 await renderizarTablaProductos(mapaUnidades);
 
@@ -1648,6 +1650,19 @@ async function abrirVentanaBom(producto) {
     const msg = modal.querySelector('#bomMsg');
     const btnGuardar = modal.querySelector('#bomBtnGuardar');
 
+    // Si este mismo producto se guarda desde otra subventana abierta a la vez
+    // (Alta de artículo o ☰ "Editar artículo" — Densidad/Rendimiento del lote
+    // también se editan ahí), la "Revisión del granel" de aquí se refresca sola
+    // en vez de quedarse con el dato viejo con el que se abrió.
+    window.refrescarBomSiEsProducto = async function(idAfectado) {
+        if (!document.getElementById('modalBomProducto') || Number(idAfectado) !== id) return;
+        const { data } = await supabaseClient.from('productos')
+            .select('rendimiento_lote_bom, densidad_kg_l, tipo, unidad_medida_id, cuenta_inventario_id, stock_actual')
+            .eq('id', id).single();
+        if (data) Object.assign(producto, data);
+        refrescarAnalisisModal();
+    };
+
     let filas = [];              // { id (bom.id o null), compId, cantidad (texto), unidad (texto), base }
     let productos = [];          // candidatos a componente
     let unidades = [];
@@ -1757,6 +1772,8 @@ async function abrirVentanaBom(producto) {
             if (error) { alert('No se pudo guardar la Densidad: ' + error.message); return; }
             producto.densidad_kg_l = valor;
             pintar();
+            if (typeof window.refrescarFormularioSiEsProducto === 'function') await window.refrescarFormularioSiEsProducto(id);
+            if (typeof window.refrescarResumenSiEsProducto === 'function') await window.refrescarResumenSiEsProducto(id);
         });
         cont.querySelector('.btn-usar-rend')?.addEventListener('click', async (e) => {
             const valor = Number(e.currentTarget.dataset.valor);
@@ -1765,6 +1782,8 @@ async function abrirVentanaBom(producto) {
             if (error) { alert('No se pudo guardar el Rendimiento del lote: ' + error.message); return; }
             producto.rendimiento_lote_bom = valor;
             pintar();
+            if (typeof window.refrescarFormularioSiEsProducto === 'function') await window.refrescarFormularioSiEsProducto(id);
+            if (typeof window.refrescarResumenSiEsProducto === 'function') await window.refrescarResumenSiEsProducto(id);
         });
     }
 
@@ -1910,6 +1929,7 @@ async function abrirVentanaBom(producto) {
             }
             await cargar();
             if (typeof window.refrescarFormularioSiEsProducto === 'function') await window.refrescarFormularioSiEsProducto(id);
+            if (typeof window.refrescarResumenSiEsProducto === 'function') await window.refrescarResumenSiEsProducto(id);
             sucio = false;
             btnGuardar.disabled = true;
             msg.dataset.fijo = '1';
@@ -2525,6 +2545,13 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
     }, 0);
 
     const cuerpo = document.getElementById('cuerpoResumenProd');
+    // Si este mismo producto se guarda desde otra subventana abierta a la vez
+    // (Alta de artículo o ☰ "Editar o ver BOM"), esta se vuelve a pintar con el
+    // dato fresco en vez de quedarse con el que tenía al abrirse.
+    window.refrescarResumenSiEsProducto = async function(idAfectado) {
+        if (!document.getElementById('modalResumenProducto') || Number(idAfectado) !== Number(id)) return;
+        await abrirResumenCompletoProducto(id, nombreConocido, skuConocido, soloLectura);
+    };
     try {
         const [{ data: art, error }, resProv, resMon, resUm, resCta, resClaves, resBom] = await Promise.all([
             supabaseClient.from('productos').select('*').eq('id', id).single(),
@@ -2808,6 +2835,8 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
             return;
         }
         cerrar();
+        if (typeof window.refrescarFormularioSiEsProducto === 'function') await window.refrescarFormularioSiEsProducto(id);
+        if (typeof window.refrescarBomSiEsProducto === 'function') await window.refrescarBomSiEsProducto(id);
         const { data: mapaUnidadesActual } = await supabaseClient.from('unidades_medida').select('id, nombre');
         const mapaUnidades = {};
         (mapaUnidadesActual || []).forEach((u) => { mapaUnidades[u.id] = u.nombre; });
