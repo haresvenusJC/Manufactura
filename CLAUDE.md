@@ -34,8 +34,9 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   `sql/2026-09-02_...`) en vez de la vigente (12 columnas: `poliza_id`/`estatus_cxp`, `sql/2026-09-10c_...`, que
   `js/pagos-proveedor.js` y `js/ordenes-compra.js` ya usan) — además esa "corrección" no hacía falta: la vista vigente
   ya resuelve los cancelados con `estatus_cxp='cancelado'` (filtrable, no oculto). Se quitó esa sección por completo;
-  vuelto a probar en Postgres local, cuadra igual. Pendiente: correr `sql/2026-10-27_anticipo_proveedores.sql` (versión
-  corregida) y probar el botón "💰 Anticipo" + las dos pantallas nuevas en el navegador.
+  vuelto a probar en Postgres local, cuadra igual. **Migración corrida y confirmada** (diagnóstico "TODO AL DÍA").
+  Pendiente: probar el botón "💰 Anticipo" + Recibir mercancía (tipo de póliza), "🔗 Antecedentes de proceso" y el
+  Auxiliar de Anticipos a proveedores en el navegador, con un caso real.
 - Archivos tocados (lo último): `js/catalogo.js`. En "Editar artículo" (editor genérico) y en el formulario de alta/edición,
   Densidad, Rendimiento del lote y Requiere caducidad se ocultan cuando el Tipo es Producto terminado (no aplican: el
   granel ya llega en la unidad que pide su BOM). Clave SAT de "Claves de proveedor": si se deja vacía, toma la del

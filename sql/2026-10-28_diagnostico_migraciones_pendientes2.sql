@@ -23,9 +23,6 @@ with c(orden, archivo, ok) as (
     (3,  'sql/2026-10-21_folios_consecutivos.sql',
          exists (select 1 from pg_proc where proname = 'siguiente_folio')),
 
-    (4,  'sql/2026-10-22_bom_granel_kilogramos.sql (alternativa que NO se usó, se espera FALTA)',
-         false),
-
     (5,  'sql/2026-10-23_densidad_conversion_bom.sql',
          exists (select 1 from information_schema.columns
                   where table_schema = 'public' and table_name = 'productos' and column_name = 'densidad_kg_l')),
@@ -51,8 +48,8 @@ with c(orden, archivo, ok) as (
 select archivo, estatus
   from (
       select 0 as ord,
-             '>>> RESUMEN: faltan ' || count(*) filter (where not ok and archivo not like '%NO se usó%') || ' de ' || count(*) filter (where archivo not like '%NO se usó%') || ' migraciones' as archivo,
-             case when count(*) filter (where not ok and archivo not like '%NO se usó%') = 0 then 'TODO AL DÍA' else 'REVISAR' end as estatus
+             '>>> RESUMEN: faltan ' || count(*) filter (where not ok) || ' de ' || count(*) || ' migraciones' as archivo,
+             case when count(*) filter (where not ok) = 0 then 'TODO AL DÍA' else 'REVISAR' end as estatus
         from c
       union all
       select orden, archivo, case when ok then 'OK' else 'FALTA' end from c
