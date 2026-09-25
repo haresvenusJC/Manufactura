@@ -4,6 +4,27 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `index.html` (cajón), `js/indice.js`, `js/app.js`, `js/tareas.js`, `version.json`.
+  Reacomodo completo del menú (a petición del usuario, "no siento que esté bien acomodado ni intuitivo"): antes 5
+  grupos colapsables + "Documentos" suelto, con "Operación" y "Finanzas" escondiendo 3-4 sub-bloques de texto no
+  clicables cada uno (16 pantallas en un solo desplegable). Ahora 9 grupos parejos, sin sub-bloques ocultos:
+  **Catálogos** (antes "Datos Maestros"), **Compras** (Requisiciones/OC/Recibo/**Compra directa** —antes "Compras /
+  Proveedores", chocaba con el nombre de "Proveedores"—/Entradas directas), **Inventario y almacén** (Stock/Kardex/
+  Auditoría/**Tareas de almacén**, nuevo), **Ventas** (Pedidos de venta/Salidas/Devoluciones — se separó de
+  Inventario), **Producción** (subió a grupo propio), **Documentos** (solo), **Finanzas — operación diaria**
+  (Gastos/CxP/CxC/Bancos/Nómina/Activos fijos/Prorrateo/**Tareas contables**, nuevo), **Contabilidad y control**
+  (nuevo: junta Pólizas + lo que antes era "Fiscal" + "Configuración contable" — Pólizas ya no vive enterrado bajo
+  "Nómina y cierre de mes"), **Reportes** (Reportes operativos —antes solo "Reportes", se distingue de "Reportes
+  contables"— + Bitácora de cambios), **Configuración** (General/Plantillas/Fresh start). "Tareas" se dividió por
+  origen real de los pendientes (`js/tareas.js` ya los separaba internamente: tabla `tareas` = almacén vs. nómina en
+  borrador/recordatorio = contable): `cargarModuloTareas(departamento)` acepta `'almacen'`/`'contable'`/vacío
+  (todas) y `window.loadView('tareas', {departamento:'...'})` desde cada menú; banner "Viendo solo tareas de
+  X — Ver todas" cuando hay filtro. `js/indice.js` (SECCIONES) actualizado igual, mismo orden/nombres, con `extra`
+  para pasar el departamento en las tarjetas de Tareas. Pendiente: probar el menú y ambos accesos de Tareas en el
+  navegador. **Ojo, hallazgo aparte sin resolver**: el CSS de `index.html` trae el comentario "cajón lateral...
+  sin riel de iconos", pero la convención de este archivo dice "Nav: riel de iconos + cajón — no revertir a
+  sidebar plano" — el riel parece haberse perdido en algún punto; no se tocó esta sesión, solo se deja anotado.
+
 - Archivos tocados (lo último): `sql/2026-10-27_anticipo_proveedores.sql` (nuevo), `js/ordenes-compra.js`, `version.json`.
   Bug reportado: "Recibir mercancía" siempre generaba póliza de Egreso, hasta en compras a crédito (nunca hay salida real
   de banco ahí — debería ser Diario). Causa: `contabilizar_compra()` traía `'tipo', 'Egreso'` fijo. Ampliado a un módulo

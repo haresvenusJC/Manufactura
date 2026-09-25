@@ -196,7 +196,7 @@ window.loadView = function(viewName, opciones = {}) {
         case 'indice':
             cargarModuloIndice();
             break;
-        case 'compras': // <-- Conectado correctamente al menú "Compras / Proveedores"
+        case 'compras': // <-- Conectado al menú "Compras" → "Compra directa"
             configurarFormularioCompras();
             break;
         case 'entradas-directas':
@@ -300,7 +300,7 @@ window.loadView = function(viewName, opciones = {}) {
             cargarModuloNomina();
             break;
         case 'tareas':
-            cargarModuloTareas();
+            cargarModuloTareas(opciones.departamento);
             break;
         case 'isr':
             cargarModuloIsr();

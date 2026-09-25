@@ -28,13 +28,17 @@ let tareasCacheSistema = [];
 let tareasCacheBorradores = [];
 let tareasCacheRecordatorio = null;
 let tareasFiltroTexto = '';
+// 'almacen' | 'contable' | null (todas) — con qué filtro se entró desde el
+// menú ("Tareas de almacén" en Inventario, "Tareas contables" en Finanzas).
+let tareasDepartamento = null;
 
 // Selección de tareas "inventario bajo mínimo" para agrupar en una sola
 // requisición cuando comparten proveedor (ver reqSeleccionadasBarra()).
 let tareasSeleccionadas = new Set();
 let tareasProductosMapa = new Map();   // producto_id -> { nombre, proveedorId, proveedorNombre }
 
-export async function cargarModuloTareas() {
+export async function cargarModuloTareas(departamento) {
+    tareasDepartamento = departamento || null;
     cargarConfigCaducidad();   // panel de umbrales de caducidad (independiente)
     cargarHistorialTareas();   // independiente: se ve aunque no haya pendientes
 
@@ -99,15 +103,26 @@ function renderTareasActivas() {
 
     const filtro = tareasFiltroTexto.trim().toLowerCase();
     const pasaFiltro = (texto) => !filtro || (texto || '').toLowerCase().includes(filtro);
+    // Departamento: 'almacen' = solo las de la tabla tareas (inventario/caducidad);
+    // 'contable' = solo nómina (borradores + recordatorio del viernes).
+    const verAlmacen = tareasDepartamento !== 'contable';
+    const verContable = tareasDepartamento !== 'almacen';
     // Una tarea ya seleccionada se queda visible aunque el buscador ya no la
     // encuentre — si no, al refinar la búsqueda para marcar más tareas,
     // las que ya habías marcado antes desaparecen de la lista.
-    const sistema = tareasCacheSistema.filter((t) => tareasSeleccionadas.has(t.id) || pasaFiltro(t.titulo) || pasaFiltro(t.detalle));
-    const borradores = tareasCacheBorradores.filter((n) => pasaFiltro(`Nómina ${n.id} semana del ${n.periodo_inicio} al ${n.periodo_fin}`));
-    const recordatorio = filtro && !pasaFiltro('semana lista para pre-ejecutar nómina') ? null : tareasCacheRecordatorio;
+    const sistema = verAlmacen ? tareasCacheSistema.filter((t) => tareasSeleccionadas.has(t.id) || pasaFiltro(t.titulo) || pasaFiltro(t.detalle)) : [];
+    const borradores = verContable ? tareasCacheBorradores.filter((n) => pasaFiltro(`Nómina ${n.id} semana del ${n.periodo_inicio} al ${n.periodo_fin}`)) : [];
+    const recordatorio = !verContable || (filtro && !pasaFiltro('semana lista para pre-ejecutar nómina')) ? null : tareasCacheRecordatorio;
+
+    const banner = tareasDepartamento
+        ? `<p class="text-[11px] text-slate-500 mb-2">Viendo solo tareas ${tareasDepartamento === 'almacen' ? 'de almacén' : 'contables'} —
+            <button type="button" onclick="window.loadView('tareas')" class="text-sky-400 hover:underline cursor-pointer">Ver todas</button></p>`
+        : '';
 
     if (sistema.length === 0 && borradores.length === 0 && !recordatorio) {
-        cont.innerHTML = `<p class="text-slate-500 text-sm">Ninguna tarea coincide con "${esc(tareasFiltroTexto)}".</p>`;
+        cont.innerHTML = banner + (filtro
+            ? `<p class="text-slate-500 text-sm">Ninguna tarea coincide con "${esc(tareasFiltroTexto)}".</p>`
+            : `<p class="text-emerald-400 text-sm">✔ No hay tareas ${tareasDepartamento ? (tareasDepartamento === 'almacen' ? 'de almacén' : 'contables') : ''} pendientes.</p>`);
         return;
     }
 
@@ -115,7 +130,7 @@ function renderTareasActivas() {
     // arriba (sticky) y la lista se vuelve su propio scroll — si no, se
     // pierde de vista al bajar a marcar más tareas y parece que no hizo nada.
     const haySeleccion = tareasSeleccionadas.size > 0;
-    cont.innerHTML = haySeleccion
+    cont.innerHTML = banner + (haySeleccion
         ? `
         <div class="sticky top-0 z-10 bg-slate-900 pb-2">${renderBarraSeleccion()}</div>
         <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
@@ -128,7 +143,7 @@ function renderTareasActivas() {
             ${recordatorio ? renderRecordatorio(recordatorio) : ''}
             ${sistema.map(renderTareaSistema).join('')}
             ${borradores.map(renderNominaBorrador).join('')}
-        </div>`;
+        </div>`);
 
     cont.querySelectorAll('.tarea-check').forEach((chk) => chk.addEventListener('change', () => {
         const id = Number(chk.dataset.tarea);
