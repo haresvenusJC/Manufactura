@@ -26,7 +26,7 @@ export const SECCIONES = [
         ],
     },
     {
-        grupo: 'Inventario y almacén', ancla: 'inv', items: [
+        grupo: 'Inventario', ancla: 'inv', items: [
             { v: 'inventario', t: 'Stock General', d: 'Existencias por producto y por lote, con mínimos.' },
             { v: 'kardex', t: 'Kardex', d: 'Movimientos de entrada y salida por producto, con el criterio FIFO/FEFO usado.' },
             { v: 'auditoria', t: 'Auditoría de inventarios', d: 'Toma física de inventario: crea auditorías, revisa el conteo de los operadores y compáralo contra el stock del sistema.' },
@@ -64,7 +64,7 @@ export const SECCIONES = [
         ],
     },
     {
-        grupo: 'Contabilidad y control', ancla: 'cta-ctrl', items: [
+        grupo: 'Contabilidad', ancla: 'cta-ctrl', items: [
             { v: 'polizas', t: 'Pólizas', d: 'Consulta de los asientos contables generados.' },
             { v: 'plan-cuentas', t: 'Plan de cuentas', d: 'Catálogo de cuentas (Código Agrupador SAT). En las 503.xx se marca fijo o variable.', cfg: true },
             { v: 'reportes-contables', t: 'Reportes contables', d: 'Balanza de comprobación, estado de resultados, saldos por cuenta.' },
