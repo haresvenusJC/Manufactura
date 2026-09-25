@@ -41,9 +41,6 @@
 --     disponible de nuevo.
 --  7. v_anticipos_oc — saldo de anticipo pagado/aplicado/disponible por
 --     OC, para la pantalla (botón "💰 Anticipo" en Órdenes de compra).
---  8. v_cuentas_por_pagar (compras): se agrega el filtro "documento no
---     cancelado" — antes no lo tenía y un recibo cancelado con saldo
---     podía seguir apareciendo como pendiente de pago.
 --
 --  Simulación completa (revisada con el usuario, cuadra en ambos):
 --    Escenario 1 (anticipo cubre el 100%): Asiento 1 (pago, día 1) Cargo
@@ -709,40 +706,5 @@ create or replace view public.v_anticipos_oc as
      group by oc.id, oc.folio, oc.proveedor_id, pv.nombre;
 
 grant select on public.v_anticipos_oc to authenticated;
-
--- ---------------------------------------------------------------------
--- 9. v_cuentas_por_pagar — excluir documentos cancelados (no lo hacía;
---    un recibo cancelado con saldo podía seguir viéndose como pendiente).
--- ---------------------------------------------------------------------
-create or replace view public.v_cuentas_por_pagar as
-    select 'compra'::text as tipo, d.id, d.folio,
-           d.fecha_emision::date as fecha,
-           d.proveedor_id, p.nombre as proveedor_nombre,
-           coalesce(d.total, 0) as total,
-           coalesce(d.total_pagado, 0) as pagado,
-           round(coalesce(d.total, 0) - coalesce(d.total_pagado, 0), 2) as saldo,
-           d.orden_compra_id
-      from public.documentos d
-      left join public.proveedores p on p.id = d.proveedor_id
-     where d.tipo_movimiento = 'entrada_compra'
-       and coalesce(d.condicion, '') = 'credito'
-       and d.poliza_id is not null
-       and coalesce(d.estado, '') <> 'cancelado'
-       and round(coalesce(d.total, 0) - coalesce(d.total_pagado, 0), 2) > 0.005
-    union all
-    select 'gasto'::text, g.id, g.folio_factura,
-           g.fecha,
-           g.proveedor_id, p.nombre,
-           coalesce(g.total, 0),
-           coalesce(g.total_pagado, 0),
-           round(coalesce(g.total, 0) - coalesce(g.total_pagado, 0), 2),
-           null::bigint
-      from public.gastos g
-      left join public.proveedores p on p.id = g.proveedor_id
-     where g.estatus = 'registrado'
-       and g.condicion = 'credito'
-       and round(coalesce(g.total, 0) - coalesce(g.total_pagado, 0), 2) > 0.005;
-
-grant select on public.v_cuentas_por_pagar to authenticated;
 
 commit;

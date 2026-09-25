@@ -17,8 +17,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   ESA póliza abona banco por algo, si no Diario. `cancelar_pago_proveedor()` no deja cancelar un anticipo ya aplicado a
   una recepción; `cancelar_recibo_inventario()` libera el anticipo si se cancela esa recepción. Vista `v_anticipos_oc`
   (pagado/aplicado/disponible por OC) + botón "💰 Anticipo" en Órdenes de compra (visible en `abierta`/`recibida_parcial`,
-  antes de recibir) con badge del saldo disponible. `v_cuentas_por_pagar` (compras) suma el filtro `estado <> 'cancelado'`
-  que le faltaba. 3 escenarios (anticipo 100%, parcial+crédito, parcial+resto contado) simulados y probados en Postgres
+  antes de recibir) con badge del saldo disponible. 3 escenarios (anticipo 100%, parcial+crédito, parcial+resto contado) simulados y probados en Postgres
   local con números reales — cuadran cargo=abono y el tipo de póliza sale correcto en los tres. Nueva regla en
   Convenciones: toda propuesta de contabilidad debe apegarse a NIF, no solo "que cuadre". Completado en la misma sesión
   (a petición del usuario, "no dejes nada pendiente"): `js/trazabilidad.js` — "🔗 Antecedentes de proceso" ahora inserta
@@ -30,8 +29,13 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   pendientes2.sql` (solo lectura, continúa a `…10-16_…`) para verificar qué migraciones de 2026-09-24c en adelante ya
   están corridas — corrido por el usuario: solo faltó `sql/2026-10-27_anticipo_proveedores.sql` (nueva, todavía sin correr) y
   ya se corrigió el nombre del archivo (nació como `2026-09-25_…`, mal ubicado en la cronología del repo; se renombró a
-  `2026-10-27_…` y se actualizaron sus referencias). Pendiente: correr `sql/2026-10-27_anticipo_proveedores.sql` y probar
-  el botón "💰 Anticipo" + las dos pantallas nuevas en el navegador.
+  `2026-10-27_…` y se actualizaron sus referencias). Corrección post-mortem: la migración fallaba en Supabase con
+  "cannot drop columns from view" — la sección 9 reescribía `v_cuentas_por_pagar` copiando la versión vieja (10 columnas,
+  `sql/2026-09-02_...`) en vez de la vigente (12 columnas: `poliza_id`/`estatus_cxp`, `sql/2026-09-10c_...`, que
+  `js/pagos-proveedor.js` y `js/ordenes-compra.js` ya usan) — además esa "corrección" no hacía falta: la vista vigente
+  ya resuelve los cancelados con `estatus_cxp='cancelado'` (filtrable, no oculto). Se quitó esa sección por completo;
+  vuelto a probar en Postgres local, cuadra igual. Pendiente: correr `sql/2026-10-27_anticipo_proveedores.sql` (versión
+  corregida) y probar el botón "💰 Anticipo" + las dos pantallas nuevas en el navegador.
 - Archivos tocados (lo último): `js/catalogo.js`. En "Editar artículo" (editor genérico) y en el formulario de alta/edición,
   Densidad, Rendimiento del lote y Requiere caducidad se ocultan cuando el Tipo es Producto terminado (no aplican: el
   granel ya llega en la unidad que pide su BOM). Clave SAT de "Claves de proveedor": si se deja vacía, toma la del
