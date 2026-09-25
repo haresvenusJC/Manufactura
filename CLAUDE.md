@@ -4,6 +4,23 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/produccion.js`, `js/tareas.js`, `CLAUDE.md`, `version.json`. Bug de
+  duplicidad reportado por el usuario (con captura de "Tareas de almacén"): cuando una orden de producción
+  dispara sola una requisición de lo faltante (`generarRequisicionFaltantes`, al guardarse como "pendiente por
+  insumos"), no revisaba si ya había una Tarea de almacén pendiente ("Comprar: …") pidiendo ESE mismo insumo —
+  se podía terminar pidiendo dos veces lo mismo (la tarea, sin resolver, y la requisición de la orden). Ahora
+  `generarRequisicionFaltantes` busca en `tareas` (accion_sugerida='crear_orden_compra', estatus pendiente/
+  pospuesta) por cada insumo faltante y liga su `tareaId` a la partida — mismo mecanismo que ya existía para
+  "Generar requisición" desde Tareas (`js/requisiciones-compra.js` ya marca 'atendida' la tarea ligada al
+  GUARDAR la requisición, sin tocar ese archivo). Esto también resolvió el pedido de "que se marque atendida
+  si genero la requisición desde Tareas" — YA estaba implementado (por eso no se tocó `requisiciones-compra.js`).
+  Además, a petición del usuario ("que no pueda marcar como atendida si no genero una requisición"): en
+  "Tareas de almacén" las tareas de comprar (`crear_orden_compra`) ya NO tienen botón "✔ Atendida" — se
+  reemplazó por texto fijo "No atendida" (se resuelve sola al guardar su requisición); las de caducidad
+  (`revisar_lote`) conservan su botón, porque esas no se resuelven con una requisición. "✕ No aceptada"
+  (posponer) se dejó igual para todas. Pendiente: probar en el navegador con un caso real (una orden de
+  producción cuyo faltante ya tenga una Tarea de almacén pendiente) y confirmar que la tarea desaparece de
+  la lista al guardar la requisición generada desde Producción.
 - Archivos tocados (lo último): `js/subventanas-movibles.js`, `CLAUDE.md`, `version.json`. A petición del usuario
   ("las 3 opciones: estirar desde una esquina y maximizar y restaurar") se implementó lo que la sesión anterior
   había dejado solo anotado como pendiente: manija en la esquina inferior derecha (`data-subventana-resize`,

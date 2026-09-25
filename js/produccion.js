@@ -196,13 +196,30 @@ export async function generarRequisicionFaltantes(faltan, nombreProducto, cantid
     if (error) { alert('No se pudo consultar los insumos: ' + error.message); return; }
     const porId = new Map((info || []).map((p) => [p.id, p]));
 
+    // Si ya hay una "Tarea de almacén" (inventario bajo mínimo) pidiendo comprar
+    // alguno de estos insumos, se liga esa tarea a su partida: al guardar la
+    // requisición se marca sola como atendida (mismo mecanismo que "Generar
+    // requisición" desde Tareas, ver requisiciones-compra.js) — evita que quede
+    // una tarea duplicada pidiendo lo mismo que esta orden ya está resolviendo.
+    const mapaTareaPorProducto = new Map();
+    try {
+        const { data: tareasPendientes } = await supabaseClient.from('tareas')
+            .select('id, entidad_id')
+            .eq('accion_sugerida', 'crear_orden_compra')
+            .in('estatus', ['pendiente', 'pospuesta'])
+            .in('entidad_id', ids);
+        (tareasPendientes || []).forEach((t) => {
+            if (!mapaTareaPorProducto.has(t.entidad_id)) mapaTareaPorProducto.set(t.entidad_id, t.id);
+        });
+    } catch (_) { /* si falla, la requisición se genera igual, solo sin ligar la tarea */ }
+
     const seFabrican = [];
     const comprables = [];
     for (const f of faltan) {
         const p = porId.get(f.componenteId) || {};
         const cantidad = Number((f.requerido - f.disponible).toFixed(3));
         if (!(cantidad > 0)) continue;
-        const item = { id: f.componenteId, nombre: f.nombre, unidad: f.unidad, cantidad, proveedorId: p.proveedor_id || null };
+        const item = { id: f.componenteId, nombre: f.nombre, unidad: f.unidad, cantidad, proveedorId: p.proveedor_id || null, tareaId: mapaTareaPorProducto.get(f.componenteId) || null };
         // un producto fabricado en casa (granel, terminado) se produce, no se compra
         if ((p.tipo === 'producto' || p.tipo === 'semiterminado') && p.abastecimiento !== 'comprado') seFabrican.push(item); else comprables.push(item);
     }
@@ -233,7 +250,7 @@ export async function generarRequisicionFaltantes(faltan, nombreProducto, cantid
     // Si hay de los dos, el que no se eligió primero queda como "siguiente paso" (no se pierde):
     //  · requisición primero → window.__faltantesSiguiente lo ofrece al guardar la última requisición;
     //  · producción primero  → __prodPre.despues lo ofrece al generar la última orden sugerida.
-    const listaGrupos = [...grupos.values()].map((items) => items.map((i) => ({ id: i.id, cantidad: i.cantidad })));
+    const listaGrupos = [...grupos.values()].map((items) => items.map((i) => ({ id: i.id, cantidad: i.cantidad, tareaId: i.tareaId || null })));
     const folioOrden = orden && orden.id ? (orden.folio || '#' + orden.id) : '';
     const notasReq = `Faltantes para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}${folioOrden ? ` (orden ${folioOrden})` : ''}.`;
     const prodPre = () => ({

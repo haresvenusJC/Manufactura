@@ -299,6 +299,13 @@ function renderTareaSistema(t) {
         : '';
     const revivida = t.estatus === 'pospuesta'
         ? `<p class="text-[11px] text-sky-400/80">Reapareció: venció el aplazamiento y sigue bajo el mínimo.</p>` : '';
+    // Las de "comprar" (crear_orden_compra) no se pueden marcar Atendida a mano: se
+    // marcan solas al guardar la requisición ligada (de aquí o de una orden de
+    // producción que la generó automático) — así no se puede dar por hecho que se
+    // compró sin que exista la requisición real. Sin botón, solo el estatus.
+    const botonAtender = seleccionable
+        ? `<span class="text-[11px] text-slate-500 px-1 py-1.5" title="Se marca sola al guardar la requisición de compra de este artículo — no se puede marcar a mano">No atendida</span>`
+        : `<button type="button" data-tarea="${t.id}" class="tarea-atender text-xs bg-amber-800 hover:bg-amber-700 text-amber-100 px-3 py-1.5 rounded-lg border border-amber-600 cursor-pointer">✔ Atendida</button>`;
     return `
         <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 space-y-2">
             <div class="flex items-start justify-between flex-wrap gap-2">
@@ -310,10 +317,10 @@ function renderTareaSistema(t) {
                         ${revivida}
                     </div>
                 </div>
-                <div class="flex gap-2 flex-wrap justify-end shrink-0">
+                <div class="flex gap-2 flex-wrap justify-end items-center shrink-0">
                     ${botonOc}
                     ${botonLote}
-                    <button type="button" data-tarea="${t.id}" class="tarea-atender text-xs bg-amber-800 hover:bg-amber-700 text-amber-100 px-3 py-1.5 rounded-lg border border-amber-600 cursor-pointer">✔ Atendida</button>
+                    ${botonAtender}
                     <button type="button" data-tarea="${t.id}" class="tarea-descartar text-xs bg-slate-800 hover:bg-slate-700 text-rose-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">✕ No aceptada</button>
                 </div>
             </div>
