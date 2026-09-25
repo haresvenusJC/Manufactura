@@ -4,6 +4,21 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/subventanas-movibles.js`, `CLAUDE.md`, `version.json`. A petición del usuario
+  ("las 3 opciones: estirar desde una esquina y maximizar y restaurar") se implementó lo que la sesión anterior
+  había dejado solo anotado como pendiente: manija en la esquina inferior derecha (`data-subventana-resize`,
+  arrastre libre con mínimo 260×160px) + botón "⤢"/"⤡" en la barra de título (`data-subventana-maximizar`, busca
+  la fila `.flex.justify-between` en vez del "asa" de arrastrar, que a veces es solo el texto del título) que
+  maximiza a casi pantalla completa y restaura. El tamaño/posición original de cada panel se captura una sola vez
+  (la primera vez que se toca, con un `WeakMap`) y "Restaurar" siempre vuelve a ESE, sin importar cuántos estirones
+  a mano haya habido de por medio. Al maximizar también se reubican `top`/`left`/`transform` (no solo
+  ancho/alto/`translate`) porque las subventanas flotantes que se autoposicionan (ej. "Editar o ver BOM", `top:
+  8vh; left: 50%; transform: translateX(-50%)`) se salían de la pantalla si solo se agrandaban sin reubicarlas;
+  las que centra su overlay (`flex items-center justify-center`) no necesitan eso, se recentran solas. Mismo
+  mecanismo automático que "movibles" (MutationObserver + `panelDe()`), sin tocar ningún módulo. Pendiente:
+  probar en el navegador (mouse y dedo) en varias subventanas — sobre todo una flotante (BOM) y una con overlay
+  (Editar artículo / Documento) — y confirmar que el botón "⤢" no quede visualmente raro si la fila de título
+  tiene más de 2 elementos.
 - Archivos tocados (lo último): `js/catalogo.js`, `CLAUDE.md`, `version.json`. En "✏️ Editar artículo" de un
   granel (semiterminado), la Unidad de Medida vive más abajo en el formulario (`ORDEN_CAMPOS_PRODUCTO`) que
   Densidad y Rendimiento del lote — el usuario reportó (con captura) que tenía que scrollear para saber en
@@ -395,14 +410,15 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
     pantalla, sin salirse por completo del área visible, para destapar lo que haya detrás. Un solo mecanismo
     reutilizable para todas (`js/subventanas-movibles.js`, automático); si una subventana abre otra, cada una se
     mueve por su cuenta. Fondo: `bg-slate-950/40`, sin `backdrop-blur`.
-  - **Siempre expandibles / contraíbles** (pendiente de implementar, a petición del usuario 2026-09-25): un control
-    en la barra de título (junto a lo que ya tenga) para agrandar la subventana (más alto/ancho, o pantalla casi
-    completa) y volver a su tamaño normal — para las que traen tablas o formularios largos y hoy solo se puede
-    hacer scroll adentro de un recuadro chico. Igual que "movibles": un solo mecanismo reutilizable para todas
-    (candidato natural: ampliar `js/subventanas-movibles.js`, mismo patrón de detección automática por
-    `div.fixed.inset-0` / `div.fixed.rounded-2xl`), no repetirlo módulo por módulo. Antes de programarlo: grep de
-    los patrones de subventana existentes y mostrar el plan (igual que cualquier función), por el volumen de
-    pantallas que toca.
+  - **Siempre estirables (esquina) y maximizables/restaurables** (a petición del usuario 2026-09-25): manija en la
+    esquina inferior derecha para estirar el panel a mano (ancho y alto libres, con mínimo), y botón "⤢" en la
+    barra de título que maximiza (casi pantalla completa) y restaura el tamaño original con el mismo botón ("⤡").
+    Mismo mecanismo automático que "movibles" (`js/subventanas-movibles.js`, sin tocar cada módulo): el tamaño
+    original de cada panel se guarda la primera vez que se toca (estirón o maximizar) y "Restaurar" siempre
+    regresa a ESE, aunque de por medio haya habido un estirón a mano. Las subventanas flotantes que se
+    autoposicionan (`top`/`left`/`transform`, ej. "Editar o ver BOM") también se reubican al maximizar para no
+    salirse de la pantalla; las que centra su overlay (`flex items-center justify-center`) se recentran solas al
+    cambiar de tamaño.
 
 ## Estado del proyecto (módulos clave)
 
