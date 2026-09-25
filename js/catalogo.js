@@ -2690,6 +2690,15 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
             const contGuia = document.createElement('div');
             contGuia.id = 'rcGuiaGranel';
             cuerpo.prepend(contGuia);
+            // Justo antes del campo "Densidad" (a todo lo ancho): declara en qué Unidad de Medida quedó el
+            // artículo, porque ese selector vive más abajo (ORDEN_CAMPOS_PRODUCTO) y sin esto Densidad y
+            // Rendimiento del lote se capturan "a ciegas" sin ver qué unidad aplica.
+            const campoDens = cuerpo.querySelector('#rc_densidad_kg_l');
+            const contUnidad = document.createElement('div');
+            contUnidad.id = 'rcUnidadDeclarada';
+            contUnidad.className = 'sm:col-span-2';
+            if (campoDens?.parentElement) campoDens.parentElement.insertAdjacentElement('beforebegin', contUnidad);
+            else cuerpo.appendChild(contUnidad);
             // Justo debajo del campo "Rendimiento del lote", a todo lo ancho: ahí es donde se decide el número.
             const campoRend = cuerpo.querySelector('#rc_rendimiento_lote_bom');
             const contAn = document.createElement('div');
@@ -2700,6 +2709,9 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
 
             const pintarGranel = () => {
                 const uniProd = mapaUni.get(String(val('unidad_medida_id', art.unidad_medida_id) ?? '')) || '';
+                contUnidad.innerHTML = uniProd
+                    ? `<p class="text-[11px] bg-sky-950/40 border border-sky-800/60 text-sky-300 rounded-lg px-2.5 py-1.5">📏 Unidad de medida preseleccionada: <b>${escaparHtml(uniProd)}</b> — Densidad y Rendimiento del lote (de abajo) se declaran en esa unidad.</p>`
+                    : `<p class="text-[11px] bg-amber-950/40 border border-amber-800/60 text-amber-300 rounded-lg px-2.5 py-1.5">⚠ Aún sin Unidad de Medida — elígela abajo primero: Densidad y Rendimiento del lote dependen de ella.</p>`;
                 const res = calcular(uniProd);
                 const rend = val('rendimiento_lote_bom', art.rendimiento_lote_bom);
                 // Densidad vacía: se llena sola con la de la mezcla (se guarda con "Guardar cambios").

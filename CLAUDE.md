@@ -4,6 +4,17 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/catalogo.js`, `CLAUDE.md`, `version.json`. En "✏️ Editar artículo" de un
+  granel (semiterminado), la Unidad de Medida vive más abajo en el formulario (`ORDEN_CAMPOS_PRODUCTO`) que
+  Densidad y Rendimiento del lote — el usuario reportó (con captura) que tenía que scrollear para saber en
+  qué unidad estaba capturando esos dos campos. Nuevo banner `rcUnidadDeclarada`, justo antes del campo
+  Densidad ("📏 Unidad de medida preseleccionada: **X**..."), que se actualiza solo (`pintarGranel`) si cambian
+  Unidad de Medida, Tipo, Rendimiento o Cuenta — mismo patrón que la guía/análisis que ya estaban ahí. También
+  se agregó a Convenciones (`CLAUDE.md`) la regla "subventanas siempre expandibles/contraíbles" (a petición del
+  usuario) — **solo quedó documentada, no implementada todavía** (candidato: ampliar
+  `js/subventanas-movibles.js`, mismo mecanismo automático que "movibles"). Pendiente: probar el banner nuevo
+  en el navegador; programar expandir/contraer cuando el usuario lo pida (requiere su propio plan, toca todas
+  las subventanas).
 - Archivos tocados (lo último): `index.html`, `js/catalogo.js`, `js/kardex.js`, `js/app.js`, `js/indice.js`,
   `version.json`. A petición del usuario ("cuando estoy dando de alta un artículo, lo único que vea en la
   pantalla sea el menú de acciones para lograrlo" + fusionar Kardex con el Catálogo general "porque
@@ -384,6 +395,14 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
     pantalla, sin salirse por completo del área visible, para destapar lo que haya detrás. Un solo mecanismo
     reutilizable para todas (`js/subventanas-movibles.js`, automático); si una subventana abre otra, cada una se
     mueve por su cuenta. Fondo: `bg-slate-950/40`, sin `backdrop-blur`.
+  - **Siempre expandibles / contraíbles** (pendiente de implementar, a petición del usuario 2026-09-25): un control
+    en la barra de título (junto a lo que ya tenga) para agrandar la subventana (más alto/ancho, o pantalla casi
+    completa) y volver a su tamaño normal — para las que traen tablas o formularios largos y hoy solo se puede
+    hacer scroll adentro de un recuadro chico. Igual que "movibles": un solo mecanismo reutilizable para todas
+    (candidato natural: ampliar `js/subventanas-movibles.js`, mismo patrón de detección automática por
+    `div.fixed.inset-0` / `div.fixed.rounded-2xl`), no repetirlo módulo por módulo. Antes de programarlo: grep de
+    los patrones de subventana existentes y mostrar el plan (igual que cualquier función), por el volumen de
+    pantallas que toca.
 
 ## Estado del proyecto (módulos clave)
 
