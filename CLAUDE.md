@@ -4,6 +4,39 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-10-27_anticipo_proveedores.sql` (nuevo), `js/ordenes-compra.js`, `version.json`.
+  Bug reportado: "Recibir mercancía" siempre generaba póliza de Egreso, hasta en compras a crédito (nunca hay salida real
+  de banco ahí — debería ser Diario). Causa: `contabilizar_compra()` traía `'tipo', 'Egreso'` fijo. Ampliado a un módulo
+  completo de **Anticipo a proveedores** (el usuario paga la OC 7 días antes de recibir la factura — flujo real, sin
+  soporte hasta ahora): cuenta nueva `109.01` Anticipos a proveedores; `pagos_proveedor_aplicaciones` gana tipos
+  `anticipo_oc` (el pago, ligado a la OC) y `anticipo_aplicado` (su rastro al consumirse en una recepción, con candado
+  de integridad); RPC `pagar_anticipo_oc()` (Cargo 109.01/Abono banco, Egreso); `contabilizar_compra()` reescrita para
+  **siempre** reconocer el pasivo COMPLETO en 201.01 al recibir (nunca lo salta, así el proveedor no desaparece de su
+  auxiliar aunque el neto sea $0) y cancelarlo por la vía que corresponda: anticipo disponible de esa OC, luego banco si
+  se paga ahí mismo, resto a crédito si sobra. Tipo de póliza ya NO depende del combo Contado/Crédito: Egreso solo si
+  ESA póliza abona banco por algo, si no Diario. `cancelar_pago_proveedor()` no deja cancelar un anticipo ya aplicado a
+  una recepción; `cancelar_recibo_inventario()` libera el anticipo si se cancela esa recepción. Vista `v_anticipos_oc`
+  (pagado/aplicado/disponible por OC) + botón "💰 Anticipo" en Órdenes de compra (visible en `abierta`/`recibida_parcial`,
+  antes de recibir) con badge del saldo disponible. `v_cuentas_por_pagar` (compras) suma el filtro `estado <> 'cancelado'`
+  que le faltaba. 3 escenarios (anticipo 100%, parcial+crédito, parcial+resto contado) simulados y probados en Postgres
+  local con números reales — cuadran cargo=abono y el tipo de póliza sale correcto en los tres. Nueva regla en
+  Convenciones: toda propuesta de contabilidad debe apegarse a NIF, no solo "que cuadre". Completado en la misma sesión
+  (a petición del usuario, "no dejes nada pendiente"): `js/trazabilidad.js` — "🔗 Antecedentes de proceso" ahora inserta
+  un paso "Anticipo(s) pagado(s) — antes de recibir" entre la Orden de compra y la Recepción (monto, fecha, póliza,
+  disponible/aplicado), solo si la OC tiene alguno. `js/auxiliar-anticipos.js` (nuevo) — pestaña "Auxiliar de Anticipos
+  a proveedores" en Reportes contables (`js/contabilidad.js`): lista cada anticipo por proveedor (OC, póliza, pagado,
+  aplicado con el documento al que se aplicó, disponible, estatus) + "Cuadre" contra el saldo real de 109.01 en la
+  balanza (mismo patrón que el Auxiliar de inventarios). También se agregó `sql/2026-10-28_diagnostico_migraciones_
+  pendientes2.sql` (solo lectura, continúa a `…10-16_…`) para verificar qué migraciones de 2026-09-24c en adelante ya
+  están corridas — corrido por el usuario: solo faltó `sql/2026-10-27_anticipo_proveedores.sql` (nueva, todavía sin correr) y
+  ya se corrigió el nombre del archivo (nació como `2026-09-25_…`, mal ubicado en la cronología del repo; se renombró a
+  `2026-10-27_…` y se actualizaron sus referencias). Pendiente: correr `sql/2026-10-27_anticipo_proveedores.sql` y probar
+  el botón "💰 Anticipo" + las dos pantallas nuevas en el navegador.
+- Archivos tocados (lo último): `js/catalogo.js`. En "Editar artículo" (editor genérico) y en el formulario de alta/edición,
+  Densidad, Rendimiento del lote y Requiere caducidad se ocultan cuando el Tipo es Producto terminado (no aplican: el
+  granel ya llega en la unidad que pide su BOM). Clave SAT de "Claves de proveedor": si se deja vacía, toma la del
+  producto (arriba) en vez de volver a preguntarla; solo se escribe aparte si ese proveedor la reporta distinta.
+  Pendiente: probar en el navegador, "comitea" cuando se apruebe subir.
 - Archivos tocados (lo último): `js/catalogo.js`, `version.json`. Catálogo no abría ("Cannot access 'ultimoResForm' before
   initialization"): `sincronizarAbastecimiento()` corre al abrir y usaba la variable antes de su `let`; se subió la
   declaración junto a `productoSeleccionadoId`. Pendiente: que el usuario recargue (Ctrl+Shift+R si sigue).
@@ -167,6 +200,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `activos-fijos.js` — activos fijos y depreciación (NIF C-6, línea recta): catálogo + corrida mensual con póliza.
 - `auditoria-inventario.js` — auditorías de inventario (toma física) lado admin: crear, ver avance/resultado,
   cerrar/reabrir (la captura la hace el operador en `conteo-inventario.html`).
+- `auxiliar-anticipos.js` — Reportes contables → "Auxiliar de Anticipos a proveedores": cada anticipo pagado a una
+  OC antes de recibir (pagado/aplicado/disponible, con el documento al que se aplicó) + cuadre contra la cuenta 109.01.
 - `auxiliar-inventarios.js` — Reportes contables → "Auxiliar de inventarios (valorizado)": kardex valorizado por
   artículo/clasificación/cuenta + cuadre contra la balanza de cada cuenta de inventario.
 - `auth.js` — login del admin (los empleados no pasan por aquí) + bitácora de inicio/cierre de sesión.
@@ -283,6 +318,9 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   subventana, subir el `z-index` de la nueva (ver `lnkDoc`/`lnkPol` en `ordenes-produccion.js`).
 - **Pólizas se muestran como tipo + número** ("Egreso #34", el consecutivo por tipo), NUNCA con el id interno global
   (`polizas.id`): en enlaces usar `linkPoliza` / `data-pol-id` y en mensajes `etiquetaPoliza()` (`js/enlaces-reporte.js`).
+- **Contabilidad y NIF**: toda propuesta o cambio relacionado con contabilidad (pólizas, cuentas, tipo Ingreso/Egreso/Diario,
+  cuándo se reconoce un pasivo vs. cuándo sale efectivo, anticipos, etc.) debe apegarse a los principios de contabilidad y
+  las NIF — no solo "que cuadre" en pantalla. Si hay duda de criterio, decirlo explícito antes de proponer, no asumir.
 - **Cancelar = contra-asiento**: una póliza cancelada sigue contando para saldos junto con su reverso (se neutralizan);
   nunca filtrar solo `estatus = 'contabilizada'` al sumar saldos — usar `enSaldo` (`js/polizas-saldo.js`) o
   `poliza_en_saldo()` en SQL.

@@ -364,6 +364,18 @@ async function ocRenderLista() {
             ocsConSaldo = new Set((cxp || []).map(x => x.orden_compra_id));
         } catch (_) { /* si la vista no existe, no se oculta el botón (mejor mostrarlo de más que de menos) */ }
 
+        // Anticipo disponible por OC (pagado antes de recibir) — requiere
+        // sql/2026-10-27_anticipo_proveedores.sql; sin la vista, simplemente
+        // no se muestra el badge (no bloquea el resto de la pantalla).
+        let anticiposPorOc = new Map();
+        try {
+            const { data: ant } = await supabaseClient
+                .from('v_anticipos_oc')
+                .select('orden_compra_id, disponible')
+                .in('orden_compra_id', data.map(o => o.id));
+            anticiposPorOc = new Map((ant || []).map(x => [x.orden_compra_id, Number(x.disponible) || 0]));
+        } catch (_) {}
+
         data.forEach(o => {
             const det = o.ordenes_compra_detalle || [];
             o._total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0), 0);
@@ -395,12 +407,15 @@ async function ocRenderLista() {
                   const total = o._total;
                   const pct = o._pct;
                   const puedeRecibir = o.estatus === 'abierta' || o.estatus === 'recibida_parcial';
+                  const anticipoDisp = anticiposPorOc.get(o.id) || 0;
                   return `
                     <tr class="border-b border-slate-900">
                       <td class="p-2 whitespace-nowrap">
                         ${puedeRecibir ? `<button type="button" onclick="window.irARecibirOC(${o.id})" class="text-[11px] bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-1 rounded">Recibir</button>` : ''}
+                        ${puedeRecibir ? `<button type="button" onclick="window.ocAnticipo(${o.id})" class="text-[11px] bg-amber-700 hover:bg-amber-600 text-white px-2 py-1 rounded ml-1">💰 Anticipo</button>` : ''}
                         ${(o.estatus === 'recibida' || o.estatus === 'recibida_parcial') && ocsConSaldo.has(o.id) ? `<button type="button" onclick="window.ocPagar(${o.id})" class="text-[11px] bg-sky-700 hover:bg-sky-600 text-white px-2 py-1 rounded ml-1">Pagar</button>` : ''}
                         ${o.estatus === 'abierta' ? `<button type="button" onclick="window.ocCancelar(${o.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded ml-1">Cancelar</button>` : ''}
+                        ${anticipoDisp > 0 ? `<div class="text-[10px] text-amber-300 mt-0.5">Anticipo disponible: ${money(anticipoDisp)}</div>` : ''}
                       </td>
                       <td class="p-2"><button type="button" onclick="window.verDetalleOC(${o.id})" class="font-mono text-emerald-300 hover:underline hover:text-emerald-200 text-left">${esc(o.folio || '#' + o.id)}</button></td>
                       <td class="p-2">${esc(o.proveedores?.nombre || '—')}</td>
@@ -796,6 +811,91 @@ window.irARecibirOC = (id) => {
     ocRecibirId = Number(id);
     window.loadView('recibo-mercancia');
 };
+
+// Anticipo pagado ANTES de recibir la mercancía (Tesorería adelanta a este
+// proveedor, la factura llega días después). Cargo 109.01 Anticipo a
+// proveedores / Abono banco — póliza de Egreso. Al recibir, se aplica solo
+// contra el pasivo que se reconozca (contabilizar_compra ya lo resuelve).
+// Requiere sql/2026-10-27_anticipo_proveedores.sql.
+window.ocAnticipo = async (id) => {
+    let oc, ctasPago = [];
+    try {
+        const [{ data: o, error: eOc }, { data: ctas, error: eCta }] = await Promise.all([
+            supabaseClient.from('ordenes_compra').select('id, folio, proveedor_id, estatus, proveedores ( nombre )').eq('id', id).single(),
+            supabaseClient.from('cuentas_contables').select('id, codigo, nombre').eq('afectable', true).eq('activa', true).order('codigo'),
+        ]);
+        if (eOc) throw eOc;
+        if (eCta) throw eCta;
+        oc = o;
+        ctasPago = (ctas || []).filter((c) => /^(101|102)/.test(c.codigo));
+    } catch (e) {
+        alert('No se pudo cargar la orden de compra: ' + (e.message || e));
+        return;
+    }
+
+    let saldoAnticipo = 0;
+    try {
+        const { data } = await supabaseClient.from('v_anticipos_oc').select('disponible').eq('orden_compra_id', id).maybeSingle();
+        if (data) saldoAnticipo = Number(data.disponible) || 0;
+    } catch (_) { /* falta la migración: no bloquea, solo no se muestra el aviso */ }
+
+    const optCta = '<option value="">— caja / banco —</option>' + ctasPago.map((c) => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
+
+    rmMostrarModal(`
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-md w-full">
+        <h3 class="text-base font-bold text-slate-100 mb-1">💰 Pagar anticipo — ${esc(oc.folio || '#' + oc.id)}</h3>
+        <p class="text-xs text-slate-400 mb-3">Proveedor: ${esc(oc.proveedores?.nombre || '—')}. Se paga ANTES de recibir la mercancía; al recibirla, este anticipo se aplica solo contra el pasivo que se reconozca.
+        ${saldoAnticipo > 0 ? `<br><span class="text-emerald-400">Ya tiene ${money(saldoAnticipo)} de anticipo disponible sin aplicar.</span>` : ''}</p>
+        <div class="space-y-2">
+          <div><label class="block text-[10px] text-slate-400 mb-1">Fecha</label>
+            <input type="date" id="ocAntFecha" value="${hoyISO()}" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
+          <div><label class="block text-[10px] text-slate-400 mb-1">Monto a pagar</label>
+            <input type="number" step="0.01" min="0.01" id="ocAntMonto" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono"></div>
+          <div><label class="block text-[10px] text-slate-400 mb-1">Cuenta (banco / caja)</label>
+            <select id="ocAntCuenta" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${optCta}</select></div>
+          <div><label class="block text-[10px] text-slate-400 mb-1">Forma de pago</label>
+            <select id="ocAntForma" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+              <option value="">—</option><option>transferencia</option><option>efectivo</option><option>cheque</option><option>tarjeta</option></select></div>
+          <div><label class="block text-[10px] text-slate-400 mb-1">Referencia</label>
+            <input type="text" id="ocAntRef" placeholder="No. de transferencia / cheque" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
+        </div>
+        <p id="ocAntMsg" class="text-xs mt-2 min-h-[1rem] text-rose-400"></p>
+        <div class="flex justify-end gap-2 mt-3">
+          <button type="button" onclick="window.ocAntCerrar()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg">Cancelar</button>
+          <button type="button" id="ocAntGuardar" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg">Registrar pago</button>
+        </div>
+      </div>`);
+
+    document.getElementById('ocAntGuardar').onclick = async () => {
+        const msg = document.getElementById('ocAntMsg');
+        const monto = parseFloat(document.getElementById('ocAntMonto').value);
+        const cuenta = document.getElementById('ocAntCuenta').value;
+        if (!(monto > 0)) { msg.textContent = 'Captura un monto mayor a cero.'; return; }
+        if (!cuenta) { msg.textContent = 'Elige la cuenta de banco / caja.'; return; }
+        const btn = document.getElementById('ocAntGuardar');
+        btn.disabled = true;
+        try {
+            const { data, error } = await supabaseClient.rpc('pagar_anticipo_oc', {
+                p_oc_id: Number(id),
+                p_datos: {
+                    fecha: document.getElementById('ocAntFecha').value || hoyISO(),
+                    monto,
+                    cuenta_pago_id: Number(cuenta),
+                    forma_pago: document.getElementById('ocAntForma').value || null,
+                    referencia: document.getElementById('ocAntRef').value.trim() || null,
+                },
+            });
+            if (error) throw error;
+            alert(`✅ Anticipo pagado por ${money(data.total)}. Póliza de Egreso generada.`);
+            window.ocAntCerrar();
+            await ocRenderLista();
+        } catch (e) {
+            msg.textContent = 'No se pudo registrar el anticipo: ' + (e.message || e);
+            btn.disabled = false;
+        }
+    };
+};
+window.ocAntCerrar = () => rmOcultarModal();
 
 // Ir a Cuentas por pagar con las compras de esta OC preseleccionadas.
 window.ocPagar = (id) => {

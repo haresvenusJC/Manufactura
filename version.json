@@ -1,5 +1,5 @@
 {
- "v": "20260924194805",
+ "v": "20260925005751",
  "modulos": [
   "activos-fijos.js",
   "app.js",
@@ -7,6 +7,7 @@
   "asistente-contable.js",
   "auditoria-inventario.js",
   "auth.js",
+  "auxiliar-anticipos.js",
   "auxiliar-inventarios.js",
   "bancos-tesoreria.js",
   "bienvenida.js",

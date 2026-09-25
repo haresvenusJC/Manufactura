@@ -260,7 +260,7 @@ export async function cargarCatalogoInicial() {
                             </div>
                         </div>
 
-                        <label class="flex items-start gap-2 text-xs text-slate-300 bg-slate-900/40 border border-slate-800 rounded-lg px-3 py-2">
+                        <label id="bloqueProdCaducidad" class="flex items-start gap-2 text-xs text-slate-300 bg-slate-900/40 border border-slate-800 rounded-lg px-3 py-2">
                             <input type="checkbox" id="prodRequiereCaducidad" class="accent-emerald-500 w-4 h-4 mt-0.5 shrink-0">
                             <span>Requiere control de <strong>caducidad</strong> — al recibir cada lote se pedirá la fecha de vencimiento y ese lote entrará a las alertas de caducidad. Déjalo sin marcar para materias primas / insumos que no caducan.</span>
                         </label>
@@ -298,13 +298,13 @@ export async function cargarCatalogoInicial() {
                                     <p class="text-[10px] text-slate-500 mt-0.5">La del producto en sí. También se llena sola al importar facturas XML de tus proveedores.</p>
                                 </div>
 
-                                <div>
+                                <div id="bloqueProdDensidad">
                                     <label class="block text-[11px] text-slate-400 mb-1">Densidad (kg por litro)</label>
                                     <input type="number" step="0.0001" min="0" id="prodDensidad" placeholder="Ej. 1.26 (déjalo vacío si no aplica)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
                                     <p class="text-[10px] text-slate-500 mt-0.5">Solo para insumos cuya fórmula (BOM) está en volumen (Litros/mL) pero se llevan en inventario por peso (Kilogramos/gramos), o al revés. Con ella, Producción convierte bien cuánto pedir y descontar; sin ella, se toma como agua (1 kg/L) y se avisa. Ej.: Glicerina Vegetal Usp = 1.26 (la fórmula dice 13.7 L y se descuentan 17.262 kg). <b class="text-slate-400">En un granel se calcula sola</b> con su fórmula (densidad de la mezcla) al capturar el BOM; si la cambias a mano, se respeta.</p>
                                 </div>
 
-                                <div>
+                                <div id="bloqueProdRendimientoLote">
                                     <label class="block text-[11px] text-slate-400 mb-1">Rendimiento del lote (para el BOM)</label>
                                     <input type="number" step="0.0001" min="0" id="prodRendimientoLote" placeholder="Déjalo vacío si el BOM ya está por 1 unidad" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
                                     <p class="text-[10px] text-slate-500 mt-0.5"><b class="text-slate-400">Para graneles:</b> cuántos Litros (o Kilos, según la Unidad de Medida de arriba) salen de UNA tanda de la fórmula del BOM — lo que mides en el tanque al terminar. Ej.: Granel Aceite Sey Fresa Kiwi → <b>15</b>. Luego en Producción, "CANTIDAD A PRODUCIR" va en esa misma unidad: 15 = 1 tanda, 30 = 2 tandas, 7.5 = media. Vacío = el BOM está escrito para 1 unidad (ej. 1 pieza de producto terminado); si dejas vacío un granel cuya fórmula es de tanda, Producción pide los insumos multiplicados de más.</p>
@@ -343,7 +343,7 @@ export async function cargarCatalogoInicial() {
                         <details id="detClavesProv" class="bg-slate-900/40 border border-slate-800 rounded-lg">
                             <summary class="cursor-pointer select-none text-xs font-semibold text-sky-400 px-3 py-2">Claves de proveedor (para importar facturas XML)</summary>
                             <div class="p-3 pt-0 space-y-2">
-                                <p class="text-[10px] text-slate-500">Cómo identifica y vende cada proveedor este producto — su código, descripción y presentación. Puedes guardar varias, una por proveedor.</p>
+                                <p class="text-[10px] text-slate-500">Cómo identifica y vende cada proveedor este producto — su código, descripción y presentación. Puedes guardar varias, una por proveedor. La Clave SAT no se vuelve a pedir: si la dejas vacía, usa la de arriba; solo escríbela aparte si ese proveedor la reporta distinta en su factura.</p>
                                 <div class="grid grid-cols-2 gap-2">
                                     <div class="col-span-2">
                                         <label class="block text-[10px] text-slate-400 mb-0.5">Proveedor</label>
@@ -355,7 +355,7 @@ export async function cargarCatalogoInicial() {
                                     </div>
                                     <div>
                                         <label class="block text-[10px] text-slate-400 mb-0.5">Clave SAT (ClaveProdServ)</label>
-                                        <input type="text" id="cpClaveSat" placeholder="Opcional · 8 dígitos" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                                        <input type="text" id="cpClaveSat" placeholder="Vacío = igual a la del producto (arriba)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
                                     </div>
                                     <div class="col-span-2">
                                         <label class="block text-[10px] text-slate-400 mb-0.5">Descripción en la factura</label>
@@ -508,6 +508,13 @@ export async function cargarCatalogoInicial() {
             const comprado = esProducto && inputAbast.value === 'comprado';
             // "¿Cómo se obtiene?" solo aplica a Producto terminado (el semiterminado no lo pregunta)
             bloqueAbast.classList.toggle('hidden', !esProducto);
+            // Densidad y Rendimiento del lote son para lo que se fabrica en granel (semiterminado,
+            // o materia prima/insumo cuya fórmula se convierte) — un Producto terminado ya recibe
+            // el granel en la unidad que necesita su BOM, no aplica.
+            document.getElementById('bloqueProdDensidad')?.classList.toggle('hidden', esProducto);
+            document.getElementById('bloqueProdRendimientoLote')?.classList.toggle('hidden', esProducto);
+            // Control de caducidad tampoco se pregunta para Producto terminado en esta pantalla.
+            document.getElementById('bloqueProdCaducidad')?.classList.toggle('hidden', esProducto);
             const llevaBom = semi || (esProducto && !comprado);
             seccionBomContainer.classList.toggle('hidden', !llevaBom);
             if (!llevaBom) {
@@ -952,7 +959,9 @@ export async function cargarCatalogoInicial() {
                     proveedorId,
                     proveedorNombre,
                     clave,
-                    claveSat: document.getElementById('cpClaveSat').value.trim(),
+                    // Vacío = usa la Clave SAT del producto (arriba); solo se escribe aparte cuando
+                    // ESE proveedor la reporta distinta en su factura (pasa: cada quien clasifica a su modo).
+                    claveSat: document.getElementById('cpClaveSat').value.trim() || document.getElementById('prodClaveSat').value.trim(),
                     descFactura: document.getElementById('cpDescFactura').value.trim(),
                     unidadFactura,
                     factorConversion,
@@ -2515,8 +2524,13 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
         // (ver checkbox #rc_activo), siempre visible sin importar el scroll.
         // El resto sigue el orden lógico de ORDEN_CAMPOS_PRODUCTO; los de
         // solo lectura (id, created_at, updated_at) siempre al final.
+        // Densidad, Rendimiento del lote y Requiere caducidad no aplican a Producto terminado
+        // (ver bloqueProdDensidad/bloqueProdRendimientoLote/bloqueProdCaducidad en el formulario
+        // de alta): el granel ya llega en la unidad que pide su BOM.
+        const camposOcultosPorTipo = art.tipo === 'producto'
+            ? new Set(['densidad_kg_l', 'rendimiento_lote_bom', 'requiere_caducidad']) : new Set();
         const claves = Object.keys(art)
-            .filter((c) => c !== 'activo' && !CAMPOS_OCULTOS_PRODUCTO.has(c))
+            .filter((c) => c !== 'activo' && !CAMPOS_OCULTOS_PRODUCTO.has(c) && !camposOcultosPorTipo.has(c))
             .sort((a, b) => {
                 const soloLecturaA = CAMPOS_NO_EDITABLES_PRODUCTO.has(a);
                 const soloLecturaB = CAMPOS_NO_EDITABLES_PRODUCTO.has(b);

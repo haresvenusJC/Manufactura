@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { linkPoliza } from './enlaces-reporte.js';
 
 // =====================================================================
 //  Antecedentes de proceso: Requisición → Orden de compra → Documento(s)
@@ -10,6 +11,7 @@ import { supabaseClient } from './supabase.js';
 // =====================================================================
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const REQ_ESTATUS = {
     pendiente: 'text-amber-300 bg-amber-950/40',
@@ -60,7 +62,7 @@ export async function abrirAntecedentes(ordenCompraId) {
 
     const cuerpo = document.getElementById('cuerpoAntecedentes');
     try {
-        const [oc, req, docs] = await Promise.all([
+        const [oc, req, docs, anticipos] = await Promise.all([
             supabaseClient.from('ordenes_compra')
                 .select('id, folio, fecha, estatus, proveedores ( nombre )')
                 .eq('id', ordenCompraId).single(),
@@ -71,8 +73,26 @@ export async function abrirAntecedentes(ordenCompraId) {
                 .select('id, folio, fecha_emision, estado, poliza_id, tipo_movimiento')
                 .eq('orden_compra_id', ordenCompraId)
                 .order('id', { ascending: true }),
+            // Anticipo(s) pagados a esta OC antes de recibir (2026-09-25) —
+            // si la migración no ha corrido, la tabla igual existe (es de
+            // pagos_proveedor_aplicaciones, 2026-09-02) solo faltan las
+            // columnas nuevas; se degrada solo con el catch de abajo.
+            supabaseClient.from('pagos_proveedor_aplicaciones')
+                .select('id, monto, pago_id, pagos_proveedor ( id, fecha, poliza_id, estatus, referencia )')
+                .eq('tipo', 'anticipo_oc').eq('orden_compra_id', ordenCompraId)
+                .then((r) => r).catch(() => ({ data: [], error: null })),
         ]);
         if (oc.error) throw oc.error;
+
+        // Cuánto de cada anticipo ya se aplicó (a esta u otra recepción de
+        // la misma OC, si se recibió en partes).
+        let aplicadoPorAnticipo = new Map();
+        const idsAnticipos = (anticipos?.data || []).map((a) => a.id);
+        if (idsAnticipos.length) {
+            const { data: apls } = await supabaseClient.from('pagos_proveedor_aplicaciones')
+                .select('aplicacion_origen_id, monto').eq('tipo', 'anticipo_aplicado').in('aplicacion_origen_id', idsAnticipos);
+            (apls || []).forEach((a) => aplicadoPorAnticipo.set(a.aplicacion_origen_id, (aplicadoPorAnticipo.get(a.aplicacion_origen_id) || 0) + Number(a.monto || 0)));
+        }
 
         const paso = (titulo, contenidoHtml) => `
             <div class="border border-slate-800 rounded-lg p-3">
@@ -96,6 +116,24 @@ export async function abrirAntecedentes(ordenCompraId) {
                </div>
                <p class="text-[11px] text-slate-500 mt-1">${o.fecha || ''} · ${esc(o.proveedores?.nombre || 'sin proveedor')}</p>`;
 
+        const htmlAnticipos = (anticipos?.data || []).map((a) => {
+            const p = a.pagos_proveedor;
+            const aplicado = aplicadoPorAnticipo.get(a.id) || 0;
+            const disponible = Math.round((Number(a.monto || 0) - aplicado) * 100) / 100;
+            return `
+                <div class="flex items-center justify-between gap-2 flex-wrap py-1.5 border-b border-slate-800 last:border-0">
+                    <div>
+                        <span class="text-sm text-slate-200">${money(a.monto)}</span>
+                        <span class="text-[11px] text-slate-500 ml-1">${p?.fecha || ''}${p?.referencia ? ' · ' + esc(p.referencia) : ''}</span>
+                        ${p?.estatus === 'cancelado' ? '<span class="text-[10px] text-rose-400 font-semibold ml-1">CANCELADO</span>' : ''}
+                    </div>
+                    <div class="flex items-center gap-2">
+                        ${disponible > 0 ? `<span class="text-[10px] text-amber-300">Disponible ${money(disponible)}</span>` : (p?.estatus !== 'cancelado' ? '<span class="text-[10px] text-emerald-400">Aplicado</span>' : '')}
+                        ${p?.poliza_id ? linkPoliza(p.poliza_id, 'font-mono text-sky-300 text-[10px]') : ''}
+                    </div>
+                </div>`;
+        }).join('');
+
         const htmlDocs = (docs.data && docs.data.length)
             ? docs.data.map(d => `
                 <div class="flex items-center justify-between gap-2 flex-wrap py-1.5 border-b border-slate-800 last:border-0">
@@ -107,12 +145,14 @@ export async function abrirAntecedentes(ordenCompraId) {
                 </div>`).join('')
             : `<p class="text-xs text-slate-500 italic">Todavía no se ha recibido nada contra esta orden.</p>`;
 
+        const flecha = '<div class="text-center text-slate-600 text-lg leading-none">↓</div>';
         cuerpo.innerHTML = `
             ${paso('1 · Requisición de compra', htmlReq)}
-            <div class="text-center text-slate-600 text-lg leading-none">↓</div>
+            ${flecha}
             ${paso('2 · Orden de compra', htmlOc)}
-            <div class="text-center text-slate-600 text-lg leading-none">↓</div>
-            ${paso('3 · Recepción / entrada de mercancía', htmlDocs)}
+            ${htmlAnticipos ? flecha + paso('3 · Anticipo(s) pagado(s) — antes de recibir', htmlAnticipos) : ''}
+            ${flecha}
+            ${paso(`${htmlAnticipos ? '4' : '3'} · Recepción / entrada de mercancía`, htmlDocs)}
         `;
     } catch (err) {
         cuerpo.innerHTML = `<p class="text-rose-400 text-xs">Error al consultar los antecedentes: ${esc(err.message || err)}</p>`;

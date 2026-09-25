@@ -5,6 +5,7 @@ import { parsearCfdi, formaPagoSimple, extraerTextoPdf, parsearCfdiPdf } from '.
 import { REGIMENES } from './proveedores.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { prepararFiltrosAuxInv, generarAuxInventarios } from './auxiliar-inventarios.js';
+import { prepararFiltrosAuxAnt, generarAuxAnticipos } from './auxiliar-anticipos.js';
 import { ESTATUS_CONSULTA, traerReversos, enSaldo } from './polizas-saldo.js';
 
 // =====================================================================
@@ -1915,6 +1916,20 @@ async function rcGenerarAuxInv() {
         document.getElementById('rcDesde').value, document.getElementById('rcHasta').value);
 }
 
+// Auxiliar de Anticipos a proveedores: filtros y reporte viven en js/auxiliar-anticipos.js.
+async function rcPrepararFiltrosAuxAnt() {
+    const caja = document.getElementById('rcAuxAntFiltros');
+    if (!caja) return;
+    const activo = rcTab === 'auxant';
+    caja.classList.toggle('hidden', !activo);
+    caja.classList.toggle('flex', activo);
+    if (activo) await prepararFiltrosAuxAnt(caja, rcGenerarAuxAnt);
+}
+async function rcGenerarAuxAnt() {
+    try { await rcCargarCtasAux(); } catch (_) { /* solo da nombre a las cuentas en la subventana de póliza */ }
+    await generarAuxAnticipos(document.getElementById('rcResultado'), document.getElementById('rcHasta').value);
+}
+
 async function rcGenerarAuxiliar() {
     const res = document.getElementById('rcResultado');
     const desde = document.getElementById('rcDesde').value;
@@ -2081,6 +2096,8 @@ export async function cargarModuloReportesContables() {
             </div>
             <!-- Filtros del Auxiliar de inventarios (js/auxiliar-inventarios.js; solo se ven en esa pestaña) -->
             <div id="rcAuxInvFiltros" class="hidden items-end gap-3 flex-wrap"></div>
+            <!-- Filtros del Auxiliar de Anticipos a proveedores (js/auxiliar-anticipos.js; solo se ven en esa pestaña) -->
+            <div id="rcAuxAntFiltros" class="hidden items-end gap-3 flex-wrap"></div>
             <button type="button" id="rcGenerar" class="text-xs bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg font-semibold cursor-pointer">Generar</button>
             <div class="ml-auto flex gap-2">
                 <button type="button" id="rcCsv" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 px-3 py-2 rounded-lg border border-slate-700 cursor-pointer">Exportar CSV</button>
@@ -2100,7 +2117,8 @@ export async function cargarModuloReportesContables() {
     document.getElementById('rcPrint').addEventListener('click', () => {
         const titulo = rcTab === 'balanza' ? 'Balanza de comprobacion' : rcTab === 'balance' ? 'Balance general'
             : rcTab === 'auxiliar' ? 'Auxiliar de cuentas contables'
-            : rcTab === 'auxinv' ? 'Auxiliar de inventarios (valorizado)' : 'Estado de resultados';
+            : rcTab === 'auxinv' ? 'Auxiliar de inventarios (valorizado)'
+            : rcTab === 'auxant' ? 'Auxiliar de Anticipos a proveedores' : 'Estado de resultados';
         imprimirConPlantilla('generico', titulo, 'rcTabla');
     });
 
@@ -2116,7 +2134,8 @@ export async function cargarModuloReportesContables() {
 function rcRenderTabs() {
     const el = document.getElementById('rcTabs');
     const tabs = [{ id: 'balanza', t: 'Balanza de comprobación' }, { id: 'resultados', t: 'Estado de resultados' }, { id: 'balance', t: 'Balance general' },
-                  { id: 'auxiliar', t: 'Auxiliar de cuentas contables' }, { id: 'auxinv', t: 'Auxiliar de inventarios (valorizado)' }];
+                  { id: 'auxiliar', t: 'Auxiliar de cuentas contables' }, { id: 'auxinv', t: 'Auxiliar de inventarios (valorizado)' },
+                  { id: 'auxant', t: 'Auxiliar de Anticipos a proveedores' }];
     el.innerHTML = tabs.map((x) => `
         <button data-tab="${x.id}" class="rc-tab text-xs font-semibold px-3 py-2 rounded-lg transition ${x.id === rcTab ? 'bg-sky-600 text-white' : 'text-slate-400 hover:bg-slate-800'}" style="cursor:pointer">${x.t}</button>`).join('');
     el.querySelectorAll('.rc-tab').forEach((b) => b.addEventListener('click', async () => {
@@ -2124,8 +2143,10 @@ function rcRenderTabs() {
         rcRenderTabs();
         await rcPrepararFiltrosAux();
         await rcPrepararFiltrosAuxInv();
+        await rcPrepararFiltrosAuxAnt();
         if (rcTab === 'auxiliar') { rcGenerarAuxiliar(); return; }
         if (rcTab === 'auxinv') { rcGenerarAuxInv(); return; }
+        if (rcTab === 'auxant') { rcGenerarAuxAnt(); return; }
         // Las demás pestañas usan la carga general; si aún no existe (se entró directo al Auxiliar), se hace ahora.
         if (!rcCache) await rcGenerar(true); else rcPintar();
     }));
@@ -2134,6 +2155,7 @@ function rcRenderTabs() {
 async function rcGenerar(forzar) {
     if (rcTab === 'auxiliar') { await rcGenerarAuxiliar(); return; }   // el Auxiliar consulta por su cuenta
     if (rcTab === 'auxinv') { await rcGenerarAuxInv(); return; }       // Auxiliar de inventarios: js/auxiliar-inventarios.js
+    if (rcTab === 'auxant') { await rcGenerarAuxAnt(); return; }       // Auxiliar de Anticipos: js/auxiliar-anticipos.js
     const desde = document.getElementById('rcDesde').value;
     const hasta = document.getElementById('rcHasta').value;
     if (!desde || !hasta) { alert('Indica el periodo.'); return; }
