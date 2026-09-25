@@ -232,7 +232,8 @@
                             <span id="flecha-catalogos" class="text-xs">▼</span>
                         </button>
                         <ul id="submenu-catalogos" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
-                            <li><button onclick="window.loadView('catalogo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Productos</button></li>
+                            <li><button onclick="window.loadView('alta-articulo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Alta de artículo</button></li>
+                            <li><button onclick="window.loadView('catalogo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Catálogo y Kardex</button></li>
                             <li><button onclick="window.loadView('proveedores')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Proveedores</button></li>
                             <li><button onclick="window.loadView('clientes')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Clientes y listas de precio</button></li>
                             <li><button onclick="window.loadView('empleados')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Empleados</button></li>
@@ -264,7 +265,6 @@
                         </button>
                         <ul id="submenu-inventario" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
                             <li><button onclick="window.loadView('inventario')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Stock General</button></li>
-                            <li><button onclick="window.loadView('kardex')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Kardex</button></li>
                             <li><button onclick="window.loadView('auditoria')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Auditoría de inventarios</button></li>
                             <li><button onclick="window.loadView('tareas', {departamento:'almacen'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Tareas de almacén</button></li>
                         </ul>
@@ -384,14 +384,25 @@
                 </div>
             </section>
 
-            <!-- Vista: Catálogo y BOM -->
-            <section id="view-catalogo" class="vista-seccion hidden space-y-4">
+            <!-- Vista: Alta de artículo (solo el formulario, sin el listado de abajo) -->
+            <section id="view-alta-articulo" class="vista-seccion hidden space-y-4">
                 <div class="flex items-center justify-between gap-2 flex-wrap">
-                    <h2 class="text-xl font-bold text-sky-400">Catálogo de Productos y BOM</h2>
+                    <h2 class="text-xl font-bold text-sky-400">Alta de artículo</h2>
                     <button type="button" onclick="window.abrirManual('#m-catalogo', 'Productos')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
                 </div>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-                    <div id="contenedorCatalogo">Cargando catálogo...</div>
+                    <div id="contenedorAltaArticulo">Cargando...</div>
+                </div>
+            </section>
+
+            <!-- Vista: Catálogo y Kardex (listado general de artículos fusionado con sus movimientos) -->
+            <section id="view-catalogo" class="vista-seccion hidden space-y-4">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-sky-400">Catálogo y Kardex</h2>
+                    <button type="button" onclick="window.abrirManual('#m-catalogo', 'Productos')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div id="contenedorCatalogoKardex">Cargando catálogo...</div>
                 </div>
             </section>
 
@@ -434,34 +445,6 @@
                     <div>
                         <h3 class="text-sm font-semibold text-slate-300 mb-2">Existencias y Lotes Detallados</h3>
                         <div id="contenedorExistenciasLote">Cargando lotes...</div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Vista: Kardex de Movimientos -->
-            <section id="view-kardex" class="vista-seccion hidden space-y-4">
-                <div class="flex items-center justify-between gap-2 flex-wrap">
-                    <h2 class="text-xl font-bold text-sky-400">📊 Kardex de Movimientos (Historial de Almacén)</h2>
-                    <button type="button" onclick="window.abrirManual('#m-kardex', 'Kardex')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
-                </div>
-
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-wrap gap-4 items-end">
-                    <div class="flex-1 min-w-[280px]">
-                        <label class="block text-xs text-slate-400 mb-1">Seleccionar Producto o Insumo:</label>
-                        <select id="selectProductoKardex" class="w-full bg-slate-950 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500">
-                            <option value="">Cargando catálogo...</option>
-                        </select>
-                    </div>
-                    <div>
-                        <button type="button" onclick="window.consultarKardexProducto()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm px-5 py-2 rounded-lg transition font-medium shadow-sm" style="cursor: pointer;">
-                            🔍 Consultar Kardex
-                        </button>
-                    </div>
-                </div>
-
-                <div id="resultadoKardex">
-                    <div class="bg-slate-900 border border-slate-800 p-8 rounded-xl text-center text-slate-500 text-sm">
-                        Selecciona un producto y haz clic en "Consultar Kardex" para ver su historial.
                     </div>
                 </div>
             </section>

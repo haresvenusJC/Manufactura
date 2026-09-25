@@ -1,5 +1,5 @@
 import { supabaseClient } from './supabase.js';
-import { irAKardexDeProducto } from './kardex.js';
+import { renderizarKardexProducto } from './kardex.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { factorConversion, tamanoTeoricoTanda, familiaDeUnidad } from './conversion-unidades.js';
 import { opcionesPresentacionHtml } from './presentaciones-proveedor.js';
@@ -53,17 +53,20 @@ async function actualizarSelectProveedores() {
     }
 }
 
-export async function cargarCatalogoInicial() {
-    const contenedor = document.getElementById('contenedorCatalogo');
+// Alta de artículo: SOLO el formulario (crear, o editar si el nombre coincide con uno
+// existente), sin el listado de abajo — pantalla dedicada para no distraer con la tabla
+// mientras se está capturando (ver "Catálogo y Kardex" para el listado general).
+export async function cargarModuloAltaArticulo() {
+    const contenedor = document.getElementById('contenedorAltaArticulo');
     if (!contenedor) {
-        console.error("No se encontró el elemento #contenedorCatalogo en el DOM.");
+        console.error("No se encontró el elemento #contenedorAltaArticulo en el DOM.");
         return;
     }
 
     try {
         if (!supabaseClient) throw new Error("Cliente Supabase no disponible.");
-        
-        contenedor.innerHTML = `<p class="text-slate-400 text-sm p-4">Cargando catálogo con arquitectura normalizada...</p>`;
+
+        contenedor.innerHTML = `<p class="text-slate-400 text-sm p-4">Cargando formulario...</p>`;
 
         // 1. Cargar unidades de medida
         let unidadesMedida = [];
@@ -422,42 +425,17 @@ export async function cargarCatalogoInicial() {
                         </form>
                     </div>
                 </details>
-
-                <div class="space-y-3">
-                    <div class="flex flex-wrap justify-between items-center gap-2">
-                        <h3 class="text-md font-semibold text-slate-300">Catálogo General de Artículos</h3>
-                        <div class="flex flex-wrap gap-2 items-center">
-                            <button type="button" id="btnExportProdXlsx" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇️ Excel</button>
-                            <button type="button" id="btnExportProdCsv" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇️ CSV</button>
-                            <button type="button" id="btnTablaDensidades" title="Kilogramos que pesa 1 litro de cada insumo — para convertir fórmulas en volumen contra inventario en peso" class="text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⚖️ Densidades</button>
-                            <button type="button" id="btnTablaUnidades" title="Ver, editar y agregar unidades de medida (Piezas, Kilogramos, Litros...)" class="text-xs bg-slate-800 hover:bg-slate-700 text-indigo-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">📏 Unidades</button>
-                        </div>
-                    </div>
-                    <input type="text" id="catBuscador" placeholder="🔍 Buscar por SKU o nombre..." value="${escaparHtml(catBusqueda)}"
-                        class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500">
-                    <div id="tablaProductosContainer">Cargando listado...</div>
-                </div>
             </div>
         `;
 
-        // "Alta de productos" arranca SIEMPRE contraído (no recuerda cómo lo dejaste)
-        // para que el Catálogo de abajo se vea completo sin desplazarte. Se abre
-        // a mano, o solo al elegir un artículo existente para editarlo.
+        // Pantalla dedicada solo al formulario: arranca abierto (antes se dejaba
+        // contraído para que el Catálogo de abajo se viera completo; ya no aplica).
         const detRegistro = document.getElementById('detRegistroProducto');
         const chevronRegistro = document.getElementById('detRegistroChevron');
-        detRegistro.open = false;
-        chevronRegistro.textContent = '▸ Abrir';
+        detRegistro.open = true;
+        chevronRegistro.textContent = '▾ Cerrar';
         detRegistro.addEventListener('toggle', () => {
             chevronRegistro.textContent = detRegistro.open ? '▾ Cerrar' : '▸ Abrir';
-        });
-
-        document.getElementById('btnExportProdCsv').addEventListener('click', () => exportarCatalogoProductos('csv'));
-        document.getElementById('btnExportProdXlsx').addEventListener('click', () => exportarCatalogoProductos('xlsx'));
-        document.getElementById('btnTablaDensidades').addEventListener('click', abrirTablaDensidades);
-        document.getElementById('btnTablaUnidades').addEventListener('click', abrirTablaUnidades);
-        document.getElementById('catBuscador').addEventListener('input', (e) => {
-            catBusqueda = e.target.value;
-            aplicarFiltroCatalogo();
         });
 
         let itemsBomTemp = [];
@@ -1192,6 +1170,80 @@ export async function cargarCatalogoInicial() {
             }
         });
 
+    } catch (err) {
+        console.error("Error crítico al inicializar el formulario de alta:", err);
+        if (contenedor) {
+            contenedor.innerHTML = `<div class="p-4 bg-red-950/40 border border-red-800 rounded-xl text-red-300 text-sm">
+                <strong>Error al cargar el formulario de alta:</strong> ${err.message || err}
+            </div>`;
+        }
+    }
+}
+
+// =====================================================================
+// Catálogo y Kardex: listado general de artículos (buscar, exportar,
+// ☰ acciones por fila) fusionado con el Kardex — al elegir "Kardex de
+// este producto" los movimientos se despliegan en esta misma pantalla,
+// sin navegar a otra vista.
+// =====================================================================
+export async function cargarModuloCatalogoKardex() {
+    const contenedor = document.getElementById('contenedorCatalogoKardex');
+    if (!contenedor) {
+        console.error("No se encontró el elemento #contenedorCatalogoKardex en el DOM.");
+        return;
+    }
+
+    try {
+        if (!supabaseClient) throw new Error("Cliente Supabase no disponible.");
+
+        contenedor.innerHTML = `<p class="text-slate-400 text-sm p-4">Cargando catálogo...</p>`;
+
+        const mapaUnidades = {};
+        const { data: resUm, error: errUm } = await supabaseClient
+            .from('unidades_medida')
+            .select('id, nombre')
+            .order('id', { ascending: true });
+        if (errUm) throw errUm;
+        (resUm || []).forEach((u) => { mapaUnidades[u.id] = u.nombre; });
+
+        contenedor.innerHTML = `
+            <div class="space-y-3">
+                <div class="flex flex-wrap justify-between items-center gap-2">
+                    <h3 class="text-md font-semibold text-slate-300">Catálogo General de Artículos</h3>
+                    <div class="flex flex-wrap gap-2 items-center">
+                        <button type="button" id="btnExportProdXlsx" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇️ Excel</button>
+                        <button type="button" id="btnExportProdCsv" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇️ CSV</button>
+                        <button type="button" id="btnTablaDensidades" title="Kilogramos que pesa 1 litro de cada insumo — para convertir fórmulas en volumen contra inventario en peso" class="text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⚖️ Densidades</button>
+                        <button type="button" id="btnTablaUnidades" title="Ver, editar y agregar unidades de medida (Piezas, Kilogramos, Litros...)" class="text-xs bg-slate-800 hover:bg-slate-700 text-indigo-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">📏 Unidades</button>
+                    </div>
+                </div>
+                <input type="text" id="catBuscador" placeholder="🔍 Buscar por SKU o nombre..." value="${escaparHtml(catBusqueda)}"
+                    class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500">
+                <div id="tablaProductosContainer">Cargando listado...</div>
+                <div id="panelKardexProducto" class="hidden mt-4 border-t border-slate-800 pt-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-sm font-semibold text-sky-400">📦 Kardex — <span id="kpxNombreProducto"></span></h3>
+                        <button type="button" id="btnCerrarKardexInline" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg border border-slate-700 cursor-pointer">✕ Cerrar</button>
+                    </div>
+                    <div id="kpxContenido"></div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('btnExportProdCsv').addEventListener('click', () => exportarCatalogoProductos('csv'));
+        document.getElementById('btnExportProdXlsx').addEventListener('click', () => exportarCatalogoProductos('xlsx'));
+        document.getElementById('btnTablaDensidades').addEventListener('click', abrirTablaDensidades);
+        document.getElementById('btnTablaUnidades').addEventListener('click', abrirTablaUnidades);
+        document.getElementById('catBuscador').addEventListener('input', (e) => {
+            catBusqueda = e.target.value;
+            aplicarFiltroCatalogo();
+        });
+        document.getElementById('btnCerrarKardexInline').addEventListener('click', () => {
+            const panel = document.getElementById('panelKardexProducto');
+            panel.classList.add('hidden');
+            document.getElementById('kpxContenido').innerHTML = '';
+        });
+
         await renderizarTablaProductos(mapaUnidades);
 
     } catch (err) {
@@ -1202,6 +1254,18 @@ export async function cargarCatalogoInicial() {
             </div>`;
         }
     }
+}
+
+// Muestra el Kardex de un producto en el panel de esta misma pantalla (sin
+// navegar a otra vista) — usado desde el ☰ "Kardex de este producto".
+async function mostrarKardexInlineProducto(producto) {
+    const panel = document.getElementById('panelKardexProducto');
+    const contenido = document.getElementById('kpxContenido');
+    if (!panel || !contenido) return;
+    document.getElementById('kpxNombreProducto').textContent = producto.nombre || 'Sin nombre';
+    panel.classList.remove('hidden');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    await renderizarKardexProducto(producto.id, contenido);
 }
 
 // =====================================================================
@@ -1518,7 +1582,7 @@ function abrirMenuAccionesProducto(producto, botonAncla) {
 
     document.getElementById('btnMenuProdKardex').addEventListener('click', () => {
         cerrarMenuAccionesProducto();
-        irAKardexDeProducto(producto.id, producto.nombre);
+        mostrarKardexInlineProducto(producto);
     });
     document.getElementById('btnMenuProdVer').addEventListener('click', () => {
         cerrarMenuAccionesProducto();

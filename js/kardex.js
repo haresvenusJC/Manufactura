@@ -1,161 +1,12 @@
 import { supabaseClient } from './supabase.js';
 
-let productosCache = [];
+// Kardex de un producto específico, embebido en la pantalla "Catálogo y
+// Kardex" (js/catalogo.js, ☰ → "Kardex de este producto") — sin vista ni
+// buscador propios: el producto ya se eligió en la tabla del Catálogo.
+export async function renderizarKardexProducto(productoIdParam, contenedorResultado) {
+    const productoId = String(productoIdParam).replace('eq.', '').trim();
+    if (!productoId || !contenedorResultado) return;
 
-export async function cargarVistaKardex() {
-    await precargarProductosKardex();
-    inicializarBuscadorAjax();
-}
-
-// Navega a la vista de Kardex ya filtrada por un producto específico —
-// usada desde el menú de acciones del Catálogo ("Kardex de este
-// producto"), para no obligar a volver a buscarlo a mano.
-export async function irAKardexDeProducto(productoId, nombreProducto) {
-    window.loadView('kardex');
-    await cargarVistaKardex(); // idempotente: si el buscador ya estaba montado, no lo vuelve a dibujar
-
-    const inputBuscador = document.getElementById('inputBuscadorKardex');
-    const inputHidden = document.getElementById('selectProductoKardex');
-    const selectFiltroLote = document.getElementById('selectFiltroLoteKardex');
-    if (!inputBuscador || !inputHidden) return;
-
-    inputBuscador.value = nombreProducto || '';
-    inputHidden.value = productoId;
-    if (selectFiltroLote) {
-        selectFiltroLote.innerHTML = `<option value="">-- Todos los Lotes --</option>`;
-        selectFiltroLote.disabled = true;
-    }
-
-    await window.consultarKardexProducto();
-}
-
-async function precargarProductosKardex() {
-    try {
-        const { data: productos, error } = await supabaseClient
-            .from('productos')
-            .select('id, nombre, sku, tipo, stock_actual')
-            .order('nombre', { ascending: true });
-
-        if (error) throw error;
-        productosCache = productos || [];
-    } catch (err) {
-        console.error("Error al precargar productos para el kardex:", err);
-    }
-}
-
-function inicializarBuscadorAjax() {
-    const contenedorFiltro = document.getElementById('selectProductoKardex')?.parentElement || document.getElementById('contenedorBuscadorKardex');
-    
-    if (!contenedorFiltro || document.getElementById('inputBuscadorKardex')) return;
-
-    // Se dibuja tanto el buscador de productos como el selector de lotes de lado a lado
-    contenedorFiltro.innerHTML = `
-        <div class="flex flex-col md:flex-row gap-4 items-end w-full">
-            <div class="w-full md:flex-1 relative">
-                <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1 font-semibold">Buscar Producto o Insumo:</label>
-                <input 
-                    type="text" 
-                    id="inputBuscadorKardex" 
-                    placeholder="Escribe el nombre o SKU del producto..." 
-                    class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:border-indigo-500 transition shadow-inner"
-                    autocomplete="off"
-                >
-                <input type="hidden" id="selectProductoKardex" value="">
-                <div id="listaResultadosAjax" class="absolute z-50 left-0 right-0 mt-1 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl max-h-60 overflow-y-auto hidden divide-y divide-slate-800/60"></div>
-            </div>
-            
-            <div class="w-full md:w-72">
-                <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1 font-semibold">Filtrar por Lote:</label>
-                <select id="selectFiltroLoteKardex" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-slate-300 text-sm focus:outline-none focus:border-indigo-500 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                    <option value="">-- Todos los Lotes --</option>
-                </select>
-            </div>
-        </div>
-    `;
-
-    const inputBuscador = document.getElementById('inputBuscadorKardex');
-    const listaResultados = document.getElementById('listaResultadosAjax');
-    const inputHiddenId = document.getElementById('selectProductoKardex');
-    const selectFiltroLote = document.getElementById('selectFiltroLoteKardex');
-
-    // Al cambiar de lote en el select, se actualiza la tabla de movimientos automáticamente
-    selectFiltroLote.addEventListener('change', () => {
-        if (inputHiddenId.value) {
-            window.consultarKardexProducto();
-        }
-    });
-
-    listaResultados.addEventListener('click', (e) => {
-        const item = e.target.closest('.item-sugerencia-kardex');
-        if (!item) return;
-
-        inputBuscador.value = item.getAttribute('data-nombre');
-        inputHiddenId.value = item.getAttribute('data-id');
-        listaResultados.classList.add('hidden');
-        
-        // Reiniciar select de lotes al cambiar de producto
-        selectFiltroLote.innerHTML = `<option value="">-- Todos los Lotes --</option>`;
-        selectFiltroLote.disabled = true;
-
-        window.consultarKardexProducto();
-    });
-
-    inputBuscador.addEventListener('input', (e) => {
-        const busqueda = e.target.value.toLowerCase().trim();
-        inputHiddenId.value = ""; 
-        selectFiltroLote.innerHTML = `<option value="">-- Todos los Lotes --</option>`;
-        selectFiltroLote.disabled = true;
-
-        if (!busqueda) {
-            listaResultados.classList.add('hidden');
-            return;
-        }
-
-        const filtrados = productosCache.filter(p => {
-            const nombre = (p.nombre || '').toLowerCase();
-            const sku = (p.sku || '').toLowerCase();
-            return nombre.includes(busqueda) || sku.includes(busqueda);
-        });
-
-        if (filtrados.length === 0) {
-            listaResultados.innerHTML = `<div class="p-3 text-xs text-slate-500 text-center">No se encontraron productos</div>`;
-            listaResultados.classList.remove('hidden');
-            return;
-        }
-
-        listaResultados.innerHTML = filtrados.map(p => `
-            <div class="p-3 hover:bg-indigo-600/20 cursor-pointer transition flex justify-between items-center item-sugerencia-kardex" 
-                 data-id="${p.id}" 
-                 data-nombre="${p.nombre || 'Sin nombre'} ${p.sku ? '(' + p.sku + ')' : ''}">
-                <div>
-                    <span class="text-sm font-medium text-slate-200 block">${p.nombre || 'Sin nombre'}</span>
-                    <span class="text-xs text-slate-400 font-mono">SKU: ${p.sku || 'N/D'} | Tipo: ${p.tipo || 'N/D'}</span>
-                </div>
-                <span class="text-xs font-mono bg-slate-900 px-2 py-1 rounded text-emerald-400 border border-slate-800">Stock: ${p.stock_actual ?? 0}</span>
-            </div>
-        `).join('');
-
-        listaResultados.classList.remove('hidden');
-    });
-
-    document.addEventListener('click', (e) => {
-        if (!inputBuscador.contains(e.target) && !listaResultados.contains(e.target)) {
-            listaResultados.classList.add('hidden');
-        }
-    });
-}
-
-window.consultarKardexProducto = async function() {
-    let productoId = document.getElementById('selectProductoKardex')?.value;
-    const contenedorResultado = document.getElementById('resultadoKardex');
-    const selectFiltroLote = document.getElementById('selectFiltroLoteKardex');
-
-    if (!productoId || !contenedorResultado) {
-        alert("Por favor selecciona un producto válido de la lista del buscador.");
-        return;
-    }
-
-    productoId = String(productoId).replace('eq.', '').trim();
     contenedorResultado.innerHTML = `<div class="bg-slate-900 border border-slate-800 p-8 rounded-xl text-center text-slate-400 text-sm">Consultando movimientos y existencias...</div>`;
 
     try {
@@ -206,28 +57,15 @@ window.consultarKardexProducto = async function() {
 
         if (error) throw error;
 
-        // Poblar dinámicamente el selector de lotes con los lotes que pertenecen a este producto
-        if (selectFiltroLote) {
-            const loteSeleccionadoActual = selectFiltroLote.value;
-            const lotesMap = new Map();
-            
-            movimientos.forEach(m => {
-                if (m.lotes_inventario && m.lotes_inventario.id) {
-                    lotesMap.set(m.lotes_inventario.id, m.lotes_inventario.numero_lote);
-                }
-            });
+        // Lotes que aparecen en los movimientos de este producto, para el filtro
+        const lotesMap = new Map();
+        movimientos.forEach(m => {
+            if (m.lotes_inventario && m.lotes_inventario.id) {
+                lotesMap.set(m.lotes_inventario.id, m.lotes_inventario.numero_lote);
+            }
+        });
 
-            let optionsHtml = `<option value="">-- Todos los Lotes --</option>`;
-            lotesMap.forEach((numeroLote, idLote) => {
-                const selected = String(idLote) === String(loteSeleccionadoActual) ? 'selected' : '';
-                optionsHtml += `<option value="${idLote}" ${selected}>Lote: ${numeroLote}</option>`;
-            });
-
-            selectFiltroLote.innerHTML = optionsHtml;
-            selectFiltroLote.disabled = lotesMap.size === 0;
-        }
-
-        let html = `
+        const htmlResumen = `
             <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 shadow-lg">
                 <div>
                     <h4 class="text-sm font-semibold text-slate-300">Producto Seleccionado:</h4>
@@ -242,8 +80,7 @@ window.consultarKardexProducto = async function() {
         `;
 
         if (!movimientos || movimientos.length === 0) {
-            html += `<div class="bg-slate-900 border border-slate-800 p-6 rounded-xl text-center text-slate-500 text-sm">No hay registros de movimientos en el Kardex para este producto.</div>`;
-            contenedorResultado.innerHTML = html;
+            contenedorResultado.innerHTML = htmlResumen + `<div class="bg-slate-900 border border-slate-800 p-6 rounded-xl text-center text-slate-500 text-sm">No hay registros de movimientos en el Kardex para este producto.</div>`;
             return;
         }
 
@@ -265,87 +102,101 @@ window.consultarKardexProducto = async function() {
                 stock_anterior_calc: stockAnt,
                 stock_resultante_calc: stockNuevo
             };
-        });
+        }).reverse();
 
-        // Filtrado por el lote seleccionado en el desplegable (si hay uno elegido)
-        const filtroLoteId = selectFiltroLote ? selectFiltroLote.value : '';
-        const movimientosFiltrados = filtroLoteId 
-            ? movimientosProcesados.reverse().filter(m => String(m.lote_id) === String(filtroLoteId))
-            : movimientosProcesados.reverse();
+        const htmlSelectLote = lotesMap.size ? `
+            <div class="mb-3">
+                <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1 font-semibold">Filtrar por Lote:</label>
+                <select id="kpxFiltroLote" class="w-full sm:w-72 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 text-sm focus:outline-none focus:border-indigo-500 transition">
+                    <option value="">-- Todos los Lotes --</option>
+                    ${[...lotesMap.entries()].map(([idLote, numeroLote]) => `<option value="${idLote}">Lote: ${numeroLote}</option>`).join('')}
+                </select>
+            </div>
+        ` : '';
 
-        if (movimientosFiltrados.length === 0) {
-            html += `<div class="bg-slate-900 border border-slate-800 p-6 rounded-xl text-center text-slate-500 text-sm">No hay movimientos registrados para el lote seleccionado.</div>`;
-            contenedorResultado.innerHTML = html;
-            return;
+        // Pinta la tabla de movimientos para el lote elegido (sin volver a consultar Supabase).
+        function pintar(filtroLoteId) {
+            const movimientosFiltrados = filtroLoteId
+                ? movimientosProcesados.filter(m => String(m.lote_id) === String(filtroLoteId))
+                : movimientosProcesados;
+
+            let htmlTabla;
+            if (movimientosFiltrados.length === 0) {
+                htmlTabla = `<div class="bg-slate-900 border border-slate-800 p-6 rounded-xl text-center text-slate-500 text-sm">No hay movimientos registrados para el lote seleccionado.</div>`;
+            } else {
+                htmlTabla = `
+                    <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-900 shadow-xl">
+                        <table class="w-full text-left text-sm text-slate-300">
+                            <thead class="bg-slate-950 text-indigo-400 border-b border-slate-800 text-xs uppercase">
+                                <tr>
+                                    <th class="p-3">Doc ID</th>
+                                    <th class="p-3">Fecha y Hora</th>
+                                    <th class="p-3">Operación</th>
+                                    <th class="p-3">Lote</th>
+                                    <th class="p-3">Costo Unit. <span class="normal-case text-slate-500">(por ${unidadNombre})</span></th>
+                                    <th class="p-3 text-center">Stock Ant.</th>
+                                    <th class="p-3 text-center">Cantidad</th>
+                                    <th class="p-3 text-center">Stock Nuevo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${movimientosFiltrados.map((m) => {
+                                    const fechaHora = m.created_at ? new Date(m.created_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : 'N/D';
+                                    const docId = m.documento_id;
+                                    const cantNum = Number(m.cantidad || 0);
+                                    const esEntrada = cantNum >= 0;
+                                    const claseCantidad = esEntrada ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold';
+                                    const signo = esEntrada ? '+' : '';
+                                    const numeroLote = m.lotes_inventario?.numero_lote || 'N/D';
+                                    const chipFefo = m.criterio_lote === 'FEFO'
+                                        ? ' <span class="text-[9px] bg-amber-900/50 text-amber-300 border border-amber-700 rounded px-1 py-0.5 align-middle" title="Este lote se adelantó por caducidad (conviene a producción)">FEFO</span>'
+                                        : '';
+
+                                    const colDocId = docId ? `
+                                        <button onclick="window.abrirDetalleDocumento('${docId}')" class="font-mono text-xs text-indigo-400 hover:text-indigo-300 hover:underline bg-indigo-950/50 hover:bg-indigo-900/50 px-2 py-1 rounded border border-indigo-800/50 transition flex items-center gap-1 w-fit cursor-pointer">
+                                            <span>#${docId}</span>
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                        </button>
+                                    ` : `<span class="text-slate-500">N/D</span>`;
+
+                                    return `
+                                        <tr class="border-b border-slate-800/60 hover:bg-slate-800/40 transition">
+                                            <td class="p-3">${colDocId}</td>
+                                            <td class="p-3 text-xs text-slate-400 font-mono">${fechaHora}</td>
+                                            <td class="p-3 text-xs uppercase font-semibold text-indigo-300">${m.tipo_movimiento || 'N/D'}</td>
+                                            <td class="p-3 text-xs font-mono text-amber-300">${numeroLote}${chipFefo}</td>
+                                            <td class="p-3 font-mono text-slate-300">
+                                                $${Number(m.costo_unitario || 0).toFixed(4)}
+                                                ${(() => {
+                                                    const adic = Number(m.lotes_inventario?.costo_adicional_unitario || 0);
+                                                    if (!adic) return '';
+                                                    const mat = Number(m.costo_unitario || 0) - adic;
+                                                    return `<span class="block text-[10px] text-sky-400 font-sans">incluye landed cost: mat. $${mat.toFixed(4)} + $${adic.toFixed(4)} flete/seguro</span>`;
+                                                })()}
+                                            </td>
+                                            <td class="p-3 text-center font-mono text-slate-400">${m.stock_anterior_calc ?? 0}</td>
+                                            <td class="p-3 text-center font-mono ${claseCantidad}">${signo}${cantNum}</td>
+                                            <td class="p-3 text-center font-mono text-amber-300 font-semibold">${m.stock_resultante_calc ?? 0}</td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            contenedorResultado.innerHTML = htmlResumen + htmlSelectLote + htmlTabla;
+            document.getElementById('kpxFiltroLote')?.addEventListener('change', (e) => pintar(e.target.value));
         }
 
-        html += `
-            <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-900 shadow-xl">
-                <table class="w-full text-left text-sm text-slate-300">
-                    <thead class="bg-slate-950 text-indigo-400 border-b border-slate-800 text-xs uppercase">
-                        <tr>
-                            <th class="p-3">Doc ID</th>
-                            <th class="p-3">Fecha y Hora</th>
-                            <th class="p-3">Operación</th>
-                            <th class="p-3">Lote</th>
-                            <th class="p-3">Costo Unit. <span class="normal-case text-slate-500">(por ${unidadNombre})</span></th>
-                            <th class="p-3 text-center">Stock Ant.</th>
-                            <th class="p-3 text-center">Cantidad</th>
-                            <th class="p-3 text-center">Stock Nuevo</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
-
-        movimientosFiltrados.forEach(m => {
-            const fechaHora = m.created_at ? new Date(m.created_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : 'N/D';
-            const docId = m.documento_id;
-            const cantNum = Number(m.cantidad || 0);
-            const esEntrada = cantNum >= 0;
-            const claseCantidad = esEntrada ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold';
-            const signo = esEntrada ? '+' : '';
-            const numeroLote = m.lotes_inventario?.numero_lote || 'N/D';
-            const chipFefo = m.criterio_lote === 'FEFO'
-                ? ' <span class="text-[9px] bg-amber-900/50 text-amber-300 border border-amber-700 rounded px-1 py-0.5 align-middle" title="Este lote se adelantó por caducidad (conviene a producción)">FEFO</span>'
-                : '';
-
-            const colDocId = docId ? `
-                <button onclick="window.abrirDetalleDocumento('${docId}')" class="font-mono text-xs text-indigo-400 hover:text-indigo-300 hover:underline bg-indigo-950/50 hover:bg-indigo-900/50 px-2 py-1 rounded border border-indigo-800/50 transition flex items-center gap-1 w-fit cursor-pointer">
-                    <span>#${docId}</span>
-                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                </button>
-            ` : `<span class="text-slate-500">N/D</span>`;
-
-            html += `
-                <tr class="border-b border-slate-800/60 hover:bg-slate-800/40 transition">
-                    <td class="p-3">${colDocId}</td>
-                    <td class="p-3 text-xs text-slate-400 font-mono">${fechaHora}</td>
-                    <td class="p-3 text-xs uppercase font-semibold text-indigo-300">${m.tipo_movimiento || 'N/D'}</td>
-                    <td class="p-3 text-xs font-mono text-amber-300">${numeroLote}${chipFefo}</td>
-                    <td class="p-3 font-mono text-slate-300">
-                        $${Number(m.costo_unitario || 0).toFixed(4)}
-                        ${(() => {
-                            const adic = Number(m.lotes_inventario?.costo_adicional_unitario || 0);
-                            if (!adic) return '';
-                            const mat = Number(m.costo_unitario || 0) - adic;
-                            return `<span class="block text-[10px] text-sky-400 font-sans">incluye landed cost: mat. $${mat.toFixed(4)} + $${adic.toFixed(4)} flete/seguro</span>`;
-                        })()}
-                    </td>
-                    <td class="p-3 text-center font-mono text-slate-400">${m.stock_anterior_calc ?? 0}</td>
-                    <td class="p-3 text-center font-mono ${claseCantidad}">${signo}${cantNum}</td>
-                    <td class="p-3 text-center font-mono text-amber-300 font-semibold">${m.stock_resultante_calc ?? 0}</td>
-                </tr>
-            `;
-        });
-
-        html += `</tbody></table></div>`;
-        contenedorResultado.innerHTML = html;
+        pintar('');
 
     } catch (err) {
         console.error("Error al consultar kardex:", err);
         contenedorResultado.innerHTML = `<div class="bg-rose-950/40 border border-rose-900 p-6 rounded-xl text-center text-rose-300 text-sm">Ocurrió un error al consultar los movimientos del kardex.</div>`;
     }
-};
+}
 
 window.abrirDetalleDocumento = async function(docId) {
     let modalContainer = document.getElementById('modalDetalleDocKardex');

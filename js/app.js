@@ -1,4 +1,4 @@
-import { verificarConexionReal, cargarCatalogoInicial } from './catalogo.js';
+import { verificarConexionReal, cargarModuloAltaArticulo, cargarModuloCatalogoKardex } from './catalogo.js';
 import { cargarInventarioCompleto } from './inventario.js';
 import { configurarFormularioCompras, toggleTipoCambio } from './compras.js';
 import { configurarFormularioEntradasDirectas } from './entradas.js';
@@ -16,8 +16,7 @@ import { cargarModuloDevoluciones } from './devoluciones.js';
 import { cargarModuloActivosFijos } from './activos-fijos.js';
 import { cargarModuloBancosTesoreria } from './bancos-tesoreria.js';
 import { cargarModuloBitacora } from './bitacora-cambios.js';
-import { cargarVistaKardex } from './kardex.js'; 
-import { cargarVistaDocumentos } from './documentos.js'; 
+import { cargarVistaDocumentos } from './documentos.js';
 import { cargarModuloPlantillas } from './plantillas.js';
 import { cargarModuloEmpleados } from './empleados.js';
 import { cargarModuloImportador } from './importador.js';
@@ -241,9 +240,6 @@ window.loadView = function(viewName, opciones = {}) {
         case 'inventario':
             cargarInventarioCompleto();
             break;
-        case 'kardex':
-            cargarVistaKardex();
-            break;
         case 'documentos':
             cargarVistaDocumentos();
             break;
@@ -348,7 +344,8 @@ async function iniciarApp() {
 
     try {
         await verificarConexionReal();
-        await cargarCatalogoInicial();
+        await cargarModuloAltaArticulo();
+        await cargarModuloCatalogoKardex();
 
         // Cargas simultáneas y tolerantes a fallos
         await Promise.allSettled([

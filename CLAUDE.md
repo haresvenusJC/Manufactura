@@ -4,6 +4,22 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `index.html`, `js/catalogo.js`, `js/kardex.js`, `js/app.js`, `js/indice.js`,
+  `version.json`. A petición del usuario ("cuando estoy dando de alta un artículo, lo único que vea en la
+  pantalla sea el menú de acciones para lograrlo" + fusionar Kardex con el Catálogo general "porque
+  prácticamente se están haciendo lo mismo"): se separó "Alta de artículo" (`cargarModuloAltaArticulo`,
+  vista nueva `alta-articulo`, solo el formulario — antes vivía junto al listado en la misma pantalla
+  `catalogo`) de "Catálogo y Kardex" (`cargarModuloCatalogoKardex`, sigue en la vista `catalogo`): el
+  listado general de artículos con el Kardex fusionado — ☰ "Kardex de este producto" ya no navega a otra
+  pantalla, despliega los movimientos en un panel debajo de la tabla, en la misma pantalla
+  (`mostrarKardexInlineProducto` → `kardex.js` `renderizarKardexProducto`, parametrizado por producto en
+  vez de tener su propio buscador). Kardex se quitó del menú "Inventario y almacén" (a petición del
+  usuario, "solo en catálogos por lo pronto") — vive solo dentro de "Catálogos" ahora. Se conservó tal
+  cual la función de "Alta de artículo" de editar por nombre (autocompletado ya la traía) — no se tocó,
+  solo se movió de pantalla. `window.abrirDetalleDocumento`/`cerrarDetalleDocumento` de `kardex.js` (modal
+  de documento que usa esa tabla) se dejaron intactos. Pendiente: probar en el navegador — Alta de
+  artículo (crear y editar por nombre), Catálogo y Kardex (buscar/exportar/☰ y el panel de Kardex
+  inline con su filtro por lote), y que el menú/Índice apunten bien a las dos pantallas nuevas.
 - Archivos tocados (lo último): `index.html` (cajón), `js/indice.js`, `js/app.js`, `js/tareas.js`, `version.json`.
   Reacomodo completo del menú (a petición del usuario, "no siento que esté bien acomodado ni intuitivo"): antes 5
   grupos colapsables + "Documentos" suelto, con "Operación" y "Finanzas" escondiendo 3-4 sub-bloques de texto no
@@ -237,8 +253,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `iconos-accesos.js` — galería de íconos de línea (por categoría) para los accesos rápidos de Inicio.
 - `bitacora-cambios.js` — consulta de la bitácora de movimientos (quién/cuándo/qué cambió) de todo el negocio.
 - `buscador-select.js` — convierte un `<select>` largo en un buscador con teclado, sin cambiar su comportamiento.
-- `catalogo.js` — catálogo de productos: alta/edición, clasificación, BOM, tabla de Densidades y de
-  Unidades de medida, export Excel/CSV.
+- `catalogo.js` — dos pantallas separadas: `cargarModuloAltaArticulo` ("Alta de artículo", solo el
+  formulario: alta/edición por nombre, clasificación, BOM) y `cargarModuloCatalogoKardex` ("Catálogo y
+  Kardex", el listado general con ☰ acciones, export Excel/CSV, tabla de Densidades y de Unidades de
+  medida, y el panel de Kardex embebido al elegir un artículo).
 - `centros-costo.js` — centros de costo para prorrateo de CIF: capacidad normal en horas y variables del cálculo.
 - `cfdi.js` — lector de CFDI: XML (confiable) y PDF (mejor esfuerzo, sin namespaces).
 - `cierre-periodo.js` — cierre de periodo contable: revisa los 8 candados antes de cerrar un mes, permite reabrir.
@@ -268,7 +286,9 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   + última compra real).
 - `inventario.js` — stock general por producto y lote, con mínimos y deterioro de inventario (NIF C-4).
 - `isr.js` — tabla ISR versionada (tarifas de retención sobre sueldos) + extracción desde PDF/OCR.
-- `kardex.js` — navegación directa al Kardex de un producto específico.
+- `kardex.js` — `renderizarKardexProducto`: movimientos de un producto, embebidos en el panel de
+  "Catálogo y Kardex" (`js/catalogo.js`); ya no tiene vista ni buscador propios. También trae
+  `window.abrirDetalleDocumento`/`cerrarDetalleDocumento` (modal de documento usado por esa tabla).
 - `nomina.js` — nómina: cálculo (IMSS/ISR real vía RPC), autorización, póliza y recibo imprimible.
 - `orden-tabla.js` — ordenamiento client-side reutilizable para encabezados de tabla en toda la app.
 - `polizas-saldo.js` — regla única de qué pólizas cuentan para saldos (contabilizadas + canceladas con su reverso);

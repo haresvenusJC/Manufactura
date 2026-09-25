@@ -8,7 +8,8 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 export const SECCIONES = [
     {
         grupo: 'Catálogos', ancla: 'cat', items: [
-            { v: 'catalogo', t: 'Productos', d: 'Alta y edición de productos, materias primas e insumos: SKU, unidad, costo, bandera de control de caducidad.', cfg: true },
+            { v: 'alta-articulo', t: 'Alta de artículo', d: 'Solo el formulario para dar de alta (o editar por nombre) un producto, materia prima o insumo: SKU, unidad, costo, bandera de control de caducidad.', cfg: true },
+            { v: 'catalogo', t: 'Catálogo y Kardex', d: 'Listado general de artículos (buscar, exportar, editar) fusionado con el Kardex: movimientos de entrada y salida por producto, con el criterio FIFO/FEFO usado.', cfg: true },
             { v: 'proveedores', t: 'Proveedores', d: 'Datos fiscales: RFC, régimen, uso CFDI, forma y método de pago, cuenta de gasto por defecto.', cfg: true },
             { v: 'clientes', t: 'Clientes y listas de precio', d: 'Clientes y sus listas de precio.', cfg: true },
             { v: 'empleados', t: 'Empleados', d: 'Plantilla, costo por hora y PIN para la Orden de Trabajo en el celular.', cfg: true },
@@ -28,7 +29,6 @@ export const SECCIONES = [
     {
         grupo: 'Inventario', ancla: 'inv', items: [
             { v: 'inventario', t: 'Stock General', d: 'Existencias por producto y por lote, con mínimos.' },
-            { v: 'kardex', t: 'Kardex', d: 'Movimientos de entrada y salida por producto, con el criterio FIFO/FEFO usado.' },
             { v: 'auditoria', t: 'Auditoría de inventarios', d: 'Toma física de inventario: crea auditorías, revisa el conteo de los operadores y compáralo contra el stock del sistema.' },
             { v: 'tareas', t: 'Tareas de almacén', d: 'Pendientes automáticos de almacén: inventario bajo mínimo, lotes por caducar.', extra: "{departamento:'almacen'}" },
         ],
