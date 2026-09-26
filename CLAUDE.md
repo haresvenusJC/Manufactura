@@ -4,6 +4,27 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/catalogo.js`, `version.json`. Reportado con captura (dos subventanas del
+  mismo producto #258, Granel Miel Bee Power): "Editar artículo" mostraba "🧪 Revisión del granel — 6 de 6
+  listos" con Rendimiento del lote en 10 Kilogramos ✅, mientras "🧪 Editar o ver BOM" (abierta al mismo
+  tiempo) seguía en "4 de 5 listos" con "Sin Rendimiento del lote" ⚠️ — parecía el mismo bug de
+  desincronización entre subventanas de sesiones pasadas, pero NO lo era: investigado a fondo, la "Revisión
+  del granel" de "Editar artículo" (`pintarGranel` → `val('rendimiento_lote_bom', art.rendimiento_lote_bom)`)
+  siempre lee el VALOR VIVO del campo del formulario (aunque no se haya guardado — se recalcula en cada
+  tecleo o al usar el botón 🧮 "Usar X..." de ahí mismo, que solo llena el campo y avisa "Luego da 'Guardar
+  cambios'."), a propósito, como vista previa. El usuario había escrito/usado el 10 Kilogramos en "Editar
+  artículo" pero SIN darle "Guardar cambios" todavía — por eso BOM (que sí lee el dato ya guardado en la
+  base) seguía mostrando el estado real. No era una falla del refresco entre ventanas, sino que no había
+  ninguna pista de que esos ✅/⚠️ eran una vista previa sin guardar. Se agregó `sinGuardar` a `htmlGuiaGranel`
+  (calculado en `pintarGranel` comparando cada campo vivo contra `art.*`, el valor con el que se cargó el
+  modal) — cuando difiere de lo guardado, aparece un aviso "✏️ Esto es una vista previa... todavía sin
+  guardar — otras subventanas... van a seguir mostrando el dato guardado hasta que des 'Guardar cambios'."
+  arriba de la lista ✅/⚠️. Solo aplica a "Editar artículo" — el llamado de "Editar o ver BOM" a la misma
+  función (`htmlGuiaGranel`) ya usa el dato guardado (`producto.rendimiento_lote_bom`, refrescado por
+  `refrescarBomSiEsProducto`), nunca un valor de formulario sin guardar, así que no necesita el aviso.
+  Pendiente: probar en el navegador — escribir/usar "Usar X" en Editar artículo sin guardar y confirmar que
+  aparece el aviso; darle "Guardar cambios" y confirmar que BOM se actualiza solo (ya funcionaba) y el aviso
+  desaparece.
 - Archivos tocados (lo último): `sql/2026-09-26_tareas_cancelada.sql` (nuevo), `js/tareas.js`, `version.json`.
   Bug reportado con captura del Historial de tareas: "Comprar: Miel de Abeja", cancelada a mano con el botón
   nuevo "🚫 Cancelar" (sesión anterior), se guardaba con estatus `'archivada'` — el mismo que usa el sistema

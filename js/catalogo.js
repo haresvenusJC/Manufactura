@@ -2315,6 +2315,7 @@ function htmlGuiaGranel(d) {
     const todoBien = listos === items.length;
     return `<div class="text-[11px] rounded-lg border ${todoBien ? 'border-emerald-900/70 bg-emerald-950/20' : 'border-amber-900/70 bg-amber-950/20'} px-3 py-2 mb-3">
         <p class="font-semibold ${todoBien ? 'text-emerald-300' : 'text-amber-300'} mb-1">🧪 Revisión del granel — ${listos} de ${items.length} listos${todoBien ? ': ya se puede producir por tandas.' : ''}</p>
+        ${d.sinGuardar ? `<p class="text-sky-300 bg-sky-950/40 border border-sky-800/60 rounded px-2 py-1 mb-1.5">✏️ Esto es una vista previa de lo que tienes escrito, <b>todavía sin guardar</b> — otras subventanas abiertas de este mismo artículo (BOM…) van a seguir mostrando el dato guardado hasta que des "Guardar cambios".</p>` : ''}
         <ul class="space-y-1">${items.map((i) => `<li class="flex gap-1.5"><span class="shrink-0">${i.ok ? '✅' : '⚠️'}</span><span class="${i.ok ? 'text-slate-300' : 'text-amber-200'}">${i.t}${i.como ? `<span class="block text-slate-400">→ ${i.como}</span>` : ''}</span></li>`).join('')}</ul>
     </div>`;
 }
@@ -2765,11 +2766,20 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                     elDens.dataset.auto = elDens.value;
                 }
                 const cta = mapaCta.get(String(val('cuenta_inventario_id', art.cuenta_inventario_id) ?? ''));
+                // ¿Lo que se ve aquí ya está guardado, o es lo que acabas de escribir/usar con "Usar X" sin
+                // haber dado "Guardar cambios" todavía? Si difiere de lo que trae la base, se avisa — si no,
+                // otras subventanas abiertas del mismo artículo (BOM...) van a seguir mostrando el dato viejo
+                // y parece que "no coincide", cuando en realidad aquí solo es la vista previa sin guardar.
+                const sinGuardar = String(val('unidad_medida_id', art.unidad_medida_id) ?? '') !== String(art.unidad_medida_id ?? '')
+                    || String(rend ?? '') !== String(art.rendimiento_lote_bom ?? '')
+                    || val('tipo', art.tipo) !== art.tipo
+                    || String(val('cuenta_inventario_id', art.cuenta_inventario_id) ?? '') !== String(art.cuenta_inventario_id ?? '');
                 contGuia.innerHTML = htmlGuiaGranel({
                     esSemi: val('tipo', art.tipo) === 'semiterminado', unidadNombre: uniProd,
                     nComponentes: bomFilas.length, rend, res,
                     cuentaCodigo: cta?.codigo || '', cuentaNombre: cta?.nombre || '',
                     cuentaConocida: 'cuenta_inventario_id' in art, enBom: false, stock: art.stock_actual,
+                    sinGuardar,
                 });
                 contAn.innerHTML = res ? htmlAnalisisTanda(res, uniProd, rend, esSemi ? (val('densidad_kg_l', art.densidad_kg_l) ?? '') : undefined) : '';
                 const btnDens = contAn.querySelector('.btn-usar-dens');
