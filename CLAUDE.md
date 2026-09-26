@@ -4,6 +4,22 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/tareas.js`, `version.json`. A petición del usuario ("falta un botón de
+  cancelar tarea, porque a veces será necesario cancelar cualquier tarea si ya se atendió por otro medio"):
+  nuevo botón "🚫 Cancelar" en CADA tarea de "Tareas de almacén" (inventario bajo mínimo y caducidad próxima
+  por igual — antes las de "comprar" no tenían ninguna forma manual de cerrarse, y "✔ Atendida"/"✕ No
+  aceptada" no encajaban con "ya se resolvió por otro medio"). No fue necesaria ninguna migración: el RPC
+  `public.tarea_resolver` (`sql/2026-09-06_tareas_sistema.sql`) ya soportaba la acción `'archivar'` desde que
+  se creó (comentario original: "Se marcan Atendida / No aceptada (posponer) / No aplica (archivar)"), solo
+  nunca se conectó a un botón. Con confirmación + motivo opcional, llama `resolverTarea(btn, 'archivar', ...)`.
+  Diferencia clave con "No aceptada" (posponer): "Cancelar" no programa un reaviso a N días — pero tampoco
+  apaga la alerta para siempre, si la condición que la generó sigue viva el sincronizador
+  (`tareas_sync_inventario` / el de caducidad) la vuelve a crear sola en el siguiente evento (movimiento de
+  stock, o el job diario de pg_cron 07:15) — mismo comportamiento que ya tenían los productos que dejan de
+  estar bajo mínimo. Las tareas archivadas ya aparecían correctamente en "Historial de tareas" (`ESTATUS_
+  LABEL`/`ESTATUS_BADGE` ya traían 'archivada': 'Archivada'), no se tocó. Pendiente: probar en el navegador —
+  cancelar una tarea de "Comprar: …" y una de caducidad, confirmar que aparecen en el Historial como
+  "Archivada" y que si la condición sigue (stock sigue bajo mínimo) vuelve a aparecer como pendiente.
 - Archivos tocados (lo último): `js/catalogo.js`, `js/documentos.js`, `js/ordenes-compra.js`,
   `js/pedidos-venta.js`, `js/trazabilidad.js`, `js/requisiciones-compra.js`, `js/ordenes-produccion.js`,
   `version.json`. Bug reportado con captura: al abrir "Editar artículo" con Ctrl+clic teniendo ya abierta

@@ -159,6 +159,16 @@ function renderTareasActivas() {
         if (d === null) return;
         resolverTarea(b, 'posponer', Math.max(1, parseInt(d, 10) || 7), 'No aceptada por el usuario');
     }));
+    // Cancelar: para cuando ya se resolvió por otro medio (se compró fuera del sistema,
+    // se revisó el lote sin pasar por aquí...) y no aplica ni "Atendida" (exige el flujo
+    // real ligado) ni "No aceptada" (esa vuelve a avisar en N días). Archiva la tarea; si
+    // la condición que la generó sigue viva, el sincronizador la vuelve a crear sola
+    // (tareas_sync_inventario / de caducidad) — cancelar no apaga la alerta para siempre.
+    cont.querySelectorAll('.tarea-cancelar-sistema').forEach((b) => b.addEventListener('click', () => {
+        if (!confirm('¿Cancelar esta tarea porque ya se atendió por otro medio? Si la condición que la generó sigue aplicando, puede volver a aparecer.')) return;
+        const motivo = prompt('Motivo (opcional):', '') || 'Cancelada: ya se atendió por otro medio.';
+        resolverTarea(b, 'archivar', null, motivo);
+    }));
     cont.querySelectorAll('.tarea-ir-oc').forEach((b) => b.addEventListener('click', () => {
         window.__reqPreProducto = {
             id: Number(b.dataset.prod),
@@ -310,6 +320,10 @@ function renderTareaSistema(t) {
     const botonAtender = seleccionable
         ? ''
         : `<button type="button" data-tarea="${t.id}" class="tarea-atender text-xs bg-amber-800 hover:bg-amber-700 text-amber-100 px-3 py-1.5 rounded-lg border border-amber-600 cursor-pointer">✔ Atendida</button>`;
+    // Para cualquier tarea, sin importar su tipo — a veces se resuelve por un medio
+    // que el sistema no rastrea (se compró aparte, se revisó el lote sin pasar por
+    // aquí...) y no encaja ni en "Atendida" ni en "No aceptada".
+    const botonCancelar = `<button type="button" data-tarea="${t.id}" title="Ya se atendió por otro medio — si la condición sigue, puede volver a aparecer" class="tarea-cancelar-sistema text-xs bg-slate-800 hover:bg-slate-700 text-slate-400 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">🚫 Cancelar</button>`;
     return `
         <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 space-y-2">
             <div class="flex items-start justify-between flex-wrap gap-2">
@@ -327,6 +341,7 @@ function renderTareaSistema(t) {
                     ${botonLote}
                     ${botonAtender}
                     <button type="button" data-tarea="${t.id}" class="tarea-descartar text-xs bg-slate-800 hover:bg-slate-700 text-rose-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">✕ No aceptada</button>
+                    ${botonCancelar}
                 </div>
             </div>
         </div>`;
