@@ -4,6 +4,27 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-09-26_tareas_cancelada.sql` (nuevo), `js/tareas.js`, `version.json`.
+  Bug reportado con captura del Historial de tareas: "Comprar: Miel de Abeja", cancelada a mano con el botón
+  nuevo "🚫 Cancelar" (sesión anterior), se guardaba con estatus `'archivada'` — el mismo que usa el sistema
+  para "la condición ya no aplica" (stock recuperado, fecha de caducidad capturada...), quedando indistinguible
+  en el Historial de un cierre automático. El usuario pidió que quede su propio estatus. Se agregó
+  `'cancelada'` como estatus real (antes solo se reusaba `'archivar'`): constraint de `tareas.estatus` ampliado,
+  nueva acción `'cancelar'` en `tarea_resolver()`, y el índice único parcial `tareas_entidad_viva_uq` +
+  `tareas_sync_inventario()` + `tareas_sync_caducidad()` (las versiones VIGENTES: `…10-12_sugerido_pedir_entero.sql`
+  y `…09-10_caducidad_solo_obligatorios.sql`, no las originales de `…09-06`/`…09-09`) tratan `'cancelada'`
+  igual que `'archivada'` — no cuenta como tarea "viva", así que si la condición que la generó sigue vigente
+  el sincronizador crea una tarea nueva sola (mismo comportamiento ya documentado la sesión pasada, ahora con
+  el estatus correcto); y si la condición deja de aplicar, el auto-archivado NO le pisa el estatus a una que
+  ya se canceló a mano. 3 escenarios simulados y probados en Postgres local (crear stub de `productos`/
+  `unidades_medida`/`lotes_inventario`, correr las 5 migraciones en orden): cancelar y confirmar estatus
+  `cancelada`; con la condición aún vigente, el sync crea una tarea nueva pendiente sin tocar la cancelada;
+  con la condición resuelta, el sync archiva solo la pendiente nueva, la cancelada se queda igual. `js/tareas.js`:
+  el botón ahora llama `resolverTarea(b, 'cancelar', ...)` (antes `'archivar'`); `ESTATUS_LABEL`/`ESTATUS_BADGE`
+  ganan `cancelada: 'Cancelada'` (badge rosa, distinto del gris de "Archivada") — el filtro del Historial ya
+  arma sus opciones desde ese objeto, no necesitó tocarse aparte. Pendiente: correr
+  `sql/2026-09-26_tareas_cancelada.sql` en Supabase y probar el botón "🚫 Cancelar" en el navegador — confirmar
+  que el Historial ya distingue "Cancelada" de "Archivada".
 - Archivos tocados (lo último): `js/tareas.js`, `version.json`. A petición del usuario ("falta un botón de
   cancelar tarea, porque a veces será necesario cancelar cualquier tarea si ya se atendió por otro medio"):
   nuevo botón "🚫 Cancelar" en CADA tarea de "Tareas de almacén" (inventario bajo mínimo y caducidad próxima

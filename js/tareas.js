@@ -10,7 +10,8 @@ const histTareasOrden = crearOrdenTabla();
 // humana. Dos orígenes:
 //   1. Tareas persistentes de la tabla public.tareas (las genera el
 //      sistema solo: 'inventario_bajo_minimo', 'caducidad_proxima').
-//      Se marcan Atendida / No aceptada (posponer) / No aplica (archivar).
+//      Se marcan Atendida / No aceptada (posponer) / No aplica (archivar, automático) /
+//      Cancelar (a mano, ya se atendió por otro medio — distinto de "archivar").
 //   2. Señales calculadas al vuelo (nóminas en borrador, recordatorio
 //      del viernes) que no viven en una tabla.
 // Agregar un tipo nuevo = sumar un fetcher, no rediseñar la pantalla.
@@ -167,7 +168,7 @@ function renderTareasActivas() {
     cont.querySelectorAll('.tarea-cancelar-sistema').forEach((b) => b.addEventListener('click', () => {
         if (!confirm('¿Cancelar esta tarea porque ya se atendió por otro medio? Si la condición que la generó sigue aplicando, puede volver a aparecer.')) return;
         const motivo = prompt('Motivo (opcional):', '') || 'Cancelada: ya se atendió por otro medio.';
-        resolverTarea(b, 'archivar', null, motivo);
+        resolverTarea(b, 'cancelar', null, motivo);
     }));
     cont.querySelectorAll('.tarea-ir-oc').forEach((b) => b.addEventListener('click', () => {
         window.__reqPreProducto = {
@@ -410,19 +411,20 @@ function renderNominaBorrador(n) {
 // Historial — TODAS las tareas del sistema (no solo las pendientes),
 // filtrable por estatus / tipo / rango de fechas / quién la resolvió.
 // public.tareas nunca borra una fila: pendiente -> atendida / pospuesta
-// -> archivada quedan ahí; esto solo es la ventana para consultarlas.
+// -> archivada / cancelada quedan ahí; esto solo es la ventana para consultarlas.
 // Requiere sql/2026-09-07_tareas_historial.sql (rpc tareas_historial).
 // =====================================================================
 
 const ESTATUS_LABEL = {
     pendiente: 'Pendiente', atendida: 'Atendida',
-    pospuesta: 'Pospuesta', archivada: 'Archivada',
+    pospuesta: 'Pospuesta', archivada: 'Archivada', cancelada: 'Cancelada',
 };
 const ESTATUS_BADGE = {
     pendiente: 'bg-amber-900/50 text-amber-300 border-amber-700',
     atendida: 'bg-emerald-900/50 text-emerald-300 border-emerald-700',
     pospuesta: 'bg-sky-900/50 text-sky-300 border-sky-700',
     archivada: 'bg-slate-800 text-slate-400 border-slate-700',
+    cancelada: 'bg-rose-950/40 text-rose-300 border-rose-800',
 };
 const TIPO_LABEL = {
     inventario_bajo_minimo: 'Inventario bajo mínimo',
