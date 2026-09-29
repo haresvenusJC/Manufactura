@@ -9,16 +9,21 @@ import './subventanas-movibles.js'; // todas las subventanas se pueden arrastrar
 //  toma foto(s) del documento, confirma que todo cuadra y lo envía. El
 //  admin lo valida desde "Recibo de mercancía".
 //  Lecturas por vistas públicas (v_recibo_*), escritura por RPC
-//  prerecibo_crear. NO se muestran costos.
-//  Requiere sql/2026-09-11_prerecibo_operador.sql.
+//  prerecibo_crear. Al elegir la OC se muestra su total ESTIMADO (para que
+//  el operador confirme que es la orden correcta) — pero NUNCA el costo
+//  unitario por partida, eso sigue sin verse (v_recibo_oc_lineas no lo trae).
+//  Requiere sql/2026-09-11_prerecibo_operador.sql y
+//  sql/2026-09-29_prerecibo_resumen_oc.sql.
 // ---------------------------------------------------------------------------
 
 const KEY = 'prerecibo_sesion';
 let sesion = null;
 let fotos = [];   // data-URI base64 comprimidas
+let ocsCache = []; // últimas OCs cargadas, para pintar el resumen sin repetir la consulta
 
 const app = () => document.getElementById('app');
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const money = (n) => Number(n || 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
 function guardarSesion(s) {
     sesion = s;
@@ -135,6 +140,8 @@ async function pantallaFormulario() {
                 <option value="">Cargando órdenes...</option>
             </select>
 
+            <div id="prResumenOc" class="mb-2"></div>
+
             <div id="prSinOc" class="hidden mb-2">
                 <label class="block text-xs text-slate-400 mb-1">Referencia del documento (remisión / factura)</label>
                 <input type="text" id="prRef" placeholder="Ej. REM-4821" class="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-sm text-slate-100">
@@ -164,7 +171,7 @@ async function pantallaFormulario() {
     const selOc = document.getElementById('prOc');
     const { data: ocs, error } = await supabaseClient
         .from('v_recibo_ocs')
-        .select('id, folio, proveedor_nombre, fecha_esperada, estatus, partidas')
+        .select('id, folio, proveedor_nombre, fecha_esperada, estatus, partidas, unidades_totales, total_estimado')
         .order('fecha_esperada', { ascending: true });
     if (error) {
         selOc.innerHTML = `<option value="">— (error al cargar) —</option>`;
@@ -172,15 +179,18 @@ async function pantallaFormulario() {
             ? 'Falta correr sql/2026-09-11_prerecibo_operador.sql en Supabase.'
             : error.message;
     } else {
+        ocsCache = ocs || [];
         selOc.innerHTML = `<option value="">— elige una orden —</option>`
-            + (ocs || []).map(o => `<option value="${o.id}">${esc(o.folio || '#' + o.id)} · ${esc(o.proveedor_nombre || 's/proveedor')} · ${o.partidas} part.</option>`).join('')
+            + ocsCache.map(o => `<option value="${o.id}">${esc(o.folio || '#' + o.id)} · ${esc(o.proveedor_nombre || 's/proveedor')} · ${o.partidas} part.</option>`).join('')
             + `<option value="__sinoc__">Sin orden de compra (referencia libre)</option>`;
     }
 
     selOc.onchange = () => {
         const v = selOc.value;
         document.getElementById('prSinOc').classList.toggle('hidden', v !== '__sinoc__');
-        pintarLineas(v && v !== '__sinoc__' ? Number(v) : null);
+        const ocId = v && v !== '__sinoc__' ? Number(v) : null;
+        pintarResumenOc(ocId ? ocsCache.find((o) => o.id === ocId) : null);
+        pintarLineas(ocId);
     };
 
     // foto
@@ -294,6 +304,24 @@ function mostrarConfirmacion2() {
     document.getElementById('prConfirmar2').onclick = () => { ocultarModal(); enviarReal(); };
 }
 
+// Tarjeta-resumen al elegir una OC (Proveedor / Fecha / Partidas y
+// unidades / Total ESTIMADO — nunca el costo unitario por partida, ese
+// sigue sin mostrarse). No hace consulta propia: usa lo que ya trajo
+// pantallaFormulario en ocsCache, para no repetir el fetch de OCs.
+function pintarResumenOc(oc) {
+    const cont = document.getElementById('prResumenOc');
+    if (!cont) return;
+    if (!oc) { cont.innerHTML = ''; return; }
+    cont.innerHTML = `
+        <div class="bg-slate-900 border border-sky-800 rounded-xl p-3 text-xs space-y-1">
+            <p><span class="text-slate-500">Orden seleccionada:</span> <span class="text-sky-400 font-bold">${esc(oc.folio || '#' + oc.id)}</span></p>
+            <p><span class="text-slate-500">Proveedor:</span> <span class="text-slate-200">${esc(oc.proveedor_nombre || 's/proveedor')}</span></p>
+            <p><span class="text-slate-500">Fecha:</span> <span class="text-slate-200">${oc.fecha_esperada ? new Date(oc.fecha_esperada).toLocaleDateString('es-MX') : '—'}</span></p>
+            <p><span class="text-slate-500">Partidas:</span> <span class="text-slate-200">${oc.partidas} partida${Number(oc.partidas) === 1 ? '' : 's'} — ${oc.unidades_totales} unidades</span></p>
+            <p><span class="text-slate-500">Total (estimado):</span> <span class="text-emerald-400 font-bold">${money(oc.total_estimado)}</span></p>
+        </div>`;
+}
+
 async function pintarLineas(ocId) {
     const cont = document.getElementById('prLineas');
     if (!cont) return;
@@ -395,11 +423,12 @@ async function enviarReal() {
 }
 
 function pantallaOk(id) {
+    const folio = 'PRE-' + String(id).padStart(6, '0'); // solo formato de despliegue, no un consecutivo aparte (mismo id de pre_recibos)
     app().innerHTML = `
         <div class="p-6 max-w-md mx-auto text-center">
             <div class="text-5xl mb-3">✅</div>
             <h2 class="text-lg font-bold text-emerald-400 mb-1">Pre-recibo enviado</h2>
-            <p class="text-sm text-slate-400 mb-6">Folio interno #${id}. El administrador lo revisará y validará la recepción.</p>
+            <p class="text-sm text-slate-400 mb-6">Folio interno ${esc(folio)}. El administrador lo revisará y validará la recepción.</p>
             <button type="button" id="prOtro" class="w-full bg-sky-600 active:bg-sky-700 text-white font-semibold py-3 rounded-xl text-sm mb-2">Capturar otro</button>
             <button type="button" id="prSalir" class="w-full bg-slate-800 border border-slate-700 text-slate-300 py-3 rounded-xl text-sm">Salir</button>
         </div>`;

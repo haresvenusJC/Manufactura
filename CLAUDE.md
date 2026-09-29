@@ -4,6 +4,26 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-09-28_reclasificar_compras_contado_no_pagadas.sql`,
+  `sql/2026-09-29_prerecibo_resumen_oc.sql` (nuevos), `js/recibo-operador.js`, `version.json`. Auditoría de 16
+  recepciones de compra capturadas "Contado" sin haberse pagado de verdad (halladas al revisar la póliza
+  Egreso #38, F-2407 — abono a Bancos de $16,946 sin pago real): confirmado con el usuario que ninguna de
+  las 16 se pagó. `contabilizar_compra()` (vigente) está bien — el error fue de captura, no de código. El
+  script `…28_reclasificar…` cancela cada Egreso original (`cancelar_poliza`, contra-asiento) y la reemplaza
+  por una póliza Diario nueva con los movimientos correctos (quita el renglón de "pago", agrega el abono a
+  201.01 si la versión vieja de `contabilizar_compra` -antes de Anticipos- nunca lo reconoció); el documento
+  pasa a `condicion='credito'` y su `poliza_id` apunta ya a la Diario. No toca inventario ni costeo PEPS. Se
+  recibió también un memorándum externo (otro análisis con Claude) proponiendo separar Autorización/Pago/
+  Recepción con roles de sistema y un módulo de "Vales de caja" — coincide en el diagnóstico de fondo (ya
+  resuelto en gran parte por el módulo de Anticipos a proveedores), pero implica features nuevas (roles/
+  permisos, vales de caja) que quedan **pendientes de decisión**, sin tocar. Pre-recibo (operador,
+  `recibo-operador.js`): tarjeta-resumen al elegir la OC (Proveedor/Fecha/Partidas y unidades/Total
+  **estimado**) — antes esta pantalla no mostraba ningún monto a propósito; ahora sí el total de la orden
+  completa (nunca el costo unitario por partida), con `…29_prerecibo_resumen_oc.sql` agregando
+  `unidades_totales`/`total_estimado` a la vista `v_recibo_ocs` (calculado al vuelo, sin columnas nuevas de
+  tabla). Folio de confirmación con formato "PRE-000038" (solo texto, mismo id de `pre_recibos`). Pendiente:
+  correr ambos SQL nuevos y probar en el celular; decidir el alcance del memorándum (roles, vales de caja)
+  cuando el usuario retome el tema.
 - Archivos tocados (lo último): `js/catalogo.js`, `version.json`. Reportado con captura (dos subventanas del
   mismo producto #258, Granel Miel Bee Power): "Editar artículo" mostraba "🧪 Revisión del granel — 6 de 6
   listos" con Rendimiento del lote en 10 Kilogramos ✅, mientras "🧪 Editar o ver BOM" (abierta al mismo
