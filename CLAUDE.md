@@ -4,6 +4,16 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-09-30c_cancelar_pruebas_anticipo_y_entradas.sql` (nuevo). Limpieza
+  de las 5 pruebas de funcionamiento de esta sesión (confirmado con el usuario que todas eran prueba, no
+  movimientos reales): cancela en el orden obligatorio (primero el documento #49 — recepción de residuos de
+  OC-000017 — para liberar los $0.14 de anticipo que tenía "aplicado"; sin eso, `cancelar_pago_proveedor()`
+  rechaza cancelar el anticipo Egreso #57) y luego los Egreso #57/#58 (anticipo duplicado de OC-000017,
+  $8,400.64 c/u) y las Diario #24/#25 (Entradas directas ENT-000001/ENT-000003). Todo vía las funciones ya
+  existentes (`cancelar_recibo_inventario`, `cancelar_pago_proveedor` → contra-asiento, nunca edición directa).
+  **Corrido y confirmado por el usuario**: las 5 pólizas (24, 25, 26, 57, 58) salieron `cancelada`. OC-000017
+  queda en el estado real de antes de las pruebas (solo Recibo #15). Con esto se cierra la auditoría del flujo
+  de OC-000017 iniciada en la entrada anterior.
 - Archivos tocados (lo último): `sql/2026-09-30b_anticipo_candado_y_iva_real.sql` (nuevo), `js/ordenes-compra.js`,
   `js/recibo-operador.js`, `version.json`. Auditoría completa del flujo OC-000017 (Alkem Industrias) con capturas
   reales, 4 hallazgos: **1)** `pagar_anticipo_oc()` sin tope permitió pagar $16,801.28 de anticipo (dos pagos
