@@ -7,7 +7,19 @@ import { linkDoc, linkPoliza } from './enlaces-reporte.js';
 let partidasEntradaDirecta = [];
 let catalogoInsumosCache = [];
 let catalogoUnidadesCache = [];
+let cuentasContablesCache = []; // {id, codigo, nombre} afectables/activas, cargadas una vez en cargarBloqueContableED
 const histEntradasOrden = crearOrdenTabla('fecha', 'desc');
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// Sugerencia de contrapartida por "Motivo de Entrada" (criterio contable,
+// no un candado: se puede cambiar). Sin entrada aquí = sin sugerencia
+// automática, requiere criterio del usuario (Devolución de Producción,
+// Otro, o sin motivo elegido todavía).
+const SUGERENCIA_ABONO_ED = {
+    'Inventario Inicial': { codigo: '304.01', texto: 'Es un saldo de arranque: no es una venta del periodo ni una aportación de socios nueva — afecta Resultado de ejercicios anteriores, no el resultado del periodo actual ni Capital social.' },
+    'Ajuste de Inventario (+)': { codigo: '403.01', texto: 'Sobrante sin causa conocida: entra como Otros ingresos. Si en realidad corrige una merma que ya registraste como gasto, abona esa MISMA cuenta de gasto en vez de esta — no crees un ingreso nuevo por algo que ya se había registrado.' },
+    'Sobrante de Calibración': { codigo: '403.01', texto: 'Mismo criterio que un ajuste de inventario: sobrante sin causa conocida entra como Otros ingresos.' },
+};
 
 export async function configurarFormularioEntradasDirectas() {
     const formEntradasDirectas = document.getElementById('formEntradasDirectas');
@@ -94,11 +106,12 @@ export async function configurarFormularioEntradasDirectas() {
                                 <th class="p-3">Unidad</th>
                                 <th class="p-3">Costo U.</th>
                                 <th class="p-3">Lote</th>
+                                <th class="p-3">Se carga a</th>
                                 <th class="p-3 text-center">Acción</th>
                             </tr>
                         </thead>
                         <tbody id="tablaEDPartidasBody">
-                            <tr><td colspan="6" class="p-4 text-center text-slate-500">No hay partidas agregadas todavía.</td></tr>
+                            <tr><td colspan="7" class="p-4 text-center text-slate-500">No hay partidas agregadas todavía.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -111,7 +124,7 @@ export async function configurarFormularioEntradasDirectas() {
                 <div id="edCamposContables">
                     <label class="block text-xs text-slate-400 mb-1">Cuenta de contrapartida (abono)</label>
                     <select id="edCuentaAbono" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select>
-                    <p class="text-[11px] text-slate-500 mt-1">Ej. 205.01 Acreedores, o una cuenta de ajuste / capital. El inventario se carga a la cuenta contable de cada producto.</p>
+                    <p id="edCuentaAbonoHint" class="text-[11px] text-slate-500 mt-1">Ej. 205.01 Acreedores, o una cuenta de ajuste / capital. El inventario se carga a la cuenta contable de cada producto — por eso esa(s) cuenta(s) no aparecen aquí como opción (cargo y abono a la misma cuenta se neutralizarían).</p>
                 </div>
             </div>
 
@@ -172,7 +185,8 @@ export async function configurarFormularioEntradasDirectas() {
                 cantidad,
                 costo,
                 lote: lote || null,
-                caducidad: caducidad || null
+                caducidad: caducidad || null,
+                cuentaCargo: resolverCuentaCargoED(nombre)   // {id, codigo, nombre} o null (sin módulo contable / sin catálogo cargado)
             });
 
             renderizarTablaEDPartidas();
@@ -416,28 +430,43 @@ function renderizarTablaEDPartidas() {
     if (!tbody) return;
 
     if (partidasEntradaDirecta.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-500">No hay partidas agregadas todavía.</td></tr>`;
-        return;
+        tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-slate-500">No hay partidas agregadas todavía.</td></tr>`;
+    } else {
+        tbody.innerHTML = partidasEntradaDirecta.map((item, index) => `
+            <tr class="border-b border-slate-900 hover:bg-slate-900/50 transition">
+                <td class="p-3 font-medium text-slate-100">${esc(item.nombre)}</td>
+                <td class="p-3 text-slate-300">${item.cantidad}</td>
+                <td class="p-3 text-slate-400 text-xs">${esc(item.unidadNombre)}</td>
+                <td class="p-3 text-emerald-400 font-mono">$${item.costo.toFixed(2)}</td>
+                <td class="p-3 font-mono text-xs text-emerald-300">${esc(item.lote || 'SIN-LOTE')}</td>
+                <td class="p-3 text-xs text-sky-300">${item.cuentaCargo ? esc(item.cuentaCargo.codigo + ' · ' + item.cuentaCargo.nombre) : '<span class="text-slate-600">—</span>'}</td>
+                <td class="p-3 text-center">
+                    <button type="button" onclick="window.eliminarPartidaED(${index})" class="text-red-400 hover:text-red-300 font-bold px-2 py-1 rounded bg-red-950 border border-red-900 text-xs" style="cursor: pointer;">✕</button>
+                </td>
+            </tr>
+        `).join('');
     }
-
-    tbody.innerHTML = partidasEntradaDirecta.map((item, index) => `
-        <tr class="border-b border-slate-900 hover:bg-slate-900/50 transition">
-            <td class="p-3 font-medium text-slate-100">${item.nombre}</td>
-            <td class="p-3 text-slate-300">${item.cantidad}</td>
-            <td class="p-3 text-slate-400 text-xs">${item.unidadNombre}</td>
-            <td class="p-3 text-emerald-400 font-mono">$${item.costo.toFixed(2)}</td>
-            <td class="p-3 font-mono text-xs text-emerald-300">${item.lote || 'SIN-LOTE'}</td>
-            <td class="p-3 text-center">
-                <button type="button" onclick="window.eliminarPartidaED(${index})" class="text-red-400 hover:text-red-300 font-bold px-2 py-1 rounded bg-red-950 border border-red-900 text-xs" style="cursor: pointer;">✕</button>
-            </td>
-        </tr>
-    `).join('');
+    renderSelectAbonoED();   // las cuentas de cargo pudieron cambiar (partida agregada/quitada)
 }
 
 window.eliminarPartidaED = function(index) {
     partidasEntradaDirecta.splice(index, 1);
     renderizarTablaEDPartidas();
 };
+
+// Misma cuenta que usaría contabilizar_entrada_directa -> _inv_por_cuenta:
+// la propia del producto si ya existe en el catálogo, si no el default por
+// tipo (producto -> 115.04, semiterminado -> 115.02, el resto -> 115.01).
+// Si el nombre no coincide con ningún producto existente, se creará nuevo
+// como 'materia_prima' al guardar (ver el submit más abajo) -> 115.01.
+function resolverCuentaCargoED(nombre) {
+    if (!cuentasContablesCache.length) return null; // sin módulo contable instalado
+    const enc = catalogoInsumosCache.find(i => i.nombre && i.nombre.toLowerCase() === String(nombre).toLowerCase());
+    const tipo = enc?.tipo || 'materia_prima';
+    const codigoDefault = tipo === 'producto' ? '115.04' : tipo === 'semiterminado' ? '115.02' : '115.01';
+    const ctaId = enc?.cuenta_inventario_id || cuentasContablesCache.find(c => c.codigo === codigoDefault)?.id;
+    return cuentasContablesCache.find(c => c.id === ctaId) || null;
+}
 
 async function cargarUnidadesMedidaSelectED() {
     const selectUnidad = document.getElementById('inputEDUnidadId');
@@ -479,10 +508,11 @@ async function configurarDatalistInsumosED() {
         try {
             const { data, error } = await supabaseClient
                 .from('productos')
-                .select('nombre, unidad_medida_id, costo_unitario');
+                .select('nombre, unidad_medida_id, costo_unitario, tipo, cuenta_inventario_id');
 
             if (error) throw error;
             catalogoInsumosCache = data || [];
+            renderizarTablaEDPartidas(); // ya se puede resolver "Se carga a" de las partidas que ya estaban agregadas
             let nombres = [...new Set(catalogoInsumosCache.map(i => i.nombre).filter(n => n && n.trim() !== ''))];
             nombres.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
 
@@ -511,7 +541,6 @@ async function configurarDatalistInsumosED() {
 async function cargarBloqueContableED() {
     const bloque = document.getElementById('edBloqueContable');
     if (!bloque) return;
-    let ctas = [];
     try {
         const { data, error } = await supabaseClient
             .from('cuentas_contables')
@@ -519,15 +548,55 @@ async function cargarBloqueContableED() {
             .eq('afectable', true).eq('activa', true)
             .order('codigo', { ascending: true });
         if (error) throw error;
-        ctas = data || [];
+        cuentasContablesCache = data || [];
     } catch (_) {
         return; // modulo de contabilidad no instalado
     }
     bloque.classList.remove('hidden');
-    const sel = document.getElementById('edCuentaAbono');
-    sel.innerHTML = '<option value="">— cuenta —</option>' +
-        ctas.map(c => `<option value="${c.id}" ${c.codigo === '205.01' ? 'selected' : ''}>${c.codigo} · ${c.nombre}</option>`).join('');
+    renderSelectAbonoED();
     document.getElementById('edContabilizar').onchange = (e) => {
         document.getElementById('edCamposContables').style.display = e.target.checked ? '' : 'none';
     };
+    document.getElementById('entradaDirectaMotivo').addEventListener('change', () => renderSelectAbonoED({ sugerirPorMotivo: true }));
+}
+
+// Llena el select de contrapartida SIN las cuentas de inventario que las
+// partidas actuales ya van a cargar (evita el neteo: cargo y abono a la
+// misma cuenta), y sugiere una cuenta según el "Motivo de Entrada" elegido
+// (ver SUGERENCIA_ABONO_ED) — es una sugerencia, no un candado, se puede
+// cambiar libremente.
+function renderSelectAbonoED(opts = {}) {
+    const sel = document.getElementById('edCuentaAbono');
+    const hint = document.getElementById('edCuentaAbonoHint');
+    if (!sel) return;
+
+    const excluir = new Set(partidasEntradaDirecta.filter(p => p.cuentaCargo).map(p => p.cuentaCargo.id));
+    const disponibles = cuentasContablesCache.filter(c => !excluir.has(c.id));
+    const valorPrevio = sel.value;
+
+    sel.innerHTML = '<option value="">— cuenta —</option>' +
+        disponibles.map(c => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
+
+    const motivo = document.getElementById('entradaDirectaMotivo')?.value || '';
+    const sugerencia = SUGERENCIA_ABONO_ED[motivo];
+    const ctaSugerida = sugerencia && disponibles.find(c => c.codigo === sugerencia.codigo);
+
+    if (opts.sugerirPorMotivo && ctaSugerida) {
+        sel.value = String(ctaSugerida.id);
+    } else if (valorPrevio && disponibles.some(c => String(c.id) === valorPrevio)) {
+        sel.value = valorPrevio; // conserva lo ya elegido si sigue siendo válido
+    } else if (!motivo) {
+        const def = disponibles.find(c => c.codigo === '205.01');
+        if (def) sel.value = String(def.id);
+    }
+
+    if (hint) {
+        hint.textContent = sugerencia
+            ? sugerencia.texto
+            : motivo === 'Devolución de Producción'
+                ? 'Sin sugerencia automática: abona la MISMA cuenta que se cargó al cerrar esa orden de producción (normalmente 115.04) — revisa el costeo de esa orden antes de elegir, no inventes una cuenta distinta.'
+                : motivo === 'Otro'
+                    ? 'Sin sugerencia automática para "Otro": explica en Notas qué pasó de verdad antes de elegir la cuenta.'
+                    : 'Ej. 205.01 Acreedores, o una cuenta de ajuste / capital. Las cuentas de inventario que ya se van a cargar no aparecen aquí (cargo y abono a la misma cuenta se neutralizarían).';
+    }
 }

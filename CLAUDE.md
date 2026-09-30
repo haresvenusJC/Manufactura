@@ -4,6 +4,22 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-09-30_entrada_directa_candado_neteo.sql` (nuevo), `js/entradas.js`,
+  `version.json`. Bug reportado (Póliza Diario #24, documento #46, ENT-000001): "Entrada directa" dejaba
+  elegir como "Cuenta de contrapartida (abono)" la MISMA cuenta de inventario que ya se iba a cargar —
+  `registrar_poliza` solo valida que el total cuadre, no por cuenta, así que Cargo 115.01 = Abono 115.01
+  "cuadraba" sin mover nada de verdad (neteo). `contabilizar_entrada_directa()` ahora truena antes de crear
+  la póliza si la contrapartida coincide con alguna cuenta de inventario de esa entrada; `_inv_por_cuenta()`
+  (compartida con salidas y ventas) ya no cae siempre a 115.01 si el producto no tiene cuenta capturada —
+  ahora depende del tipo (producto → 115.04, semiterminado → 115.02, el resto → 115.01), igual que ya hacía
+  `contabilizar_produccion()` para el mismo caso. En pantalla: cada partida agregada muestra "Se carga a:
+  código · nombre" (misma cuenta que usaría la función SQL); el select de contrapartida ya NO ofrece esas
+  cuentas como opción, y sugiere una cuenta según el "Motivo de Entrada" con el porqué contable (Inventario
+  Inicial → 304.01 Resultado de ejercicios anteriores; Ajuste de Inventario (+) / Sobrante de Calibración →
+  403.01 Otros ingresos, salvo que sea reversa de una merma ya registrada; Devolución de Producción / Otro →
+  sin sugerencia automática, exige criterio). Es sugerencia, no candado — se puede cambiar. Pendiente: correr
+  la migración y probar en el navegador; decidir si el documento #46 (prueba, "[Otro] Me las ecnotnre
+  tiradad") se cancela como prueba o se corrige como movimiento real.
 - Archivos tocados (lo último): `sql/2026-09-28_reclasificar_compras_contado_no_pagadas.sql`,
   `sql/2026-09-29_prerecibo_resumen_oc.sql` (nuevos), `js/recibo-operador.js`, `version.json`. Auditoría de 16
   recepciones de compra capturadas "Contado" sin haberse pagado de verdad (halladas al revisar la póliza
