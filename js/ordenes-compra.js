@@ -23,6 +23,11 @@ const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFract
 const hoyISO = () => new Date().toISOString().slice(0, 10);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const normTxt = (s) => String(s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+// pedido - recibido con resta de punto flotante de JS da colas como
+// 0.0029999999999999996696 (el operador la ve y la teclea a mano, y una OC
+// puede quedar atorada en "recibida_parcial" persiguiendo una fracción de
+// miligramo). Redondea a 4 decimales, de sobra para las unidades que se manejan.
+const pendienteSeguro = (cantidad, recibida) => Math.max(0, Math.round((Number(cantidad || 0) - Number(recibida || 0)) * 10000) / 10000);
 
 let ocProveedores = [];
 let ocUnidades = [];
@@ -1630,7 +1635,7 @@ window.prereciboNuevoAdmin = async () => {
         if (!dets.length) { wrap.innerHTML = '<p class="text-xs text-slate-500">Esta orden no tiene partidas pendientes.</p>'; return; }
         wrap.innerHTML = `<p class="text-[11px] uppercase tracking-wider text-slate-500 font-semibold mb-1">Cuenta lo que de verdad llegó</p>` +
             dets.map(d => {
-                const pend = Number(d.cantidad || 0) - Number(d.cantidad_recibida || 0);
+                const pend = pendienteSeguro(d.cantidad, d.cantidad_recibida);
                 const nom = d.producto_id ? (ocProductos.find(p => p.id === d.producto_id)?.nombre || d.descripcion || `#${d.producto_id}`) : (d.descripcion || 'partida');
                 return `<div class="flex items-center justify-between gap-2 text-xs bg-slate-950 border border-slate-800 rounded px-2 py-1.5" data-detid="${d.id}" data-pend="${pend}">
                     <span class="text-slate-300 truncate">${esc(nom)} <span class="text-slate-500">(pendían ${pend})</span></span>
@@ -1865,7 +1870,7 @@ async function rmRenderDetalle(oc) {
     };
 
     const filas = (oc.ordenes_compra_detalle || []).map((d) => {
-        const pend = Math.max(0, Number(d.cantidad || 0) - Number(d.cantidad_recibida || 0));
+        const pend = pendienteSeguro(d.cantidad, d.cantidad_recibida);
         const prod = d.producto_id ? ocProductos.find(p => p.id === d.producto_id) : null;
         const reqCad = !!(prod && prod.requiere_caducidad);
         const capturado = capturaOperador[d.id];
@@ -2437,9 +2442,10 @@ async function rmContabilizarDoc(documentoId, subtotalFallback, extras) {
             },
         });
         if (eCc) throw eCc;
+        const tipoPol = cc?.tipo_poliza || 'Egreso'; // respaldo si la migración de tipo_poliza aún no corrió
         return cc && cc.total != null
-            ? ` Póliza de Egreso generada (total ${money(cc.total)}).`
-            : ' Póliza de Egreso generada.';
+            ? ` Póliza de ${tipoPol} generada (total ${money(cc.total)}).`
+            : ` Póliza de ${tipoPol} generada.`;
     } catch (e) {
         return ` (Entrada OK, pero no se contabilizó: ${e.message || e})`;
     }

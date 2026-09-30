@@ -337,7 +337,10 @@ async function pintarLineas(ocId) {
         <div class="bg-slate-900 border border-slate-800 rounded-xl p-2 mt-1">
             <p class="text-[11px] text-slate-500 mb-2">Cuenta las piezas que <b>de verdad</b> llegaron de cada partida:</p>
             ${data.map(l => {
-                const pendiente = Math.max(0, Number(l.cantidad) - Number(l.cantidad_recibida || 0));
+                // Redondeado a 4 decimales: la resta de punto flotante de JS deja
+                // colas como 0.0029999999999999996696 que el operador vería y
+                // tendría que teclear a mano (y la OC nunca cerraría "recibida").
+                const pendiente = Math.max(0, Math.round((Number(l.cantidad) - Number(l.cantidad_recibida || 0)) * 10000) / 10000);
                 return `
                 <div class="py-1.5 border-b border-slate-800/60 last:border-0">
                     <div class="flex justify-between items-baseline mb-1 gap-2">

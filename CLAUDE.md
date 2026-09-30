@@ -4,6 +4,28 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-09-30b_anticipo_candado_y_iva_real.sql` (nuevo), `js/ordenes-compra.js`,
+  `js/recibo-operador.js`, `version.json`. Auditoría completa del flujo OC-000017 (Alkem Industrias) con capturas
+  reales, 4 hallazgos: **1)** `pagar_anticipo_oc()` sin tope permitió pagar $16,801.28 de anticipo (dos pagos
+  idénticos de $8,400.64) contra una OC de $9,744.74 — ahora exige que lo ya pagado + lo nuevo no exceda el
+  subtotal estimado de la OC ×1.30 (margen para IVA/landed cost; no es cálculo exacto, es candado contra
+  duplicar el mismo anticipo). **2)** El aviso de "Recibir mercancía" siempre decía "Póliza de Egreso generada"
+  aunque saliera Diario — `contabilizar_compra()` ahora regresa `tipo_poliza` en su resultado y
+  `js/ordenes-compra.js` (`rmContabilizarDoc`) ya lo usa en el mensaje. **3)** La cuenta de IVA (118.01 pagado /
+  119.01 pendiente) se decidía por el combo Contado/Crédito crudo, no por si de verdad ya no queda nada vivo en
+  201.01 tras aplicar el anticipo — mismo criterio que ya se había corregido para el tipo de póliza, aplicado
+  aquí también (`v_iva_pagado := (v_resto = 0) or (v_condicion = 'contado')`). **4)** Los "pendientes" de
+  recepción (`cantidad - cantidad_recibida`) arrastraban colas de punto flotante de JS
+  (`0.0029999999999999996696`) que el operador veía y tecleaba a mano, pudiendo dejar una OC atorada en
+  "recibida_parcial" persiguiendo una fracción de miligramo — redondeado a 4 decimales en
+  `recibo-operador.js` y en las 2 pantallas de recepción de `ordenes-compra.js` (nuevo helper
+  `pendienteSeguro`, sin duplicar la lógica). Verificado: los 3 SQL pendientes de sesiones anteriores
+  (`…09-28_reclasificar…`, `…09-29_prerecibo_resumen_oc`, `…09-30_entrada_directa_candado_neteo`) no tocan
+  `contabilizar_compra` ni `pagar_anticipo_oc` — compatibles, se pueden correr en cualquier orden. Pendiente:
+  correr los 4 SQL de esta semana (28, 29, 30, 30b) y probar en el navegador; decidir el destino del documento
+  #46/#49 de prueba (Entradas directas, "[Otro] Me las ecnotnre tiradad"/"me la encontre al barrer") y el
+  exceso de anticipo real de OC-000017 ($16,801.28 pagado vs $9,744.74 de compra) — cancelar uno de los dos
+  anticipos duplicados o dejarlo para aplicar a una próxima compra de ese proveedor.
 - Archivos tocados (lo último): `sql/2026-09-30_entrada_directa_candado_neteo.sql` (nuevo), `js/entradas.js`,
   `version.json`. Bug reportado (Póliza Diario #24, documento #46, ENT-000001): "Entrada directa" dejaba
   elegir como "Cuenta de contrapartida (abono)" la MISMA cuenta de inventario que ya se iba a cargar —
