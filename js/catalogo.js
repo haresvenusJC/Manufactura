@@ -381,7 +381,7 @@ export async function cargarModuloAltaArticulo() {
                                     </div>
                                 </div>
                                 <p class="text-[10px] text-slate-500">Ej. el proveedor vende por "Millar" y tú le das entrada en piezas: elige el preset Millar — el factor (1000) queda listo para cuando conviertas la recepción en Recibo de mercancía.</p>
-                                <button type="button" id="btnAgregarClaveProv" class="w-full bg-slate-800 hover:bg-slate-700 text-sky-300 font-medium py-1.5 rounded-lg text-xs transition">＋ Agregar clave de proveedor</button>
+                                <button type="button" id="btnAgregarClaveProv" class="w-full lg:w-auto lg:px-6 bg-slate-800 hover:bg-slate-700 text-sky-300 font-medium py-1.5 rounded-lg text-xs transition">＋ Agregar clave de proveedor</button>
                                 <div id="listaClavesProv" class="text-xs text-slate-400 bg-slate-900 p-2 rounded-lg border border-slate-800 min-h-[32px]">Sin claves registradas.</div>
                             </div>
                         </details>
@@ -411,7 +411,7 @@ export async function cargarModuloAltaArticulo() {
                                         </div>
                                     </div>
 
-                                    <button type="button" id="btnAgregarItemBom" class="w-full bg-slate-800 hover:bg-slate-700 text-sky-300 font-medium py-1.5 rounded-lg text-xs transition">＋ Agregar Componente al BOM</button>
+                                    <button type="button" id="btnAgregarItemBom" class="w-full lg:w-auto lg:px-6 bg-slate-800 hover:bg-slate-700 text-sky-300 font-medium py-1.5 rounded-lg text-xs transition">＋ Agregar Componente al BOM</button>
                                 </div>
 
                                 <div id="listaBomTemporal" class="text-xs text-slate-400 bg-slate-900 p-2 rounded-lg border border-slate-800 min-h-[40px]">
@@ -421,7 +421,7 @@ export async function cargarModuloAltaArticulo() {
                             </div>
                         </details>
 
-                        <button type="submit" id="btnGuardarProd" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2 rounded-lg transition text-sm shadow-md" style="cursor: pointer;">Guardar Artículo</button>
+                        <button type="submit" id="btnGuardarProd" class="w-full lg:w-auto lg:px-10 bg-sky-600 hover:bg-sky-500 text-white font-medium py-2 rounded-lg transition text-sm shadow-md" style="cursor: pointer;">Guardar Artículo</button>
                         </form>
                     </div>
                 </details>

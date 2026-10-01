@@ -112,6 +112,15 @@ h2.text-xl {
 .vista-seccion:not(.hidden) { animation: ui-rise .38s cubic-bezier(.2, .8, .2, 1) both; }
 @media (prefers-reduced-motion: reduce) { .vista-seccion:not(.hidden) { animation: none; } }
 
+/* Escritorio (>=1024px): la app se armó pensando en celular (campos y botones a lo ancho),
+   así que en monitores grandes esos mismos elementos se veían estirados de punta a punta.
+   Se centra el contenido de cada pantalla con un ancho máximo cómodo de leer, SIN tocar
+   ningún módulo — las tablas que necesiten más espacio siguen con su propio scroll
+   horizontal (overflow-x-auto), que ya traían. En celular (<1024px) no cambia nada. */
+@media (min-width: 1024px) {
+    main > .vista-seccion { max-width: 1600px; margin-left: auto; margin-right: auto; }
+}
+
 /* Scroll discreto, del color del tema */
 * { scrollbar-width: thin; scrollbar-color: var(--bd-2) transparent; }
 *::-webkit-scrollbar { width: 10px; height: 10px; }

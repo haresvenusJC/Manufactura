@@ -91,32 +91,32 @@ function devRenderPanelCliente() {
     cont.innerHTML = `
       <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
         <h3 class="text-md font-semibold text-emerald-400 mb-3">Nueva devolución de cliente</h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-          <div><label class="block text-xs text-slate-400 mb-1">Cliente</label>
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:flex lg:flex-wrap lg:items-end gap-3 mb-3">
+          <div class="lg:flex-1 lg:min-w-[220px]"><label class="block text-xs text-slate-400 mb-1">Cliente</label>
             <select id="devcCliente" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optCli}</select></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Fecha</label>
+          <div class="lg:w-40"><label class="block text-xs text-slate-400 mb-1">Fecha</label>
             <input type="date" id="devcFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Motivo</label>
+          <div class="lg:w-56"><label class="block text-xs text-slate-400 mb-1">Motivo</label>
             <input type="text" id="devcMotivo" placeholder="Ej. producto dañado" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Condición de la venta original</label>
+          <div class="lg:w-56"><label class="block text-xs text-slate-400 mb-1">Condición de la venta original</label>
             <select id="devcCondicion" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
               <option value="contado">Contado</option><option value="credito">Crédito</option></select></div>
         </div>
         <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-3 mb-3">
-          <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
-            <div class="col-span-2 relative">
+          <div class="grid grid-cols-2 md:grid-cols-5 lg:flex lg:flex-wrap lg:items-end gap-2">
+            <div class="col-span-2 lg:flex-1 lg:min-w-[220px] relative">
               <label class="block text-[11px] text-slate-400 mb-1">Producto</label>
               <input type="text" id="devcProdInput" autocomplete="off" placeholder="Buscar producto..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
               <div id="devcProdSug" class="hidden absolute left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-40 max-h-44 overflow-y-auto"></div>
             </div>
-            <div><label class="block text-[11px] text-slate-400 mb-1">Cantidad</label>
+            <div class="lg:w-28"><label class="block text-[11px] text-slate-400 mb-1">Cantidad</label>
               <input type="number" step="any" min="0" id="devcCant" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
-            <div><label class="block text-[11px] text-slate-400 mb-1">Costo unit.</label>
+            <div class="lg:w-32"><label class="block text-[11px] text-slate-400 mb-1">Costo unit.</label>
               <input type="number" step="any" min="0" id="devcCosto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
-            <div><label class="block text-[11px] text-slate-400 mb-1">Precio unit.</label>
+            <div class="lg:w-32"><label class="block text-[11px] text-slate-400 mb-1">Precio unit.</label>
               <input type="number" step="any" min="0" id="devcPrecio" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
           </div>
-          <button type="button" id="devcAddPartida" class="mt-2 w-full bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium py-1.5 rounded-lg text-xs">＋ Agregar partida</button>
+          <button type="button" id="devcAddPartida" class="mt-2 w-full lg:w-auto lg:px-6 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium py-1.5 rounded-lg text-xs">＋ Agregar partida</button>
         </div>
         <div class="overflow-x-auto border border-slate-800 rounded-lg mb-3">
           <table class="w-full text-left text-xs text-slate-300">
@@ -127,7 +127,7 @@ function devRenderPanelCliente() {
             <tbody id="devcPartidasBody"><tr><td colspan="6" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr></tbody>
           </table>
         </div>
-        <button type="button" id="devcGuardar" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Registrar devolución de cliente</button>
+        <button type="button" id="devcGuardar" class="w-full lg:w-auto lg:px-10 bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Registrar devolución de cliente</button>
         <p id="devcMsg" class="text-xs mt-2 min-h-[1rem]"></p>
       </div>
       <div class="mt-4">
@@ -292,31 +292,31 @@ function devRenderPanelProveedor() {
     cont.innerHTML = `
       <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
         <h3 class="text-md font-semibold text-emerald-400 mb-3">Nueva devolución a proveedor</h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-          <div><label class="block text-xs text-slate-400 mb-1">Proveedor</label>
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:flex lg:flex-wrap lg:items-end gap-3 mb-3">
+          <div class="lg:flex-1 lg:min-w-[220px]"><label class="block text-xs text-slate-400 mb-1">Proveedor</label>
             <select id="devpProveedor" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optProv}</select></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Fecha</label>
+          <div class="lg:w-40"><label class="block text-xs text-slate-400 mb-1">Fecha</label>
             <input type="date" id="devpFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Motivo</label>
+          <div class="lg:w-56"><label class="block text-xs text-slate-400 mb-1">Motivo</label>
             <input type="text" id="devpMotivo" placeholder="Ej. mercancía en mal estado" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Condición de la compra original</label>
+          <div class="lg:w-56"><label class="block text-xs text-slate-400 mb-1">Condición de la compra original</label>
             <select id="devpCondicion" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
               <option value="credito">Crédito</option><option value="contado">Contado</option></select></div>
         </div>
         <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-3 mb-3">
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <div class="col-span-2 relative">
+          <div class="grid grid-cols-2 md:grid-cols-4 lg:flex lg:flex-wrap lg:items-end gap-2">
+            <div class="col-span-2 lg:flex-1 lg:min-w-[220px] relative">
               <label class="block text-[11px] text-slate-400 mb-1">Producto</label>
               <input type="text" id="devpProdInput" autocomplete="off" placeholder="Buscar producto..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
               <div id="devpProdSug" class="hidden absolute left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-40 max-h-44 overflow-y-auto"></div>
             </div>
-            <div><label class="block text-[11px] text-slate-400 mb-1">Lote</label>
+            <div class="lg:w-44"><label class="block text-[11px] text-slate-400 mb-1">Lote</label>
               <select id="devpLote" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"><option value="">Elige producto primero...</option></select></div>
-            <div><label class="block text-[11px] text-slate-400 mb-1">Cantidad</label>
+            <div class="lg:w-28"><label class="block text-[11px] text-slate-400 mb-1">Cantidad</label>
               <input type="number" step="any" min="0" id="devpCant" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
           </div>
           <p id="devpLoteInfo" class="text-[10px] text-slate-500 mt-1"></p>
-          <button type="button" id="devpAddPartida" class="mt-2 w-full bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium py-1.5 rounded-lg text-xs">＋ Agregar partida</button>
+          <button type="button" id="devpAddPartida" class="mt-2 w-full lg:w-auto lg:px-6 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium py-1.5 rounded-lg text-xs">＋ Agregar partida</button>
         </div>
         <div class="overflow-x-auto border border-slate-800 rounded-lg mb-3">
           <table class="w-full text-left text-xs text-slate-300">
@@ -327,7 +327,7 @@ function devRenderPanelProveedor() {
             <tbody id="devpPartidasBody"><tr><td colspan="6" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr></tbody>
           </table>
         </div>
-        <button type="button" id="devpGuardar" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Registrar devolución a proveedor</button>
+        <button type="button" id="devpGuardar" class="w-full lg:w-auto lg:px-10 bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Registrar devolución a proveedor</button>
         <p id="devpMsg" class="text-xs mt-2 min-h-[1rem]"></p>
       </div>
       <div class="mt-4">

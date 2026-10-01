@@ -78,7 +78,7 @@ export async function cargarModuloContabilidad() {
                     <label class="flex items-center gap-2"><input type="checkbox" id="ctaAfectable" checked class="accent-sky-500"> Acepta movimientos</label>
                     <label class="flex items-center gap-2"><input type="checkbox" id="ctaActiva" checked class="accent-sky-500"> Activa</label>
                 </div>
-                <button type="submit" id="ctaGuardar" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg text-sm transition cursor-pointer">Guardar cuenta</button>
+                <button type="submit" id="ctaGuardar" class="w-full lg:w-auto lg:px-10 bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg text-sm transition cursor-pointer">Guardar cuenta</button>
             </form>
         </div>
 
@@ -375,13 +375,13 @@ export async function cargarModuloPolizas() {
         </div>
 
         <div id="polForm" class="hidden bg-slate-950 border border-sky-900 p-4 rounded-xl space-y-3">
-            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div><label class="block text-[11px] text-slate-400 mb-1">Fecha</label>
+            <div class="grid grid-cols-1 sm:grid-cols-4 lg:flex lg:flex-wrap lg:items-end gap-3">
+                <div class="lg:w-40"><label class="block text-[11px] text-slate-400 mb-1">Fecha</label>
                     <input type="date" id="polFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-                <div><label class="block text-[11px] text-slate-400 mb-1">Tipo</label>
+                <div class="lg:w-32"><label class="block text-[11px] text-slate-400 mb-1">Tipo</label>
                     <select id="polTipo" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                         <option>Diario</option><option>Ingreso</option><option>Egreso</option></select></div>
-                <div class="sm:col-span-2"><label class="block text-[11px] text-slate-400 mb-1">Concepto</label>
+                <div class="sm:col-span-2 lg:flex-1 lg:min-w-[260px]"><label class="block text-[11px] text-slate-400 mb-1">Concepto</label>
                     <input type="text" id="polConcepto" placeholder="Descripcion del asiento" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
             </div>
             <div class="overflow-x-auto border border-slate-800 rounded-lg">
@@ -860,7 +860,7 @@ export async function cargarModuloGastos() {
                     <div><label class="block text-[11px] text-slate-400 mb-1">RFC emisor${gHint('El RFC de quien emitió la factura. Debe coincidir con el del proveedor que elegiste.')}</label>
                         <input type="text" id="gaRfc" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono"></div>
                 </div>
-                <button type="submit" id="gaGuardar" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg text-sm transition cursor-pointer">Guardar gasto</button>
+                <button type="submit" id="gaGuardar" class="w-full lg:w-auto lg:px-10 bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg text-sm transition cursor-pointer">Guardar gasto</button>
                 <p id="gaMsg" class="text-xs min-h-[1rem]"></p>
             </form>
         </div>

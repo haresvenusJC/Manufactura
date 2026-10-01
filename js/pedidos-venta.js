@@ -60,27 +60,27 @@ export async function cargarModuloPedidosVenta() {
     <div class="space-y-5">
       <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
         <h3 class="text-md font-semibold text-emerald-400 mb-3">Nuevo pedido de venta</h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-          <div><label class="block text-xs text-slate-400 mb-1">Cliente</label>
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:flex lg:flex-wrap lg:items-end gap-3 mb-3">
+          <div class="lg:flex-1 lg:min-w-[220px]"><label class="block text-xs text-slate-400 mb-1">Cliente</label>
             <select id="pvCliente" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optCli}</select></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Fecha</label>
+          <div class="lg:w-40"><label class="block text-xs text-slate-400 mb-1">Fecha</label>
             <input type="date" id="pvFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Notas</label>
+          <div class="lg:flex-1 lg:min-w-[220px]"><label class="block text-xs text-slate-400 mb-1">Notas</label>
             <input type="text" id="pvNotas" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
         </div>
         <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-3 mb-3">
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <div class="col-span-2 relative">
+          <div class="grid grid-cols-2 md:grid-cols-4 lg:flex lg:flex-wrap lg:items-end gap-2">
+            <div class="col-span-2 lg:flex-1 lg:min-w-[260px] relative">
               <label class="block text-[11px] text-slate-400 mb-1">Producto</label>
               <input type="text" id="pvProdInput" autocomplete="off" placeholder="Buscar producto terminado..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
               <div id="pvProdSug" class="hidden absolute left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-40 max-h-44 overflow-y-auto"></div>
             </div>
-            <div><label class="block text-[11px] text-slate-400 mb-1">Cantidad</label>
+            <div class="lg:w-28"><label class="block text-[11px] text-slate-400 mb-1">Cantidad</label>
               <input type="number" step="any" min="0" id="pvCant" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
-            <div><label class="block text-[11px] text-slate-400 mb-1">Precio unit.</label>
+            <div class="lg:w-32"><label class="block text-[11px] text-slate-400 mb-1">Precio unit.</label>
               <input type="number" step="any" min="0" id="pvPrecio" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
           </div>
-          <button type="button" id="pvAddPartida" class="mt-2 w-full bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium py-1.5 rounded-lg text-xs">＋ Agregar partida</button>
+          <button type="button" id="pvAddPartida" class="mt-2 w-full lg:w-auto lg:px-6 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium py-1.5 rounded-lg text-xs">＋ Agregar partida</button>
         </div>
         <div class="overflow-x-auto border border-slate-800 rounded-lg mb-3">
           <table class="w-full text-left text-xs text-slate-300">
@@ -91,7 +91,7 @@ export async function cargarModuloPedidosVenta() {
             <tbody id="pvPartidasBody"><tr><td colspan="5" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr></tbody>
           </table>
         </div>
-        <button type="button" id="pvGuardar" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Guardar pedido</button>
+        <button type="button" id="pvGuardar" class="w-full lg:w-auto lg:px-10 bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Guardar pedido</button>
         <p id="pvMsg" class="text-xs mt-2 min-h-[1rem]"></p>
       </div>
 

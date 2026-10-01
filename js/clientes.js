@@ -131,7 +131,7 @@ async function renderTabClientes() {
                 <div><label class="block text-[11px] text-slate-400 mb-1">Notas</label>
                     <input type="text" id="cliNotas" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
                 <label class="flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" id="cliActivo" checked class="accent-sky-500"> Activo</label>
-                <button type="submit" id="cliGuardar" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg text-sm transition cursor-pointer">Guardar cliente</button>
+                <button type="submit" id="cliGuardar" class="w-full lg:w-auto lg:px-10 bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg text-sm transition cursor-pointer">Guardar cliente</button>
                 <p id="cliMsg" class="text-xs min-h-[1rem]"></p>
             </form>
         </div>

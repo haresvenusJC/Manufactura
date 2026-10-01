@@ -58,18 +58,18 @@ export async function configurarFormularioEntradasDirectas() {
 
             <div class="bg-slate-950 p-4 rounded-xl mb-4 border border-slate-800">
                 <h3 class="text-md font-semibold text-slate-200 mb-3">2. Insumos o Productos a Ingresar</h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                    <div>
+                <div class="grid grid-cols-1 md:grid-cols-3 lg:flex lg:flex-wrap lg:items-end gap-3 mb-3">
+                    <div class="lg:flex-1 lg:min-w-[260px]">
                         <label class="block text-xs font-medium text-slate-400 mb-1">Nombre del Insumo / Producto</label>
                         <input type="text" id="inputEDNombre" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" placeholder="Nombre o código de barras">
                     </div>
-                    <div>
+                    <div class="lg:w-44">
                         <label class="block text-xs font-medium text-slate-400 mb-1">Unidad de Medida</label>
                         <select id="inputEDUnidadId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                             <option value="">Seleccione unidad...</option>
                         </select>
                     </div>
-                    <div>
+                    <div class="lg:w-28">
                         <label class="block text-xs font-medium text-slate-400 mb-1">Cantidad</label>
                         <input type="number" step="any" id="inputEDCantidad" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" placeholder="0.00">
                     </div>

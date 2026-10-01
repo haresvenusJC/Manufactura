@@ -26,8 +26,8 @@ export async function cargarModuloSalidas() {
                         <h3 class="text-lg font-semibold mb-4 text-red-400 flex items-center gap-2">📦 Registrar Salida de Inventario (Multi-Partida)</h3>
                         
                         <!-- Datos Generales del Documento -->
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 bg-slate-900/60 p-4 rounded-lg border border-slate-800">
-                            <div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 lg:flex lg:flex-wrap lg:items-end gap-4 mb-6 bg-slate-900/60 p-4 rounded-lg border border-slate-800">
+                            <div class="lg:w-64">
                                 <label class="block text-xs font-medium text-slate-400 mb-1">TIPO DE SALIDA</label>
                                 <select id="tipoSalida" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 focus:outline-none focus:border-red-500" required>
                                     <option value="salida_venta">Salida por Venta</option>
@@ -36,11 +36,11 @@ export async function cargarModuloSalidas() {
                                     <option value="ajuste">Ajuste de Inventario (Negativo)</option>
                                 </select>
                             </div>
-                            <div>
+                            <div class="lg:w-48">
                                 <label class="block text-xs font-medium text-slate-400 mb-1">FOLIO / REFERENCIA</label>
                                 <input type="text" id="folioSalida" placeholder="Automático" autocomplete="off" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 focus:outline-none focus:border-red-500">
                             </div>
-                            <div>
+                            <div class="lg:flex-1 lg:min-w-[220px]">
                                 <label class="block text-xs font-medium text-slate-400 mb-1">DESCRIPCIÓN / MOTIVO GENERAL</label>
                                 <input type="text" id="descripcionSalida" placeholder="Motivo general del documento..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 focus:outline-none focus:border-red-500">
                             </div>

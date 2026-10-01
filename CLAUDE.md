@@ -4,6 +4,38 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/bitacora-cambios.js`, `version.json`. A petición del usuario ("poder abrir
+  desde ahí el documento que guardó el usuario para verificar sus cambios"): la columna "Módulo" de Bitácora de
+  Cambios ya no muestra el `#id` como texto plano — ahora es un enlace que abre el registro real, igual que el
+  resto de los reportes (regla de CLAUDE.md). Tres grupos: **documentos** → `linkDoc` (abre el documento) y
+  **pólizas** → `linkPoliza` (abre la póliza, mostrando "Egreso #34" en vez del id interno, como ya pide la
+  convención); **órdenes de compra / requisiciones / pedidos de venta** → su propia pantalla de detalle
+  (`verDetalleOC`/`abrirDetalleReq`/`pvAbrirDetalle`, ya existían); **pagos a proveedores, gastos, cobros de
+  clientes, nóminas, activos fijos, devoluciones y prorrateos** (sin pantalla de detalle propia) → se enlazan a
+  LA PÓLIZA que generaron (`poliza_id` de cada tabla, consulta en lote nueva `bitCargarPolizasLigadas`, mismo
+  patrón de caché que ya usa `linkPoliza`). Lo demás (catálogos/configuración: productos, proveedores,
+  empleados, plan de cuentas...) se queda como texto, no tienen documento ni póliza que abrir. Sin migración
+  SQL — solo lectura de columnas que ya existían. `actualizar-version.py` no se pudo correr (Python no está
+  instalado en esta máquina) — `version.json` se actualizó a mano con el mismo formato (timestamp UTC, mismo
+  listado de módulos, sin cambios en el listado). Pendiente: probar en el navegador que cada tipo de enlace
+  abre lo correcto, sobre todo los que van vía póliza (confirmar que `pagos_proveedor`/`gastos`/etc. sí traen
+  `poliza_id`).
+- Archivos tocados (lo último): `sql/2026-09-30f_revertir_oc000017_completo_v2.sql` (nuevo; reemplaza y deja sin
+  efecto a `…30d_cancelar_oc000017_prueba.sql` y `…30e_revertir_oc000017_completo.sql`, ninguno de los dos se
+  corrió). Confirmado y corrido por el usuario: los 5 SQL que quedaban pendientes de la sesión anterior
+  (`…09-26_tareas_cancelada`, `…09-28_reclasificar_compras_contado_no_pagadas`, `…09-29_prerecibo_resumen_oc`,
+  `…09-30_entrada_directa_candado_neteo`, `…09-30b_anticipo_candado_y_iva_real`) ya están corridos en Supabase.
+  Quedaba abierto decidir el destino de OC-000017 (Alkem Industrias) tras la auditoría: se intentó la reversa
+  completa (pago/anticipo + Recibo #15 + pre-recibo + OC), pero `cancelar_recibo_inventario()` **bloqueó a
+  propósito** cancelar el Recibo #15 — su candado de integridad (guarda en `2026-10-27_anticipo_proveedores.sql`)
+  no deja revertir un recibo si algo de ese inventario ya se consumió (producción/venta), y parte del Sorbitol/
+  Glicerina de ese recibo ya se había usado. El `…30f` localiza los pagos por relación real (no por número de
+  póliza fijo — se verificó que la Egreso #59 que usaba `…30e` no tenía nada que ver con esta OC) y corrige el
+  orden (recibo antes que anticipo, por el mismo candado de integridad). Resultado final, confirmado por el
+  usuario: Recibo #15 se preserva intacto (es real, ya se usó en producción) y OC-000017 quedó `cancelada` —
+  mismo desenlace que proponía `…30d`, solo que se llegó por el camino de la reversa completa y el propio
+  sistema frenó la parte que no era segura. Con esto se cierra por completo la auditoría del flujo de OC-000017.
+  Sin pendientes nuevos de esta sesión.
 - Archivos tocados (lo último): `sql/2026-09-30c_cancelar_pruebas_anticipo_y_entradas.sql` (nuevo). Limpieza
   de las 5 pruebas de funcionamiento de esta sesión (confirmado con el usuario que todas eran prueba, no
   movimientos reales): cancela en el orden obligatorio (primero el documento #49 — recepción de residuos de

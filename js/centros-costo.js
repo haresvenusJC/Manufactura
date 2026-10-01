@@ -122,7 +122,7 @@ export async function cargarModuloCentrosCosto() {
             <input type="checkbox" id="ccActivo" checked class="accent-emerald-500 w-3.5 h-3.5"> Activo${hint('Desmárcalo para dejar de usar el centro sin borrarlo. No aparecerá al capturar gastos.')}
           </label>
 
-          <button type="submit" id="ccGuardar" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg text-sm cursor-pointer">Guardar centro de costo</button>
+          <button type="submit" id="ccGuardar" class="w-full lg:w-auto lg:px-10 bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg text-sm cursor-pointer">Guardar centro de costo</button>
           <p id="ccMsg" class="text-xs min-h-[1rem]"></p>
         </form>
       </div>

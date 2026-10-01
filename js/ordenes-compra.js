@@ -80,35 +80,35 @@ export async function cargarModuloOrdenesCompra() {
     <div class="space-y-5">
       <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
         <h3 class="text-md font-semibold text-emerald-400 mb-3">Nueva orden de compra</h3>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
-          <div><label class="block text-xs text-slate-400 mb-1">Proveedor</label>
+        <div class="grid grid-cols-1 md:grid-cols-4 lg:flex lg:flex-wrap lg:items-end gap-3 mb-3">
+          <div class="lg:flex-1 lg:min-w-[220px]"><label class="block text-xs text-slate-400 mb-1">Proveedor</label>
             <select id="ocProveedor" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optProv}</select></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Fecha</label>
+          <div class="lg:w-40"><label class="block text-xs text-slate-400 mb-1">Fecha</label>
             <input type="date" id="ocFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Fecha esperada</label>
+          <div class="lg:w-40"><label class="block text-xs text-slate-400 mb-1">Fecha esperada</label>
             <input type="date" id="ocFechaEsp" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Moneda</label>
+          <div class="lg:w-28"><label class="block text-xs text-slate-400 mb-1">Moneda</label>
             <select id="ocMoneda" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optMon}</select></div>
-          <div class="md:col-span-4"><label class="block text-xs text-slate-400 mb-1">Notas</label>
+          <div class="md:col-span-4 lg:basis-full lg:min-w-[240px]"><label class="block text-xs text-slate-400 mb-1">Notas</label>
             <input type="text" id="ocNotas" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
         </div>
 
         <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-3 mb-3">
-          <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
-            <div class="col-span-2 relative">
+          <div class="grid grid-cols-2 md:grid-cols-5 lg:flex lg:flex-wrap lg:items-end gap-2">
+            <div class="col-span-2 lg:flex-1 lg:min-w-[260px] relative">
               <label class="block text-[11px] text-slate-400 mb-1">Producto</label>
               <input type="text" id="ocProdInput" autocomplete="off" placeholder="Buscar o escribir uno nuevo..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
               <div id="ocProdSug" class="hidden absolute left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-40 max-h-44 overflow-y-auto"></div>
             </div>
-            <div><label class="block text-[11px] text-slate-400 mb-1">Cantidad</label>
+            <div class="lg:w-28"><label class="block text-[11px] text-slate-400 mb-1">Cantidad</label>
               <input type="number" step="any" min="0" id="ocProdCant" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
-            <div><label class="block text-[11px] text-slate-400 mb-1">Costo estimado</label>
+            <div class="lg:w-32"><label class="block text-[11px] text-slate-400 mb-1">Costo estimado</label>
               <input type="number" step="any" min="0" id="ocProdCosto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
-            <div><label class="block text-[11px] text-slate-400 mb-1">Unidad</label>
+            <div class="lg:w-44"><label class="block text-[11px] text-slate-400 mb-1">Unidad</label>
               <select id="ocProdUnidad" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${optUni}</select></div>
           </div>
           <div id="ocInfoProveedor" class="hidden mt-2 text-[11px] text-slate-300 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2"></div>
-          <button type="button" id="ocAddPartida" class="mt-2 w-full bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium py-1.5 rounded-lg text-xs">＋ Agregar partida</button>
+          <button type="button" id="ocAddPartida" class="mt-2 w-full lg:w-auto lg:px-6 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium py-1.5 rounded-lg text-xs">＋ Agregar partida</button>
         </div>
 
         <div class="overflow-x-auto border border-slate-800 rounded-lg mb-3">
@@ -121,7 +121,7 @@ export async function cargarModuloOrdenesCompra() {
             <tbody id="ocPartidasBody"><tr><td colspan="6" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr></tbody>
           </table>
         </div>
-        <button type="button" id="ocGuardar" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Guardar orden de compra</button>
+        <button type="button" id="ocGuardar" class="w-full lg:w-auto lg:px-10 bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Guardar orden de compra</button>
         <p id="ocMsg" class="text-xs mt-2 min-h-[1rem]"></p>
       </div>
 
@@ -598,34 +598,34 @@ function renderEdicionOC(o, cuerpo) {
     const optUni = '<option value="">Unidad...</option>' + ocUnidades.map(u => `<option value="${u.id}">${esc(u.nombre)}</option>`).join('');
 
     cuerpo.innerHTML = `
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-            <div><label class="block text-xs text-slate-400 mb-1">Proveedor</label>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:flex lg:flex-wrap lg:items-end gap-3 mb-3">
+            <div class="lg:flex-1 lg:min-w-[220px]"><label class="block text-xs text-slate-400 mb-1">Proveedor</label>
                 <select id="oceProveedor" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optProv}</select></div>
-            <div><label class="block text-xs text-slate-400 mb-1">Moneda</label>
+            <div class="lg:w-28"><label class="block text-xs text-slate-400 mb-1">Moneda</label>
                 <select id="oceMoneda" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optMon}</select></div>
-            <div><label class="block text-xs text-slate-400 mb-1">Fecha</label>
+            <div class="lg:w-40"><label class="block text-xs text-slate-400 mb-1">Fecha</label>
                 <input type="date" id="oceFecha" value="${o.fecha || ''}" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-            <div><label class="block text-xs text-slate-400 mb-1">Fecha esperada</label>
+            <div class="lg:w-40"><label class="block text-xs text-slate-400 mb-1">Fecha esperada</label>
                 <input type="date" id="oceFechaEsp" value="${o.fecha_esperada || ''}" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-            <div class="md:col-span-2"><label class="block text-xs text-slate-400 mb-1">Notas</label>
+            <div class="md:col-span-2 lg:basis-full lg:min-w-[240px]"><label class="block text-xs text-slate-400 mb-1">Notas</label>
                 <input type="text" id="oceNotas" value="${esc(o.notas || '')}" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
         </div>
 
         <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-3 mb-3">
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
-                <div class="col-span-2 relative">
+            <div class="grid grid-cols-2 md:grid-cols-5 lg:flex lg:flex-wrap lg:items-end gap-2">
+                <div class="col-span-2 lg:flex-1 lg:min-w-[260px] relative">
                     <label class="block text-[11px] text-slate-400 mb-1">Producto</label>
                     <input type="text" id="oceProdInput" autocomplete="off" placeholder="Buscar o escribir uno nuevo..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
                     <div id="oceProdSug" class="hidden absolute left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-40 max-h-40 overflow-y-auto"></div>
                 </div>
-                <div><label class="block text-[11px] text-slate-400 mb-1">Cantidad</label>
+                <div class="lg:w-28"><label class="block text-[11px] text-slate-400 mb-1">Cantidad</label>
                     <input type="number" step="any" min="0" id="oceProdCant" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
-                <div><label class="block text-[11px] text-slate-400 mb-1">Costo estimado</label>
+                <div class="lg:w-32"><label class="block text-[11px] text-slate-400 mb-1">Costo estimado</label>
                     <input type="number" step="any" min="0" id="oceProdCosto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
-                <div><label class="block text-[11px] text-slate-400 mb-1">Unidad</label>
+                <div class="lg:w-44"><label class="block text-[11px] text-slate-400 mb-1">Unidad</label>
                     <select id="oceProdUnidad" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${optUni}</select></div>
             </div>
-            <button type="button" id="oceAddPartida" class="mt-2 w-full bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium py-1.5 rounded-lg text-xs">＋ Agregar partida</button>
+            <button type="button" id="oceAddPartida" class="mt-2 w-full lg:w-auto lg:px-6 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium py-1.5 rounded-lg text-xs">＋ Agregar partida</button>
         </div>
 
         <div class="overflow-x-auto border border-slate-800 rounded-lg mb-3">

@@ -97,7 +97,7 @@ export async function cargarModuloAreasProrrateo() {
           <label class="flex items-center gap-2 text-[11px] text-slate-300">
             <input type="checkbox" id="afActivo" checked class="accent-emerald-500 w-3.5 h-3.5"> Activo
           </label>
-          <button type="submit" id="afGuardar" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg text-sm cursor-pointer">Guardar área</button>
+          <button type="submit" id="afGuardar" class="w-full lg:w-auto lg:px-10 bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg text-sm cursor-pointer">Guardar área</button>
           <p id="afMsg" class="text-xs min-h-[1rem]"></p>
         </form>
       </div>

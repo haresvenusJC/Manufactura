@@ -1,6 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
+import { linkDoc, linkPoliza } from './enlaces-reporte.js';
 
 // =====================================================================
 //  Bitácora de movimientos — consulta de public.bitacora_cambios, que se
@@ -58,6 +59,45 @@ const ACCION_ESTILO = {
 const CAMPOS_RUIDO = new Set(['updated_at', 'actualizado_at', 'modificado_at', 'created_at', 'creado_at']);
 
 const usuarioTxt = (r) => r.usuario_email || (r.usuario_id ? String(r.usuario_id).slice(0, 8) : 'Operador / sistema');
+
+// Para abrir desde la bitácora el registro que de verdad se guardó (regla de CLAUDE.md: documentos y
+// pólizas citados en un reporte se pueden abrir desde ahí) — y poder verificar lo que cambió el usuario.
+// Tablas con pantalla propia de detalle (se abre directo por su propio id).
+const ABRIR_DIRECTO = {
+    ordenes_compra: 'window.verDetalleOC',
+    requisiciones_compra: 'window.abrirDetalleReq',
+    pedidos_venta: 'window.pvAbrirDetalle',
+};
+// Tablas sin pantalla propia, pero que generan una póliza — se enlaza a ESA póliza.
+const TABLAS_VIA_POLIZA = ['pagos_proveedor', 'gastos', 'cobros_cliente', 'nominas', 'activos_fijos', 'devoluciones_cliente', 'devoluciones_proveedor', 'prorrateo_corridas'];
+let bitPolizaPorRegistro = {}; // { tabla: { registro_id: poliza_id } }, llenado por bitCargarPolizasLigadas
+
+async function bitCargarPolizasLigadas(filas) {
+    bitPolizaPorRegistro = {};
+    const tablas = [...new Set(filas.map((r) => r.tabla))].filter((t) => TABLAS_VIA_POLIZA.includes(t));
+    await Promise.all(tablas.map(async (t) => {
+        const ids = [...new Set(filas.filter((r) => r.tabla === t && r.registro_id).map((r) => r.registro_id))];
+        if (!ids.length) return;
+        try {
+            const { data } = await supabaseClient.from(t).select('id, poliza_id').in('id', ids);
+            bitPolizaPorRegistro[t] = Object.fromEntries((data || []).map((x) => [x.id, x.poliza_id]));
+        } catch (_) { /* la tabla no tiene poliza_id o no hay acceso: se queda sin enlace */ }
+    }));
+}
+
+// El "#id" de la columna Módulo, enlazado al registro real cuando se puede.
+function moduloBadge(r) {
+    if (!r.registro_id) return '';
+    if (r.tabla === 'documentos') return linkDoc(r.registro_id, '#' + r.registro_id, 'font-mono text-slate-400');
+    if (r.tabla === 'polizas') return linkPoliza(r.registro_id, 'font-mono text-slate-400');
+    const fnDirecta = ABRIR_DIRECTO[r.tabla];
+    if (fnDirecta) {
+        return `<button type="button" onclick="${fnDirecta}(${r.registro_id})" class="font-mono text-slate-400 hover:underline hover:text-sky-300 cursor-pointer" title="Abrir el registro">#${r.registro_id}</button>`;
+    }
+    const polId = bitPolizaPorRegistro[r.tabla]?.[r.registro_id];
+    if (polId) return linkPoliza(polId, 'font-mono text-slate-400');
+    return `<span class="font-mono text-slate-500">#${r.registro_id}</span>`;
+}
 
 // Un nombre corto para reconocer el registro (nombre, folio, SKU...).
 function etiquetaRegistro(d) {
@@ -180,6 +220,7 @@ async function bitCargar() {
         if (error) throw error;
         bitFilas = data || [];
         if (!bitFilas.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin movimientos con estos filtros.</p>'; return; }
+        await bitCargarPolizasLigadas(bitFilas);
 
         aplicarOrden(bitOrden, bitFilas, (r, campo) => {
             switch (campo) {
@@ -205,7 +246,7 @@ async function bitCargar() {
                   <td class="p-2"><button type="button" onclick="window.bitVerDetalle(${r.id})" class="text-sky-400 hover:text-sky-300 text-[11px]">Ver</button></td>
                   <td class="p-2 whitespace-nowrap text-slate-400">${r.creado_at ? new Date(r.creado_at).toLocaleString('es-MX') : ''}</td>
                   <td class="p-2 text-slate-300">${esc(usuarioTxt(r))}</td>
-                  <td class="p-2">${esc(nombreTabla(r.tabla))}${r.registro_id ? ` <span class="font-mono text-slate-500">#${r.registro_id}</span>` : ''}</td>
+                  <td class="p-2">${esc(nombreTabla(r.tabla))}${r.registro_id ? ' ' + moduloBadge(r) : ''}</td>
                   <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${ACCION_ESTILO[r.accion] || 'text-slate-400 bg-slate-800'}">${esc(ETIQUETA_ACCION[r.accion] || r.accion)}</span></td>
                   <td class="p-2 text-slate-400">${esc(resumenDe(r))}</td>
                 </tr>

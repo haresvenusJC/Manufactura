@@ -83,7 +83,7 @@ export async function cargarModuloIsr() {
                 </div>
                 <p class="text-[10px] text-slate-500">Deja "Límite sup." vacío en el último renglón (sin tope).</p>
 
-                <button type="submit" id="isrGuardar" class="w-full bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg text-sm transition cursor-pointer">Guardar tabla</button>
+                <button type="submit" id="isrGuardar" class="w-full lg:w-auto lg:px-10 bg-sky-600 hover:bg-sky-500 text-white font-medium py-2.5 rounded-lg text-sm transition cursor-pointer">Guardar tabla</button>
                 <p id="isrMsg" class="text-xs min-h-[1rem]"></p>
             </form>
         </div>

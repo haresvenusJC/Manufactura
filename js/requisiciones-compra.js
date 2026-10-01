@@ -89,29 +89,29 @@ export async function cargarModuloRequisicionesCompra() {
     <div class="space-y-5">
       <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
         <h3 class="text-md font-semibold text-emerald-400 mb-3">Nueva requisición de compra</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-          <div><label class="block text-xs text-slate-400 mb-1">Fecha</label>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:flex lg:flex-wrap gap-3 mb-3">
+          <div class="lg:w-52"><label class="block text-xs text-slate-400 mb-1">Fecha</label>
             <input type="date" id="reqFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Notas</label>
+          <div class="lg:flex-1 lg:min-w-[240px]"><label class="block text-xs text-slate-400 mb-1">Notas</label>
             <input type="text" id="reqNotas" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
         </div>
 
         <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-3 mb-3">
-          <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
-            <div class="col-span-2 relative">
+          <div class="grid grid-cols-2 md:grid-cols-5 lg:flex lg:flex-wrap lg:items-end gap-2">
+            <div class="col-span-2 lg:flex-1 lg:min-w-[260px] relative">
               <label class="block text-[11px] text-slate-400 mb-1">Producto</label>
               <input type="text" id="reqProdInput" autocomplete="off" placeholder="Buscar o escribir uno nuevo..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
               <div id="reqProdSug" class="hidden absolute left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-40 max-h-44 overflow-y-auto"></div>
             </div>
-            <div><label class="block text-[11px] text-slate-400 mb-1">Cantidad</label>
+            <div class="lg:w-28"><label class="block text-[11px] text-slate-400 mb-1">Cantidad</label>
               <input type="number" step="any" min="0" id="reqProdCant" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
-            <div><label class="block text-[11px] text-slate-400 mb-1">Unidad</label>
+            <div class="lg:w-44"><label class="block text-[11px] text-slate-400 mb-1">Unidad</label>
               <select id="reqProdUnidad" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${optUni}</select></div>
-            <div><label class="block text-[11px] text-slate-400 mb-1">Proveedor sugerido</label>
+            <div class="lg:w-56"><label class="block text-[11px] text-slate-400 mb-1">Proveedor sugerido</label>
               <select id="reqProdProveedor" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${optProv}</select></div>
           </div>
           <div id="reqInfoProveedor" class="hidden mt-2 text-[11px] text-slate-300 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2"></div>
-          <button type="button" id="reqAddPartida" class="mt-2 w-full bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium py-1.5 rounded-lg text-xs">＋ Agregar partida</button>
+          <button type="button" id="reqAddPartida" class="mt-2 w-full lg:w-auto lg:px-6 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium py-1.5 rounded-lg text-xs">＋ Agregar partida</button>
         </div>
 
         <div class="overflow-x-auto border border-slate-800 rounded-lg mb-3">
@@ -124,7 +124,7 @@ export async function cargarModuloRequisicionesCompra() {
             <tbody id="reqPartidasBody"><tr><td colspan="6" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr></tbody>
           </table>
         </div>
-        <button type="button" id="reqGuardar" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Guardar requisición</button>
+        <button type="button" id="reqGuardar" class="w-full lg:w-auto lg:px-10 bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Guardar requisición</button>
         <p id="reqMsg" class="text-xs mt-2 min-h-[1rem]"></p>
       </div>
 
@@ -810,7 +810,7 @@ window.reqEditar = async (id) => {
                 </table>
             </div>
             <p class="text-[10px] text-slate-500">Para agregar un producto nuevo, cancela esta requisición y captura una nueva — aquí solo se ajustan cantidades/costos o se quitan partidas.</p>
-            <button type="button" id="btnGuardarEditarReq" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Guardar cambios</button>
+            <button type="button" id="btnGuardarEditarReq" class="w-full lg:w-auto lg:px-10 bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Guardar cambios</button>
             <p id="editReqMsg" class="text-xs min-h-[1rem]"></p>
         </div>`;
     document.body.appendChild(modal);
@@ -902,7 +902,7 @@ window.reqAutorizar = async (id) => {
               <input type="date" id="autFechaEsp" value="${fechaHabilesDesdeHoy(5)}" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
             <div><label class="block text-xs text-slate-400 mb-1">Moneda</label>
               <select id="autMoneda" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optMon}</select></div>
-            <button type="button" id="btnConfirmarAutorizar" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Autorizar y crear Orden de compra</button>
+            <button type="button" id="btnConfirmarAutorizar" class="w-full lg:w-auto lg:px-10 bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Autorizar y crear Orden de compra</button>
             <p id="autMsg" class="text-xs min-h-[1rem]"></p>
         </div>`;
     document.body.appendChild(modal);
