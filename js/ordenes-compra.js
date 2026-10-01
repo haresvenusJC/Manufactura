@@ -337,14 +337,6 @@ async function ocGuardarOrden() {
     }
 }
 
-const OC_ESTATUS = {
-    borrador: 'text-slate-400 bg-slate-800',
-    abierta: 'text-sky-300 bg-sky-950/50',
-    recibida_parcial: 'text-amber-300 bg-amber-950/40',
-    recibida: 'text-emerald-300 bg-emerald-950/40',
-    cancelada: 'text-rose-300 bg-rose-950/40',
-};
-
 async function ocRenderLista() {
     const cont = document.getElementById('ocLista');
     try {
@@ -411,15 +403,13 @@ async function ocRenderLista() {
               ${data.map(o => {
                   const total = o._total;
                   const pct = o._pct;
-                  const puedeRecibir = o.estatus === 'abierta' || o.estatus === 'recibida_parcial';
                   const anticipoDisp = anticiposPorOc.get(o.id) || 0;
+                  const recibido = o.estatus === 'recibida';
+                  const pagado = (o.estatus === 'recibida' || o.estatus === 'recibida_parcial') && !ocsConSaldo.has(o.id);
                   return `
                     <tr class="border-b border-slate-900">
                       <td class="p-2 whitespace-nowrap">
-                        ${puedeRecibir ? `<button type="button" onclick="window.irARecibirOC(${o.id})" class="text-[11px] bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-1 rounded">Recibir</button>` : ''}
-                        ${puedeRecibir ? `<button type="button" onclick="window.ocAnticipo(${o.id})" class="text-[11px] bg-amber-700 hover:bg-amber-600 text-white px-2 py-1 rounded ml-1">💰 Anticipo</button>` : ''}
-                        ${(o.estatus === 'recibida' || o.estatus === 'recibida_parcial') && ocsConSaldo.has(o.id) ? `<button type="button" onclick="window.ocPagar(${o.id})" class="text-[11px] bg-sky-700 hover:bg-sky-600 text-white px-2 py-1 rounded ml-1">Pagar</button>` : ''}
-                        ${o.estatus === 'abierta' ? `<button type="button" onclick="window.ocCancelar(${o.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded ml-1">Cancelar</button>` : ''}
+                        ${o.estatus === 'abierta' ? `<button type="button" onclick="window.ocCancelar(${o.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded">Cancelar</button>` : ''}
                         ${anticipoDisp > 0 ? `<div class="text-[10px] text-amber-300 mt-0.5">Anticipo disponible: ${money(anticipoDisp)}</div>` : ''}
                       </td>
                       <td class="p-2"><button type="button" onclick="window.verDetalleOC(${o.id})" class="font-mono text-emerald-300 hover:underline hover:text-emerald-200 text-left">${esc(o.folio || '#' + o.id)}</button></td>
@@ -427,7 +417,11 @@ async function ocRenderLista() {
                       <td class="p-2 whitespace-nowrap text-slate-400">${o.fecha || ''}</td>
                       <td class="p-2 text-right font-mono">${money(total)}</td>
                       <td class="p-2 font-mono text-slate-400">${pct}%</td>
-                      <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${OC_ESTATUS[o.estatus] || 'text-slate-400 bg-slate-800'}">${esc(o.estatus)}</span></td>
+                      <td class="p-2"><div class="flex flex-col gap-1 items-start">
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${recibido ? 'text-emerald-300 bg-emerald-950/40' : 'text-slate-400 bg-slate-800'}">${recibido ? 'RECIBIDO' : 'NO RECIBIDO'}</span>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${pagado ? 'text-emerald-300 bg-emerald-950/40' : 'text-slate-400 bg-slate-800'}">${pagado ? 'PAGADO' : 'NO PAGADO'}</span>
+                        ${o.estatus === 'cancelada' ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-rose-300 bg-rose-950/40">CANCELADA</span>' : ''}
+                      </div></td>
                     </tr>`;
               }).join('')}
             </tbody>
@@ -511,7 +505,7 @@ async function abrirDetalleOC(id) {
     const btnImprimir = modal.querySelector('#btnImprimirOC');
     if (btnImprimir) {
         btnImprimir.onclick = async () => {
-            renderVistaOC(o, cuerpo);
+            await renderVistaOC(o, cuerpo);
             await imprimirConPlantilla('orden_compra', 'Orden de compra ' + (o.folio || ('#' + o.id)), idCuerpo);
         };
     }
@@ -523,19 +517,33 @@ async function abrirDetalleOC(id) {
         btnEditar.onclick = () => renderEdicionOC(o, cuerpo);
     }
 
-    renderVistaOC(o, cuerpo);
+    await renderVistaOC(o, cuerpo);
 }
 
-function renderVistaOC(o, cuerpo) {
+async function renderVistaOC(o, cuerpo) {
     const det = o.ordenes_compra_detalle || [];
     const totalEst = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0), 0);
     const nombreUnidad = (uid) => ocUnidades.find(u => u.id === uid)?.nombre || '';
     const fmtFecha = (iso) => { try { return new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso || '—'; } };
 
+    const recibido = o.estatus === 'recibida';
+    let pagado = false;
+    if (o.estatus === 'recibida' || o.estatus === 'recibida_parcial') {
+        try {
+            const { data: cxp } = await supabaseClient.from('v_cuentas_por_pagar').select('id').eq('orden_compra_id', o.id).eq('estatus_cxp', 'pendiente').limit(1);
+            pagado = !(cxp && cxp.length);
+        } catch (_) { pagado = false; /* si la vista no existe, no afirmar "pagado" de más */ }
+    }
+    const estatusHtml = `<div class="flex gap-1">
+        <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${recibido ? 'text-emerald-300 bg-emerald-950/40' : 'text-slate-400 bg-slate-800'}">${recibido ? 'RECIBIDO' : 'NO RECIBIDO'}</span>
+        <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${pagado ? 'text-emerald-300 bg-emerald-950/40' : 'text-slate-400 bg-slate-800'}">${pagado ? 'PAGADO' : 'NO PAGADO'}</span>
+        ${o.estatus === 'cancelada' ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-rose-300 bg-rose-950/40">CANCELADA</span>' : ''}
+    </div>`;
+
     cuerpo.innerHTML = `
         <div class="grid grid-cols-2 gap-3 mb-4 text-sm">
             <div><span class="block text-[10px] text-slate-500">Proveedor</span><span class="text-slate-100">${esc(o.proveedores?.nombre || '—')}</span>${o.proveedores?.rfc ? `<span class="block text-[10px] text-slate-500 font-mono">${esc(o.proveedores.rfc)}</span>` : ''}</div>
-            <div><span class="block text-[10px] text-slate-500">Estatus</span><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${OC_ESTATUS[o.estatus] || 'text-slate-400 bg-slate-800'}">${esc(o.estatus)}</span></div>
+            <div><span class="block text-[10px] text-slate-500 mb-1">Estatus</span>${estatusHtml}</div>
             <div><span class="block text-[10px] text-slate-500">Fecha</span><span class="text-slate-300">${o.fecha || '—'}</span></div>
             <div><span class="block text-[10px] text-slate-500">Fecha esperada</span><span class="text-slate-300">${o.fecha_esperada || '—'}</span></div>
             <div><span class="block text-[10px] text-slate-500">Moneda</span><span class="text-slate-300">${esc(o.monedas?.codigo || '—')}</span></div>

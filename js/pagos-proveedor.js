@@ -18,6 +18,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 // Estado del filtro de visibilidad (Pendientes / Pagadas / Canceladas / Todas)
 // y el último dataset traído, para poder refiltrar sin volver a consultar.
 let cxpCache = [];
+let cxpCuentasPago = []; // cuentas de banco/caja, para el modal de Anticipo (reusa lo ya cargado por el módulo)
 let cxpPreOcCache = null;
 let cxpFiltro = 'pendiente';
 let cxpDesde = primerDiaMesISO();
@@ -43,6 +44,7 @@ export async function cargarModuloPagosProveedor() {
             .select('id, codigo, nombre').eq('afectable', true).eq('activa', true).order('codigo');
         if (error) throw error;
         ctasPago = (data || []).filter(c => /^(101|102)/.test(c.codigo));
+        cxpCuentasPago = ctasPago;
     } catch (_) {
         cont.innerHTML = '<p class="text-amber-400 text-xs">El módulo de contabilidad no está instalado (faltan las cuentas contables).</p>';
         return;
@@ -73,16 +75,19 @@ export async function cargarModuloPagosProveedor() {
     cont.innerHTML = `
     <div class="space-y-4">
       <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
-        <div class="flex flex-wrap items-end gap-3">
-          <div><label class="block text-xs text-slate-400 mb-1">Fecha del pago</label>
-            <input type="date" id="cxpFecha" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Cuenta (banco / caja)</label>
-            <select id="cxpCuenta" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optCta}</select></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Forma de pago</label>
-            <select id="cxpForma" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-              <option value="">—</option><option>transferencia</option><option>efectivo</option><option>cheque</option><option>tarjeta</option></select></div>
-          <div class="flex-1 min-w-[160px]"><label class="block text-xs text-slate-400 mb-1">Referencia</label>
-            <input type="text" id="cxpRef" placeholder="No. de transferencia / cheque" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div class="flex flex-wrap items-end gap-3">
+            <div><label class="block text-xs text-slate-400 mb-1">Fecha del pago</label>
+              <input type="date" id="cxpFecha" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+            <div><label class="block text-xs text-slate-400 mb-1">Cuenta (banco / caja)</label>
+              <select id="cxpCuenta" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optCta}</select></div>
+            <div><label class="block text-xs text-slate-400 mb-1">Forma de pago</label>
+              <select id="cxpForma" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                <option value="">—</option><option>transferencia</option><option>efectivo</option><option>cheque</option><option>tarjeta</option></select></div>
+            <div class="flex-1 min-w-[160px]"><label class="block text-xs text-slate-400 mb-1">Referencia</label>
+              <input type="text" id="cxpRef" placeholder="No. de transferencia / cheque" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+          </div>
+          <button type="button" id="cxpBtnAnticipo" class="text-xs bg-amber-700 hover:bg-amber-600 text-white px-3 py-2 rounded-lg whitespace-nowrap">💰 Pagar anticipo a una OC</button>
         </div>
       </div>
 
@@ -96,6 +101,7 @@ export async function cargarModuloPagosProveedor() {
 
     document.getElementById('cxpFecha').value = hoyISO();
     if (ctasPago.length === 1) document.getElementById('cxpCuenta').value = ctasPago[0].id;
+    document.getElementById('cxpBtnAnticipo').onclick = cxpAbrirAnticipo;
 
     cxpPintarDocumentos();
     await cxpHistorial();
@@ -349,3 +355,112 @@ async function cxpHistorial() {
         cont.innerHTML = `<p class="text-slate-500 text-xs">Historial no disponible: ${esc(err.message || err)}</p>`;
     }
 }
+
+// =====================================================================
+//  Anticipo a proveedor (se paga ANTES de recibir la mercancía). Antes
+//  vivía como botón por fila en Órdenes de compra; a petición del usuario
+//  esa pantalla ya solo muestra estatus (Recibido/Pagado) + Cancelar, así
+//  que este es ahora el único punto de entrada — se elige la OC aquí en
+//  vez de llegar con ella preseleccionada. Misma función del lado de la
+//  base (pagar_anticipo_oc, sql/2026-10-27_anticipo_proveedores.sql).
+// =====================================================================
+async function cxpAbrirAnticipo() {
+    let ocs = [];
+    try {
+        const { data, error } = await supabaseClient.from('ordenes_compra')
+            .select('id, folio, proveedores ( nombre )')
+            .in('estatus', ['abierta', 'recibida_parcial'])
+            .order('id', { ascending: false });
+        if (error) throw error;
+        ocs = data || [];
+    } catch (e) {
+        alert('No se pudieron cargar las órdenes de compra: ' + (e.message || e));
+        return;
+    }
+    if (!ocs.length) { alert('No hay órdenes de compra abiertas o parcialmente recibidas para pagarles un anticipo.'); return; }
+
+    const optOc = '<option value="">— elige una orden de compra —</option>' +
+        ocs.map((o) => `<option value="${o.id}">${esc(o.folio || '#' + o.id)} · ${esc(o.proveedores?.nombre || '—')}</option>`).join('');
+    const optCta = '<option value="">— caja / banco —</option>' +
+        cxpCuentasPago.map((c) => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
+
+    cxpMostrarModal(`
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-md w-full">
+        <h3 class="text-base font-bold text-slate-100 mb-1">💰 Pagar anticipo a proveedor</h3>
+        <p class="text-xs text-slate-400 mb-3">Se paga ANTES de recibir la mercancía; al recibirla, el anticipo se aplica solo contra el pasivo que se reconozca.</p>
+        <div class="space-y-2">
+          <div><label class="block text-[10px] text-slate-400 mb-1">Orden de compra</label>
+            <select id="cxpAntOc" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${optOc}</select></div>
+          <p id="cxpAntInfo" class="text-[11px] text-emerald-400 min-h-[1rem]"></p>
+          <div><label class="block text-[10px] text-slate-400 mb-1">Fecha</label>
+            <input type="date" id="cxpAntFecha" value="${hoyISO()}" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
+          <div><label class="block text-[10px] text-slate-400 mb-1">Monto a pagar</label>
+            <input type="number" step="0.01" min="0.01" id="cxpAntMonto" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono"></div>
+          <div><label class="block text-[10px] text-slate-400 mb-1">Cuenta (banco / caja)</label>
+            <select id="cxpAntCuenta" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${optCta}</select></div>
+          <div><label class="block text-[10px] text-slate-400 mb-1">Forma de pago</label>
+            <select id="cxpAntForma" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+              <option value="">—</option><option>transferencia</option><option>efectivo</option><option>cheque</option><option>tarjeta</option></select></div>
+          <div><label class="block text-[10px] text-slate-400 mb-1">Referencia</label>
+            <input type="text" id="cxpAntRef" placeholder="No. de transferencia / cheque" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
+        </div>
+        <p id="cxpAntMsg" class="text-xs mt-2 min-h-[1rem] text-rose-400"></p>
+        <div class="flex justify-end gap-2 mt-3">
+          <button type="button" onclick="window.cxpAntCerrar()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg">Cancelar</button>
+          <button type="button" id="cxpAntGuardar" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg">Registrar pago</button>
+        </div>
+      </div>`);
+
+    document.getElementById('cxpAntOc').onchange = async (e) => {
+        const id = e.target.value;
+        const info = document.getElementById('cxpAntInfo');
+        if (!id) { info.textContent = ''; return; }
+        try {
+            const { data } = await supabaseClient.from('v_anticipos_oc').select('disponible').eq('orden_compra_id', Number(id)).maybeSingle();
+            info.textContent = data && Number(data.disponible) > 0 ? `Ya tiene ${money(data.disponible)} de anticipo disponible sin aplicar.` : '';
+        } catch (_) { info.textContent = ''; }
+    };
+
+    document.getElementById('cxpAntGuardar').onclick = async () => {
+        const msg = document.getElementById('cxpAntMsg');
+        const ocId = document.getElementById('cxpAntOc').value;
+        const monto = parseFloat(document.getElementById('cxpAntMonto').value);
+        const cuenta = document.getElementById('cxpAntCuenta').value;
+        if (!ocId) { msg.textContent = 'Elige la orden de compra.'; return; }
+        if (!(monto > 0)) { msg.textContent = 'Captura un monto mayor a cero.'; return; }
+        if (!cuenta) { msg.textContent = 'Elige la cuenta de banco / caja.'; return; }
+        const btn = document.getElementById('cxpAntGuardar');
+        btn.disabled = true;
+        try {
+            const { data, error } = await supabaseClient.rpc('pagar_anticipo_oc', {
+                p_oc_id: Number(ocId),
+                p_datos: {
+                    fecha: document.getElementById('cxpAntFecha').value || hoyISO(),
+                    monto,
+                    cuenta_pago_id: Number(cuenta),
+                    forma_pago: document.getElementById('cxpAntForma').value || null,
+                    referencia: document.getElementById('cxpAntRef').value.trim() || null,
+                },
+            });
+            if (error) throw error;
+            alert(`✅ Anticipo pagado por ${money(data.total)}. Póliza de Egreso generada.`);
+            window.cxpAntCerrar();
+            await cargarModuloPagosProveedor();
+        } catch (e) {
+            msg.textContent = 'No se pudo registrar el anticipo: ' + (e.message || e);
+            btn.disabled = false;
+        }
+    };
+}
+
+function cxpMostrarModal(html) {
+    let wrap = document.getElementById('cxpModalWrap');
+    if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.id = 'cxpModalWrap';
+        wrap.className = 'fixed inset-0 bg-slate-950/40 flex items-center justify-center z-50 p-4';
+        document.body.appendChild(wrap);
+    }
+    wrap.innerHTML = html;
+}
+window.cxpAntCerrar = () => { document.getElementById('cxpModalWrap')?.remove(); };

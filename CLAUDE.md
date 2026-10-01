@@ -4,6 +4,25 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/ordenes-compra.js`, `js/pagos-proveedor.js`, `version.json`. A petición del
+  usuario, la lista y el detalle de Órdenes de compra dejaron de ser un panel de acciones: se quitaron los
+  botones "Recibir", "💰 Anticipo" y "Pagar" de cada fila (el de "Cancelar" se queda igual), y el badge de
+  `estatus` crudo (`abierta`/`recibida_parcial`/`recibida`/`cancelada`) se reemplazó por dos badges claros —
+  **RECIBIDO** (solo si `estatus='recibida'`, cualquier otra cosa incluida `recibida_parcial` es NO RECIBIDO) y
+  **PAGADO** (recibida o parcial Y sin saldo pendiente en `v_cuentas_por_pagar`) — más un tercer badge
+  "CANCELADA" aparte cuando aplica, para no perder esa información en la lista. Mismo criterio aplicado también
+  en el detalle (`renderVistaOC`, ahora async porque consulta el saldo pendiente de esa OC puntual).
+  "Recibir" y "Pagar" ya tenían pantalla propia a donde navegaban (Recibo de mercancía / Pagos a proveedores) —
+  nada que mover. "💰 Anticipo" NO tenía ningún otro punto de entrada en toda la app (confirmado: `pagos-
+  proveedor.js` no soportaba anticipos) — a petición del usuario, se movió ahí: nuevo botón "💰 Pagar anticipo a
+  una OC" en Pagos a proveedores, con su propio selector de Orden de compra (antes llegaba con la OC ya
+  preseleccionada desde el botón que se quitó) y el mismo formulario/llamada a `pagar_anticipo_oc()`. Las
+  funciones originales (`window.ocPagar`, `window.ocAnticipo`, `window.ocAntCerrar`, `window.irARecibirOC`) se
+  dejaron intactas en `ordenes-compra.js` sin usarse desde ningún botón (a propósito, por si se re-conectan
+  después) — `irARecibirOC` sigue viva porque la usa internamente el flujo de pre-recibo (líneas ~1360/1498).
+  Se quitó `OC_ESTATUS` (ya no se usa en ningún lado). Pendiente: probar en el navegador — Órdenes de compra
+  (que ya no aparezcan los 3 botones, que los 2-3 badges se vean bien) y Pagos a proveedores (botón nuevo de
+  Anticipo, elegir una OC, pagar, y que aparezca en "Pagos registrados").
 - Archivos tocados (lo último): `js/bitacora-cambios.js`, `version.json`. A petición del usuario ("poder abrir
   desde ahí el documento que guardó el usuario para verificar sus cambios"): la columna "Módulo" de Bitácora de
   Cambios ya no muestra el `#id` como texto plano — ahora es un enlace que abre el registro real, igual que el
