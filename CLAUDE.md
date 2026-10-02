@@ -4,6 +4,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `index.html`, `js/indice.js`, `js/catalogo.js` (solo comentarios), `js/tablas.js` (comentario), `version.json`. A petición del
+  usuario: la pantalla "Catálogo y Kardex" (vista `catalogo`, `cargarModuloCatalogoKardex`) se llama ahora solo **"Productos"** — entrada del menú
+  Catálogos, título de la pantalla y tarjeta del Índice. Solo cambió el rótulo: la vista, las funciones y el Kardex embebido siguen igual. En
+  este archivo, donde dice "Catálogo y Kardex" léase "Productos". Pendiente: confirmar que el menú y el Índice muestran el nombre nuevo.
 - Archivos tocados (lo último): `js/impresion.js`, `js/contabilidad.js`, `js/pedidos-venta.js`, `js/pagos-proveedor.js`, `js/cuentas-por-cobrar.js`,
   `js/ordenes-compra.js`, `js/requisiciones-compra.js`, `js/nomina.js`, `js/documentos.js`, `js/ordenes-produccion.js`, `js/produccion.js`,
   `version.json`. A petición del usuario ("cuando un documento esté cancelado quiero una marca de agua en la versión imprimible"): nueva opción

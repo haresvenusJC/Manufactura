@@ -9,7 +9,7 @@ export const SECCIONES = [
     {
         grupo: 'Catálogos', ancla: 'cat', items: [
             { v: 'alta-articulo', t: 'Alta de artículo', d: 'Solo el formulario para dar de alta (o editar por nombre) un producto, materia prima o insumo: SKU, unidad, costo, bandera de control de caducidad.', cfg: true },
-            { v: 'catalogo', t: 'Catálogo y Kardex', d: 'Listado general de artículos (buscar, exportar, editar) fusionado con el Kardex: movimientos de entrada y salida por producto, con el criterio FIFO/FEFO usado.', cfg: true },
+            { v: 'catalogo', t: 'Productos', d: 'Listado general de artículos (buscar, exportar, editar) con su Kardex: movimientos de entrada y salida por producto, con el criterio FIFO/FEFO usado.', cfg: true },
             { v: 'proveedores', t: 'Proveedores', d: 'Datos fiscales: RFC, régimen, uso CFDI, forma y método de pago, cuenta de gasto por defecto.', cfg: true },
             { v: 'clientes', t: 'Clientes y listas de precio', d: 'Clientes y sus listas de precio.', cfg: true },
             { v: 'empleados', t: 'Empleados', d: 'Plantilla, costo por hora y PIN para la Orden de Trabajo en el celular.', cfg: true },

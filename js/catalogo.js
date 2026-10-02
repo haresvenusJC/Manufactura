@@ -55,7 +55,7 @@ async function actualizarSelectProveedores() {
 
 // Alta de artículo: SOLO el formulario (crear, o editar si el nombre coincide con uno
 // existente), sin el listado de abajo — pantalla dedicada para no distraer con la tabla
-// mientras se está capturando (ver "Catálogo y Kardex" para el listado general).
+// mientras se está capturando (ver "Productos" para el listado general).
 export async function cargarModuloAltaArticulo() {
     const contenedor = document.getElementById('contenedorAltaArticulo');
     if (!contenedor) {
@@ -1185,7 +1185,7 @@ export async function cargarModuloAltaArticulo() {
 }
 
 // =====================================================================
-// Catálogo y Kardex: listado general de artículos (buscar, exportar,
+// Productos (antes "Catálogo y Kardex"): listado general de artículos (buscar, exportar,
 // ☰ acciones por fila) fusionado con el Kardex — al elegir "Kardex de
 // este producto" los movimientos se despliegan en esta misma pantalla,
 // sin navegar a otra vista.

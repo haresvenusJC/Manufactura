@@ -7,7 +7,7 @@ import { familiaDeUnidad, BASE_FAMILIA } from './conversion-unidades.js';
 // Configuración · Tablas
 //   Visor de solo lectura de las tablas de apoyo del sistema, para ver los datos que contienen.
 //   Columnas dinámicas (lo que traiga la tabla en la base), con buscador.
-//   Unidades de medida además ofrece abrir su editor (el mismo de Catálogo y Kardex → "📏 Unidades").
+//   Unidades de medida además ofrece abrir su editor (subventana propia, ya no vive en Productos).
 // =====================================================================
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
