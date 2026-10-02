@@ -1,6 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { abrirTablaUnidades, abrirTablaDensidades } from './catalogo.js';
-import { REGIMENES } from './proveedores.js';
+import { REGIMENES, cargarRegimenes } from './regimenes-fiscales.js';
 import { familiaDeUnidad } from './conversion-unidades.js';
 
 // =====================================================================
@@ -17,7 +17,7 @@ const TABLAS = {
     c_uso_cfdi: { titulo: '🧾 SAT · Uso del CFDI', desc: 'Catálogo c_UsoCFDI del SAT, con la cuenta contable sugerida para cada uso (la usan Recibo de mercancía y Gastos).', orden: 'clave' },
     c_forma_pago: { titulo: '🧾 SAT · Forma de pago', desc: 'Catálogo c_FormaPago del SAT (01 Efectivo, 03 Transferencia...).', orden: 'clave' },
     c_metodo_pago: { titulo: '🧾 SAT · Método de pago', desc: 'Catálogo c_MetodoPago del SAT (PUE / PPD).', orden: 'clave' },
-    regimenes: { titulo: '🧾 SAT · Regímenes fiscales', desc: 'Catálogo c_RegimenFiscal del SAT que usan Proveedores y Clientes (vive en el código, js/proveedores.js).', orden: 'clave', local: true },
+    regimenes: { titulo: '🧾 SAT · Regímenes fiscales', desc: '', orden: 'clave' },
     monedas: { titulo: '💱 Monedas', desc: 'Monedas disponibles en Órdenes de compra y Compra directa (MXN, USD...).', orden: 'id' },
 };
 
@@ -61,6 +61,60 @@ async function cargarConversiones(cont, titulo) {
     cont.querySelector('#tablasDens')?.addEventListener('click', abrirTablaDensidades);
 }
 
+// Regímenes fiscales: único catálogo de esta pantalla que se EDITA aquí (c_regimen_fiscal).
+// Descripción y "activo" se guardan al cambiar; la clave no se edita (es la llave). Retirar ≠ borrar.
+async function cargarEditorRegimenes(cont, titulo) {
+    if (titulo) titulo.textContent = TABLAS.regimenes.titulo;
+    const { data, error } = await supabaseClient.from('c_regimen_fiscal').select('clave, descripcion, activo').order('clave');
+    if (error) {
+        cont.innerHTML = `<div class="text-xs text-amber-300 bg-amber-950/30 border border-amber-800 rounded-lg p-3 mb-3">Para ver y editar este catálogo corre primero <code>sql/2026-10-30_c_regimen_fiscal.sql</code> en Supabase (${esc(error.message)}). Mientras tanto los formularios usan esta lista de respaldo:</div>
+            <ul class="text-sm text-slate-300 space-y-0.5">${REGIMENES.map(([k, v]) => `<li><span class="font-mono text-slate-400">${esc(k)}</span> · ${esc(v)}</li>`).join('')}</ul>`;
+        return;
+    }
+    const filas = data || [];
+    cont.innerHTML = `
+        <p class="text-xs text-slate-400 mb-3">Catálogo c_RegimenFiscal del SAT que usan Proveedores, Clientes y las altas rápidas desde el XML. Los cambios se guardan solos. <strong>Retirar</strong> un régimen (desmarcar "Activo") deja de ofrecerlo en los formularios sin borrarlo ni afectar a quien ya lo tenga.</p>
+        <div class="flex flex-wrap gap-2 items-end bg-slate-950/60 border border-slate-800 rounded-lg p-2 mb-3">
+            <div><label class="block text-[10px] text-slate-400 mb-0.5">Clave (3 dígitos)</label><input id="regNuevaClave" maxlength="3" inputmode="numeric" placeholder="609" class="w-20 bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 font-mono"></div>
+            <div class="flex-1 min-w-[12rem]"><label class="block text-[10px] text-slate-400 mb-0.5">Descripción</label><input id="regNuevaDesc" placeholder="Consolidación" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></div>
+            <button type="button" id="regAgregar" class="text-xs bg-sky-600 hover:bg-sky-500 text-white font-medium px-3 py-1.5 rounded-lg cursor-pointer">＋ Agregar</button>
+        </div>
+        <p id="regMsg" class="text-[11px] min-h-[1rem] mb-2"></p>
+        <div class="overflow-x-auto border border-slate-800 rounded-lg"><table class="w-full text-sm text-left">
+            <thead class="bg-slate-950 text-[11px] uppercase text-slate-400"><tr><th class="px-3 py-2">Clave</th><th class="px-3 py-2">Descripción</th><th class="px-3 py-2">Activo</th></tr></thead>
+            <tbody class="divide-y divide-slate-800 text-slate-200">${filas.map((r) => `
+                <tr data-clave="${esc(r.clave)}"><td class="px-3 py-1.5 font-mono text-slate-400">${esc(r.clave)}</td>
+                <td class="px-3 py-1.5"><input data-campo="descripcion" value="${esc(r.descripcion)}" class="w-full bg-slate-950 border border-slate-800 rounded p-1 text-xs text-slate-100"></td>
+                <td class="px-3 py-1.5"><input data-campo="activo" type="checkbox" class="accent-sky-500" ${r.activo !== false ? 'checked' : ''}></td></tr>`).join('')}
+            </tbody></table></div>`;
+
+    const msg = cont.querySelector('#regMsg');
+    const aviso = (t, ok) => { msg.textContent = t; msg.className = `text-[11px] min-h-[1rem] mb-2 ${ok ? 'text-emerald-400' : 'text-rose-400'}`; };
+    cont.querySelectorAll('tbody tr').forEach((tr) => {
+        tr.querySelectorAll('[data-campo]').forEach((el) => el.addEventListener('change', async () => {
+            const clave = tr.dataset.clave;
+            const descripcion = tr.querySelector('[data-campo="descripcion"]').value.trim();
+            if (!descripcion) { aviso('La descripción no puede quedar vacía.', false); return; }
+            const activo = tr.querySelector('[data-campo="activo"]').checked;
+            const { error: e } = await supabaseClient.from('c_regimen_fiscal').update({ descripcion, activo }).eq('clave', clave);
+            if (e) { aviso(`No se guardó ${clave}: ${e.message}`, false); return; }
+            await cargarRegimenes();
+            aviso(`✔ ${clave} guardado.`, true);
+        }));
+    });
+    cont.querySelector('#regAgregar').addEventListener('click', async () => {
+        const clave = cont.querySelector('#regNuevaClave').value.trim();
+        const descripcion = cont.querySelector('#regNuevaDesc').value.trim();
+        if (!/^\d{3}$/.test(clave)) { aviso('La clave del SAT son 3 dígitos (ej. 609).', false); return; }
+        if (!descripcion) { aviso('Escribe la descripción.', false); return; }
+        if (filas.some((r) => r.clave === clave)) { aviso(`La clave ${clave} ya existe.`, false); return; }
+        const { error: e } = await supabaseClient.from('c_regimen_fiscal').insert({ clave, descripcion, activo: true });
+        if (e) { aviso(`No se agregó: ${e.message}`, false); return; }
+        await cargarRegimenes();
+        await cargarEditorRegimenes(cont, titulo);
+    });
+}
+
 export async function cargarModuloTablas(tabla = 'unidades_medida') {
     const cont = document.getElementById('contenedorTablas');
     if (!cont) return;
@@ -71,6 +125,7 @@ export async function cargarModuloTablas(tabla = 'unidades_medida') {
         abrirTablaDensidades();
         return;
     }
+    if (tabla === 'regimenes') return cargarEditorRegimenes(cont, document.getElementById('tituloTablas'));
     if (tabla === 'conversiones') {
         cont.innerHTML = '<p class="text-sm text-slate-400">Cargando…</p>';
         return cargarConversiones(cont, document.getElementById('tituloTablas'));
@@ -82,9 +137,7 @@ export async function cargarModuloTablas(tabla = 'unidades_medida') {
     if (titulo) titulo.textContent = cfg.titulo;
     cont.innerHTML = '<p class="text-sm text-slate-400">Cargando…</p>';
 
-    const { data, error } = cfg.local
-        ? { data: REGIMENES.map(([clave, descripcion]) => ({ clave, descripcion })), error: null }
-        : await supabaseClient.from(nombre).select('*').order(cfg.orden, { ascending: true });
+    const { data, error } = await supabaseClient.from(nombre).select('*').order(cfg.orden, { ascending: true });
     if (error) {
         cont.innerHTML = `<p class="text-sm text-rose-400">No se pudo leer la tabla <code>${esc(nombre)}</code>: ${esc(error.message)}</p>`;
         return;

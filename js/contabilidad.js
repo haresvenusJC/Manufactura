@@ -2,7 +2,7 @@ import { supabaseClient } from './supabase.js';
 import { imprimirConPlantilla } from './impresion.js';
 import { montarGuia, crearPanelAsistente, abrirManual } from './asistente-contable.js';
 import { parsearCfdi, formaPagoSimple, extraerTextoPdf, parsearCfdiPdf } from './cfdi.js';
-import { REGIMENES } from './proveedores.js';
+import { opcionesRegimen } from './regimenes-fiscales.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { prepararFiltrosAuxInv, generarAuxInventarios } from './auxiliar-inventarios.js';
 import { prepararFiltrosAuxAnt, generarAuxAnticipos } from './auxiliar-anticipos.js';
@@ -1272,8 +1272,7 @@ function gaAbrirAltaProveedor(c) {
     // fiscal, no evidencia de pago — el default del proveedor nuevo también
     // parte de "Crédito".
     const cond = 'credito';
-    const optReg = '<option value="">— régimen —</option>' + REGIMENES.map(([k, v]) =>
-        `<option value="${esc(k)}"${k === (c.regimenEmisor || '') ? ' selected' : ''}>${esc(k)} · ${esc(v)}</option>`).join('');
+    const optReg = opcionesRegimen({ valor: c.regimenEmisor || '' });
     const ov = document.createElement('div');
     ov.id = 'gaAltaModal';
     ov.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4';

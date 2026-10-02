@@ -21,6 +21,7 @@ import { cargarModuloPlantillas } from './plantillas.js';
 import { cargarModuloEmpleados } from './empleados.js';
 import { cargarModuloImportador } from './importador.js';
 import { cargarModuloTablas } from './tablas.js';
+import { cargarRegimenes } from './regimenes-fiscales.js';
 import { cargarModuloImportadorClavesProveedor } from './importador-claves-proveedor.js';
 import { cargarModuloImportadorBom } from './importador-bom.js';
 import { cargarModuloClientes } from './clientes.js';
@@ -348,6 +349,7 @@ async function iniciarApp() {
 
     try {
         await verificarConexionReal();
+        cargarRegimenes();   // catálogo SAT de regímenes (los formularios de alta rápida lo usan sin esperar)
         await cargarModuloAltaArticulo();
         await cargarModuloCatalogoKardex();
 

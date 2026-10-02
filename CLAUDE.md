@@ -4,6 +4,16 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-10-30_c_regimen_fiscal.sql` y `sql/2026-10-30b_regimen_fiscal_fk.sql` (nuevos), `js/regimenes-fiscales.js`
+  (nuevo), `js/tablas.js`, `js/proveedores.js`, `js/clientes.js`, `js/contabilidad.js`, `js/ordenes-compra.js`, `js/app.js`, `version.json`.
+  Regímenes fiscales del SAT pasan de lista en el código a TABLA `c_regimen_fiscal` (clave/descripcion/activo), en 2 pasos. **Paso 1** (`…30`):
+  tabla + siembra de las 19 claves de siempre (no se inventó ninguna; el SAT tiene más: 609/628/629/630 se agregan desde la pantalla) +
+  `js/regimenes-fiscales.js` (fuente única: `REGIMENES` vivo, `cargarRegimenes()`, `opcionesRegimen()`) con la lista vieja como respaldo si la
+  migración no está corrida; los 4 formularios (Proveedores, Clientes —que traía una copia recortada de 9—, alta rápida de Gastos y de Recibo de
+  mercancía) usan el helper. Editable en Configuración → Tablas → "SAT · Regímenes fiscales" (descripción, activo, agregar; la clave no se
+  edita). Retirar (`activo=false`) no borra ni afecta a quien ya lo tenga (opción oculta/deshabilitada). **Paso 2** (`…30b`, correr DESPUÉS de
+  confirmar el paso 1): FK de `proveedores`/`clientes.regimen_fiscal`; se detiene y lista huérfanos si los hay. `REGIMENES` sigue exportándose
+  desde `proveedores.js` (re-export). Pendiente: correr `…30`, probar en el navegador, correr `…30b`.
 - Archivos tocados (lo último): `js/tablas.js`, `index.html`, `js/indice.js`, `version.json`. Configuración → Tablas gana 4 catálogos SAT de
   solo lectura: Uso del CFDI (`c_uso_cfdi`, con su cuenta sugerida), Forma de pago (`c_forma_pago`), Método de pago (`c_metodo_pago`) y
   Regímenes fiscales (`REGIMENES` de `js/proveedores.js`, no es tabla de la base). A petición del usuario NO se movieron Tabla ISR, Centros de
@@ -659,7 +669,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   pedida se traduce a "cuántos lotes de la receta" antes de escalar cada insumo, en vez de multiplicar la
   receta directo por la cantidad (que sobre-pedía ~15× en los "Granel ... 15 Litros", cuyo BOM está escrito
   para el lote de referencia y no para 1 unidad).
-- `proveedores.js` — catálogo de proveedores + catálogo `REGIMENES` (SAT) reutilizado por otros módulos.
+- `proveedores.js` — catálogo de proveedores + re-exporta `REGIMENES` (vive en `regimenes-fiscales.js`).
 - `prorrateo.js` — prorrateo de CIF a las órdenes de producción por horas de mano de obra, con póliza de traspaso.
 - `recibo-operador.js` — app móvil del operador: captura del pre-recibo (fotos, conteo) que el admin valida después.
 - `reparto-plantillas.js` — plantillas de reparto de gastos compartidos (qué base usar y a qué cuenta va).
@@ -673,6 +683,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   cada módulo); se importa en `app.js` y en las 3 apps de operador.
 - `supabase.js` — cliente y credenciales de Supabase.
 - `tablas.js` — Configuración → Tablas: visor de solo lectura de `unidades_medida` y `monedas` (columnas dinámicas, buscador).
+- `regimenes-fiscales.js` — catálogo SAT de regímenes (tabla `c_regimen_fiscal`, respaldo en código): `cargarRegimenes()` y `opcionesRegimen()` para todos los selects.
 - `tareas.js` — bandeja de pendientes (inventario bajo mínimo, caducidad próxima, nómina en borrador...) con historial.
 - `trazabilidad.js` — antecedentes de proceso: Requisición → Orden de compra → Documento(s) de recepción.
 

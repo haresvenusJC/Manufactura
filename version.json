@@ -1,5 +1,5 @@
 {
- "v": "20261002043231",
+ "v": "20261002043819",
  "modulos": [
   "activos-fijos.js",
   "app.js",
@@ -55,6 +55,7 @@
   "prorrateo.js",
   "proveedores.js",
   "recibo-operador.js",
+  "regimenes-fiscales.js",
   "reparto-plantillas.js",
   "reportes.js",
   "requisiciones-compra.js",

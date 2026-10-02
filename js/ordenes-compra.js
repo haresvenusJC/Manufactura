@@ -1,7 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { siguienteFolio } from './folios.js';
 import { cargarInventarioCompleto } from './inventario.js';
-import { REGIMENES } from './proveedores.js';
+import { opcionesRegimen } from './regimenes-fiscales.js';
 import { parsearCfdi, extraerTextoPdf, parsearCfdiPdf } from './cfdi.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { imprimirConPlantilla } from './impresion.js';
@@ -3064,7 +3064,7 @@ function rmOpcionesConValor(lista, valorActual, etiquetaVacio) {
 // condicion se sugiere por el MetodoPago del CFDI (PPD = credito, si no
 // contado) pero tambien es editable. Los catalogos (regimen SAT, uso
 // CFDI, forma y metodo de pago, cuenta contable) salen de las mismas
-// tablas/listas que ya usa el resto de la app (REGIMENES de proveedores.js,
+// tablas/listas que ya usa el resto de la app (c_regimen_fiscal vía regimenes-fiscales.js,
 // y rmCatUso/rmCatForma/rmCatMetodo/rmCatCuentasGasto ya cargados para el
 // formulario de arriba). El C.P. se lee de Comprobante/@LugarExpedicion.
 function rmAbrirFormAltaProveedor() {
@@ -3075,7 +3075,7 @@ function rmAbrirFormAltaProveedor() {
     if (btn) btn.classList.add('hidden');
 
     const condicionSugerida = rmXmlMeta.metodoPago === 'PPD' ? 'credito' : 'contado';
-    const optRegimen = '<option value="">— régimen —</option>' + REGIMENES.map(([k, v]) => `<option value="${k}"${k === (rmXmlMeta.regimenFiscal || '') ? ' selected' : ''}>${k} · ${esc(v)}</option>`).join('');
+    const optRegimen = opcionesRegimen({ valor: rmXmlMeta.regimenFiscal || '' });
     const optCtaGasto = '<option value="">— sin cuenta —</option>' + rmCatCuentasGasto.map(c => `<option value="${c.id}"${c.codigo === '201.01' ? ' selected' : ''}>${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
     cont.innerHTML = `
         <div class="mt-2 bg-slate-900/60 border border-amber-800/60 rounded-lg p-2.5 space-y-2 max-w-md">
