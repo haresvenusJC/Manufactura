@@ -2278,7 +2278,7 @@ function htmlGuiaGranel(d) {
         : 'Cambia "Tipo" a "Semiterminado (granel)" y da "Guardar cambios".');
 
     const fam = familiaDeUnidad(u);
-    if (fam) ok(`Unidad de Medida: <b>${escaparHtml(u)}</b> — el granel se cuenta en ${fam.familia === 'volumen' ? 'volumen' : 'peso'} y el terminado le descuenta ${fam.familia === 'volumen' ? 'mL' : 'g'}.`);
+    if (fam && fam.familia !== 'longitud') ok(`Unidad de Medida: <b>${escaparHtml(u)}</b> — el granel se cuenta en ${fam.familia === 'volumen' ? 'volumen' : 'peso'} y el terminado le descuenta ${fam.familia === 'volumen' ? 'mL' : 'g'}.`);
     else mal(`Unidad de Medida: "${escaparHtml(u || 'sin unidad')}".`, 'Cámbiala a <b>Litros</b> (o Kilogramos). En Pieza, el producto terminado no le puede descontar mL.');
 
     if (d.nComponentes > 0) ok(`Fórmula (BOM) con ${d.nComponentes} componente(s), escrita para <b>UNA tanda</b>.`);

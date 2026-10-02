@@ -4,6 +4,14 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/conversion-unidades.js`, `js/catalogo.js`, `js/tablas.js`, `sql/2026-10-31_conversiones_unidades_ampliadas.sql` (nuevo),
+  `version.json`. A petición del usuario ("agrega todas las conversiones conocidas"): `FAMILIAS_UNIDAD` pasa de mg/g/kg + mL/L a 3 familias —
+  **masa** (+ tonelada métrica, libra, onza avoirdupois), **volumen** (+ cL, dL, cm³/dm³/m³, onza fluida, galón US) y **longitud** (mm, cm, m, km,
+  pulgada, pie, yarda). Reglas: la densidad/"como agua" solo aplica entre masa↔volumen (antes cualquier par de familias distintas); longitud solo
+  convierte con longitud y `tamanoTeoricoTanda` la ignora; conteos (Piezas, Cajas, Paquetes) siguen 1 a 1 — no hay factor universal. SQL espejo:
+  `_unidad_familia_base()` + `factor_conversion_bom()` reemplazada (misma firma, la vista no se recrea). Probado en Postgres local: JS y SQL dan
+  lo mismo en 33 nombres y 9 pares. Conversiones (Tablas) ya muestra Longitud. **Ojo:** "Onzas" se toma como masa; si alguna se usa como
+  volumen debe llamarse "Onzas fluidas". Pendiente: correr `…10-31_conversiones_unidades_ampliadas.sql` y probar en el navegador.
 - Archivos tocados (lo último): `js/tablas.js`, `version.json`. Captura del celular: la matriz de Conversiones mostraba notación científica
   (`1.00e+3`) y se cortaba a lo ancho (Kilogramos/Litros quedaban fuera de vista). Ahora una tarjeta por unidad ("1 Kilogramos = 1,000 Gramos…"),
   números con separador de miles. Los regímenes (`…10-30` y `…30b`) ya están corridos. Hallazgo sin tocar: Libras, Onzas y Galones caen en

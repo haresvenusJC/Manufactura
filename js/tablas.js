@@ -1,7 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { abrirTablaUnidades, abrirTablaDensidades } from './catalogo.js';
 import { REGIMENES, cargarRegimenes } from './regimenes-fiscales.js';
-import { familiaDeUnidad } from './conversion-unidades.js';
+import { familiaDeUnidad, BASE_FAMILIA } from './conversion-unidades.js';
 
 // =====================================================================
 // Configuración · Tablas
@@ -41,13 +41,14 @@ async function cargarConversiones(cont, titulo) {
         if (f) (fam[f.familia] = fam[f.familia] || []).push({ nombre: u.nombre, aBase: f.aBase });
         else sin.push(u.nombre);
     });
-    const num = (v) => v.toLocaleString('es-MX', { maximumFractionDigits: 6 });
-    const base = { masa: 'gramo', volumen: 'mililitro' };
+    const num = (v) => v.toLocaleString('es-MX', { maximumFractionDigits: 10 });
+    const base = BASE_FAMILIA;
+    const rotulo = { masa: '⚖️ Masa', volumen: '🧪 Volumen', longitud: '📐 Longitud' };
     // Una tarjeta por unidad ("1 Kilogramos = 1,000 Gramos · 1,000,000 Miligramos"): se lee bien en celular, sin tabla ancha.
     const bloque = (nombre, lista) => {
         lista.sort((a, b) => a.aBase - b.aBase);
         return `
-        <h3 class="text-sm font-semibold text-slate-200 mt-4 mb-2">${nombre === 'masa' ? '⚖️ Masa' : '🧪 Volumen'} <span class="text-[11px] font-normal text-slate-500">(base: ${base[nombre]})</span></h3>
+        <h3 class="text-sm font-semibold text-slate-200 mt-4 mb-2">${rotulo[nombre]} <span class="text-[11px] font-normal text-slate-500">(base: ${base[nombre]})</span></h3>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">${lista.map((r) => `
             <div class="bg-slate-950 border border-slate-800 rounded-lg p-3">
                 <div class="text-sm font-semibold text-slate-100 mb-1">1 ${esc(r.nombre)}</div>
@@ -56,7 +57,7 @@ async function cargarConversiones(cont, titulo) {
         </div>`;
     };
     cont.innerHTML = `
-        <p class="text-xs text-slate-400">Así convierte el sistema las fórmulas (BOM) a la unidad de inventario. Dentro de la misma familia es exacto; entre masa y volumen usa la <strong>densidad</strong> del artículo (kg/L). Solo ve la regla del sistema, no se edita aquí.</p>
+        <p class="text-xs text-slate-400">Así convierte el sistema las fórmulas (BOM) a la unidad de inventario. Dentro de la misma familia es exacto; entre masa y volumen usa la <strong>densidad</strong> del artículo (kg/L); la longitud solo convierte con longitud. Estándar: onza = masa (28.35 g; la fluida es aparte), galón = galón US (3.785 L), tonelada = métrica. Es la regla del sistema, no se edita aquí.</p>
         <div class="flex flex-wrap gap-2 mt-3"><button type="button" id="tablasDens" class="text-xs bg-slate-800 hover:bg-slate-700 text-indigo-300 px-3 py-2 rounded-lg border border-slate-700 cursor-pointer">⚖️ Ver / editar densidades</button></div>
         ${Object.keys(fam).map((k) => bloque(k, fam[k])).join('')}
         <h3 class="text-sm font-semibold text-slate-200 mt-4 mb-1">Sin conversión automática</h3>
