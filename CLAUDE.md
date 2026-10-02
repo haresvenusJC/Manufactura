@@ -4,6 +4,15 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-11-03b_reservas_liberar.sql` (nuevo), `js/pedidos-venta.js`, `version.json`. A petición del usuario ("debo poder des-apartar en algún lado, para
+  solucionar problemas de apartados"). Como las reservas se recalculan solas, "des-apartar" se guarda como MARCA en el renglón (`pedidos_venta_detalle.apartar=false` +
+  `motivo_liberacion`): `reservas_reasignar` la respeta (el renglón queda en 0 y esa mercancía se reparte entre los demás pedidos) y NO se re-aparta solo con el siguiente
+  movimiento. RPC: `pedido_venta_liberar_reserva(pedido, renglón|null, motivo)` (motivo obligatorio; solo pedidos pendiente/parcial), `pedido_venta_reactivar_reserva(pedido, renglón|null)`
+  (re-aparta lo que haya, por prioridad — el pedido más antiguo recupera su lugar) y `reservas_recalcular_todo()` (botón de reparación). Cada liberación/reactivación deja una línea en
+  `pedidos_venta.notas` (→ Bitácora de cambios). Un renglón liberado NO cuenta como "falta" (`pedido_venta_reservar` y `pvFalta`). UI: en el detalle del pedido, columna "Reserva"
+  (Liberar / Liberada · Volver a apartar), barra "Liberar reservas del pedido" / "Volver a apartar todo" / "↻ Recalcular"; en la lista, "↻ Recalcular reservas" (todos los productos);
+  Surtir avisa "reserva liberada". Degrada en 3 niveles (sin …03b → sin botones; sin …03 → como antes). Probado en Postgres local (libera/reactiva/prioridad/todo el pedido/pedido
+  cancelado/dos corridas) y en Chromium con Supabase simulado. Pendiente: correr `…03b` y probar los botones con PED-000001.
 - Archivos tocados (lo último): `sql/2026-11-03_reservas_pedidos.sql` (nuevo), `js/pedidos-venta.js`, `js/salidas.js`, `js/inventario.js`, `version.json`. **Reservas de inventario,
   ENTREGA 1 de 4** (a petición del usuario: pedido sin stock → orden de producción/requisición con trazabilidad; eligió reservas reales). Un pedido pendiente ya APARTA
   mercancía: `pedidos_venta_detalle.cantidad_reservada`; disponible = existencia en lotes − reservado (vista `v_stock_disponible`). `reservas_reasignar(producto)` recalcula

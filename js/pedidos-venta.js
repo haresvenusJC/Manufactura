@@ -31,7 +31,7 @@ const PV_FILTROS = [
     { v: 'todas', t: 'Todas' },
 ];
 // Renglón con mercancía por cubrir: pedido − surtido − reservado (solo si la migración de reservas ya corrió).
-const pvFalta = (d) => (d.cantidad_reservada === undefined || d.cantidad_reservada === null)
+const pvFalta = (d) => (d.cantidad_reservada === undefined || d.cantidad_reservada === null || d.apartar === false)
     ? 0 : Math.max(Number(d.cantidad || 0) - Number(d.cantidad_surtida || 0) - Number(d.cantidad_reservada || 0), 0);
 const pvNum = (n) => Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 });
 
@@ -234,17 +234,20 @@ async function pvRenderLista() {
     const cont = document.getElementById('pvLista');
     cont.innerHTML = '<p class="text-slate-500 text-sm">Cargando...</p>';
     try {
-        const consultaLista = (conReserva) => {
+        // nivel 2 = reservas + liberar (…03b), 1 = solo reservas (…03), 0 = sin migraciones
+        const consultaLista = (nivel) => {
             let q = supabaseClient
                 .from('pedidos_venta')
-                .select(`id, folio, fecha, estatus, notas, clientes ( nombre ), pedidos_venta_detalle ( cantidad, cantidad_surtida${conReserva ? ', cantidad_reservada' : ''}, precio_unitario )`)
+                .select(`id, folio, fecha, estatus, notas, clientes ( nombre ), pedidos_venta_detalle ( cantidad, cantidad_surtida${nivel >= 1 ? ', cantidad_reservada' : ''}${nivel >= 2 ? ', apartar' : ''}, precio_unitario )`)
                 .order('id', { ascending: false }).limit(200);
             if (pvFiltro !== 'todas') q = q.eq('estatus', pvFiltro);
             return q;
         };
-        let { data, error } = await consultaLista(true);
-        if (error && /cantidad_reservada/i.test(error.message || '')) ({ data, error } = await consultaLista(false));   // sin la migración de reservas
+        let { data, error } = await consultaLista(2);
+        if (error && /apartar/i.test(error.message || '')) ({ data, error } = await consultaLista(1));
+        if (error && /cantidad_reservada/i.test(error.message || '')) ({ data, error } = await consultaLista(0));
         if (error) throw error;
+        const puedeRecalcular = !!(data && data.some((p) => (p.pedidos_venta_detalle || []).some((d) => d.apartar !== undefined)));
         if (!data || !data.length) { cont.innerHTML = `<p class="text-slate-500 text-sm">Sin pedidos en "${PV_FILTROS.find((f) => f.v === pvFiltro)?.t.toLowerCase()}".</p>`; return; }
 
         data.forEach((p) => {
@@ -266,6 +269,7 @@ async function pvRenderLista() {
         });
 
         cont.innerHTML = `
+        ${puedeRecalcular ? '<div class="flex justify-end mb-2"><button type="button" id="pvRecalcularTodo" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg" title="Vuelve a calcular las reservas de todos los productos (úsalo si algo no cuadra)">↻ Recalcular reservas</button></div>' : ''}
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
@@ -286,6 +290,14 @@ async function pvRenderLista() {
           </table>
         </div>`;
         wireOrdenTabla(cont, pvListaOrden, pvRenderLista);
+        const btnRecalc = cont.querySelector('#pvRecalcularTodo');
+        if (btnRecalc) btnRecalc.onclick = async () => {
+            btnRecalc.disabled = true;
+            const { data: n, error: eR } = await supabaseClient.rpc('reservas_recalcular_todo');
+            if (eR) { alert('No se pudo recalcular: ' + eR.message); btnRecalc.disabled = false; return; }
+            alert(`Reservas recalculadas (${n} producto${n === 1 ? '' : 's'}).`);
+            await pvRenderLista();
+        };
     } catch (err) {
         const m = err?.message || String(err);
         cont.innerHTML = /does not exist|schema cache|could not find/i.test(m)
@@ -329,12 +341,13 @@ window.pvAbrirDetalle = async (id) => {
 async function pvPintarDetalle(id, modal) {
     const cuerpo = modal.querySelector('#pvCuerpoDetalle');
     try {
-        const consultaDetalle = (conReserva) => supabaseClient
+        const consultaDetalle = (nivel) => supabaseClient
             .from('pedidos_venta')
-            .select(`id, folio, fecha, estatus, notas, clientes ( nombre ), pedidos_venta_detalle ( id, producto_id, descripcion, cantidad, cantidad_surtida${conReserva ? ', cantidad_reservada' : ''}, precio_unitario, unidad_medida_id, productos ( nombre, sku ) )`)
+            .select(`id, folio, fecha, estatus, notas, clientes ( nombre ), pedidos_venta_detalle ( id, producto_id, descripcion, cantidad, cantidad_surtida${nivel >= 1 ? ', cantidad_reservada' : ''}${nivel >= 2 ? ', apartar, motivo_liberacion' : ''}, precio_unitario, unidad_medida_id, productos ( nombre, sku ) )`)
             .eq('id', id).single();
-        let { data: p, error } = await consultaDetalle(true);
-        if (error && /cantidad_reservada/i.test(error.message || '')) ({ data: p, error } = await consultaDetalle(false));   // sin la migración de reservas
+        let { data: p, error } = await consultaDetalle(2);
+        if (error && /apartar|motivo_liberacion/i.test(error.message || '')) ({ data: p, error } = await consultaDetalle(1));   // falta …03b
+        if (error && /cantidad_reservada/i.test(error.message || '')) ({ data: p, error } = await consultaDetalle(0));         // falta …03
         if (error) throw error;
         modal.querySelector('#pvTituloDetalle').textContent = p.folio || ('#' + p.id);
 
@@ -342,6 +355,9 @@ async function pvPintarDetalle(id, modal) {
         const total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.precio_unitario || 0), 0);
         const conReservas = (p.estatus === 'pendiente' || p.estatus === 'parcial') && det.some((d) => d.cantidad_reservada !== undefined && d.cantidad_reservada !== null);
         const hayFalta = conReservas && det.some((d) => pvFalta(d) > 1e-9);
+        const puedeLiberar = conReservas && det.some((d) => d.apartar !== undefined);   // migración …03b corrida
+        const hayLiberadas = puedeLiberar && det.some((d) => d.apartar === false);
+        const hayApartadas = puedeLiberar && det.some((d) => d.apartar !== false);
 
         cuerpo.innerHTML = `
             <div class="grid grid-cols-2 gap-3 mb-4 text-sm">
@@ -350,12 +366,17 @@ async function pvPintarDetalle(id, modal) {
                 <div><span class="block text-[10px] text-slate-500">Fecha</span><span class="text-slate-300">${p.fecha || '—'}</span></div>
             </div>
             ${p.notas ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Notas</span><p class="text-xs text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5">${esc(p.notas)}</p></div>` : ''}
+            ${puedeLiberar ? `<div class="flex flex-wrap justify-end gap-2 mb-2">
+                ${hayApartadas ? '<button type="button" id="pvLiberarTodo" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-3 py-1.5 rounded-lg" title="Deja libre toda la mercancía apartada de este pedido">Liberar reservas del pedido</button>' : ''}
+                ${hayLiberadas ? '<button type="button" id="pvReactivarTodo" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg">Volver a apartar todo</button>' : ''}
+                <button type="button" id="pvRecalcularPedido" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg" title="Vuelve a calcular las reservas de los productos de este pedido">↻ Recalcular</button>
+              </div>` : ''}
             ${hayFalta ? '<p class="text-xs text-amber-300 bg-amber-950/30 border border-amber-800 rounded-lg px-3 py-2 mb-3">⚠ Hay renglones sin mercancía suficiente apartada. Lo que falta se cubre con producción o compra; cuando llegue, se aparta solo (el pedido más antiguo primero).</p>' : ''}
             <div class="overflow-x-auto border border-slate-800 rounded-lg mb-3">
               <table class="w-full text-left text-xs text-slate-300">
                 <thead class="bg-slate-950 text-slate-500 uppercase"><tr>
                   <th class="p-2">Producto</th><th class="p-2 text-right">Pedido</th><th class="p-2 text-right">Surtido</th>
-                  <th class="p-2 text-right">Pendiente</th>${conReservas ? '<th class="p-2 text-right">Reservado</th><th class="p-2 text-right">Falta</th>' : ''}<th class="p-2 text-right">Precio</th>
+                  <th class="p-2 text-right">Pendiente</th>${conReservas ? '<th class="p-2 text-right">Reservado</th><th class="p-2 text-right">Falta</th>' : ''}${puedeLiberar ? '<th class="p-2 text-center">Reserva</th>' : ''}<th class="p-2 text-right">Precio</th>
                 </tr></thead>
                 <tbody>
                   ${det.map((d) => `
@@ -366,10 +387,13 @@ async function pvPintarDetalle(id, modal) {
                       <td class="p-2 text-right font-mono ${Number(d.cantidad) - Number(d.cantidad_surtida) > 0 ? 'text-amber-400' : 'text-emerald-400'}">${Number(d.cantidad) - Number(d.cantidad_surtida)}</td>
                       ${conReservas ? `<td class="p-2 text-right font-mono text-sky-300">${pvNum(d.cantidad_reservada)}</td>
                       <td class="p-2 text-right font-mono ${pvFalta(d) > 1e-9 ? 'text-rose-400 font-semibold' : 'text-slate-500'}">${pvFalta(d) > 1e-9 ? pvNum(pvFalta(d)) : '—'}</td>` : ''}
+                      ${puedeLiberar ? `<td class="p-2 text-center whitespace-nowrap">${d.apartar === false
+                          ? `<span class="text-[10px] text-slate-400" title="${esc(d.motivo_liberacion || '')}">Liberada</span> <button type="button" class="pv-reactivar text-[10px] text-sky-300 hover:underline" data-det="${d.id}">Volver a apartar</button>`
+                          : `<button type="button" class="pv-liberar text-[10px] text-amber-300 hover:underline" data-det="${d.id}">Liberar</button>`}</td>` : ''}
                       <td class="p-2 text-right font-mono">${money(d.precio_unitario)}</td>
                     </tr>`).join('')}
                 </tbody>
-                <tfoot><tr><td colspan="${conReservas ? 6 : 4}" class="p-2 text-right font-semibold text-slate-400">Total</td><td class="p-2 text-right font-mono font-semibold text-emerald-300">${money(total)}</td></tr></tfoot>
+                <tfoot><tr><td colspan="${(conReservas ? 6 : 4) + (puedeLiberar ? 1 : 0)}" class="p-2 text-right font-semibold text-slate-400">Total</td><td class="p-2 text-right font-mono font-semibold text-emerald-300">${money(total)}</td></tr></tfoot>
               </table>
             </div>
             ${p.estatus === 'pendiente' || p.estatus === 'parcial' ? `
@@ -378,6 +402,35 @@ async function pvPintarDetalle(id, modal) {
               ${p.estatus === 'pendiente' ? `<button type="button" id="pvBtnCancelar" class="w-full bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 font-medium py-2 rounded-lg text-sm">Cancelar pedido</button>` : ''}
             ` : ''}
             <p id="pvMsgDetalle" class="text-xs mt-2 min-h-[1rem]"></p>`;
+
+        // Liberar / volver a apartar / recalcular (migración …03b). Libera con motivo obligatorio y queda anotado en el pedido.
+        if (puedeLiberar) {
+            const refrescar = async () => { await pvPintarDetalle(p.id, modal); await pvRenderLista(); };
+            const llamar = async (nombre, args) => {
+                const { error: eRpc } = await supabaseClient.rpc(nombre, args);
+                if (eRpc) { alert('No se pudo: ' + eRpc.message); return false; }
+                return true;
+            };
+            const pedirMotivo = (que) => { const m = prompt(`${que}\n\nMotivo (obligatorio):`, ''); return m === null ? null : m.trim(); };
+            modal.querySelectorAll('.pv-liberar').forEach((b) => b.onclick = async () => {
+                const m = pedirMotivo('Liberar la mercancía apartada de este renglón. Quedará disponible para otros pedidos.');
+                if (m === null) return; if (!m) { alert('Escribe el motivo.'); return; }
+                if (await llamar('pedido_venta_liberar_reserva', { p_pedido_id: p.id, p_detalle_id: Number(b.dataset.det), p_motivo: m })) await refrescar();
+            });
+            modal.querySelectorAll('.pv-reactivar').forEach((b) => b.onclick = async () => {
+                if (await llamar('pedido_venta_reactivar_reserva', { p_pedido_id: p.id, p_detalle_id: Number(b.dataset.det) })) await refrescar();
+            });
+            const btnLibTodo = modal.querySelector('#pvLiberarTodo');
+            if (btnLibTodo) btnLibTodo.onclick = async () => {
+                const m = pedirMotivo('Liberar TODA la mercancía apartada de este pedido (no se cancela el pedido).');
+                if (m === null) return; if (!m) { alert('Escribe el motivo.'); return; }
+                if (await llamar('pedido_venta_liberar_reserva', { p_pedido_id: p.id, p_detalle_id: null, p_motivo: m })) await refrescar();
+            };
+            const btnReacTodo = modal.querySelector('#pvReactivarTodo');
+            if (btnReacTodo) btnReacTodo.onclick = async () => { if (await llamar('pedido_venta_reactivar_reserva', { p_pedido_id: p.id, p_detalle_id: null })) await refrescar(); };
+            const btnRecPed = modal.querySelector('#pvRecalcularPedido');
+            if (btnRecPed) btnRecPed.onclick = async () => { if (await llamar('pedido_venta_reservar', { p_pedido_id: p.id })) await refrescar(); };
+        }
 
         const btnImp = modal.querySelector('#pvImprimirDetalle');
         if (btnImp) { btnImp.disabled = false; btnImp.onclick = () => imprimirConPlantilla('pedido_venta', 'Pedido de venta ' + (p.folio || '#' + p.id), cuerpo, marcaDeEstatus(p.estatus)); }
@@ -424,7 +477,7 @@ async function pvAbrirSurtir(pedido, lineasPendientes, modal) {
                 : '<option value="">Sin lotes con stock</option>';
             return `
             <div class="grid grid-cols-1 md:grid-cols-4 gap-2 items-end border-b border-slate-800 pb-2 last:border-0" data-linea="${i}">
-                <div class="md:col-span-2"><label class="block text-[11px] text-slate-400 mb-0.5">${esc(l.detalle.productos?.nombre || l.detalle.descripcion)} — pendiente ${pendiente}${maximo < pendiente ? ` · <span class="text-amber-300">apartado ${pvNum(maximo)}</span>` : ''}</label>
+                <div class="md:col-span-2"><label class="block text-[11px] text-slate-400 mb-0.5">${esc(l.detalle.productos?.nombre || l.detalle.descripcion)} — pendiente ${pendiente}${l.detalle.apartar === false ? ' · <span class="text-amber-300">reserva liberada (vuelve a apartarla para surtir)</span>' : (maximo < pendiente ? ` · <span class="text-amber-300">apartado ${pvNum(maximo)}</span>` : '')}</label>
                     <select class="pv-surtir-lote w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100">${optsLote}</select></div>
                 <div><label class="block text-[11px] text-slate-400 mb-0.5">Cantidad a surtir</label>
                     <input type="number" step="any" min="0" max="${maximo}" class="pv-surtir-cant w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100" value="0"></div>
