@@ -1,8 +1,8 @@
 import { supabaseClient } from './supabase.js';
-import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
+import { imprimirConPlantilla } from './impresion.js';
 import { montarGuia, crearPanelAsistente, abrirManual } from './asistente-contable.js';
 import { parsearCfdi, formaPagoSimple, extraerTextoPdf, parsearCfdiPdf } from './cfdi.js';
-import { opcionesRegimen } from './regimenes-fiscales.js';
+import { REGIMENES } from './proveedores.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { prepararFiltrosAuxInv, generarAuxInventarios } from './auxiliar-inventarios.js';
 import { prepararFiltrosAuxAnt, generarAuxAnticipos } from './auxiliar-anticipos.js';
@@ -1272,7 +1272,8 @@ function gaAbrirAltaProveedor(c) {
     // fiscal, no evidencia de pago — el default del proveedor nuevo también
     // parte de "Crédito".
     const cond = 'credito';
-    const optReg = opcionesRegimen({ valor: c.regimenEmisor || '' });
+    const optReg = '<option value="">— régimen —</option>' + REGIMENES.map(([k, v]) =>
+        `<option value="${esc(k)}"${k === (c.regimenEmisor || '') ? ' selected' : ''}>${esc(k)} · ${esc(v)}</option>`).join('');
     const ov = document.createElement('div');
     ov.id = 'gaAltaModal';
     ov.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4';
@@ -2118,7 +2119,7 @@ export async function cargarModuloReportesContables() {
             : rcTab === 'auxiliar' ? 'Auxiliar de cuentas contables'
             : rcTab === 'auxinv' ? 'Auxiliar de inventarios (valorizado)'
             : rcTab === 'auxant' ? 'Auxiliar de Anticipos a proveedores' : 'Estado de resultados';
-        imprimirConPlantilla('reporte', titulo, 'rcTabla');
+        imprimirConPlantilla('generico', titulo, 'rcTabla');
     });
 
     // Auxiliar: el reporte se genera solo al elegir la cuenta (padre o de detalle) o "Todas las cuentas".
@@ -2504,13 +2505,6 @@ window.rcVerPoliza = async function (polId) {
         } catch (_) {}
 
         const movs = (pol.poliza_movimientos || []).slice().sort((a, b) => (a.orden || 0) - (b.orden || 0));
-        // Si la póliza se abre desde otra pantalla (Bitácora, Pagos, Documentos...) el catálogo de cuentas no está en memoria
-        // y salía "cuenta 11": se traen solo las cuentas que faltan.
-        const faltan = [...new Set(movs.map((m) => m.cuenta_id).filter((id) => id != null && !ctaMapa.has(id)))];
-        if (faltan.length) {
-            const { data: ctasFaltan } = await supabaseClient.from('cuentas_contables').select('id, codigo, nombre').in('id', faltan);
-            (ctasFaltan || []).forEach((c) => ctaMapa.set(c.id, c));
-        }
         const totC = movs.reduce((s, m) => s + (Number(m.cargo) || 0), 0);
         const totA = movs.reduce((s, m) => s + (Number(m.abono) || 0), 0);
 
@@ -2526,7 +2520,7 @@ window.rcVerPoliza = async function (polId) {
                 <h3 class="text-sm font-bold text-slate-200">Póliza ${pol.tipo} #${pol.numero} · ${pol.fecha}</h3>
                 <button onclick="window.rcCerrarModalPoliza('${idModal}')" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2">&times;</button>
             </div>
-            <div class="rc-pol-cuerpo p-5 space-y-3 overflow-y-auto text-sm">
+            <div class="p-5 space-y-3 overflow-y-auto text-sm">
                 <div class="text-xs text-slate-400">
                     <span class="font-semibold text-slate-300">Concepto:</span> ${(pol.concepto || '—')}<br>
                     <span class="font-semibold text-slate-300">Estatus:</span> <span class="${pol.estatus === 'contabilizada' ? 'text-emerald-400' : 'text-rose-400'}">${pol.estatus}</span>
@@ -2560,13 +2554,10 @@ window.rcVerPoliza = async function (polId) {
                 ${enlacesDoc ? `<div class="flex flex-wrap gap-2 pt-1">${enlacesDoc}</div>`
                     : `<p class="text-[11px] text-slate-500">Esta póliza no tiene un documento de almacén enlazado (origen: ${pol.origen || 'manual'}).</p>`}
             </div>
-            <div class="bg-slate-950 px-5 py-3 border-t border-slate-800 text-right flex justify-end gap-2">
-                <button type="button" class="rc-pol-imprimir text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-4 py-2 rounded-xl font-semibold cursor-pointer">🖨️ Imprimir</button>
+            <div class="bg-slate-950 px-5 py-3 border-t border-slate-800 text-right">
                 <button onclick="window.rcCerrarModalPoliza('${idModal}')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl font-semibold cursor-pointer">Cerrar</button>
             </div>
         </div>`;
-        cont.querySelector('.rc-pol-imprimir').onclick = () =>
-            imprimirConPlantilla('poliza', `Póliza ${pol.tipo} #${pol.numero} · ${pol.fecha}`, cont.querySelector('.rc-pol-cuerpo'), marcaDeEstatus(pol.estatus));
     } catch (err) {
         cont.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 text-sm">
             <p class="text-rose-400">No se pudo cargar la póliza.<br>${err.message || err}</p>

@@ -71,7 +71,7 @@ function wireBarraAcciones(root) {
         btn.addEventListener('click', () => exportarCSV(btn.dataset.target, btn.dataset.archivo));
     });
     root.querySelectorAll('.rep-btn-print').forEach((btn) => {
-        btn.addEventListener('click', () => imprimirConPlantilla('reporte', btn.dataset.titulo, btn.dataset.target));
+        btn.addEventListener('click', () => imprimirConPlantilla('generico', btn.dataset.titulo, btn.dataset.target));
     });
 }
 

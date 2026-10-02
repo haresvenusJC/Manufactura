@@ -1,5 +1,5 @@
 import { supabaseClient } from './supabase.js';
-import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
+import { imprimirConPlantilla } from './impresion.js';
 import { montarGuia } from './asistente-contable.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { etiquetaPoliza } from './enlaces-reporte.js';
@@ -729,7 +729,7 @@ async function nomImprimir(id, btn) {
             </div>`;
 
         document.getElementById('nomImprimirArea').innerHTML = html;
-        await imprimirConPlantilla('nomina', `Nómina ${n.periodo_inicio} a ${n.periodo_fin}`, 'nomImprimirArea', marcaDeEstatus(n.estatus));
+        await imprimirConPlantilla('nomina', `Nómina ${n.periodo_inicio} a ${n.periodo_fin}`, 'nomImprimirArea');
     } catch (err) {
         alert('No se pudo preparar la impresión: ' + (err.message || err));
     } finally {

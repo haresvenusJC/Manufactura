@@ -1,8 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { montarGuia } from './asistente-contable.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
-import { linkDoc, linkPoliza, etiquetaPoliza } from './enlaces-reporte.js';
-import { imprimirHtml, marcaDeEstatus } from './impresion.js';
+import { linkDoc, linkPoliza } from './enlaces-reporte.js';
 
 // =====================================================================
 //  Cuentas por Cobrar / Cobros a clientes
@@ -285,34 +284,6 @@ async function registrarCobro() {
     }
 }
 
-// Recibo de cobro a cliente (mismo estilo de impresión que el resto de la app).
-async function cxcImprimirRecibo(id) {
-    try {
-        const { data: p, error } = await supabaseClient.from('cobros_cliente')
-            .select('id, fecha, total, referencia, forma_pago, notas, estatus, poliza_id, clientes ( nombre, rfc ), cuentas_contables!cuenta_cobro_id ( codigo, nombre ), cobros_cliente_aplicaciones ( monto, documentos ( folio ) )')
-            .eq('id', id).single();
-        if (error) throw error;
-        const pol = p.poliza_id ? await etiquetaPoliza(p.poliza_id) : '—';
-        const filas = (p.cobros_cliente_aplicaciones || []).map((a) => `<tr><td>${esc(a.documentos?.folio || '—')}</td><td style="text-align:right">${money(a.monto)}</td></tr>`).join('');
-        await imprimirHtml('cobro_cliente', `Cobro de cliente #${p.id}`, `
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px 12px;margin-bottom:6px">
-                <div><b>Cliente:</b> ${esc(p.clientes?.nombre || '(varios)')}</div>
-                <div><b>RFC:</b> ${esc(p.clientes?.rfc || '—')}</div>
-                <div><b>Fecha:</b> ${esc(p.fecha || '')}</div>
-                <div><b>Forma de pago:</b> ${esc(p.forma_pago || '—')}</div>
-                <div><b>Referencia:</b> ${esc(p.referencia || '—')}</div>
-                <div><b>Cuenta de entrada:</b> ${p.cuentas_contables ? esc(p.cuentas_contables.codigo + ' · ' + p.cuentas_contables.nombre) : '—'}</div>
-                <div><b>Póliza:</b> ${esc(pol)}</div>
-                <div><b>Estatus:</b> ${esc(p.estatus)}</div>
-            </div>
-            <table><thead><tr><th>Venta aplicada</th><th style="text-align:right">Monto</th></tr></thead>
-            <tbody>${filas || '<tr><td colspan="2">Sin ventas aplicadas.</td></tr>'}</tbody>
-            <tfoot><tr><td style="text-align:right"><b>Total cobrado</b></td><td style="text-align:right"><b>${money(p.total)}</b></td></tr></tfoot></table>
-            ${p.notas ? `<p style="margin-top:6px"><b>Notas:</b> ${esc(p.notas)}</p>` : ''}
-            <div style="display:flex;gap:40px;margin-top:28px"><div style="flex:1;border-top:1px solid #555;text-align:center;padding-top:2px">Recibió</div><div style="flex:1;border-top:1px solid #555;text-align:center;padding-top:2px">Cliente</div></div>`, marcaDeEstatus(p.estatus));
-    } catch (e) { alert('No se pudo armar el recibo: ' + (e.message || e)); }
-}
-
 async function cxcHistorial() {
     const cont = document.getElementById('cxcHist');
     try {
@@ -344,7 +315,7 @@ async function cxcHistorial() {
             <tbody>
               ${data.map(p => `
                 <tr class="border-b border-slate-900 ${p.estatus === 'cancelado' ? 'opacity-50' : ''}">
-                  <td class="p-2 whitespace-nowrap"><button type="button" class="cxc-print text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded mr-1" data-id="${p.id}" title="Imprimir recibo de cobro">🖨️</button>${p.estatus === 'registrado' ? `<button type="button" class="cxc-cancel text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded" data-id="${p.id}">Cancelar</button>` : ''}</td>
+                  <td class="p-2">${p.estatus === 'registrado' ? `<button type="button" class="cxc-cancel text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded" data-id="${p.id}">Cancelar</button>` : ''}</td>
                   <td class="p-2 whitespace-nowrap">${p.fecha || ''}</td>
                   <td class="p-2">${esc(p.clientes?.nombre || '(varios)')}</td>
                   <td class="p-2 text-slate-400">${esc(p.referencia || '')}</td>
@@ -356,7 +327,6 @@ async function cxcHistorial() {
             </tbody>
           </table>
         </div>`;
-        cont.querySelectorAll('.cxc-print').forEach(b => { b.onclick = () => cxcImprimirRecibo(Number(b.dataset.id)); });
         cont.querySelectorAll('.cxc-cancel').forEach(b => {
             b.onclick = async () => {
                 if (!confirm('¿Cancelar este cobro? Se genera la póliza de reverso y los saldos vuelven a quedar pendientes.')) return;

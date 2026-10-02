@@ -1,11 +1,8 @@
 import { supabaseClient } from './supabase.js';
 import { siguienteFolio } from './folios.js';
-import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
-import { generarRequisicionFaltantes, requisicionesDePedido, ordenesDePedido } from './produccion.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
 import { registrarSalidaMultiPartida } from './salidas.js';
-import './trazabilidad.js';   // window.abrirSeguimientoPedido (seguimiento del pedido)
 
 // =====================================================================
 //  Pedidos de venta — cliente pide, se surte después (total o en
@@ -32,35 +29,6 @@ const PV_FILTROS = [
     { v: 'cancelado', t: 'Cancelados' },
     { v: 'todas', t: 'Todas' },
 ];
-// Renglón con mercancía por cubrir: pedido − surtido − reservado (solo si la migración de reservas ya corrió).
-const pvFalta = (d) => (d.cantidad_reservada === undefined || d.cantidad_reservada === null || d.apartar === false)
-    ? 0 : Math.max(Number(d.cantidad || 0) - Number(d.cantidad_surtida || 0) - Number(d.cantidad_reservada || 0), 0);
-const pvNum = (n) => Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 });
-
-// Cubre el faltante de un pedido: lo que se FABRICA va a una orden de producción (formulario precargado) y lo que se COMPRA a una
-// requisición (agrupada por proveedor) — reutiliza el flujo de "Faltantes" de Producción, ligado al pedido. Lo que ya va en camino se descuenta.
-// filas: [{ detalle_id, producto_id, producto, pendiente, reservado, faltante }]
-async function pvCubrirFaltante(pedidoId, folio, filas) {
-    const faltan = (filas || []).filter((f) => Number(f.faltante) > 1e-9);
-    if (!faltan.length) return;
-    const ids = [...new Set(faltan.map((f) => f.producto_id))];
-    const { data: info } = await supabaseClient.from('productos').select('id, unidades_medida ( nombre )').in('id', ids);
-    const unidad = new Map((info || []).map((x) => [x.id, x.unidades_medida?.nombre || '']));
-    await generarRequisicionFaltantes(
-        faltan.map((f) => ({ componenteId: f.producto_id, nombre: f.producto || 'Producto', unidad: unidad.get(f.producto_id) || '',
-            requerido: Number(f.pendiente), disponible: Number(f.reservado), pedidoDetalleId: f.detalle_id })),
-        'Pedido ' + folio, 1, null, { pedido: { id: pedidoId, folio } });
-}
-
-// Aviso de lo que falta al guardar un pedido (resultado de pedido_venta_reservar).
-function pvHtmlFaltantes(filas) {
-    const faltan = (filas || []).filter((f) => Number(f.faltante) > 1e-9);
-    if (!faltan.length) return ' <span class="text-emerald-400">Toda la mercancía quedó apartada.</span>';
-    return `<span class="block mt-2 text-amber-300 font-semibold">⚠ Falta mercancía para surtir completo:</span>`
-        + faltan.map((f) => `<span class="block text-amber-200/90">• ${esc(f.producto || 'Producto')}: faltan <b>${pvNum(f.faltante)}</b> de ${pvNum(f.pendiente)}`
-            + ` (apartadas ${pvNum(f.reservado)}; en almacén ${pvNum(f.stock)}${Number(f.apartado_otros) > 0 ? `, ${pvNum(f.apartado_otros)} ya apartadas por otros pedidos` : ''})</span>`).join('');
-}
-
 const PV_ESTATUS = {
     pendiente: 'text-amber-300 bg-amber-950/40',
     parcial: 'text-sky-300 bg-sky-950/50',
@@ -214,26 +182,14 @@ async function pvGuardarPedido() {
         const { error: e2 } = await supabaseClient.from('pedidos_venta_detalle').insert(filas);
         if (e2) throw e2;
 
-        // Reservas (sql/2026-11-03_reservas_pedidos.sql): el pedido aparta lo que hay y avisa lo que falta.
-        // Sin la migración esta llamada falla y simplemente se omite.
-        let avisoReservas = '', hayFalta = false, filasReserva = [];
-        try {
-            const { data: rsv, error: eRsv } = await supabaseClient.rpc('pedido_venta_reservar', { p_pedido_id: pedido.id });
-            if (!eRsv && Array.isArray(rsv)) { filasReserva = rsv; avisoReservas = pvHtmlFaltantes(rsv); hayFalta = rsv.some((f) => Number(f.faltante) > 1e-9); }
-        } catch (_) { /* sin reservas */ }
-        msg.innerHTML = `Pedido ${esc(pedido.folio)} guardado.${avisoReservas}`;
-        msg.className = `text-xs mt-2 ${hayFalta ? 'text-slate-200' : 'text-emerald-400'}`;
+        msg.textContent = `Pedido ${pedido.folio} guardado.`;
+        msg.className = 'text-xs mt-2 text-emerald-400';
         pvPartidasTemp = [];
         pvRenderPartidas();
         document.getElementById('pvNotas').value = '';
         pvFiltro = 'pendiente';
         pvPintarFiltros();
         await pvRenderLista();
-
-        // Falta mercancía: se ofrece cubrirla ya (producción si se fabrica, requisición si se compra). Si dice que no, queda el botón en el detalle del pedido.
-        if (hayFalta && confirm(`El pedido ${pedido.folio} tiene mercancía que falta.\n\n¿Generar ahora lo necesario para cubrirla?\n(lo que se fabrica pasa a una orden de producción y lo que se compra, a una requisición)`)) {
-            await pvCubrirFaltante(pedido.id, pedido.folio, filasReserva);
-        }
     } catch (err) {
         msg.textContent = 'No se pudo guardar: ' + (err.message || err);
         msg.className = 'text-xs mt-2 text-rose-400';
@@ -256,20 +212,13 @@ async function pvRenderLista() {
     const cont = document.getElementById('pvLista');
     cont.innerHTML = '<p class="text-slate-500 text-sm">Cargando...</p>';
     try {
-        // nivel 2 = reservas + liberar (…03b), 1 = solo reservas (…03), 0 = sin migraciones
-        const consultaLista = (nivel) => {
-            let q = supabaseClient
-                .from('pedidos_venta')
-                .select(`id, folio, fecha, estatus, notas, clientes ( nombre ), pedidos_venta_detalle ( cantidad, cantidad_surtida${nivel >= 1 ? ', cantidad_reservada' : ''}${nivel >= 2 ? ', apartar' : ''}, precio_unitario )`)
-                .order('id', { ascending: false }).limit(200);
-            if (pvFiltro !== 'todas') q = q.eq('estatus', pvFiltro);
-            return q;
-        };
-        let { data, error } = await consultaLista(2);
-        if (error && /apartar/i.test(error.message || '')) ({ data, error } = await consultaLista(1));
-        if (error && /cantidad_reservada/i.test(error.message || '')) ({ data, error } = await consultaLista(0));
+        let q = supabaseClient
+            .from('pedidos_venta')
+            .select('id, folio, fecha, estatus, notas, clientes ( nombre ), pedidos_venta_detalle ( cantidad, cantidad_surtida, precio_unitario )')
+            .order('id', { ascending: false }).limit(200);
+        if (pvFiltro !== 'todas') q = q.eq('estatus', pvFiltro);
+        const { data, error } = await q;
         if (error) throw error;
-        const puedeRecalcular = !!(data && data.some((p) => (p.pedidos_venta_detalle || []).some((d) => d.apartar !== undefined)));
         if (!data || !data.length) { cont.innerHTML = `<p class="text-slate-500 text-sm">Sin pedidos en "${PV_FILTROS.find((f) => f.v === pvFiltro)?.t.toLowerCase()}".</p>`; return; }
 
         data.forEach((p) => {
@@ -278,7 +227,6 @@ async function pvRenderLista() {
             const ped = det.reduce((a, d) => a + Number(d.cantidad || 0), 0);
             const sur = det.reduce((a, d) => a + Number(d.cantidad_surtida || 0), 0);
             p._pct = ped > 0 ? Math.round((sur / ped) * 100) : 0;
-            p._falta = (p.estatus === 'pendiente' || p.estatus === 'parcial') && det.some((d) => pvFalta(d) > 1e-9);
         });
         aplicarOrden(pvListaOrden, data, (p, campo) => {
             switch (campo) {
@@ -291,7 +239,6 @@ async function pvRenderLista() {
         });
 
         cont.innerHTML = `
-        ${puedeRecalcular ? '<div class="flex justify-end mb-2"><button type="button" id="pvRecalcularTodo" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg" title="Vuelve a calcular las reservas de todos los productos (úsalo si algo no cuadra)">↻ Recalcular reservas</button></div>' : ''}
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
@@ -306,20 +253,12 @@ async function pvRenderLista() {
                   <td class="p-2 whitespace-nowrap text-slate-400">${p.fecha || ''}</td>
                   <td class="p-2 text-right font-mono">${money(p._total)}</td>
                   <td class="p-2 font-mono text-slate-400">${p._pct}%</td>
-                  <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${PV_ESTATUS[p.estatus] || 'text-slate-400 bg-slate-800'}">${esc(p.estatus)}</span>${p._falta ? ' <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-amber-300 bg-amber-950/50 border border-amber-800" title="Hay renglones sin mercancía suficiente apartada">⚠ Falta stock</span>' : ''}</td>
+                  <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${PV_ESTATUS[p.estatus] || 'text-slate-400 bg-slate-800'}">${esc(p.estatus)}</span></td>
                 </tr>`).join('')}
             </tbody>
           </table>
         </div>`;
         wireOrdenTabla(cont, pvListaOrden, pvRenderLista);
-        const btnRecalc = cont.querySelector('#pvRecalcularTodo');
-        if (btnRecalc) btnRecalc.onclick = async () => {
-            btnRecalc.disabled = true;
-            const { data: n, error: eR } = await supabaseClient.rpc('reservas_recalcular_todo');
-            if (eR) { alert('No se pudo recalcular: ' + eR.message); btnRecalc.disabled = false; return; }
-            alert(`Reservas recalculadas (${n} producto${n === 1 ? '' : 's'}).`);
-            await pvRenderLista();
-        };
     } catch (err) {
         const m = err?.message || String(err);
         cont.innerHTML = /does not exist|schema cache|could not find/i.test(m)
@@ -340,11 +279,7 @@ window.pvAbrirDetalle = async (id) => {
     modal.innerHTML = `
         <div class="flex justify-between items-center p-4 border-b border-slate-800">
             <h3 class="text-base font-semibold text-slate-100">Pedido <span id="pvTituloDetalle" class="text-emerald-300 font-mono"></span></h3>
-            <div class="flex items-center gap-3">
-                <button id="pvSeguimientoDetalle" type="button" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 px-3 py-1 rounded-lg" title="Pedido → producción / compra → recepción → surtido">🔗 Seguimiento</button>
-                <button id="pvImprimirDetalle" type="button" disabled class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1 rounded-lg disabled:opacity-40">🖨️ Imprimir</button>
-                <button id="pvCerrarDetalle" class="text-slate-400 hover:text-slate-200 text-xl leading-none">&times;</button>
-            </div>
+            <button id="pvCerrarDetalle" class="text-slate-400 hover:text-slate-200 text-xl leading-none">&times;</button>
         </div>
         <div id="pvCuerpoDetalle" class="p-4 overflow-y-auto flex-1"><p class="text-slate-500 text-sm text-center">Cargando...</p></div>`;
     document.body.appendChild(modal);
@@ -353,7 +288,6 @@ window.pvAbrirDetalle = async (id) => {
     const cerrarEsc = (e) => { if (e.key === 'Escape') cerrar(); };
     function cerrar() { modal.remove(); document.removeEventListener('click', cerrarFuera); document.removeEventListener('keydown', cerrarEsc); }
     modal.querySelector('#pvCerrarDetalle').onclick = cerrar;
-    modal.querySelector('#pvSeguimientoDetalle').onclick = () => window.abrirSeguimientoPedido(id);
     setTimeout(() => { document.addEventListener('click', cerrarFuera); document.addEventListener('keydown', cerrarEsc); }, 0);
 
     await pvPintarDetalle(id, modal);
@@ -365,39 +299,15 @@ window.pvAbrirDetalle = async (id) => {
 async function pvPintarDetalle(id, modal) {
     const cuerpo = modal.querySelector('#pvCuerpoDetalle');
     try {
-        const consultaDetalle = (nivel) => supabaseClient
+        const { data: p, error } = await supabaseClient
             .from('pedidos_venta')
-            .select(`id, folio, fecha, estatus, notas, clientes ( nombre ), pedidos_venta_detalle ( id, producto_id, descripcion, cantidad, cantidad_surtida${nivel >= 1 ? ', cantidad_reservada' : ''}${nivel >= 2 ? ', apartar, motivo_liberacion' : ''}, precio_unitario, unidad_medida_id, productos ( nombre, sku ) )`)
+            .select('id, folio, fecha, estatus, notas, clientes ( nombre ), pedidos_venta_detalle ( id, producto_id, descripcion, cantidad, cantidad_surtida, precio_unitario, unidad_medida_id, productos ( nombre, sku ) )')
             .eq('id', id).single();
-        let { data: p, error } = await consultaDetalle(2);
-        if (error && /apartar|motivo_liberacion/i.test(error.message || '')) ({ data: p, error } = await consultaDetalle(1));   // falta …03b
-        if (error && /cantidad_reservada/i.test(error.message || '')) ({ data: p, error } = await consultaDetalle(0));         // falta …03
         if (error) throw error;
         modal.querySelector('#pvTituloDetalle').textContent = p.folio || ('#' + p.id);
 
         const det = p.pedidos_venta_detalle || [];
         const total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.precio_unitario || 0), 0);
-        const conReservas = (p.estatus === 'pendiente' || p.estatus === 'parcial') && det.some((d) => d.cantidad_reservada !== undefined && d.cantidad_reservada !== null);
-        const hayFalta = conReservas && det.some((d) => pvFalta(d) > 1e-9);
-        const puedeLiberar = conReservas && det.some((d) => d.apartar !== undefined);   // migración …03b corrida
-        const hayLiberadas = puedeLiberar && det.some((d) => d.apartar === false);
-
-        // Cobertura del faltante: lo que ya se fabrica / se pide para este pedido (sql/2026-11-04; sin ella, no se muestra el bloque).
-        const filasFalta = det.filter((d) => pvFalta(d) > 1e-9).map((d) => ({
-            detalle_id: d.id, producto_id: d.producto_id, producto: d.productos?.nombre || d.descripcion,
-            pendiente: Number(d.cantidad) - Number(d.cantidad_surtida), reservado: Number(d.cantidad_reservada), faltante: pvFalta(d) }));
-        let opsPed = null, reqsPed = null;
-        if (conReservas) { opsPed = await ordenesDePedido(p.id); reqsPed = await requisicionesDePedido(p.id); }
-        const hayCobertura = (opsPed && opsPed.length) || (reqsPed && reqsPed.length);
-        let porCubrirTotal = 0;
-        if (filasFalta.length) {
-            const faltaPorProd = new Map(); filasFalta.forEach((f) => faltaPorProd.set(f.producto_id, (faltaPorProd.get(f.producto_id) || 0) + f.faltante));
-            const camino = new Map();
-            (opsPed || []).filter((o) => o.estado === 'borrador' || o.estado === 'en_proceso').forEach((o) => camino.set(o.productoId, (camino.get(o.productoId) || 0) + o.cantidad));
-            (reqsPed || []).filter((r) => r.enCamino).forEach((r) => r.detalle.forEach((x) => camino.set(x.productoId, (camino.get(x.productoId) || 0) + x.cantidad)));
-            faltaPorProd.forEach((f, prod) => { porCubrirTotal += Math.max(f - (camino.get(prod) || 0), 0); });
-        }
-        const hayApartadas = puedeLiberar && det.some((d) => d.apartar !== false);
 
         cuerpo.innerHTML = `
             <div class="grid grid-cols-2 gap-3 mb-4 text-sm">
@@ -406,27 +316,11 @@ async function pvPintarDetalle(id, modal) {
                 <div><span class="block text-[10px] text-slate-500">Fecha</span><span class="text-slate-300">${p.fecha || '—'}</span></div>
             </div>
             ${p.notas ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Notas</span><p class="text-xs text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5">${esc(p.notas)}</p></div>` : ''}
-            ${puedeLiberar ? `<div class="flex flex-wrap justify-end gap-2 mb-2">
-                ${hayApartadas ? '<button type="button" id="pvLiberarTodo" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-3 py-1.5 rounded-lg" title="Deja libre toda la mercancía apartada de este pedido">Liberar reservas del pedido</button>' : ''}
-                ${hayLiberadas ? '<button type="button" id="pvReactivarTodo" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg">Volver a apartar todo</button>' : ''}
-                <button type="button" id="pvRecalcularPedido" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg" title="Vuelve a calcular las reservas de los productos de este pedido">↻ Recalcular</button>
-              </div>` : ''}
-            ${(filasFalta.length || hayCobertura) ? `<div class="bg-slate-950 border border-slate-800 rounded-lg p-3 mb-3 text-xs">
-                <p class="font-semibold text-sky-400 mb-1.5">🔗 Cobertura del faltante</p>
-                ${hayCobertura ? `<ul class="space-y-1 mb-2">
-                    ${(opsPed || []).map((o) => `<li><span class="text-slate-100 font-mono">${esc(o.folio)}</span> <span class="text-slate-400">· orden de producción · ${esc(o.estadoTexto)}</span> <span class="text-slate-500">— ${esc(o.nombre)}: ${pvNum(o.cantidad)}${o.unidad ? ' ' + esc(o.unidad) : ''}</span></li>`).join('')}
-                    ${(reqsPed || []).map((r) => `<li><span class="text-slate-100 font-mono">${esc(r.folio)}</span> <span class="text-slate-400">· requisición · ${esc(r.estadoTexto)}</span> <span class="text-slate-500">— ${esc(r.detalle.map((x) => `${x.nombre}: ${pvNum(x.cantidad)}`).join(', '))}</span></li>`).join('')}
-                  </ul>` : '<p class="text-slate-500 mb-2">Todavía no hay producción ni requisiciones ligadas a este pedido.</p>'}
-                ${filasFalta.length ? (porCubrirTotal > 1e-9
-                    ? `<button type="button" id="pvCubrirFaltante" class="bg-amber-700 hover:bg-amber-600 text-white text-xs font-medium px-3 py-2 rounded-lg">🏭🛒 Generar producción / requisición por lo que falta</button> <span class="text-slate-500 ml-1">Lo que ya va en camino se descuenta.</span>`
-                    : '<p class="text-emerald-400">✔ Lo que falta ya está en camino (producción o compra). Cuando llegue, se aparta solo a este pedido.</p>') : ''}
-              </div>` : ''}
-            ${hayFalta ? '<p class="text-xs text-amber-300 bg-amber-950/30 border border-amber-800 rounded-lg px-3 py-2 mb-3">⚠ Hay renglones sin mercancía suficiente apartada. Lo que falta se cubre con producción o compra; cuando llegue, se aparta solo (el pedido más antiguo primero).</p>' : ''}
             <div class="overflow-x-auto border border-slate-800 rounded-lg mb-3">
               <table class="w-full text-left text-xs text-slate-300">
                 <thead class="bg-slate-950 text-slate-500 uppercase"><tr>
                   <th class="p-2">Producto</th><th class="p-2 text-right">Pedido</th><th class="p-2 text-right">Surtido</th>
-                  <th class="p-2 text-right">Pendiente</th>${conReservas ? '<th class="p-2 text-right">Reservado</th><th class="p-2 text-right">Falta</th>' : ''}${puedeLiberar ? '<th class="p-2 text-center">Reserva</th>' : ''}<th class="p-2 text-right">Precio</th>
+                  <th class="p-2 text-right">Pendiente</th><th class="p-2 text-right">Precio</th>
                 </tr></thead>
                 <tbody>
                   ${det.map((d) => `
@@ -435,15 +329,10 @@ async function pvPintarDetalle(id, modal) {
                       <td class="p-2 text-right font-mono">${d.cantidad}</td>
                       <td class="p-2 text-right font-mono text-slate-400">${d.cantidad_surtida}</td>
                       <td class="p-2 text-right font-mono ${Number(d.cantidad) - Number(d.cantidad_surtida) > 0 ? 'text-amber-400' : 'text-emerald-400'}">${Number(d.cantidad) - Number(d.cantidad_surtida)}</td>
-                      ${conReservas ? `<td class="p-2 text-right font-mono text-sky-300">${pvNum(d.cantidad_reservada)}</td>
-                      <td class="p-2 text-right font-mono ${pvFalta(d) > 1e-9 ? 'text-rose-400 font-semibold' : 'text-slate-500'}">${pvFalta(d) > 1e-9 ? pvNum(pvFalta(d)) : '—'}</td>` : ''}
-                      ${puedeLiberar ? `<td class="p-2 text-center whitespace-nowrap">${d.apartar === false
-                          ? `<span class="text-[10px] text-slate-400" title="${esc(d.motivo_liberacion || '')}">Liberada</span> <button type="button" class="pv-reactivar text-[10px] text-sky-300 hover:underline" data-det="${d.id}">Volver a apartar</button>`
-                          : `<button type="button" class="pv-liberar text-[10px] text-amber-300 hover:underline" data-det="${d.id}">Liberar</button>`}</td>` : ''}
                       <td class="p-2 text-right font-mono">${money(d.precio_unitario)}</td>
                     </tr>`).join('')}
                 </tbody>
-                <tfoot><tr><td colspan="${(conReservas ? 6 : 4) + (puedeLiberar ? 1 : 0)}" class="p-2 text-right font-semibold text-slate-400">Total</td><td class="p-2 text-right font-mono font-semibold text-emerald-300">${money(total)}</td></tr></tfoot>
+                <tfoot><tr><td colspan="4" class="p-2 text-right font-semibold text-slate-400">Total</td><td class="p-2 text-right font-mono font-semibold text-emerald-300">${money(total)}</td></tr></tfoot>
               </table>
             </div>
             ${p.estatus === 'pendiente' || p.estatus === 'parcial' ? `
@@ -453,41 +342,6 @@ async function pvPintarDetalle(id, modal) {
             ` : ''}
             <p id="pvMsgDetalle" class="text-xs mt-2 min-h-[1rem]"></p>`;
 
-        // Liberar / volver a apartar / recalcular (migración …03b). Libera con motivo obligatorio y queda anotado en el pedido.
-        if (puedeLiberar) {
-            const refrescar = async () => { await pvPintarDetalle(p.id, modal); await pvRenderLista(); };
-            const llamar = async (nombre, args) => {
-                const { error: eRpc } = await supabaseClient.rpc(nombre, args);
-                if (eRpc) { alert('No se pudo: ' + eRpc.message); return false; }
-                return true;
-            };
-            const pedirMotivo = (que) => { const m = prompt(`${que}\n\nMotivo (obligatorio):`, ''); return m === null ? null : m.trim(); };
-            modal.querySelectorAll('.pv-liberar').forEach((b) => b.onclick = async () => {
-                const m = pedirMotivo('Liberar la mercancía apartada de este renglón. Quedará disponible para otros pedidos.');
-                if (m === null) return; if (!m) { alert('Escribe el motivo.'); return; }
-                if (await llamar('pedido_venta_liberar_reserva', { p_pedido_id: p.id, p_detalle_id: Number(b.dataset.det), p_motivo: m })) await refrescar();
-            });
-            modal.querySelectorAll('.pv-reactivar').forEach((b) => b.onclick = async () => {
-                if (await llamar('pedido_venta_reactivar_reserva', { p_pedido_id: p.id, p_detalle_id: Number(b.dataset.det) })) await refrescar();
-            });
-            const btnLibTodo = modal.querySelector('#pvLiberarTodo');
-            if (btnLibTodo) btnLibTodo.onclick = async () => {
-                const m = pedirMotivo('Liberar TODA la mercancía apartada de este pedido (no se cancela el pedido).');
-                if (m === null) return; if (!m) { alert('Escribe el motivo.'); return; }
-                if (await llamar('pedido_venta_liberar_reserva', { p_pedido_id: p.id, p_detalle_id: null, p_motivo: m })) await refrescar();
-            };
-            const btnReacTodo = modal.querySelector('#pvReactivarTodo');
-            if (btnReacTodo) btnReacTodo.onclick = async () => { if (await llamar('pedido_venta_reactivar_reserva', { p_pedido_id: p.id, p_detalle_id: null })) await refrescar(); };
-            const btnRecPed = modal.querySelector('#pvRecalcularPedido');
-            if (btnRecPed) btnRecPed.onclick = async () => { if (await llamar('pedido_venta_reservar', { p_pedido_id: p.id })) await refrescar(); };
-        }
-
-        const btnCubrir = modal.querySelector('#pvCubrirFaltante');
-        if (btnCubrir) btnCubrir.onclick = async () => { btnCubrir.disabled = true; await pvCubrirFaltante(p.id, p.folio || ('#' + p.id), filasFalta); btnCubrir.disabled = false; };
-
-        const btnImp = modal.querySelector('#pvImprimirDetalle');
-        if (btnImp) { btnImp.disabled = false; btnImp.onclick = () => imprimirConPlantilla('pedido_venta', 'Pedido de venta ' + (p.folio || '#' + p.id), cuerpo, marcaDeEstatus(p.estatus)); }
-
         const btnSurtir = modal.querySelector('#pvBtnSurtir');
         if (btnSurtir) btnSurtir.onclick = () => pvAbrirSurtir(p, det.filter((d) => Number(d.cantidad) - Number(d.cantidad_surtida) > 0), modal);
         const btnCancelar = modal.querySelector('#pvBtnCancelar');
@@ -496,14 +350,6 @@ async function pvPintarDetalle(id, modal) {
             if (motivo === null) return;
             const { error: eCan } = await supabaseClient.rpc('pedido_venta_cancelar', { p_pedido_id: p.id, p_motivo: motivo || null });
             if (eCan) { alert('No se pudo cancelar: ' + eCan.message); return; }
-            // Producción / requisiciones que se abrieron para este pedido NO se cancelan solas: se avisa para que se revisen.
-            try {
-                const ligadas = [
-                    ...((await ordenesDePedido(p.id)) || []).filter((o) => o.estado === 'borrador' || o.estado === 'en_proceso').map((o) => `${o.folio} (orden de producción, ${o.estadoTexto})`),
-                    ...((await requisicionesDePedido(p.id)) || []).filter((r) => r.enCamino).map((r) => `${r.folio} (requisición, ${r.estadoTexto})`),
-                ];
-                if (ligadas.length) alert(`Pedido cancelado.\n\nOJO: estos documentos se abrieron para surtirlo y siguen vigentes — revisa si también hay que cancelarlos:\n• ${ligadas.join('\n• ')}`);
-            } catch (_) { /* sin migración: nada que avisar */ }
             modal.remove();
             await pvRenderLista();
         };
@@ -530,18 +376,15 @@ async function pvAbrirSurtir(pedido, lineasPendientes, modal) {
       <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-3 mb-3 space-y-2">
         ${lineasConLotes.map((l, i) => {
             const pendiente = Number(l.detalle.cantidad) - Number(l.detalle.cantidad_surtida);
-            // Con reservas, solo se puede surtir lo apartado para este renglón (lo demás está apartado por otros pedidos o no existe aún).
-            const maximo = (l.detalle.cantidad_reservada === undefined || l.detalle.cantidad_reservada === null) ? pendiente : Math.min(pendiente, Number(l.detalle.cantidad_reservada));
-            l.maximo = maximo;
             const optsLote = l.lotes.length
                 ? l.lotes.map((lo) => `<option value="${lo.id}" data-disp="${lo.stock_actual}" data-costo="${lo.costo_unitario_final}">${esc(lo.numero_lote || ('#' + lo.id))} · disp. ${lo.stock_actual}</option>`).join('')
                 : '<option value="">Sin lotes con stock</option>';
             return `
             <div class="grid grid-cols-1 md:grid-cols-4 gap-2 items-end border-b border-slate-800 pb-2 last:border-0" data-linea="${i}">
-                <div class="md:col-span-2"><label class="block text-[11px] text-slate-400 mb-0.5">${esc(l.detalle.productos?.nombre || l.detalle.descripcion)} — pendiente ${pendiente}${l.detalle.apartar === false ? ' · <span class="text-amber-300">reserva liberada (vuelve a apartarla para surtir)</span>' : (maximo < pendiente ? ` · <span class="text-amber-300">apartado ${pvNum(maximo)}</span>` : '')}</label>
+                <div class="md:col-span-2"><label class="block text-[11px] text-slate-400 mb-0.5">${esc(l.detalle.productos?.nombre || l.detalle.descripcion)} — pendiente ${pendiente}</label>
                     <select class="pv-surtir-lote w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100">${optsLote}</select></div>
                 <div><label class="block text-[11px] text-slate-400 mb-0.5">Cantidad a surtir</label>
-                    <input type="number" step="any" min="0" max="${maximo}" class="pv-surtir-cant w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100" value="0"></div>
+                    <input type="number" step="any" min="0" max="${pendiente}" class="pv-surtir-cant w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100" value="0"></div>
                 <div class="text-[11px] text-slate-500">Costo del lote se toma automático.</div>
             </div>`;
         }).join('')}
@@ -560,7 +403,6 @@ async function pvAbrirSurtir(pedido, lineasPendientes, modal) {
             const inpCant = fila.querySelector('.pv-surtir-cant');
             const cantidad = parseFloat(inpCant.value) || 0;
             if (cantidad <= 0) continue;
-            if (cantidad > linea.maximo + 1e-9) { alert(`Solo hay ${pvNum(linea.maximo)} apartadas para "${linea.detalle.productos?.nombre || linea.detalle.descripcion}". Lo demás todavía no tiene mercancía.`); return; }
             const loteOpt = selLote.selectedOptions[0];
             if (!selLote.value) { alert('Elige un lote para "' + (linea.detalle.productos?.nombre || linea.detalle.descripcion) + '".'); return; }
             const disp = Number(loteOpt.dataset.disp || 0);

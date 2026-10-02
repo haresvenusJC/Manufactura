@@ -4,207 +4,6 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
-- Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`. A petición del usuario ("un tema para usuarios inspirado en la simpleza y colores muy estilo Mac de Apple"): nuevo tema
-  **Mac (claro y sencillo)** (`data-theme="macos"`, tarjeta en Configuración → General → Tema de colores). Claro y plano: fondo gris `#f5f5f7`, tarjetas blancas con línea fina y sombra suave,
-  acento azul `#0071e3`/`#007aff` y colores de sistema (verde `#30b050`, rojo `#ff3b30`, naranja `#ff9500`), tipografía del sistema (-apple-system / SF Pro), botones planos de esquina de 9 px
-  (sin píldora ni 3D), campos planos con halo azul, tablas limpias, menú lateral translúcido con desenfoque, Inicio sin orbes ni degradados. TODO cuelga de `[data-theme="macos"]` al final de
-  `css/ui-moderno.css` (no cambia ningún otro tema; lo cargan también las 3 apps de operador, el manual y la guía). Para quitarlo: borrar ese bloque y la tarjeta `data-tema="macos"`.
-  Probado solo con una página de muestra en Chromium (Tailwind CDN no carga aquí): falta verlo en la app real. Pendiente: probar con Ctrl+Shift+R (el CSS no se versiona en `version.json`).
-- Archivos tocados (lo último): `sql/2026-11-06_lote_minimo_fabricacion.sql` (nuevo), `js/catalogo.js`, `js/produccion.js`, `version.json`. A petición del usuario ("que sea solo un número, para
-  tenerlo como referencia y que me pregunte y me permita decidir"): `productos.lote_minimo_fabricacion` (numérico > 0, en la unidad del producto, null = sin mínimo; solo referencia). Se captura en
-  Productos → ☰ → Editar artículo (solo producto terminado y semiterminado). En Producción, al precargar una orden sugerida (desde un pedido o "Faltantes") cuyo faltante es MENOR al mínimo,
-  `mostrarPreguntaMinimo` (en el recuadro `#preguntaTandaBOM`) pregunta "Lote mínimo: X (sobran Y)" [marcado por defecto] o "Solo lo necesario: faltante"; la cantidad también se puede teclear a mano.
-  Tiene prioridad sobre la pregunta de tanda de graneles. Sin la migración no hay pregunta (la consulta falla en silencio). El pedido cuenta TODA la cantidad de la orden como "en camino" y el sobrante
-  queda como stock libre. Probado en Chromium con Supabase simulado (mínimo 300 vs faltante 148 → pregunta; mínimo 100 o sin mínimo → no). Pendiente: correr `…11-06`, capturar un mínimo en un
-  producto y probar con PED-000001.
-- Archivos tocados (lo último): `sql/2026-11-05_reservas_guardia_bd.sql` (nuevo), `js/salidas.js`, `js/trazabilidad.js`, `js/pedidos-venta.js`, `js/ordenes-produccion.js`, `version.json`. **Reservas,
-  ENTREGAS 2 y 4 de 4.** **Entrega 2 — guardia en la BASE:** trigger `trg_guardia_reservas_lote` (BEFORE UPDATE OF stock_actual en `lotes_inventario`): rechaza con `RESERVA_PROTEGIDA` toda BAJA que
-  se meta en lo apartado por pedidos pendientes/parciales, salvo que exista una autorización corta (`reserva_autorizar_salida(producto, cantidad, motivo)`, tabla `reservas_autorizaciones`, vigencia 2 min,
-  se consume al usarse; RLS sin políticas, solo vía función security definer). `registrarSalidaMultiPartida` (`js/salidas.js`) autoriza ANTES de mover stock: el surtido de un pedido (`pedidoVentaId`) y
-  toda salida que no sea venta/salida directa (merma, ajuste…); una venta/salida directa NO se autoriza (la pantalla ya la bloquea y ahora también la base). Merma/ajuste autorizados recortan las
-  reservas (pedido más nuevo primero) y `trg_nota_reserva_recortada` deja una nota en ese pedido (→ Bitácora) solo si hay una autorización vigente que no sea de surtido. Solo `RESERVA_PROTEGIDA`
-  detiene; cualquier otro error de la guardia es WARNING (a prueba de fallos). Otras rutas que bajan stock sin autorización (devolución a proveedor, cancelar recibo, cancelar devolución de cliente)
-  quedan bloqueadas SOLO si de verdad se meten en lo apartado: hay que liberar la reserva / surtir / cancelar el pedido primero. Probado en Postgres local (venta directa rechazada, surtido y merma
-  autorizados, nota solo en merma, autorización insuficiente rechazada, falla interna = WARNING, dos corridas de la migración). **Entrega 4 — seguimiento 🔗:** `abrirSeguimientoPedido(pedidoId)`
-  (`js/trazabilidad.js`, `window.abrirSeguimientoPedido`): Pedido (con surtido/apartado por renglón) → órdenes de producción ligadas → requisiciones ligadas → su OC → recepciones → surtidos
-  (documentos con `pedido_venta_id`); cada folio abre su detalle. Botón "🔗 Seguimiento" en el detalle del pedido y "🔗 Pedido de venta" en el documento de la orden de producción ligada
-  (`window.abrirDetalleOrdenProduccion` nuevo). Sin `…11-04` muestra pedido y surtidos y avisa que falta la migración. Probado en Chromium con Supabase simulado (con y sin migración; autorizaciones
-  de Salidas: venta no, surtido y merma sí). NO se creó Tarea de almacén "listo para surtir" (el cierre de la OC ya aparta solo; decidir si hace falta). Pendiente: correr `…11-05` (después de
-  `…11-03`, `…03b` y `…11-04`) y probar con PED-000001: surtir, una venta directa que invada lo apartado (debe rechazar) y una merma (debe pasar y dejar nota).
-- Archivos tocados (lo último): `sql/2026-11-04_pedido_venta_cobertura.sql` (nuevo), `js/produccion.js`, `js/requisiciones-compra.js`, `js/pedidos-venta.js`, `version.json`. **Reservas, ENTREGA 3 de 4: el
-  faltante de un pedido se cubre con producción o compra, ligado al pedido.** Se REUTILIZA el flujo de "Faltantes" de Producción (`generarRequisicionFaltantes`, ahora con 5.º parámetro
-  `opciones.pedido = {id, folio}`; cada elemento de `faltan` puede traer `pedidoDetalleId`): reparte lo que se FABRICA (tipo producto/semiterminado y abastecimiento ≠ 'comprado') → formulario de
-  Producción precargado (`window.__prodPre`, cada item con `pedido`), y lo que se COMPRA → requisición precargada agrupada por proveedor (`window.__reqPre*` + nuevo `window.__reqPrePedido`);
-  muestra el recuadro "Ya solicitado para el pedido" y DESCUENTA lo que ya va en camino (OPs borrador/en_proceso del pedido + requisiciones pendientes/autorizadas sin recibir). La
-  precarga NO inserta nada sola: producción asigna procesos/equipo (una OP los exige) y la requisición se confirma antes de guardar. Ligas (migración, todas opcionales/null):
-  `ordenes_produccion.pedido_venta_id/pedido_venta_detalle_id` (se llenan en `generarOrdenDeProduccion` vía `datos.pedidoVentaId/DetalleId`, que el formulario toma de `__prodPre.lista[0].pedido`
-  solo si sigue siendo ese producto) y `requisiciones_compra.pedido_venta_id` (`reqPedido` en requisiciones-compra.js). Sin la migración ambos guardan igual SIN la liga (reintento). Nuevas funciones
-  exportadas: `requisicionesDePedido`, `ordenesDePedido`. Pedidos de venta: al guardar con faltante pregunta "¿Generar ahora lo necesario?"; el detalle gana el bloque "🔗 Cobertura del faltante"
-  (OPs y requisiciones ligadas con su estado, y el botón "Generar producción / requisición por lo que falta" o "✔ ya está en camino"); al CANCELAR un pedido avisa qué OP/requisiciones siguen
-  vigentes (no se cancelan solas). Cuando llega la mercancía (cierre de OP, recepción) la reserva se asigna sola (entrega 1). Probado en Chromium con Supabase simulado (cantidades: pedido 150,
-  apartadas 2, 30 ya en proceso → propone 118; comprados por proveedor; liga al guardar; degradación sin migración) y en Postgres local (migración 2 corridas). Pendiente: correr el SQL, probar con
-  PED-000001 (148 faltantes de Aceite Sey Kiss Fresa 60 ml) y entregas 2 (guardia en BD) y 4 (seguimiento 🔗 completo con Cierre → Surtido).
-- Archivos tocados (lo último): `sql/2026-11-03b_reservas_liberar.sql` (nuevo), `js/pedidos-venta.js`, `version.json`. A petición del usuario ("debo poder des-apartar en algún lado, para
-  solucionar problemas de apartados"). Como las reservas se recalculan solas, "des-apartar" se guarda como MARCA en el renglón (`pedidos_venta_detalle.apartar=false` +
-  `motivo_liberacion`): `reservas_reasignar` la respeta (el renglón queda en 0 y esa mercancía se reparte entre los demás pedidos) y NO se re-aparta solo con el siguiente
-  movimiento. RPC: `pedido_venta_liberar_reserva(pedido, renglón|null, motivo)` (motivo obligatorio; solo pedidos pendiente/parcial), `pedido_venta_reactivar_reserva(pedido, renglón|null)`
-  (re-aparta lo que haya, por prioridad — el pedido más antiguo recupera su lugar) y `reservas_recalcular_todo()` (botón de reparación). Cada liberación/reactivación deja una línea en
-  `pedidos_venta.notas` (→ Bitácora de cambios). Un renglón liberado NO cuenta como "falta" (`pedido_venta_reservar` y `pvFalta`). UI: en el detalle del pedido, columna "Reserva"
-  (Liberar / Liberada · Volver a apartar), barra "Liberar reservas del pedido" / "Volver a apartar todo" / "↻ Recalcular"; en la lista, "↻ Recalcular reservas" (todos los productos);
-  Surtir avisa "reserva liberada". Degrada en 3 niveles (sin …03b → sin botones; sin …03 → como antes). Probado en Postgres local (libera/reactiva/prioridad/todo el pedido/pedido
-  cancelado/dos corridas) y en Chromium con Supabase simulado. Pendiente: correr `…03b` y probar los botones con PED-000001.
-- Archivos tocados (lo último): `sql/2026-11-03_reservas_pedidos.sql` (nuevo), `js/pedidos-venta.js`, `js/salidas.js`, `js/inventario.js`, `version.json`. **Reservas de inventario,
-  ENTREGA 1 de 4** (a petición del usuario: pedido sin stock → orden de producción/requisición con trazabilidad; eligió reservas reales). Un pedido pendiente ya APARTA
-  mercancía: `pedidos_venta_detalle.cantidad_reservada`; disponible = existencia en lotes − reservado (vista `v_stock_disponible`). `reservas_reasignar(producto)` recalcula
-  TODO el producto en orden de prioridad (pedido más antiguo primero: fecha, id, renglón), es idempotente y toma `pg_advisory_xact_lock` por producto (dos pedidos
-  simultáneos no se pisan); triggers en `lotes_inventario` (stock), `pedidos_venta_detalle` (cantidad/surtida/producto — NO cantidad_reservada, para no recursar) y
-  `pedidos_venta` (estatus: cancelar/surtir libera) lo disparan solos, así llega mercancía (compra, cierre de OP, devolución) y se aparta al pedido pendiente sin hacer nada.
-  **A prueba de fallos**: cada trigger atrapa cualquier error y solo emite WARNING — una falla aquí NUNCA bloquea una recepción/venta/cierre (probado en Postgres local,
-  incluida una función rota a propósito). `pedido_venta_reservar(pedido)` devuelve por renglón pedido/reservado/FALTANTE/stock/apartado por otros. Pantallas: al guardar un
-  pedido avisa lo que falta (producto, faltante, apartado, en almacén, apartado por otros); lista de pedidos con badge "⚠ Falta stock"; detalle con columnas Reservado/Falta;
-  "Surtir" tope = lo apartado del renglón; Salidas: `registrarSalidaMultiPartida` rechaza `salida_venta`/`salida` que se lleve mercancía apartada (el surtido de pedido sí
-  pasa; **merma y ajuste NO se bloquean**: son pérdidas reales, las reservas se recortan solas — el pedido más nuevo primero — y queda "Falta stock"), sugerencias de
-  Salidas muestran apartado/libre; Stock General (solo Terminados) gana Reservado y Libre. Todo degrada sin la migración (vista/columna ausentes → se omite). **LÍMITE**: el candado
-  de esta entrega es de pantallas; el guardia en la BASE (trigger + autorización corta de surtido) es la entrega 2. Pendiente: correr el SQL, probar con un pedido real
-  (guardar uno que exceda el stock y revisar aviso/columnas/Surtir), y entregas 2 (guardia en BD), 3 (orden de producción por el faltante si se fabrica / requisición si se
-  compra, ligadas al pedido) y 4 (seguimiento 🔗 Pedido→OP/Req→OC→Recepción→Cierre→Surtido).
-- Archivos tocados (lo último): `index.html`, `js/indice.js`, `version.json`. Accesos para operadores gana la tarjeta **Conteo de inventario** (`conteo-inventario.html`, con su
-  QR, enlace y botón Copiar — mismo mecanismo que las otras dos). Ahora el panel lista las 3 apps móviles de operador. Pendiente: abrir la pantalla y escanear el QR nuevo.
-- Archivos tocados (lo último): `index.html`, `js/indice.js`, `version.json`. A petición del usuario: el bloque "Herramientas para operadores" (enlaces y QR de las
-  apps móviles) sale de Configuración → General y pasa a su propia pantalla **Accesos para operadores** (vista `accesos-operadores`, menú **Utilerías**, también en el
-  Índice). Mismo contenido y mismo script de enlaces/QR del pie de `index.html` (llena `#enlacesOperador` por id); Configuración → General conserva Tema de
-  colores y Tamaño de texto. **Hallazgo sin tocar:** ese panel solo lista Orden de Trabajo y Pre-recibo — `conteo-inventario.html` (la app móvil del conteo de
-  auditoría) no tiene tarjeta/QR ahí. Pendiente: probar la pantalla nueva y decidir si se agrega el conteo.
-- Archivos tocados (lo último): `js/kardex.js`, `js/buscador-productos.js` (nuevo), `js/app.js`, `js/impresion.js`, `js/indice.js`, `index.html`, `version.json`. A petición
-  del usuario: nueva entrada **Kardex** en el menú Inventario (vista `kardex`, `cargarModuloKardex`) — visor por **rango de fechas** (Desde = día 1 del mes, Hasta = hoy)
-  y **uno o varios productos** (hasta 10, buscador con sugerencias + chips). Por producto: saldo inicial (todo lo anterior a Desde), movimientos del periodo en orden
-  cronológico, entradas, salidas y saldo final; el saldo corriente de cada fila es POR LOTE sobre todo el historial (misma regla del Kardex de Productos). Pide al
-  menos un producto (el saldo exige el historial completo). Botones 🖨️ Imprimir (plantilla 'reporte') y ⬇ CSV. `filaMovimientoKardex()` se extrajo de
-  `renderizarKardexProducto` (ahora la comparten el Kardex embebido de Productos y el visor; el embebido se verificó igual). El botón del Doc ID lleva `print-keep` y
-  el CSS de impresión ya no oculta los botones con esa clase. `js/buscador-productos.js`: `montarBuscadorProductos()` reutilizable (el filtro de Lotes tiene su propia
-  copia inline — unificar si se toca). Probado en Chromium con Supabase simulado (saldos y rango correctos). Pendiente: probar con la base real y revisar la impresión.
-- Archivos tocados (lo último): `js/inventario.js`, `version.json`. A petición del usuario ("cuando estoy buscando que vaya haciendo la búsqueda para traerme
-  opciones de resultados e ir eligiendo el buscado"): el filtro **Producto** de Lotes ahora es un buscador con sugerencias — desde 2 letras (con espera de
-  250 ms y descartando respuestas viejas) trae hasta 10 productos (SKU o nombre) de `productos`, se elige con clic o ↑/↓ + Enter (Esc cierra) y filtra por
-  ESE producto (`producto_id`, `filtroProductoIdLotes`); sin elegir, Enter/"Filtrar" sigue buscando por texto. Si se edita el texto después de elegir,
-  se descarta la elección. Probado en Chromium con un Supabase simulado (sugerencias, clic y teclado generan la consulta correcta). Pendiente: probar con la
-  base real; extender el mismo patrón a otros buscadores de la app si el usuario lo pide (hoy solo Lotes).
-- Archivos tocados (lo último): `js/inventario.js`, `version.json`. Reportado: Lotes no tenía filtro por producto. `renderizarTablaLotes` gana, junto a Desde/Hasta,
-  **Producto (SKU o nombre)**, **N.º de lote** y casilla **Solo con existencia** (stock > 0); se aplican con "Filtrar" o Enter y "Limpiar" los borra.
-  Filtran en el servidor (la tabla está paginada): el de producto usa `productos!inner` + `.or(nombre.ilike, sku.ilike)` sobre la tabla relacionada (se pasan
-  `referencedTable` y `foreignTable` por compatibilidad entre versiones de supabase-js, que aquí no está fijada). El texto se limpia de comas/paréntesis
-  (rompen la sintaxis de `.or()`). La columna de producto muestra también el SKU. Pendiente: probar en el navegador (sobre todo el filtro por producto —
-  es el único que depende de cómo PostgREST resuelva el filtro sobre la tabla relacionada— y que la paginación cuente bien con filtros).
-- Archivos tocados (lo último): `index.html`, `js/app.js`, `js/indice.js`, `version.json`. A petición del usuario: la sección "Existencias y Lotes
-  Detallados" (antes al pie de Stock General) sale a su propia pantalla — nueva entrada **Lotes** en el menú Inventario (vista `lotes`, también en el
-  Índice). Stock General conserva solo el resumen por insumo. Sin cambios de lógica: `cargarInventarioCompleto()` (`js/inventario.js`) llena cada
-  tabla por id de contenedor (`contenedorInventario` / `contenedorExistenciasLote`), así que funciona igual con las dos en vistas distintas;
-  el router (`app.js`) atiende `'inventario'` y `'lotes'` con la misma función, y las demás pantallas que la llaman al terminar un movimiento
-  siguen refrescando ambas. Pendiente: probar Stock General y Lotes en el navegador (filtros de fecha y paginación de lotes).
-- Archivos tocados (lo último): `index.html`, `js/indice.js`, `js/app.js`, `js/clientes.js`, `version.json`. A petición del usuario: "Clientes y listas de
-  precio" se divide en DOS entradas del menú Catálogos — **Clientes** y **Listas de precio** (también dos tarjetas en el Índice). Misma vista y módulo
-  (`clientes`); `window.loadView('clientes', {tab:'clientes'|'listas'})` → `cargarModuloClientes(tab)` fija la sección, cambia el título
-  (`#tituloClientes`) y oculta la barra de pestañas (ya no hace falta). Sin cambios de lógica ni SQL; el botón "📖 Cómo llenar esta pantalla"
-  sigue apuntando al manual `#m-clientes`. Pendiente: probar ambas entradas en el navegador (que Listas de precio no muestre el formulario de
-  clientes y viceversa).
-- Archivos tocados (lo último): `index.html`, `js/indice.js`, `js/catalogo.js` (solo comentarios), `js/tablas.js` (comentario), `version.json`. A petición del
-  usuario: la pantalla "Catálogo y Kardex" (vista `catalogo`, `cargarModuloCatalogoKardex`) se llama ahora solo **"Productos"** — entrada del menú
-  Catálogos, título de la pantalla y tarjeta del Índice. Solo cambió el rótulo: la vista, las funciones y el Kardex embebido siguen igual. En
-  este archivo, donde dice "Catálogo y Kardex" léase "Productos". Pendiente: confirmar que el menú y el Índice muestran el nombre nuevo.
-- Archivos tocados (lo último): `js/impresion.js`, `js/contabilidad.js`, `js/pedidos-venta.js`, `js/pagos-proveedor.js`, `js/cuentas-por-cobrar.js`,
-  `js/ordenes-compra.js`, `js/requisiciones-compra.js`, `js/nomina.js`, `js/documentos.js`, `js/ordenes-produccion.js`, `js/produccion.js`,
-  `version.json`. A petición del usuario ("cuando un documento esté cancelado quiero una marca de agua en la versión imprimible"): nueva opción
-  `marcaAgua` en `imprimirConPlantilla`/`imprimirHtml` (texto en diagonal, rojo tenue, fijo en CADA hoja, no tapa el texto) y helper
-  `marcaDeEstatus(estatus)` — `cancel*` → "CANCELADO", `rechaz*` → "RECHAZADO" (requisición rechazada), otro → nada. Conectado en todo lo que
-  se imprime y tiene estatus: Póliza (`cancelada`), Pedido de venta, Comprobante de pago y Recibo de cobro, Orden de compra, Requisición,
-  Nómina, Estado de la orden de producción (+ impresión desde Producción) y el expediente de documentos (`documentos.estado = 'cancelado'`:
-  recibos cancelados, devoluciones...). Verificado en Chromium (documento corto y de 2 hojas: la marca sale en ambas). Regla nueva: todo documento
-  imprimible con estatus debe pasar `marcaDeEstatus(...)` como último argumento. Pendiente: imprimir una póliza cancelada y un recibo cancelado reales.
-- Archivos tocados (lo último): `js/impresion.js`, `version.json`. PDF de la Póliza Diario #26 tras correr `…11-02`: subtítulo "Póliza contable",
-  logo, cuentas con nombre y Cargo/Abono alineados ya salían bien, pero seguía sobrando UNA hoja en blanco (2 en vez de 1): `<body class="…
-  min-h-screen">` (100vh) + los márgenes de 10 mm de la hoja = más alto que el área imprimible. Ahora en `@media print` `html, body` llevan
-  `min-height:0`, sin margen/padding, y se apagan `body::before/::after`. Reproducido en Chromium con `min-height:100vh` (antes 2 hojas, ahora 1).
-  Pendiente: que el usuario reimprima la póliza #26 y confirme 1 sola hoja.
-- Archivos tocados (lo último): `js/impresion.js`, `js/plantillas.js`, `sql/2026-11-02_plantillas_subtitulos.sql`, `version.json`. A petición del usuario
-  ("genera todas las plantillas que faltan también"): el SQL `…11-02` ahora crea la plantilla de los 21 tipos de documento + la genérica de respaldo
-  (22 filas; probado en Postgres local con tabla vacía y con genérica propia, dos corridas). Se sumaron 4 tipos que SÍ se imprimen vía el expediente
-  de documentos pero no estaban en la lista de Plantillas (la comparación anterior los había descartado como "sin usar"): `salida_produccion`
-  (consumo de MP al cerrar orden), `devolucion_cliente`, `devolucion_proveedor` y `cancelacion_recibo`. La genérica solo se crea si no existe
-  (nunca se pisa su subtítulo). Pendiente: correr el SQL; imprimir un documento de cada familia para revisar encabezado.
-- Archivos tocados (lo último): `js/impresion.js`, `js/plantillas.js`, `js/contabilidad.js`, `js/reportes.js`, `sql/2026-11-02_plantillas_subtitulos.sql`
-  (nuevo), `version.json`. A petición del usuario ("sube todos los subtítulos que faltan"): todo documento imprimía bajo "Comprobante de
-  Movimiento de Almacén" (hasta una póliza o nómina). Nuevo `SUBTITULOS_POR_TIPO` (exportado de `impresion.js`) con el subtítulo de los 17 tipos;
-  el motor usa el de la plantilla propia del tipo si lo tiene, y si no el del tipo (así funciona aunque no se corra el SQL). `…11-02` crea la
-  plantilla de cada tipo que falte (copia logo/título/color/pie de la 'generico') y solo corrige subtítulos vacíos o el de almacén en tipos que
-  no son de almacén; lo escrito a mano no se toca (probado en Postgres local, dos corridas). Tipos nuevos en Configuración → Plantillas:
-  `orden_produccion` (ya se imprimía pero no se podía configurar) y `reporte` (Reportes contables y operativos dejan de usar 'generico').
-  Pendiente: correr el SQL y reimprimir una póliza, una nómina y la Balanza para ver el subtítulo.
-- Archivos tocados (lo último): `js/impresion.js`, `js/contabilidad.js`, `version.json`. Bug reportado con el PDF de la Póliza Diario #26 impresa:
-  salían **8 hojas, 7 en blanco**. Causa: el motor ocultaba el resto de la pantalla con `visibility:hidden`, que NO libera su altura — el
-  menú y la pantalla de atrás seguían ocupando espacio y el navegador paginaba todo. Ahora, al imprimir, todo hijo de `<body>` que no sea
-  `#motorImpresionGlobal` va `display:none`, el host es `position:static` y `html/body` quedan `height:auto`. Reproducido y verificado en
-  Chromium (pantalla alta simulada: antes 2 hojas, ahora 1; documento de 70 filas sigue en 2 con encabezado repetido). También en ese PDF:
-  los encabezados "Cargo/Abono" salían alineados a la izquierda sobre cifras a la derecha (mi `text-align:left` pisaba `text-right`; ahora va
-  con `:where()`), y la póliza mostraba "cuenta 11/24/108" en vez de código · nombre cuando se abre desde otra pantalla (el catálogo no estaba
-  en memoria): `rcVerPoliza` ahora trae las cuentas que faltan. Pendiente: el subtítulo "Comprobante de Movimiento de Almacén" sale en la
-  póliza porque usa la plantilla genérica — cambiarlo en Configuración → Plantillas → "Póliza contable" (o crear esa plantilla).
-- Archivos tocados (lo último): `js/impresion.js`, `js/plantillas.js`, `js/contabilidad.js`, `js/pedidos-venta.js`, `js/pagos-proveedor.js`,
-  `js/cuentas-por-cobrar.js`, `js/auditoria-inventario.js`, `sql/2026-11-01_plantillas_compacto.sql` (nuevo), `version.json`. A petición del usuario
-  ("estandariza todos los documentos imprimibles… que no gasten mucha hoja"): **un solo estilo de impresión en el motor** `imprimirConPlantilla()` —
-  carta, márgenes de 10 mm, encabezado de UNA franja (logo | empresa y tipo | documento y fecha, antes 4 líneas centradas), letra de 10 px, tablas
-  compactas con encabezado repetido en cada hoja y filas que no se parten, blanco y negro sin fondos/sombras, lo que estaba recortado por scroll
-  (`overflow`/`max-h`) sale completo, botones ocultos, "Pág. X de Y" (`@page` margin box), horizontal automático con más de 8 columnas
-  (balanza/auxiliares). Probado: 70 filas = 2 hojas en un PDF real de Chromium. Opción "Vista compacta al imprimir" por plantilla (Configuración →
-  Plantillas; requiere `sql/2026-11-01_plantillas_compacto.sql`, sin ella se guarda igual sin esa opción). `imprimirConPlantilla` ahora acepta
-  id O elemento, y nuevo `imprimirHtml()` para comprobantes armados al vuelo. **Formatos nuevos** (misma plantilla, 5 tipos nuevos en Plantillas):
-  Póliza (botón en `rcVerPoliza`), Pedido de venta (detalle), Comprobante de pago a proveedor y Recibo de cobro de cliente (🖨️ por fila en el
-  historial, con firmas), Auditoría de inventario (🖨️ Imprimir resultado + 📋 Hoja de conteo en blanco, SIN stock del sistema: el conteo es a
-  ciegas). Recibo de mercancía y Devoluciones ya se imprimen vía su documento (expediente). Pendiente: correr el SQL, probar impresión real en
-  cada pantalla (sobre todo pólizas, hoja de conteo y un reporte ancho) y revisar los documentos del expediente (`documentos.js`), que traen
-  clases `print:` propias de Tailwind. No hecho: Pre-recibo (tarjeta del admin) sin hoja propia — decidir si hace falta.
-- Archivos tocados (lo último): `js/conversion-unidades.js`, `js/catalogo.js`, `js/tablas.js`, `sql/2026-10-31_conversiones_unidades_ampliadas.sql` (nuevo),
-  `version.json`. A petición del usuario ("agrega todas las conversiones conocidas"): `FAMILIAS_UNIDAD` pasa de mg/g/kg + mL/L a 3 familias —
-  **masa** (+ tonelada métrica, libra, onza avoirdupois), **volumen** (+ cL, dL, cm³/dm³/m³, onza fluida, galón US) y **longitud** (mm, cm, m, km,
-  pulgada, pie, yarda). Reglas: la densidad/"como agua" solo aplica entre masa↔volumen (antes cualquier par de familias distintas); longitud solo
-  convierte con longitud y `tamanoTeoricoTanda` la ignora; conteos (Piezas, Cajas, Paquetes) siguen 1 a 1 — no hay factor universal. SQL espejo:
-  `_unidad_familia_base()` + `factor_conversion_bom()` reemplazada (misma firma, la vista no se recrea). Probado en Postgres local: JS y SQL dan
-  lo mismo en 33 nombres y 9 pares. Conversiones (Tablas) ya muestra Longitud. **Ojo:** "Onzas" se toma como masa; si alguna se usa como
-  volumen debe llamarse "Onzas fluidas". Pendiente: correr `…10-31_conversiones_unidades_ampliadas.sql` y probar en el navegador.
-- Archivos tocados (lo último): `js/tablas.js`, `version.json`. Captura del celular: la matriz de Conversiones mostraba notación científica
-  (`1.00e+3`) y se cortaba a lo ancho (Kilogramos/Litros quedaban fuera de vista). Ahora una tarjeta por unidad ("1 Kilogramos = 1,000 Gramos…"),
-  números con separador de miles. Los regímenes (`…10-30` y `…30b`) ya están corridos. Hallazgo sin tocar: Libras, Onzas y Galones caen en
-  "Sin conversión automática" porque `FAMILIAS_UNIDAD` (`js/conversion-unidades.js`) solo conoce mg/g/kg y mL/L — pendiente de decisión.
-- Archivos tocados (lo último): `sql/2026-10-30_c_regimen_fiscal.sql` y `sql/2026-10-30b_regimen_fiscal_fk.sql` (nuevos), `js/regimenes-fiscales.js`
-  (nuevo), `js/tablas.js`, `js/proveedores.js`, `js/clientes.js`, `js/contabilidad.js`, `js/ordenes-compra.js`, `js/app.js`, `version.json`.
-  Regímenes fiscales del SAT pasan de lista en el código a TABLA `c_regimen_fiscal` (clave/descripcion/activo), en 2 pasos. **Paso 1** (`…30`):
-  tabla + siembra de las 19 claves de siempre (no se inventó ninguna; el SAT tiene más: 609/628/629/630 se agregan desde la pantalla) +
-  `js/regimenes-fiscales.js` (fuente única: `REGIMENES` vivo, `cargarRegimenes()`, `opcionesRegimen()`) con la lista vieja como respaldo si la
-  migración no está corrida; los 4 formularios (Proveedores, Clientes —que traía una copia recortada de 9—, alta rápida de Gastos y de Recibo de
-  mercancía) usan el helper. Editable en Configuración → Tablas → "SAT · Regímenes fiscales" (descripción, activo, agregar; la clave no se
-  edita). Retirar (`activo=false`) no borra ni afecta a quien ya lo tenga (opción oculta/deshabilitada). **Paso 2** (`…30b`, correr DESPUÉS de
-  confirmar el paso 1): FK de `proveedores`/`clientes.regimen_fiscal`; se detiene y lista huérfanos si los hay. `REGIMENES` sigue exportándose
-  desde `proveedores.js` (re-export). Pendiente: correr `…30`, probar en el navegador, correr `…30b`.
-- Archivos tocados (lo último): `js/tablas.js`, `index.html`, `js/indice.js`, `version.json`. Configuración → Tablas gana 4 catálogos SAT de
-  solo lectura: Uso del CFDI (`c_uso_cfdi`, con su cuenta sugerida), Forma de pago (`c_forma_pago`), Método de pago (`c_metodo_pago`) y
-  Regímenes fiscales (`REGIMENES` de `js/proveedores.js`, no es tabla de la base). A petición del usuario NO se movieron Tabla ISR, Centros de
-  costo, Áreas y bases de prorrateo, Reparto de gastos compartidos ni Plan de cuentas (siguen en Contabilidad y control). Pendiente: probar.
-- Archivos tocados (lo último): `js/catalogo.js`, `js/tablas.js`, `index.html`, `js/indice.js`, `version.json`. A petición del usuario ("para ir
-  ordenando el ERP"): los botones "⚖️ Densidades" y "📏 Unidades" salieron de Catálogo y Kardex; ahora viven solo en Configuración → Tablas
-  (Unidades de medida / Monedas / Conversiones / **Densidades**, esta última abre la misma subventana editable). Los avisos de "captúrala en
-  Densidades" apuntan a la nueva ruta. Mismas funciones, solo cambió el punto de entrada. Pendiente: probar.
-- Archivos tocados (lo último): `js/tablas.js`, `js/catalogo.js` (solo `export` de `abrirTablaDensidades`), `js/indice.js`, `index.html`,
-  `version.json`. Configuración → Tablas → **Conversiones**: no existe tabla de conversiones en la base (la regla vive en
-  `js/conversion-unidades.js`, familias masa/volumen + densidad), así que se muestra la matriz calculada con las unidades reales de
-  `unidades_medida` + botón a las densidades; las unidades sin familia (Piezas...) se listan como 1 a 1. Solo lectura. Pendiente: probar.
-- Archivos tocados (lo último): `js/tablas.js` (nuevo), `js/app.js`, `js/catalogo.js` (solo `export` de `abrirTablaUnidades`), `js/indice.js`,
-  `index.html`, `version.json`. Configuración → nuevo submenú **Tablas** (Unidades de medida / Monedas): visor de solo lectura,
-  columnas dinámicas + buscador (`window.loadView('tablas', {tabla:'unidades_medida'|'monedas'})`). Unidades trae botón "✏️ Editar / agregar
-  unidades" (el mismo editor de Catálogo y Kardex → "📏 Unidades", que se dejó donde estaba). Monedas no tenía pantalla propia, así que no
-  hubo nada que mover: solo se puede ver. Pendiente: probar en el navegador (¿`monedas` permite lectura por RLS?).
-- Archivos tocados (lo último): `index.html`, `js/indice.js`, `version.json`. Nuevo grupo de menú **Utilerías** (antes de
-  Configuración, también en el Índice): ahí viven "Importar Excel/CSV" (productos/BOM) e "Importar claves de proveedor
-  (XML)", que salieron de Catálogos. Sin cambios de lógica ni SQL, mismas vistas (`importador`, `importador-claves-proveedor`).
-  Pendiente: probar en el navegador que ambos accesos abren bien desde el menú nuevo y el Índice.
 - Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`. Confirmado: `sql/2026-10-29_resolucion_anticipo_oc.sql`
   ya está corrida. Bug reportado con captura: "Pendientes de pago" en Pagos a proveedores no mostraba nada aunque
   había 22 documentos pendientes — no era bug, era el filtro de fechas por default (inicio de mes a hoy) ocultando
@@ -774,11 +573,11 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   (tabla `accesos_directos_usuario`, respaldo en el navegador).
 - `iconos-accesos.js` — galería de íconos de línea (por categoría) para los accesos rápidos de Inicio.
 - `bitacora-cambios.js` — consulta de la bitácora de movimientos (quién/cuándo/qué cambió) de todo el negocio.
-- `buscador-productos.js` — `montarBuscadorProductos()`: input con sugerencias de productos (SKU o nombre) mientras se escribe.
 - `buscador-select.js` — convierte un `<select>` largo en un buscador con teclado, sin cambiar su comportamiento.
 - `catalogo.js` — dos pantallas separadas: `cargarModuloAltaArticulo` ("Alta de artículo", solo el
   formulario: alta/edición por nombre, clasificación, BOM) y `cargarModuloCatalogoKardex` ("Catálogo y
-  Kardex", el listado general con ☰ acciones, export Excel/CSV, y el panel de Kardex embebido al elegir un artículo).
+  Kardex", el listado general con ☰ acciones, export Excel/CSV, tabla de Densidades y de Unidades de
+  medida, y el panel de Kardex embebido al elegir un artículo).
 - `centros-costo.js` — centros de costo para prorrateo de CIF: capacidad normal en horas y variables del cálculo.
 - `cfdi.js` — lector de CFDI: XML (confiable) y PDF (mejor esfuerzo, sin namespaces).
 - `cierre-periodo.js` — cierre de periodo contable: revisa los 8 candados antes de cerrar un mes, permite reabrir.
@@ -802,13 +601,14 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `importador-bom.js` — importa/exporta la estructura del BOM (recetas) desde Excel/CSV.
 - `importador-claves-proveedor.js` — carga masiva de "Claves de proveedor" leyendo facturas XML viejas.
 - `importador.js` — importador de productos desde Excel/CSV (upsert por SKU).
-- `impresion.js` — motor ÚNICO de impresión (`imprimirConPlantilla`, `imprimirHtml`): estilo compacto estándar + plantillas (encabezado/logo/pie). Todo documento imprimible nuevo pasa por aquí, no por `window.print()` directo.
+- `impresion.js` — motor genérico de impresión con plantillas (encabezado/logo/pie).
 - `indice.js` — índice/mapa de todos los módulos del ERP con acceso directo.
 - `info-proveedor-producto.js` — cómo identifica y vende un proveedor específico un producto (SKU/descr./unidad
   + última compra real).
 - `inventario.js` — stock general por producto y lote, con mínimos y deterioro de inventario (NIF C-4).
 - `isr.js` — tabla ISR versionada (tarifas de retención sobre sueldos) + extracción desde PDF/OCR.
-- `kardex.js` — `renderizarKardexProducto` (movimientos de UN producto, embebidos en Productos) + `cargarModuloKardex` (Inventario → Kardex: visor por fechas y varios productos). También trae
+- `kardex.js` — `renderizarKardexProducto`: movimientos de un producto, embebidos en el panel de
+  "Catálogo y Kardex" (`js/catalogo.js`); ya no tiene vista ni buscador propios. También trae
   `window.abrirDetalleDocumento`/`cerrarDetalleDocumento` (modal de documento usado por esa tabla).
 - `nomina.js` — nómina: cálculo (IMSS/ISR real vía RPC), autorización, póliza y recibo imprimible.
 - `orden-tabla.js` — ordenamiento client-side reutilizable para encabezados de tabla en toda la app.
@@ -839,7 +639,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   pedida se traduce a "cuántos lotes de la receta" antes de escalar cada insumo, en vez de multiplicar la
   receta directo por la cantidad (que sobre-pedía ~15× en los "Granel ... 15 Litros", cuyo BOM está escrito
   para el lote de referencia y no para 1 unidad).
-- `proveedores.js` — catálogo de proveedores + re-exporta `REGIMENES` (vive en `regimenes-fiscales.js`).
+- `proveedores.js` — catálogo de proveedores + catálogo `REGIMENES` (SAT) reutilizado por otros módulos.
 - `prorrateo.js` — prorrateo de CIF a las órdenes de producción por horas de mano de obra, con póliza de traspaso.
 - `recibo-operador.js` — app móvil del operador: captura del pre-recibo (fotos, conteo) que el admin valida después.
 - `reparto-plantillas.js` — plantillas de reparto de gastos compartidos (qué base usar y a qué cuenta va).
@@ -852,11 +652,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `subventanas-movibles.js` — hace arrastrables TODAS las subventanas (detección automática, sin llamar nada desde
   cada módulo); se importa en `app.js` y en las 3 apps de operador.
 - `supabase.js` — cliente y credenciales de Supabase.
-- `tablas.js` — Configuración → Tablas: visor de solo lectura de `unidades_medida` y `monedas` (columnas dinámicas, buscador).
-- `regimenes-fiscales.js` — catálogo SAT de regímenes (tabla `c_regimen_fiscal`, respaldo en código): `cargarRegimenes()` y `opcionesRegimen()` para todos los selects.
 - `tareas.js` — bandeja de pendientes (inventario bajo mínimo, caducidad próxima, nómina en borrador...) con historial.
 - `trazabilidad.js` — antecedentes de proceso: Requisición → Orden de compra → Documento(s) de recepción.
-  También `abrirSeguimientoPedido`: seguimiento 🔗 de un pedido de venta (producción/requisición → OC → recepción → surtidos).
 
 ## Convenciones
 

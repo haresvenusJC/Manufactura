@@ -1,7 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { siguienteFolio } from './folios.js';
 import { cargarInventarioCompleto } from './inventario.js';
-import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
+import { imprimirConPlantilla } from './impresion.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { convertirEnBuscador } from './buscador-select.js';
 import { factorConversion } from './conversion-unidades.js';
@@ -184,19 +184,14 @@ export async function calcularRequerimientosProduccion(productoId, cantidadProdu
  *    (requisiciones_compra.orden_produccion_id) y lo que YA está pedido para ella y aún no llega
  *    se descuenta, para no pedirlo dos veces (ver requisicionesDeOrden).
  */
-export async function generarRequisicionFaltantes(faltan, nombreProducto, cantidadProducir, orden = null, opciones = {}) {
+export async function generarRequisicionFaltantes(faltan, nombreProducto, cantidadProducir, orden = null) {
     if (!faltan || !faltan.length) return;
-    // opciones.pedido = { id, folio }: el faltante es de un PEDIDO DE VENTA (no de una orden de producción). Cada elemento de
-    // `faltan` puede traer `pedidoDetalleId` (el renglón del pedido). Lo que se fabrique/compre queda ligado al pedido
-    // (ordenes_produccion.pedido_venta_*, requisiciones_compra.pedido_venta_id) y lo que ya va en camino se descuenta.
-    const pedido = opciones && opciones.pedido && opciones.pedido.id ? opciones.pedido : null;
-    const folioPedido = pedido ? (pedido.folio || '#' + pedido.id) : '';
 
     const ids = faltan.map((f) => f.componenteId);
     let { data: info, error } = await supabaseClient.from('productos')
-        .select('id, nombre, tipo, proveedor_id, abastecimiento').in('id', ids);
+        .select('id, nombre, tipo, proveedor_id, abastecimiento, cantidad_minima_compra').in('id', ids);
     if (error) {   // aún sin la migración 2026-10-18
-        ({ data: info, error } = await supabaseClient.from('productos').select('id, nombre, tipo, proveedor_id').in('id', ids));
+        ({ data: info, error } = await supabaseClient.from('productos').select('id, nombre, tipo, proveedor_id, cantidad_minima_compra').in('id', ids));
     }
     if (error) { alert('No se pudo consultar los insumos: ' + error.message); return; }
     const porId = new Map((info || []).map((p) => [p.id, p]));
@@ -222,32 +217,26 @@ export async function generarRequisicionFaltantes(faltan, nombreProducto, cantid
     const comprables = [];
     for (const f of faltan) {
         const p = porId.get(f.componenteId) || {};
-        const cantidad = Number((f.requerido - f.disponible).toFixed(3));
-        if (!(cantidad > 0)) continue;
-        const item = { id: f.componenteId, nombre: f.nombre, unidad: f.unidad, cantidad, proveedorId: p.proveedor_id || null, tareaId: mapaTareaPorProducto.get(f.componenteId) || null, pedidoDetalleId: f.pedidoDetalleId || null };
+        const faltante = Number((f.requerido - f.disponible).toFixed(3));
+        if (!(faltante > 0)) continue;
         // un producto fabricado en casa (granel, terminado) se produce, no se compra
-        if ((p.tipo === 'producto' || p.tipo === 'semiterminado') && p.abastecimiento !== 'comprado') seFabrican.push(item); else comprables.push(item);
+        const esFabricado = (p.tipo === 'producto' || p.tipo === 'semiterminado') && p.abastecimiento !== 'comprado';
+        // Lo que se compra nunca se pide por debajo del mínimo de compra del
+        // proveedor (Catálogo -> "Cantidad mínima de compra (MOQ)") — mismo
+        // criterio que ya usa tareas_sync_inventario() para el aviso de stock
+        // bajo mínimo. Sin este piso, la requisición pedía el faltante exacto
+        // de la fórmula (ej. "3.893 kg"), una cantidad que ningún proveedor
+        // entrega tal cual — la OC se quedaba "recibida_parcial" persiguiendo
+        // los gramos que nunca iban a llegar. Lo que se fabrica en casa no
+        // tiene "mínimo de compra": se produce lo que de verdad falta.
+        const cantidad = esFabricado ? faltante : Number(Math.max(faltante, Number(p.cantidad_minima_compra) || 0).toFixed(3));
+        const item = { id: f.componenteId, nombre: f.nombre, unidad: f.unidad, cantidad, proveedorId: p.proveedor_id || null, tareaId: mapaTareaPorProducto.get(f.componenteId) || null };
+        if (esFabricado) seFabrican.push(item); else comprables.push(item);
     }
 
     // Lo ya pedido para esta orden (requisiciones pendientes/autorizadas que aún no llegan) se descuenta.
-    const reqsLigadas = pedido ? ((await requisicionesDePedido(pedido.id)) || [])
-        : (orden && orden.id ? ((await requisicionesDeOrden(orden.id)) || []) : []);
+    const reqsLigadas = orden && orden.id ? ((await requisicionesDeOrden(orden.id)) || []) : [];
     const reqsEnCamino = reqsLigadas.filter((r) => r.enCamino);
-
-    // Pedido: las órdenes de producción abiertas (borrador / en proceso) ya ligadas a él también cuentan como "en camino".
-    if (pedido) {
-        const ops = (await ordenesDePedido(pedido.id)) || [];
-        const abiertas = ops.filter((o) => o.estado === 'borrador' || o.estado === 'en_proceso');
-        const yaProd = new Map();
-        abiertas.forEach((o) => yaProd.set(o.productoId, (yaProd.get(o.productoId) || 0) + o.cantidad));
-        for (let k = seFabrican.length - 1; k >= 0; k--) {
-            const resta = Number((seFabrican[k].cantidad - (yaProd.get(seFabrican[k].id) || 0)).toFixed(3));
-            if (resta > 0) seFabrican[k].cantidad = resta; else seFabrican.splice(k, 1);
-        }
-        // Se muestran en el recuadro "Ya solicitado" junto a las requisiciones (no se descuentan dos veces: enCamino = false).
-        ops.forEach((o) => reqsLigadas.push({ folio: o.folio, estadoTexto: `orden de producción · ${o.estadoTexto}`, enCamino: false,
-            detalle: [{ productoId: o.productoId, cantidad: o.cantidad, nombre: o.nombre, unidad: o.unidad }] }));
-    }
     if (reqsEnCamino.length) {
         const pedido = new Map();
         reqsEnCamino.forEach((r) => r.detalle.forEach((d) => pedido.set(d.productoId, (pedido.get(d.productoId) || 0) + d.cantidad)));
@@ -273,11 +262,11 @@ export async function generarRequisicionFaltantes(faltan, nombreProducto, cantid
     //  · producción primero  → __prodPre.despues lo ofrece al generar la última orden sugerida.
     const listaGrupos = [...grupos.values()].map((items) => items.map((i) => ({ id: i.id, cantidad: i.cantidad, tareaId: i.tareaId || null })));
     const folioOrden = orden && orden.id ? (orden.folio || '#' + orden.id) : '';
-    const notasReq = pedido ? `Mercancía faltante para surtir el pedido ${folioPedido}.` : `Faltantes para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}${folioOrden ? ` (orden ${folioOrden})` : ''}.`;
+    const notasReq = `Faltantes para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}${folioOrden ? ` (orden ${folioOrden})` : ''}.`;
     const prodPre = () => ({
-        lista: seFabrican.map((i) => ({ id: i.id, cantidad: i.cantidad, nombre: i.nombre, unidad: i.unidad, pedido: pedido ? { id: pedido.id, folio: folioPedido, detalleId: i.pedidoDetalleId } : null })),
+        lista: seFabrican.map((i) => ({ id: i.id, cantidad: i.cantidad, nombre: i.nombre, unidad: i.unidad })),
         total: seFabrican.length,
-        origen: pedido ? `Para surtir el pedido ${folioPedido}` : `Para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}`,
+        origen: `Para producir ${formatoCantidad(cantidadProducir)} × ${nombreProducto}`,
         aplicada: false,
     });
     const abrirRequisicion = () => {
@@ -285,7 +274,6 @@ export async function generarRequisicionFaltantes(faltan, nombreProducto, cantid
         window.__reqPreGruposRestantes = listaGrupos.slice(1);
         window.__reqPreNotas = notasReq;
         window.__reqPreOrden = orden && orden.id ? { id: orden.id, folio: orden.folio || null } : null;
-        window.__reqPrePedido = pedido ? { id: pedido.id, folio: folioPedido } : null;
         window.__faltantesSiguiente = seFabrican.length ? { prodPre: prodPre() } : null;
         window.loadView('requisiciones-compra');
     };
@@ -318,14 +306,14 @@ export async function generarRequisicionFaltantes(faltan, nombreProducto, cantid
         <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl max-h-[85vh] overflow-y-auto p-5 text-sm text-slate-300 space-y-4">
             <div class="flex justify-between items-start gap-3">
                 <div>
-                    <h3 class="text-base font-bold text-slate-100">${pedido ? 'Faltante del pedido ' + esc(folioPedido) : 'Faltantes para producir'}</h3>
-                    <p class="text-xs text-slate-500 mt-0.5">${pedido ? 'Lo que falta para surtirlo completo' : `${esc(formatoCantidad(cantidadProducir))} × ${esc(nombreProducto)}`}</p>
+                    <h3 class="text-base font-bold text-slate-100">Faltantes para producir</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">${esc(formatoCantidad(cantidadProducir))} × ${esc(nombreProducto)}</p>
                 </div>
                 <button type="button" id="fpCerrar" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2 cursor-pointer">&times;</button>
             </div>
             ${reqsLigadas.length ? `
             <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-                <p class="text-xs font-semibold text-sky-400 mb-1.5">📦 Ya solicitado para ${pedido ? 'el pedido ' + esc(folioPedido) : 'la orden ' + esc(folioOrden)}</p>
+                <p class="text-xs font-semibold text-sky-400 mb-1.5">📦 Ya solicitado para la orden ${esc(folioOrden)}</p>
                 <ul class="text-xs space-y-1">
                     ${reqsLigadas.map((r) => `<li><span class="text-slate-100 font-mono">${esc(r.folio)}</span>
                         <span class="text-slate-400">· ${esc(r.estadoTexto)}</span>
@@ -361,52 +349,6 @@ export async function generarRequisicionFaltantes(faltan, nombreProducto, cantid
     modal.querySelector('#fpCerrar').addEventListener('click', cerrar);
     modal.querySelector('#fpReq')?.addEventListener('click', () => { cerrar(); abrirRequisicion(); });
     modal.querySelector('#fpProd')?.addEventListener('click', () => { cerrar(); abrirOrdenesProduccion(); });
-}
-
-/**
- * Requisiciones de compra ligadas a un PEDIDO DE VENTA (requisiciones_compra.pedido_venta_id, sql/2026-11-04).
- * Misma forma que requisicionesDeOrden; null si la migración aún no está.
- */
-export async function requisicionesDePedido(pedidoId) {
-    const { data, error } = await supabaseClient.from('requisiciones_compra')
-        .select('id, folio, fecha, estatus, ordenes_compra ( folio, estatus ), requisiciones_compra_detalle ( producto_id, cantidad, productos ( nombre, unidades_medida ( nombre ) ) )')
-        .eq('pedido_venta_id', pedidoId)
-        .order('id', { ascending: true });
-    if (error) return null;
-    const TXT_OC = { borrador: 'OC en borrador', abierta: 'OC abierta, sin recibir', recibida_parcial: 'recibida parcial', recibida: 'recibida', cancelada: 'OC cancelada' };
-    return (data || []).map((r) => {
-        const oc = r.ordenes_compra;
-        const enCamino = r.estatus === 'pendiente'
-            || (r.estatus === 'autorizada' && (!oc || oc.estatus === 'borrador' || oc.estatus === 'abierta'));
-        const estadoTexto = r.estatus === 'autorizada'
-            ? `autorizada${oc ? ` → ${oc.folio || 'OC'} (${TXT_OC[oc.estatus] || oc.estatus})` : ''}`
-            : (r.estatus === 'pendiente' ? 'pendiente de autorizar' : r.estatus);
-        return {
-            id: r.id, folio: r.folio, fecha: r.fecha, estatus: r.estatus, enCamino, estadoTexto,
-            detalle: (r.requisiciones_compra_detalle || []).map((d) => ({
-                productoId: Number(d.producto_id), cantidad: Number(d.cantidad || 0),
-                nombre: d.productos?.nombre || 'Producto', unidad: d.productos?.unidades_medida?.nombre || '',
-            })),
-        };
-    });
-}
-
-/**
- * Órdenes de producción ligadas a un PEDIDO DE VENTA (ordenes_produccion.pedido_venta_id, sql/2026-11-04).
- * null si la migración aún no está. `estado`: borrador (pendiente por insumos) / en_proceso / cerrada / cancelada.
- */
-export async function ordenesDePedido(pedidoId) {
-    const { data, error } = await supabaseClient.from('ordenes_produccion')
-        .select('id, folio, estado, cantidad_producida, producto_id, pedido_venta_detalle_id, productos ( nombre, unidades_medida ( nombre ) )')
-        .eq('pedido_venta_id', pedidoId)
-        .order('id', { ascending: true });
-    if (error) return null;
-    const TXT = { borrador: 'pendiente por insumos', en_proceso: 'en proceso', cerrada: 'cerrada', cancelada: 'cancelada' };
-    return (data || []).map((o) => ({
-        id: o.id, folio: o.folio || 'OP-' + String(o.id).padStart(6, '0'), estado: o.estado, estadoTexto: TXT[o.estado] || o.estado,
-        productoId: Number(o.producto_id), cantidad: Number(o.cantidad_producida || 0), detalleId: o.pedido_venta_detalle_id || null,
-        nombre: o.productos?.nombre || 'Producto', unidad: o.productos?.unidades_medida?.nombre || '',
-    }));
 }
 
 /**
@@ -735,12 +677,6 @@ export async function cargarModuloProduccion() {
                 rend: Number(p.rendimiento_lote_bom), unidad: p.unidades_medida?.nombre || '',
             }));
         }
-        // Lote mínimo de fabricación (sql/2026-11-06; sin la columna simplemente no hay pregunta).
-        const minimoPorProducto = new Map();   // id -> lote mínimo en la unidad del producto
-        {
-            const r = await supabaseClient.from('productos').select('id, lote_minimo_fabricacion').gt('lote_minimo_fabricacion', 0);
-            if (!r.error) (r.data || []).forEach((p) => minimoPorProducto.set(String(p.id), Number(p.lote_minimo_fabricacion)));
-        }
         const redondear = (n) => Math.round(n * 10000) / 10000;
         const unidadPorProducto = new Map((productos || []).map((p) => [String(p.id), p.unidades_medida?.nombre || '']));
         const etiquetaUnidadCant = document.getElementById('unidadCantidadProd');
@@ -925,12 +861,6 @@ export async function cargarModuloProduccion() {
                     numeroLote: document.getElementById('numeroLoteResultante').value.trim(),
                     procesos: recolectarProcesosDefinidos()
                 };
-                // Orden sugerida por el faltante de un pedido de venta: se liga a ese pedido (solo si sigue siendo ese producto).
-                const itemPre = window.__prodPre && window.__prodPre.lista && window.__prodPre.lista[0];
-                if (itemPre && itemPre.pedido && String(itemPre.id) === String(datos.productoId)) {
-                    datos.pedidoVentaId = itemPre.pedido.id;
-                    datos.pedidoVentaDetalleId = itemPre.pedido.detalleId || null;
-                }
 
                 const btnSubmit = formOrden.querySelector('button[type="submit"]');
                 btnSubmit.disabled = true;
@@ -1021,13 +951,6 @@ export async function cargarModuloProduccion() {
             // Granel con "Rendimiento del lote": si lo que falta no es una tanda redonda, se pregunta en el
             // recuadro de existencias si se fabrica la tanda completa (menos de 1 → 1; más → siguiente media
             // tanda: 1.5, 2, 2.5…; es lo que queda marcado) o solo lo necesario.
-            // Lote mínimo de fabricación: si lo que falta es menos, se pregunta (no se decide solo).
-            const minimo = minimoPorProducto.get(String(item.id)) || 0;
-            if (minimo > item.cantidad + 1e-9) {
-                mostrarPreguntaMinimo(item, minimo, cargar);
-                document.getElementById('numeroLoteResultante')?.focus();
-                return;
-            }
             const info = rendimientoPorProducto.get(String(item.id));
             const tandasExactas = info ? redondear(item.cantidad / info.rend) : 0;
             const tandasSugeridas = tandasExactas < 1 ? 1 : Math.ceil(tandasExactas * 2) / 2;
@@ -1076,37 +999,6 @@ export async function cargarModuloProduccion() {
             preguntaTanda.dataset.producto = String(item.id);
             preguntaTanda.classList.remove('hidden');
             elegir(true);   // por defecto: tanda completa
-        }
-        // Pregunta "lote mínimo / solo lo necesario" cuando lo que falta es menor al lote mínimo de fabricación del producto.
-        function mostrarPreguntaMinimo(item, minimo, cargar) {
-            const u = item.unidad ? ' ' + item.unidad : '';
-            const sobra = redondear(minimo - item.cantidad);
-            const pintar = (usaMinimo) => {
-                const clase = (activo) => activo
-                    ? 'bg-amber-700 border-amber-500 text-white'
-                    : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800';
-                preguntaTanda.innerHTML = `
-                    <p class="mb-1.5">Falta <b class="text-slate-100">${formatoCantidad(item.cantidad)}${u}</b> pero tu <b class="text-slate-100">lote mínimo de fabricación</b> es <b class="text-slate-100">${formatoCantidad(minimo)}${u}</b>. ¿Cuánto fabricas? <span class="opacity-70">(también puedes escribir otra cantidad abajo)</span></p>
-                    <div class="flex flex-wrap gap-2">
-                        <button type="button" data-min="minimo" class="border rounded-lg px-2.5 py-1.5 text-left cursor-pointer ${clase(usaMinimo)}">
-                            ${usaMinimo ? '● ' : '○ '}🏭 Lote mínimo: ${formatoCantidad(minimo)}${u}
-                            <span class="block text-[10px] opacity-80">Sobran ${formatoCantidad(sobra)}${u} que quedan en inventario.</span>
-                        </button>
-                        <button type="button" data-min="necesario" class="border rounded-lg px-2.5 py-1.5 text-left cursor-pointer ${clase(!usaMinimo)}">
-                            ${usaMinimo ? '○ ' : '● '}🎯 Solo lo necesario: ${formatoCantidad(item.cantidad)}${u}
-                            <span class="block text-[10px] opacity-80">Por debajo de tu lote mínimo; no sobra nada.</span>
-                        </button>
-                    </div>`;
-                preguntaTanda.querySelectorAll('[data-min]').forEach((b) => b.addEventListener('click', () => elegir(b.dataset.min === 'minimo')));
-            };
-            const elegir = (usaMinimo) => {
-                pintar(usaMinimo);
-                if (usaMinimo) cargar(minimo, `lote mínimo; se necesitaban ${formatoCantidad(item.cantidad)}${u}`);
-                else cargar(item.cantidad, 'solo lo necesario, menos que tu lote mínimo');
-            };
-            preguntaTanda.dataset.producto = String(item.id);
-            preguntaTanda.classList.remove('hidden');
-            elegir(true);   // por defecto: el lote mínimo (el usuario decide)
         }
         // Lote sugerido al abrir el formulario ("🎲 Sugerir" lo vuelve a calcular a partir de hoy).
         document.getElementById('numeroLoteResultante').value = generarLoteSugerido();
@@ -1172,20 +1064,8 @@ export async function generarOrdenDeProduccion(datos) {
             abierta_at: pendienteInsumos ? null : new Date().toISOString(),
             faltantes_insumos: faltantesSnapshot
         };
-        // Orden que nace del faltante de un pedido de venta (sql/2026-11-04): queda ligada a él.
-        const pedidoVentaId = datos.pedidoVentaId ? Number(datos.pedidoVentaId) : null;
-        if (pedidoVentaId) {
-            filaOrden.pedido_venta_id = pedidoVentaId;
-            if (datos.pedidoVentaDetalleId) filaOrden.pedido_venta_detalle_id = Number(datos.pedidoVentaDetalleId);
-        }
         let { data: ordenNueva, error: errOrden } = await supabaseClient
             .from('ordenes_produccion').insert([filaOrden]).select('id').single();
-        if (errOrden && pedidoVentaId && /pedido_venta/i.test(errOrden.message || '')) {
-            // Aún sin la migración 2026-11-04: se guarda igual, sin la liga al pedido.
-            delete filaOrden.pedido_venta_id; delete filaOrden.pedido_venta_detalle_id;
-            ({ data: ordenNueva, error: errOrden } = await supabaseClient
-                .from('ordenes_produccion').insert([filaOrden]).select('id').single());
-        }
         if (errOrden && /faltantes_insumos|column .* does not exist/i.test(errOrden.message || '')) {
             // Aún sin la migración 2026-09-22: se guarda igual como borrador, solo sin el detalle de lo que faltó.
             const { faltantes_insumos, ...filaSinSnapshot } = filaOrden;
@@ -1800,7 +1680,7 @@ async function cargarHistorialProduccion(idSeleccionarReciente = null) {
                 const ordenActual = ordenes.find(o => o.id === idActual);
                 if (!ordenActual) return;
                 const titulo = `Orden de Producción #${ordenActual.id} — Lote ${ordenActual.numero_lote || 'S/L'}`;
-                imprimirConPlantilla('entrada_produccion', titulo, 'detalleResumenOrden', marcaDeEstatus(ordenActual.estado));
+                imprimirConPlantilla('entrada_produccion', titulo, 'detalleResumenOrden');
             };
         }
 

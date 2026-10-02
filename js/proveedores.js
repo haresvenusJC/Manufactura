@@ -1,9 +1,27 @@
 import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
-// El catálogo de regímenes vive en js/regimenes-fiscales.js (tabla c_regimen_fiscal); se re-exporta para no romper imports.
-export { REGIMENES } from './regimenes-fiscales.js';
-import { cargarRegimenes, opcionesRegimen } from './regimenes-fiscales.js';
+export const REGIMENES = [
+    ['601', 'General de Ley Personas Morales'],
+    ['603', 'Personas Morales con Fines no Lucrativos'],
+    ['605', 'Sueldos y Salarios e Ingresos Asimilados a Salarios'],
+    ['606', 'Arrendamiento'],
+    ['607', 'Régimen de Enajenación o Adquisición de Bienes'],
+    ['608', 'Demás ingresos'],
+    ['610', 'Residentes en el Extranjero sin Establecimiento Permanente en México'],
+    ['611', 'Ingresos por Dividendos (socios y accionistas)'],
+    ['612', 'Personas Físicas con Actividades Empresariales y Profesionales'],
+    ['614', 'Ingresos por intereses'],
+    ['615', 'Régimen de los ingresos por obtención de premios'],
+    ['616', 'Sin obligaciones fiscales'],
+    ['620', 'Sociedades Cooperativas de Producción'],
+    ['621', 'Incorporación Fiscal'],
+    ['622', 'Actividades Agrícolas, Ganaderas, Silvícolas y Pesqueras'],
+    ['623', 'Opcional para Grupos de Sociedades'],
+    ['624', 'Coordinados'],
+    ['625', 'Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas'],
+    ['626', 'Régimen Simplificado de Confianza (RESICO)'],
+];
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -31,7 +49,6 @@ export async function cargarModuloProveedores() {
         provCatForma = f.data || [];
         provCatMetodo = m.data || [];
     } catch (_) { /* catálogos no instalados */ }
-    await cargarRegimenes();
 
     // Valores por defecto para agilizar el alta (el caso mas comun de esta
     // empresa): regimen general de ley, uso CFDI de adquisicion de
@@ -39,7 +56,7 @@ export async function cargarModuloProveedores() {
     // proveedores nacionales. Quedan como "selected" en el HTML para que
     // tambien apliquen despues de un form.reset() (boton "Nuevo").
     const sel = (cond) => (cond ? ' selected' : '');
-    const optReg = opcionesRegimen({ predeterminado: '601' });
+    const optReg = '<option value="">— régimen —</option>' + REGIMENES.map(([k, v]) => `<option value="${k}"${sel(k === '601')}>${k} · ${esc(v)}</option>`).join('');
     const optUso = '<option value="">—</option>' + (provCatUso.length
         ? provCatUso.map(x => `<option value="${esc(x.clave)}"${sel(x.clave === 'G01')}>${esc(x.clave)} · ${esc(x.descripcion)}</option>`).join('')
         : `<option value="G01" selected>G01 · Adquisición de mercancías</option><option value="G03">G03 · Gastos en general</option>`);

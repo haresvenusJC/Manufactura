@@ -1,5 +1,4 @@
 import { supabaseClient } from './supabase.js';
-import { cargarRegimenes, opcionesRegimen } from './regimenes-fiscales.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
 // =====================================================================
@@ -10,6 +9,18 @@ import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const cliOrden = crearOrdenTabla('nombre');
 
+// Régimen fiscal (SAT c_RegimenFiscal) — los más comunes.
+const REGIMENES = [
+    ['', '(sin especificar)'],
+    ['601', '601 General de Ley Personas Morales'],
+    ['603', '603 Personas Morales con Fines no Lucrativos'],
+    ['605', '605 Sueldos y Salarios e Ingresos Asimilados a Salarios'],
+    ['606', '606 Arrendamiento'],
+    ['612', '612 Personas Físicas con Actividades Empresariales y Profesionales'],
+    ['616', '616 Sin obligaciones fiscales'],
+    ['621', '621 Incorporación Fiscal'],
+    ['626', '626 Régimen Simplificado de Confianza (RESICO)'],
+];
 const USOS_CFDI = [
     ['G01', 'G01 Adquisición de mercancías'],
     ['G03', 'G03 Gastos en general'],
@@ -25,20 +36,15 @@ let listasCache = [];
 let clientesCache = [];
 let cliEditId = null;
 
-// tab: 'clientes' | 'listas' — son dos entradas del menú (Catálogos → Clientes / Listas de precio); cada una abre solo lo suyo.
-export async function cargarModuloClientes(tab) {
+export async function cargarModuloClientes() {
     const cont = document.getElementById('contenedorClientes');
     if (!cont) return;
-    if (tab === 'clientes' || tab === 'listas') cliTab = tab;
-    const titulo = document.getElementById('tituloClientes');
-    if (titulo) titulo.textContent = cliTab === 'listas' ? 'Listas de precio' : 'Clientes';
     cont.innerHTML = `
         <div class="space-y-4">
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-1 flex flex-wrap gap-1" id="cliTabs"></div>
             <div id="cliContenido"></div>
         </div>`;
     renderTabs();
-    document.getElementById('cliTabs').classList.add('hidden');   // ya no hay pestañas: cada pantalla del menú es una sola cosa
     await cargarComunes();
     activarTab(cliTab);
 }
@@ -59,7 +65,6 @@ function activarTab(id) {
 }
 
 async function cargarComunes() {
-    await cargarRegimenes();
     try {
         const [ctas, listas] = await Promise.all([
             supabaseClient.from('cuentas_contables').select('id, codigo, nombre').eq('afectable', true).eq('activa', true).order('codigo'),
@@ -96,7 +101,7 @@ async function renderTabClientes() {
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div><label class="block text-[11px] text-slate-400 mb-1">Régimen fiscal</label>
-                        <select id="cliRegimen" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${opcionesRegimen({ vacio: '(sin especificar)' })}</select></div>
+                        <select id="cliRegimen" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${REGIMENES.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select></div>
                     <div><label class="block text-[11px] text-slate-400 mb-1">Uso CFDI</label>
                         <select id="cliUso" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${USOS_CFDI.map(([v, t]) => `<option value="${v}" ${v === 'G03' ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
                 </div>
