@@ -4,6 +4,20 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/impresion.js`, `js/plantillas.js`, `js/contabilidad.js`, `js/pedidos-venta.js`, `js/pagos-proveedor.js`,
+  `js/cuentas-por-cobrar.js`, `js/auditoria-inventario.js`, `sql/2026-11-01_plantillas_compacto.sql` (nuevo), `version.json`. A petición del usuario
+  ("estandariza todos los documentos imprimibles… que no gasten mucha hoja"): **un solo estilo de impresión en el motor** `imprimirConPlantilla()` —
+  carta, márgenes de 10 mm, encabezado de UNA franja (logo | empresa y tipo | documento y fecha, antes 4 líneas centradas), letra de 10 px, tablas
+  compactas con encabezado repetido en cada hoja y filas que no se parten, blanco y negro sin fondos/sombras, lo que estaba recortado por scroll
+  (`overflow`/`max-h`) sale completo, botones ocultos, "Pág. X de Y" (`@page` margin box), horizontal automático con más de 8 columnas
+  (balanza/auxiliares). Probado: 70 filas = 2 hojas en un PDF real de Chromium. Opción "Vista compacta al imprimir" por plantilla (Configuración →
+  Plantillas; requiere `sql/2026-11-01_plantillas_compacto.sql`, sin ella se guarda igual sin esa opción). `imprimirConPlantilla` ahora acepta
+  id O elemento, y nuevo `imprimirHtml()` para comprobantes armados al vuelo. **Formatos nuevos** (misma plantilla, 5 tipos nuevos en Plantillas):
+  Póliza (botón en `rcVerPoliza`), Pedido de venta (detalle), Comprobante de pago a proveedor y Recibo de cobro de cliente (🖨️ por fila en el
+  historial, con firmas), Auditoría de inventario (🖨️ Imprimir resultado + 📋 Hoja de conteo en blanco, SIN stock del sistema: el conteo es a
+  ciegas). Recibo de mercancía y Devoluciones ya se imprimen vía su documento (expediente). Pendiente: correr el SQL, probar impresión real en
+  cada pantalla (sobre todo pólizas, hoja de conteo y un reporte ancho) y revisar los documentos del expediente (`documentos.js`), que traen
+  clases `print:` propias de Tailwind. No hecho: Pre-recibo (tarjeta del admin) sin hoja propia — decidir si hace falta.
 - Archivos tocados (lo último): `js/conversion-unidades.js`, `js/catalogo.js`, `js/tablas.js`, `sql/2026-10-31_conversiones_unidades_ampliadas.sql` (nuevo),
   `version.json`. A petición del usuario ("agrega todas las conversiones conocidas"): `FAMILIAS_UNIDAD` pasa de mg/g/kg + mL/L a 3 familias —
   **masa** (+ tonelada métrica, libra, onza avoirdupois), **volumen** (+ cL, dL, cm³/dm³/m³, onza fluida, galón US) y **longitud** (mm, cm, m, km,
@@ -643,7 +657,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `importador-bom.js` — importa/exporta la estructura del BOM (recetas) desde Excel/CSV.
 - `importador-claves-proveedor.js` — carga masiva de "Claves de proveedor" leyendo facturas XML viejas.
 - `importador.js` — importador de productos desde Excel/CSV (upsert por SKU).
-- `impresion.js` — motor genérico de impresión con plantillas (encabezado/logo/pie).
+- `impresion.js` — motor ÚNICO de impresión (`imprimirConPlantilla`, `imprimirHtml`): estilo compacto estándar + plantillas (encabezado/logo/pie). Todo documento imprimible nuevo pasa por aquí, no por `window.print()` directo.
 - `indice.js` — índice/mapa de todos los módulos del ERP con acceso directo.
 - `info-proveedor-producto.js` — cómo identifica y vende un proveedor específico un producto (SKU/descr./unidad
   + última compra real).

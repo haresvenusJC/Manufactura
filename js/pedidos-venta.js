@@ -1,5 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { siguienteFolio } from './folios.js';
+import { imprimirConPlantilla } from './impresion.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
 import { registrarSalidaMultiPartida } from './salidas.js';
@@ -279,7 +280,10 @@ window.pvAbrirDetalle = async (id) => {
     modal.innerHTML = `
         <div class="flex justify-between items-center p-4 border-b border-slate-800">
             <h3 class="text-base font-semibold text-slate-100">Pedido <span id="pvTituloDetalle" class="text-emerald-300 font-mono"></span></h3>
-            <button id="pvCerrarDetalle" class="text-slate-400 hover:text-slate-200 text-xl leading-none">&times;</button>
+            <div class="flex items-center gap-3">
+                <button id="pvImprimirDetalle" type="button" disabled class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1 rounded-lg disabled:opacity-40">🖨️ Imprimir</button>
+                <button id="pvCerrarDetalle" class="text-slate-400 hover:text-slate-200 text-xl leading-none">&times;</button>
+            </div>
         </div>
         <div id="pvCuerpoDetalle" class="p-4 overflow-y-auto flex-1"><p class="text-slate-500 text-sm text-center">Cargando...</p></div>`;
     document.body.appendChild(modal);
@@ -341,6 +345,9 @@ async function pvPintarDetalle(id, modal) {
               ${p.estatus === 'pendiente' ? `<button type="button" id="pvBtnCancelar" class="w-full bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 font-medium py-2 rounded-lg text-sm">Cancelar pedido</button>` : ''}
             ` : ''}
             <p id="pvMsgDetalle" class="text-xs mt-2 min-h-[1rem]"></p>`;
+
+        const btnImp = modal.querySelector('#pvImprimirDetalle');
+        if (btnImp) { btnImp.disabled = false; btnImp.onclick = () => imprimirConPlantilla('pedido_venta', 'Pedido de venta ' + (p.folio || '#' + p.id), cuerpo); }
 
         const btnSurtir = modal.querySelector('#pvBtnSurtir');
         if (btnSurtir) btnSurtir.onclick = () => pvAbrirSurtir(p, det.filter((d) => Number(d.cantidad) - Number(d.cantidad_surtida) > 0), modal);

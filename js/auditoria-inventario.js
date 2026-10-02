@@ -1,5 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+import { imprimirConPlantilla, imprimirHtml } from './impresion.js';
 
 // =====================================================================
 //  Auditoría de inventarios (toma física) — lado ADMIN.
@@ -74,10 +75,32 @@ export async function cargarModuloAuditoriaInventario() {
         </div>
 
         <div id="audResultadoWrap" class="hidden">
-          <h3 class="text-md font-semibold text-slate-300 mb-2">Resultado — <span id="audResultadoNombre"></span></h3>
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <h3 class="text-md font-semibold text-slate-300">Resultado — <span id="audResultadoNombre"></span></h3>
+            <div class="flex gap-2">
+              <button type="button" id="audImprimirHoja" class="text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer" title="Hoja en blanco para contar a mano (sin el stock del sistema)">📋 Hoja de conteo</button>
+              <button type="button" id="audImprimirRes" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">🖨️ Imprimir resultado</button>
+            </div>
+          </div>
           <div id="audResultado" class="bg-slate-950 border border-slate-800 rounded-xl p-3"></div>
         </div>
       </div>`;
+
+    document.getElementById('audImprimirRes').addEventListener('click', () => {
+        if (!resultadoCache.length) { alert('Primero abre el resultado de una auditoría.'); return; }
+        const el = document.getElementById('audResultado');
+        imprimirConPlantilla('conteo_auditoria', `Resultado de auditoría — ${auditActual?.nombre || ''}`, el);
+    });
+    // Hoja de conteo: lista de lo que hay que contar, SIN el stock del sistema (el conteo es a ciegas) y con espacio para anotar.
+    document.getElementById('audImprimirHoja').addEventListener('click', () => {
+        if (!resultadoCache.length) { alert('Primero abre el resultado de una auditoría.'); return; }
+        const filas = resultadoCache.slice().sort((a, b) => String(a.descripcion || '').localeCompare(String(b.descripcion || ''), 'es'))
+            .map((r) => `<tr><td>${esc(r.sku || '')}</td><td>${esc(r.descripcion || '')}</td><td style="width:22%"></td><td style="width:16%"></td><td style="width:20%"></td></tr>`).join('');
+        imprimirHtml('conteo_auditoria', `Hoja de conteo — ${auditActual?.nombre || ''}`, `
+            <div style="display:flex;gap:16px;margin-bottom:6px"><div><b>Contó:</b> ____________________</div><div><b>Fecha:</b> ____ / ____ / ______</div><div><b>Zona:</b> ______________</div></div>
+            <table><thead><tr><th>SKU</th><th>Descripción</th><th>Cantidad contada</th><th>Caducidad</th><th>Nota</th></tr></thead>
+            <tbody>${filas}</tbody></table>`);
+    });
 
     document.getElementById('audToggleForm').addEventListener('click', () => {
         document.getElementById('audForm').classList.toggle('hidden');

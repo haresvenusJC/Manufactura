@@ -2519,7 +2519,7 @@ window.rcVerPoliza = async function (polId) {
                 <h3 class="text-sm font-bold text-slate-200">Póliza ${pol.tipo} #${pol.numero} · ${pol.fecha}</h3>
                 <button onclick="window.rcCerrarModalPoliza('${idModal}')" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2">&times;</button>
             </div>
-            <div class="p-5 space-y-3 overflow-y-auto text-sm">
+            <div class="rc-pol-cuerpo p-5 space-y-3 overflow-y-auto text-sm">
                 <div class="text-xs text-slate-400">
                     <span class="font-semibold text-slate-300">Concepto:</span> ${(pol.concepto || '—')}<br>
                     <span class="font-semibold text-slate-300">Estatus:</span> <span class="${pol.estatus === 'contabilizada' ? 'text-emerald-400' : 'text-rose-400'}">${pol.estatus}</span>
@@ -2553,10 +2553,13 @@ window.rcVerPoliza = async function (polId) {
                 ${enlacesDoc ? `<div class="flex flex-wrap gap-2 pt-1">${enlacesDoc}</div>`
                     : `<p class="text-[11px] text-slate-500">Esta póliza no tiene un documento de almacén enlazado (origen: ${pol.origen || 'manual'}).</p>`}
             </div>
-            <div class="bg-slate-950 px-5 py-3 border-t border-slate-800 text-right">
+            <div class="bg-slate-950 px-5 py-3 border-t border-slate-800 text-right flex justify-end gap-2">
+                <button type="button" class="rc-pol-imprimir text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-4 py-2 rounded-xl font-semibold cursor-pointer">🖨️ Imprimir</button>
                 <button onclick="window.rcCerrarModalPoliza('${idModal}')" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl font-semibold cursor-pointer">Cerrar</button>
             </div>
         </div>`;
+        cont.querySelector('.rc-pol-imprimir').onclick = () =>
+            imprimirConPlantilla('poliza', `Póliza ${pol.tipo} #${pol.numero} · ${pol.fecha}`, cont.querySelector('.rc-pol-cuerpo'));
     } catch (err) {
         cont.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 text-sm">
             <p class="text-rose-400">No se pudo cargar la póliza.<br>${err.message || err}</p>

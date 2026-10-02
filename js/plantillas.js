@@ -75,6 +75,9 @@ export async function cargarModuloPlantillas() {
                         <label class="flex items-center gap-2 text-sm text-slate-300">
                             <input type="checkbox" id="pMostrarLote" class="rounded"> Mostrar número de lote
                         </label>
+                        <label class="flex items-center gap-2 text-sm text-slate-300 col-span-2" title="Letra chica, tablas apretadas y sin fondos: menos hojas y menos tinta. Desmárcalo si prefieres letra más grande.">
+                            <input type="checkbox" id="pCompacto" class="rounded"> Vista compacta al imprimir (menos hojas)
+                        </label>
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-slate-400 mb-1">NOTAS LEGALES (pie de página)</label>
@@ -130,6 +133,11 @@ export async function cargarModuloPlantillas() {
         { codigo: 'merma', nombre: 'Salida por Merma' },
         { codigo: 'ajuste', nombre: 'Ajuste de Inventario' },
         { codigo: 'nomina', nombre: 'Nómina' },
+        { codigo: 'poliza', nombre: 'Póliza contable' },
+        { codigo: 'pedido_venta', nombre: 'Pedido de venta' },
+        { codigo: 'pago_proveedor', nombre: 'Pago a proveedor' },
+        { codigo: 'cobro_cliente', nombre: 'Cobro de cliente' },
+        { codigo: 'conteo_auditoria', nombre: 'Auditoría de inventario (hoja y resultado)' },
     ];
 
     function cargarTipos() {
@@ -213,7 +221,8 @@ export async function cargarModuloPlantillas() {
             mostrar_costos: true,
             mostrar_lote: true,
             notas_legales: '',
-            texto_pie: ''
+            texto_pie: '',
+            compacto: true
         };
         document.getElementById('pNombre').value = p.nombre_plantilla || '';
         document.getElementById('pTitulo').value = p.titulo_encabezado || '';
@@ -221,6 +230,7 @@ export async function cargarModuloPlantillas() {
         document.getElementById('pColor').value = p.color_acento || '#4f46e5';
         document.getElementById('pMostrarCostos').checked = !!p.mostrar_costos;
         document.getElementById('pMostrarLote').checked = !!p.mostrar_lote;
+        document.getElementById('pCompacto').checked = p.compacto !== false;
         document.getElementById('pNotasLegales').value = p.notas_legales || '';
         document.getElementById('pTextoPie').value = p.texto_pie || '';
         document.getElementById('pLogoFile').value = '';
@@ -285,12 +295,18 @@ export async function cargarModuloPlantillas() {
             mostrar_lote: document.getElementById('pMostrarLote').checked,
             notas_legales: document.getElementById('pNotasLegales').value.trim() || null,
             texto_pie: document.getElementById('pTextoPie').value.trim() || null,
+            compacto: document.getElementById('pCompacto').checked,
             updated_at: new Date().toISOString()
         };
 
-        const { error } = await supabaseClient
+        let { error } = await supabaseClient
             .from('plantillas_documentos')
             .upsert([registro], { onConflict: 'tipo_documento' });
+        // Sin sql/2026-11-01_plantillas_compacto.sql la columna no existe: se guarda igual, sin esa opción.
+        if (error && /compacto/i.test(error.message || '')) {
+            delete registro.compacto;
+            ({ error } = await supabaseClient.from('plantillas_documentos').upsert([registro], { onConflict: 'tipo_documento' }));
+        }
 
         if (error) {
             alert('❌ Error al guardar la plantilla: ' + error.message);

@@ -1,7 +1,8 @@
 import { supabaseClient } from './supabase.js';
 import { montarGuia } from './asistente-contable.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
-import { linkDoc, linkPoliza } from './enlaces-reporte.js';
+import { linkDoc, linkPoliza, etiquetaPoliza } from './enlaces-reporte.js';
+import { imprimirHtml } from './impresion.js';
 
 // =====================================================================
 //  Cuentas por pagar / Pagos a proveedores
@@ -303,6 +304,37 @@ async function registrarPago() {
     }
 }
 
+// Comprobante de pago a proveedor (mismo estilo de impresión que el resto de la app).
+async function cxpImprimirComprobante(id) {
+    try {
+        const { data: p, error } = await supabaseClient.from('pagos_proveedor')
+            .select('id, fecha, total, referencia, forma_pago, notas, estatus, poliza_id, proveedores ( nombre, rfc ), cuentas_contables!cuenta_pago_id ( codigo, nombre ), pagos_proveedor_aplicaciones ( tipo, monto, documentos ( folio ), gastos ( concepto, folio_factura ) )')
+            .eq('id', id).single();
+        if (error) throw error;
+        const pol = p.poliza_id ? await etiquetaPoliza(p.poliza_id) : '—';
+        const filas = (p.pagos_proveedor_aplicaciones || []).map((a) => `<tr>
+            <td>${a.tipo === 'gasto' ? 'Gasto' : a.tipo === 'compra' ? 'Compra' : esc(a.tipo)}</td>
+            <td>${esc(a.tipo === 'gasto' ? [a.gastos?.concepto, a.gastos?.folio_factura].filter(Boolean).join(' · ') : (a.documentos?.folio || '—'))}</td>
+            <td style="text-align:right">${money(a.monto)}</td></tr>`).join('');
+        await imprimirHtml('pago_proveedor', `Pago a proveedor #${p.id}`, `
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px 12px;margin-bottom:6px">
+                <div><b>Proveedor:</b> ${esc(p.proveedores?.nombre || '(varios)')}</div>
+                <div><b>RFC:</b> ${esc(p.proveedores?.rfc || '—')}</div>
+                <div><b>Fecha:</b> ${esc(p.fecha || '')}</div>
+                <div><b>Forma de pago:</b> ${esc(p.forma_pago || '—')}</div>
+                <div><b>Referencia:</b> ${esc(p.referencia || '—')}</div>
+                <div><b>Cuenta de salida:</b> ${p.cuentas_contables ? esc(p.cuentas_contables.codigo + ' · ' + p.cuentas_contables.nombre) : '—'}</div>
+                <div><b>Póliza:</b> ${esc(pol)}</div>
+                <div><b>Estatus:</b> ${esc(p.estatus)}</div>
+            </div>
+            <table><thead><tr><th>Tipo</th><th>Documento aplicado</th><th style="text-align:right">Monto</th></tr></thead>
+            <tbody>${filas || '<tr><td colspan="3">Sin documentos aplicados.</td></tr>'}</tbody>
+            <tfoot><tr><td colspan="2" style="text-align:right"><b>Total pagado</b></td><td style="text-align:right"><b>${money(p.total)}</b></td></tr></tfoot></table>
+            ${p.notas ? `<p style="margin-top:6px"><b>Notas:</b> ${esc(p.notas)}</p>` : ''}
+            <div style="display:flex;gap:40px;margin-top:28px"><div style="flex:1;border-top:1px solid #555;text-align:center;padding-top:2px">Elaboró</div><div style="flex:1;border-top:1px solid #555;text-align:center;padding-top:2px">Recibió proveedor</div></div>`);
+    } catch (e) { alert('No se pudo armar el comprobante: ' + (e.message || e)); }
+}
+
 async function cxpHistorial() {
     const cont = document.getElementById('cxpHist');
     try {
@@ -334,7 +366,7 @@ async function cxpHistorial() {
             <tbody>
               ${data.map(p => `
                 <tr class="border-b border-slate-900 ${p.estatus === 'cancelado' ? 'opacity-50' : ''}">
-                  <td class="p-2">${p.estatus === 'registrado' ? `<button type="button" class="cxp-cancel text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded" data-id="${p.id}">Cancelar</button>` : ''}</td>
+                  <td class="p-2 whitespace-nowrap"><button type="button" class="cxp-print text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded mr-1" data-id="${p.id}" title="Imprimir comprobante de pago">🖨️</button>${p.estatus === 'registrado' ? `<button type="button" class="cxp-cancel text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded" data-id="${p.id}">Cancelar</button>` : ''}</td>
                   <td class="p-2 whitespace-nowrap">${p.fecha || ''}</td>
                   <td class="p-2">${esc(p.proveedores?.nombre || '(varios)')}</td>
                   <td class="p-2 text-slate-400">${esc(p.referencia || '')}</td>
@@ -346,6 +378,7 @@ async function cxpHistorial() {
             </tbody>
           </table>
         </div>`;
+        cont.querySelectorAll('.cxp-print').forEach(b => { b.onclick = () => cxpImprimirComprobante(Number(b.dataset.id)); });
         cont.querySelectorAll('.cxp-cancel').forEach(b => {
             b.onclick = async () => {
                 if (!confirm('¿Cancelar este pago? Se genera la póliza de reverso y los saldos vuelven a quedar pendientes.')) return;
