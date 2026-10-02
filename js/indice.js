@@ -13,8 +13,6 @@ export const SECCIONES = [
             { v: 'proveedores', t: 'Proveedores', d: 'Datos fiscales: RFC, régimen, uso CFDI, forma y método de pago, cuenta de gasto por defecto.', cfg: true },
             { v: 'clientes', t: 'Clientes y listas de precio', d: 'Clientes y sus listas de precio.', cfg: true },
             { v: 'empleados', t: 'Empleados', d: 'Plantilla, costo por hora y PIN para la Orden de Trabajo en el celular.', cfg: true },
-            { v: 'importador', t: 'Importar Excel/CSV', d: 'Carga masiva de productos desde una plantilla.' },
-            { v: 'importador-claves-proveedor', t: 'Importar claves de proveedor (XML)', d: 'Lee facturas XML de tus proveedores y las empareja con tu catálogo, para capturar de golpe su SKU, descripción y unidad por producto — sin mover inventario ni contabilidad.' },
         ],
     },
     {
@@ -79,6 +77,12 @@ export const SECCIONES = [
         grupo: 'Reportes', ancla: 'rep', items: [
             { v: 'reportes', t: 'Reportes operativos', d: 'Compras por proveedor, gastos por cuenta, inventario valorizado y tabla dinámica genérica.' },
             { v: 'bitacora-cambios', t: 'Bitácora de cambios', d: 'Quién hizo qué y cuándo en todo el sistema (catálogos, compras, ventas, producción, finanzas) y cuándo entró y salió cada usuario, con filtros por usuario, módulo y fechas — solo lectura, nadie puede alterarla.' },
+        ],
+    },
+    {
+        grupo: 'Utilerías', ancla: 'util', items: [
+            { v: 'importador', t: 'Importar Excel/CSV', d: 'Carga masiva de productos desde una plantilla.' },
+            { v: 'importador-claves-proveedor', t: 'Importar claves de proveedor (XML)', d: 'Lee facturas XML de tus proveedores y las empareja con tu catálogo, para capturar de golpe su SKU, descripción y unidad por producto — sin mover inventario ni contabilidad.' },
         ],
     },
     {

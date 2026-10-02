@@ -4,6 +4,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `index.html`, `js/indice.js`, `version.json`. Nuevo grupo de menú **Utilerías** (antes de
+  Configuración, también en el Índice): ahí viven "Importar Excel/CSV" (productos/BOM) e "Importar claves de proveedor
+  (XML)", que salieron de Catálogos. Sin cambios de lógica ni SQL, mismas vistas (`importador`, `importador-claves-proveedor`).
+  Pendiente: probar en el navegador que ambos accesos abren bien desde el menú nuevo y el Índice.
 - Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`. Confirmado: `sql/2026-10-29_resolucion_anticipo_oc.sql`
   ya está corrida. Bug reportado con captura: "Pendientes de pago" en Pagos a proveedores no mostraba nada aunque
   había 22 documentos pendientes — no era bug, era el filtro de fechas por default (inicio de mes a hoy) ocultando
