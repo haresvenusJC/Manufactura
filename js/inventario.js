@@ -46,6 +46,11 @@ let paginaActualLotes = 1;
 const porPaginaLotes = 50;
 let fechaInicioFiltro = '';
 let fechaFinFiltro = '';
+let filtroProductoLotes = '';     // SKU o nombre del producto (texto)
+let filtroNumeroLote = '';         // número de lote (texto)
+let filtroSoloConExistencia = false; // oculta lotes agotados (stock 0)
+// Texto seguro para meterlo en un filtro de PostgREST (las comas y paréntesis rompen la sintaxis de .or()).
+const limpiarFiltroTexto = (t) => String(t || '').replace(/[,()%*\\]/g, ' ').trim();
 
 // Cache del resumen (productos) para poder filtrar/paginar/colapsar en
 // cliente sin volver a golpear Supabase en cada tecleo del buscador.
@@ -212,18 +217,26 @@ function renderInventarioResumen() {
     });
 }
 
+const escLote = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
 async function renderizarTablaLotes(contenedorLotes) {
+    const textoProd = limpiarFiltroTexto(filtroProductoLotes);
+    const textoLote = limpiarFiltroTexto(filtroNumeroLote);
+    // !inner solo cuando se filtra por producto: así el filtro del producto también descarta los lotes (no solo vacía el embebido).
     let query = supabaseClient
         .from('lotes_inventario')
         .select(`
             id, numero_lote, stock_actual, costo_unitario, fecha_ingreso,
-            productos ( nombre, tipo )
+            productos${textoProd ? '!inner' : ''} ( nombre, sku, tipo )
         `, { count: 'exact' })
         .order('fecha_ingreso', { ascending: false })
         .order('id', { ascending: false });
 
     if (fechaInicioFiltro) query = query.gte('fecha_ingreso', fechaInicioFiltro);
     if (fechaFinFiltro) query = query.lte('fecha_ingreso', fechaFinFiltro);
+    if (textoProd) query = query.or(`nombre.ilike.%${textoProd}%,sku.ilike.%${textoProd}%`, { referencedTable: 'productos', foreignTable: 'productos' });
+    if (textoLote) query = query.ilike('numero_lote', `%${textoLote}%`);
+    if (filtroSoloConExistencia) query = query.gt('stock_actual', 0);
 
     const desde = (paginaActualLotes - 1) * porPaginaLotes;
     const hasta = desde + porPaginaLotes - 1;
@@ -258,6 +271,15 @@ async function renderizarTablaLotes(contenedorLotes) {
                     <label class="block text-xs text-slate-400 mb-1">Hasta:</label>
                     <input type="date" id="filtroFechaFin" value="${fechaFinFiltro}" class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500">
                 </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Producto (SKU o nombre):</label>
+                    <input type="text" id="filtroLoteProducto" value="${escLote(filtroProductoLotes)}" placeholder="🔍 Buscar producto…" onkeydown="if(event.key==='Enter') window.aplicarFiltroFechasLotes()" class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-1.5 w-52 focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">N.º de lote:</label>
+                    <input type="text" id="filtroLoteNumero" value="${escLote(filtroNumeroLote)}" placeholder="Ej. AL1541" onkeydown="if(event.key==='Enter') window.aplicarFiltroFechasLotes()" class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-1.5 w-36 focus:outline-none focus:border-indigo-500">
+                </div>
+                <label class="flex items-center gap-1.5 text-xs text-slate-300 pt-5 cursor-pointer"><input type="checkbox" id="filtroLoteConExistencia" class="accent-indigo-500" ${filtroSoloConExistencia ? 'checked' : ''}> Solo con existencia</label>
                 <div class="flex items-end h-full pt-5">
                     <button type="button" onclick="window.aplicarFiltroFechasLotes()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-4 py-1.5 rounded-lg transition font-medium shadow-sm">Filtrar</button>
                     <button type="button" onclick="window.limpiarFiltroFechasLotes()" class="ml-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-3 py-1.5 rounded-lg transition border border-slate-700">Limpiar</button>
@@ -268,7 +290,7 @@ async function renderizarTablaLotes(contenedorLotes) {
     `;
 
     if (!lotes || lotes.length === 0) {
-        htmlLotes += `<div class="bg-slate-950 border border-slate-800 p-6 rounded-xl text-center text-slate-500 text-sm">No se encontraron lotes de inventario con los filtros seleccionados.</div>`;
+        htmlLotes += `<div class="bg-slate-950 border border-slate-800 p-6 rounded-xl text-center text-slate-500 text-sm">No se encontraron lotes con esos filtros.</div>`;
     } else {
         htmlLotes += `
             <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-950">
@@ -298,7 +320,7 @@ async function renderizarTablaLotes(contenedorLotes) {
                         <button type="button" onclick="window.registrarDeterioroLote(${l.id}, '${String(l.numero_lote || 'S/N').replace(/'/g, "\\'")}', ${Number(l.costo_unitario || 0)})" title="Castigar el costo del lote por caducidad, daño u obsolescencia (NIF C-4: costo o valor neto de realización, el menor)" class="bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs px-2.5 py-1 rounded-lg border border-slate-700 transition font-medium ml-1">📉 Deterioro</button>
                     </td>
                     <td class="p-3 font-mono text-xs text-indigo-300">#${l.id} - ${l.numero_lote || 'S/N'}</td>
-                    <td class="p-3 font-medium text-slate-100">${nombreProd}</td>
+                    <td class="p-3 font-medium text-slate-100">${nombreProd}${l.productos?.sku ? `<span class="block text-[10px] font-mono text-slate-500">${escLote(l.productos.sku)}</span>` : ''}</td>
                     <td class="p-3 text-xs uppercase text-slate-400">${tipoProd}</td>
                     <td class="p-3 font-mono text-amber-300 font-semibold">${l.stock_actual}</td>
                     <td class="p-3 font-mono text-slate-300">$${Number(l.costo_unitario || 0).toFixed(2)}</td>
@@ -326,6 +348,9 @@ async function renderizarTablaLotes(contenedorLotes) {
 window.aplicarFiltroFechasLotes = function() {
     fechaInicioFiltro = document.getElementById('filtroFechaInicio')?.value || '';
     fechaFinFiltro = document.getElementById('filtroFechaFin')?.value || '';
+    filtroProductoLotes = document.getElementById('filtroLoteProducto')?.value || '';
+    filtroNumeroLote = document.getElementById('filtroLoteNumero')?.value || '';
+    filtroSoloConExistencia = !!document.getElementById('filtroLoteConExistencia')?.checked;
     paginaActualLotes = 1;
     renderizarTablaLotes(document.getElementById('contenedorExistenciasLote'));
 };
@@ -333,6 +358,9 @@ window.aplicarFiltroFechasLotes = function() {
 window.limpiarFiltroFechasLotes = function() {
     fechaInicioFiltro = '';
     fechaFinFiltro = '';
+    filtroProductoLotes = '';
+    filtroNumeroLote = '';
+    filtroSoloConExistencia = false;
     paginaActualLotes = 1;
     renderizarTablaLotes(document.getElementById('contenedorExistenciasLote'));
 };

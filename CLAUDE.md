@@ -4,6 +4,12 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/inventario.js`, `version.json`. Reportado: Lotes no tenía filtro por producto. `renderizarTablaLotes` gana, junto a Desde/Hasta,
+  **Producto (SKU o nombre)**, **N.º de lote** y casilla **Solo con existencia** (stock > 0); se aplican con "Filtrar" o Enter y "Limpiar" los borra.
+  Filtran en el servidor (la tabla está paginada): el de producto usa `productos!inner` + `.or(nombre.ilike, sku.ilike)` sobre la tabla relacionada (se pasan
+  `referencedTable` y `foreignTable` por compatibilidad entre versiones de supabase-js, que aquí no está fijada). El texto se limpia de comas/paréntesis
+  (rompen la sintaxis de `.or()`). La columna de producto muestra también el SKU. Pendiente: probar en el navegador (sobre todo el filtro por producto —
+  es el único que depende de cómo PostgREST resuelva el filtro sobre la tabla relacionada— y que la paginación cuente bien con filtros).
 - Archivos tocados (lo último): `index.html`, `js/app.js`, `js/indice.js`, `version.json`. A petición del usuario: la sección "Existencias y Lotes
   Detallados" (antes al pie de Stock General) sale a su propia pantalla — nueva entrada **Lotes** en el menú Inventario (vista `lotes`, también en el
   Índice). Stock General conserva solo el resumen por insumo. Sin cambios de lógica: `cargarInventarioCompleto()` (`js/inventario.js`) llena cada
