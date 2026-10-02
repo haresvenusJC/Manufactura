@@ -985,7 +985,8 @@
             var baseLocal = esLocal ? (location.origin + location.pathname.replace(/[^/]*$/, '')) : null;
             var paginas = [
                 { titulo: 'Orden de Trabajo', desc: 'Operarios de producción: registran tiempos por proceso.', archivo: 'orden-trabajo.html' },
-                { titulo: 'Pre-recibo de mercancía', desc: 'Almacén: foto del documento y confirmación al recibir.', archivo: 'recibo-operador.html' }
+                { titulo: 'Pre-recibo de mercancía', desc: 'Almacén: foto del documento y confirmación al recibir.', archivo: 'recibo-operador.html' },
+                { titulo: 'Conteo de inventario', desc: 'Almacén: conteo físico a ciegas de una auditoría abierta (nombre + PIN o patrón).', archivo: 'conteo-inventario.html' }
             ];
             cont.innerHTML = paginas.map(function (p, i) {
                 var url = base + p.archivo;

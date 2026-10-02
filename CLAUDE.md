@@ -4,6 +4,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `index.html`, `js/indice.js`, `version.json`. Accesos para operadores gana la tarjeta **Conteo de inventario** (`conteo-inventario.html`, con su
+  QR, enlace y botón Copiar — mismo mecanismo que las otras dos). Ahora el panel lista las 3 apps móviles de operador. Pendiente: abrir la pantalla y escanear el QR nuevo.
 - Archivos tocados (lo último): `index.html`, `js/indice.js`, `version.json`. A petición del usuario: el bloque "Herramientas para operadores" (enlaces y QR de las
   apps móviles) sale de Configuración → General y pasa a su propia pantalla **Accesos para operadores** (vista `accesos-operadores`, menú **Utilerías**, también en el
   Índice). Mismo contenido y mismo script de enlaces/QR del pie de `index.html` (llena `#enlacesOperador` por id); Configuración → General conserva Tema de

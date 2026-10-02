@@ -86,7 +86,7 @@ export const SECCIONES = [
         grupo: 'Utilerías', ancla: 'util', items: [
             { v: 'importador', t: 'Importar Excel/CSV', d: 'Carga masiva de productos desde una plantilla.' },
             { v: 'importador-claves-proveedor', t: 'Importar claves de proveedor (XML)', d: 'Lee facturas XML de tus proveedores y las empareja con tu catálogo, para capturar de golpe su SKU, descripción y unidad por producto — sin mover inventario ni contabilidad.' },
-            { v: 'accesos-operadores', t: 'Accesos para operadores', d: 'Enlaces y códigos QR de las pantallas móviles de los operadores (Orden de Trabajo y Pre-recibo de mercancía), para compartirlos o instalarlos en el celular.' },
+            { v: 'accesos-operadores', t: 'Accesos para operadores', d: 'Enlaces y códigos QR de las pantallas móviles de los operadores (Orden de Trabajo, Pre-recibo de mercancía y Conteo de inventario), para compartirlos o instalarlos en el celular.' },
         ],
     },
     {
