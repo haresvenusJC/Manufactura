@@ -4,6 +4,14 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/impresion.js`, `js/plantillas.js`, `js/contabilidad.js`, `js/reportes.js`, `sql/2026-11-02_plantillas_subtitulos.sql`
+  (nuevo), `version.json`. A petición del usuario ("sube todos los subtítulos que faltan"): todo documento imprimía bajo "Comprobante de
+  Movimiento de Almacén" (hasta una póliza o nómina). Nuevo `SUBTITULOS_POR_TIPO` (exportado de `impresion.js`) con el subtítulo de los 17 tipos;
+  el motor usa el de la plantilla propia del tipo si lo tiene, y si no el del tipo (así funciona aunque no se corra el SQL). `…11-02` crea la
+  plantilla de cada tipo que falte (copia logo/título/color/pie de la 'generico') y solo corrige subtítulos vacíos o el de almacén en tipos que
+  no son de almacén; lo escrito a mano no se toca (probado en Postgres local, dos corridas). Tipos nuevos en Configuración → Plantillas:
+  `orden_produccion` (ya se imprimía pero no se podía configurar) y `reporte` (Reportes contables y operativos dejan de usar 'generico').
+  Pendiente: correr el SQL y reimprimir una póliza, una nómina y la Balanza para ver el subtítulo.
 - Archivos tocados (lo último): `js/impresion.js`, `js/contabilidad.js`, `version.json`. Bug reportado con el PDF de la Póliza Diario #26 impresa:
   salían **8 hojas, 7 en blanco**. Causa: el motor ocultaba el resto de la pantalla con `visibility:hidden`, que NO libera su altura — el
   menú y la pantalla de atrás seguían ocupando espacio y el navegador paginaba todo. Ahora, al imprimir, todo hijo de `<body>` que no sea

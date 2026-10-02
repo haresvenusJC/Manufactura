@@ -1,5 +1,5 @@
 import { supabaseClient } from './supabase.js';
-import { invalidarCachePlantillas, imprimirConPlantilla } from './impresion.js';
+import { invalidarCachePlantillas, imprimirConPlantilla, SUBTITULOS_POR_TIPO } from './impresion.js';
 
 const BUCKET_LOGOS = 'logos-plantillas';
 
@@ -138,6 +138,8 @@ export async function cargarModuloPlantillas() {
         { codigo: 'pago_proveedor', nombre: 'Pago a proveedor' },
         { codigo: 'cobro_cliente', nombre: 'Cobro de cliente' },
         { codigo: 'conteo_auditoria', nombre: 'Auditoría de inventario (hoja y resultado)' },
+        { codigo: 'orden_produccion', nombre: 'Estado de la orden de producción' },
+        { codigo: 'reporte', nombre: 'Reportes (balanza, auxiliares, tabla dinámica)' },
     ];
 
     function cargarTipos() {
@@ -216,7 +218,7 @@ export async function cargarModuloPlantillas() {
             nombre_plantilla: `Plantilla ${nombresPorTipo[tipo] || tipo}`,
             logo_url: '',
             titulo_encabezado: 'Hares de México',
-            subtitulo_encabezado: 'Comprobante de Movimiento de Almacén',
+            subtitulo_encabezado: SUBTITULOS_POR_TIPO[tipo] || 'Comprobante de Movimiento de Almacén',
             color_acento: '#4f46e5',
             mostrar_costos: true,
             mostrar_lote: true,

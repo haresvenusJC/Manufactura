@@ -2118,7 +2118,7 @@ export async function cargarModuloReportesContables() {
             : rcTab === 'auxiliar' ? 'Auxiliar de cuentas contables'
             : rcTab === 'auxinv' ? 'Auxiliar de inventarios (valorizado)'
             : rcTab === 'auxant' ? 'Auxiliar de Anticipos a proveedores' : 'Estado de resultados';
-        imprimirConPlantilla('generico', titulo, 'rcTabla');
+        imprimirConPlantilla('reporte', titulo, 'rcTabla');
     });
 
     // Auxiliar: el reporte se genera solo al elegir la cuenta (padre o de detalle) o "Todas las cuentas".

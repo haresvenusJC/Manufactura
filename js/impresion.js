@@ -17,6 +17,29 @@ const PLANTILLA_DEFAULT = {
     compacto: true
 };
 
+// Subtítulo de cada tipo de documento (antes todos decían "Comprobante de Movimiento de Almacén", incluso una póliza).
+// Se usa cuando el tipo no tiene plantilla propia o su subtítulo está vacío; sql/2026-11-02_plantillas_subtitulos.sql
+// los guarda en la tabla para poder editarlos en Configuración → Plantillas.
+export const SUBTITULOS_POR_TIPO = {
+    requisicion_compra: 'Requisición de compra',
+    orden_compra: 'Orden de compra',
+    entrada_compra: 'Entrada de almacén por compra',
+    entrada: 'Entrada directa de almacén',
+    entrada_produccion: 'Entrada de almacén por producción',
+    salida_venta: 'Salida de almacén por venta',
+    salida: 'Salida de almacén',
+    merma: 'Salida de almacén por merma',
+    ajuste: 'Ajuste de inventario',
+    nomina: 'Recibo de nómina',
+    orden_produccion: 'Estado de la orden de producción',
+    poliza: 'Póliza contable',
+    pedido_venta: 'Pedido de venta',
+    pago_proveedor: 'Comprobante de pago a proveedor',
+    cobro_cliente: 'Recibo de cobro de cliente',
+    conteo_auditoria: 'Auditoría de inventario',
+    reporte: 'Reporte',
+};
+
 export function invalidarCachePlantillas() {
     cachePlantillas = null;
 }
@@ -86,10 +109,13 @@ export async function imprimirConPlantilla(tipoDocumento, tituloDocumento, idCon
     const fecha = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
     // Encabezado de UNA franja: logo | empresa y tipo | documento y fecha (antes eran 4 líneas centradas).
+    // Subtítulo: el de la plantilla propia del tipo si lo tiene; si no (cae en la genérica o viene vacío), el del tipo.
+    const subtitulo = (p.tipo_documento === tipoDocumento && p.subtitulo_encabezado) ? p.subtitulo_encabezado
+        : (SUBTITULOS_POR_TIPO[tipoDocumento] || p.subtitulo_encabezado || '');
     const encabezadoHtml = `
         <div class="dpe">
             <div class="dpe-logo">${p.logo_url ? `<img src="${escHtml(p.logo_url)}" alt="">` : ''}</div>
-            <div class="dpe-centro"><h1>${escHtml(p.titulo_encabezado)}</h1><p>${escHtml(p.subtitulo_encabezado)}</p></div>
+            <div class="dpe-centro"><h1>${escHtml(p.titulo_encabezado)}</h1><p>${escHtml(subtitulo)}</p></div>
             <div class="dpe-der"><strong>${escHtml(tituloDocumento)}</strong><span>${fecha}</span></div>
         </div>`;
 
