@@ -46,6 +46,13 @@ let paginaActualLotes = 1;
 const porPaginaLotes = 50;
 let fechaInicioFiltro = '';
 let fechaFinFiltro = '';
+let invReservas = {};   // producto_id -> { reservado, disponible } (pedidos de venta pendientes; vista de sql/2026-11-03)
+let filtroProductoLotes = '';     // SKU o nombre del producto (texto)
+let filtroProductoIdLotes = null;   // si se eligió un producto de las sugerencias: se filtra por ese producto exacto
+let filtroNumeroLote = '';         // número de lote (texto)
+let filtroSoloConExistencia = false; // oculta lotes agotados (stock 0)
+// Texto seguro para meterlo en un filtro de PostgREST (las comas y paréntesis rompen la sintaxis de .or()).
+const limpiarFiltroTexto = (t) => String(t || '').replace(/[,()%*\\]/g, ' ').trim();
 
 // Cache del resumen (productos) para poder filtrar/paginar/colapsar en
 // cliente sin volver a golpear Supabase en cada tecleo del buscador.
@@ -80,6 +87,13 @@ export async function cargarInventarioCompleto() {
             if (errProd) throw errProd;
 
             invProductosCache = productos || [];
+
+            // Reservado / disponible por producto (sin la migración de reservas queda vacío y no se muestran las columnas).
+            invReservas = {};
+            try {
+                const { data: rsv, error: eRsv } = await supabaseClient.from('v_stock_disponible').select('producto_id, reservado, disponible');
+                if (!eRsv && Array.isArray(rsv)) { invReservas = { _ok: true }; rsv.forEach((r) => { invReservas[r.producto_id] = { reservado: Number(r.reservado), disponible: Number(r.disponible) }; }); }
+            } catch (_) { /* sin reservas */ }
 
             const inputBuscar = document.getElementById('invBuscador');
             if (inputBuscar) {
@@ -151,7 +165,8 @@ function renderInventarioResumen() {
                             <tr>
                                 ${thOrden(invResumenOrden, 'nombre', 'Elemento / SKU')}
                                 ${thOrden(invResumenOrden, 'unidad', 'Unidad')}
-                                ${thOrden(invResumenOrden, 'stock', 'Stock Disponible')}
+                                ${thOrden(invResumenOrden, 'stock', key === 'terminados' && invReservas._ok ? 'Existencia' : 'Stock Disponible')}
+                                ${key === 'terminados' && invReservas._ok ? '<th class="p-3" title="Apartado por pedidos de venta pendientes">Reservado</th><th class="p-3" title="Existencia menos lo reservado">Libre</th>' : ''}
                                 ${thOrden(invResumenOrden, 'costo', 'Costo Unitario')}
                             </tr>
                         </thead>
@@ -165,6 +180,8 @@ function renderInventarioResumen() {
                         <td class="p-3 font-medium text-slate-100">${item.nombre} <span class="text-xs text-slate-500 font-mono">(${item.sku || 'N/D'})</span></td>
                         <td class="p-3 text-slate-400 text-xs">${nombreUnidad}</td>
                         <td class="p-3 font-mono font-semibold">${item.stock_actual || 0}</td>
+                        ${key === 'terminados' && invReservas._ok ? `<td class="p-3 font-mono ${(invReservas[item.id]?.reservado || 0) > 0 ? 'text-sky-300' : 'text-slate-600'}">${invReservas[item.id]?.reservado || 0}</td>
+                        <td class="p-3 font-mono ${(invReservas[item.id]?.reservado || 0) > 0 ? 'text-amber-300 font-semibold' : 'text-slate-400'}">${invReservas[item.id] ? invReservas[item.id].disponible : (item.stock_actual || 0)}</td>` : ''}
                         <td class="p-3 font-mono text-slate-300">$${Number(item.costo_unitario || 0).toFixed(2)} <span class="text-[10px] text-slate-500">${codigoMoneda}</span></td>
                     </tr>
                 `;
@@ -212,18 +229,27 @@ function renderInventarioResumen() {
     });
 }
 
+const escLote = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
 async function renderizarTablaLotes(contenedorLotes) {
+    const textoProd = filtroProductoIdLotes ? '' : limpiarFiltroTexto(filtroProductoLotes);
+    const textoLote = limpiarFiltroTexto(filtroNumeroLote);
+    // !inner solo cuando se filtra por producto: así el filtro del producto también descarta los lotes (no solo vacía el embebido).
     let query = supabaseClient
         .from('lotes_inventario')
         .select(`
             id, numero_lote, stock_actual, costo_unitario, fecha_ingreso,
-            productos ( nombre, tipo )
+            productos${textoProd ? '!inner' : ''} ( nombre, sku, tipo )
         `, { count: 'exact' })
         .order('fecha_ingreso', { ascending: false })
         .order('id', { ascending: false });
 
     if (fechaInicioFiltro) query = query.gte('fecha_ingreso', fechaInicioFiltro);
     if (fechaFinFiltro) query = query.lte('fecha_ingreso', fechaFinFiltro);
+    if (textoProd) query = query.or(`nombre.ilike.%${textoProd}%,sku.ilike.%${textoProd}%`, { referencedTable: 'productos', foreignTable: 'productos' });
+    if (textoLote) query = query.ilike('numero_lote', `%${textoLote}%`);
+    if (filtroProductoIdLotes) query = query.eq('producto_id', filtroProductoIdLotes);
+    if (filtroSoloConExistencia) query = query.gt('stock_actual', 0);
 
     const desde = (paginaActualLotes - 1) * porPaginaLotes;
     const hasta = desde + porPaginaLotes - 1;
@@ -258,6 +284,16 @@ async function renderizarTablaLotes(contenedorLotes) {
                     <label class="block text-xs text-slate-400 mb-1">Hasta:</label>
                     <input type="date" id="filtroFechaFin" value="${fechaFinFiltro}" class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500">
                 </div>
+                <div class="relative">
+                    <label class="block text-xs text-slate-400 mb-1">Producto (SKU o nombre):</label>
+                    <input type="text" id="filtroLoteProducto" value="${escLote(filtroProductoLotes)}" placeholder="🔍 Escribe para buscar…" autocomplete="off" onkeydown="if(event.key==='Enter') window.aplicarFiltroFechasLotes()" class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-1.5 w-52 focus:outline-none focus:border-indigo-500">
+                    <div id="sugLoteProducto" class="hidden absolute left-0 right-0 top-full mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl max-h-60 overflow-y-auto z-30"></div>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">N.º de lote:</label>
+                    <input type="text" id="filtroLoteNumero" value="${escLote(filtroNumeroLote)}" placeholder="Ej. AL1541" onkeydown="if(event.key==='Enter') window.aplicarFiltroFechasLotes()" class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-1.5 w-36 focus:outline-none focus:border-indigo-500">
+                </div>
+                <label class="flex items-center gap-1.5 text-xs text-slate-300 pt-5 cursor-pointer"><input type="checkbox" id="filtroLoteConExistencia" class="accent-indigo-500" ${filtroSoloConExistencia ? 'checked' : ''}> Solo con existencia</label>
                 <div class="flex items-end h-full pt-5">
                     <button type="button" onclick="window.aplicarFiltroFechasLotes()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-4 py-1.5 rounded-lg transition font-medium shadow-sm">Filtrar</button>
                     <button type="button" onclick="window.limpiarFiltroFechasLotes()" class="ml-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-3 py-1.5 rounded-lg transition border border-slate-700">Limpiar</button>
@@ -268,7 +304,7 @@ async function renderizarTablaLotes(contenedorLotes) {
     `;
 
     if (!lotes || lotes.length === 0) {
-        htmlLotes += `<div class="bg-slate-950 border border-slate-800 p-6 rounded-xl text-center text-slate-500 text-sm">No se encontraron lotes de inventario con los filtros seleccionados.</div>`;
+        htmlLotes += `<div class="bg-slate-950 border border-slate-800 p-6 rounded-xl text-center text-slate-500 text-sm">No se encontraron lotes con esos filtros.</div>`;
     } else {
         htmlLotes += `
             <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-950">
@@ -298,7 +334,7 @@ async function renderizarTablaLotes(contenedorLotes) {
                         <button type="button" onclick="window.registrarDeterioroLote(${l.id}, '${String(l.numero_lote || 'S/N').replace(/'/g, "\\'")}', ${Number(l.costo_unitario || 0)})" title="Castigar el costo del lote por caducidad, daño u obsolescencia (NIF C-4: costo o valor neto de realización, el menor)" class="bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs px-2.5 py-1 rounded-lg border border-slate-700 transition font-medium ml-1">📉 Deterioro</button>
                     </td>
                     <td class="p-3 font-mono text-xs text-indigo-300">#${l.id} - ${l.numero_lote || 'S/N'}</td>
-                    <td class="p-3 font-medium text-slate-100">${nombreProd}</td>
+                    <td class="p-3 font-medium text-slate-100">${nombreProd}${l.productos?.sku ? `<span class="block text-[10px] font-mono text-slate-500">${escLote(l.productos.sku)}</span>` : ''}</td>
                     <td class="p-3 text-xs uppercase text-slate-400">${tipoProd}</td>
                     <td class="p-3 font-mono text-amber-300 font-semibold">${l.stock_actual}</td>
                     <td class="p-3 font-mono text-slate-300">$${Number(l.costo_unitario || 0).toFixed(2)}</td>
@@ -321,11 +357,70 @@ async function renderizarTablaLotes(contenedorLotes) {
 
     contenedorLotes.innerHTML = htmlLotes;
     wireOrdenTabla(contenedorLotes, invLotesOrden, () => renderizarTablaLotes(contenedorLotes));
+    wireBuscadorProductoLotes(contenedorLotes);
+}
+
+// Buscador con sugerencias del filtro "Producto": mientras se escribe va trayendo coincidencias (SKU o nombre) para
+// elegir una; al elegirla se filtra por ESE producto. Sin elegir, Enter / "Filtrar" busca por el texto como antes.
+function wireBuscadorProductoLotes(contenedor) {
+    const input = contenedor.querySelector('#filtroLoteProducto');
+    const caja = contenedor.querySelector('#sugLoteProducto');
+    if (!input || !caja) return;
+    let temporizador = null, secuencia = 0, items = [], activo = -1;
+
+    const cerrar = () => { caja.classList.add('hidden'); caja.innerHTML = ''; items = []; activo = -1; };
+    const marcar = () => caja.querySelectorAll('[data-i]').forEach((el) => el.classList.toggle('bg-slate-800', Number(el.dataset.i) === activo));
+    const elegir = (p) => {
+        filtroProductoLotes = p.nombre || '';
+        filtroProductoIdLotes = p.id;
+        paginaActualLotes = 1;
+        cerrar();
+        renderizarTablaLotes(contenedor);
+    };
+    const pintar = (lista, texto) => {
+        items = lista; activo = -1;
+        caja.innerHTML = lista.length
+            ? lista.map((p, i) => `
+                <button type="button" data-i="${i}" class="w-full text-left px-3 py-2 hover:bg-slate-800 border-b border-slate-800 last:border-0">
+                    <span class="block text-xs text-slate-100">${escLote(p.nombre)}</span>
+                    <span class="block text-[10px] font-mono text-slate-500">${escLote(p.sku || 's/sku')} · ${escLote(p.tipo || '')}</span>
+                </button>`).join('')
+            : `<p class="px-3 py-2 text-xs text-slate-500">Sin productos que coincidan con "${escLote(texto)}".</p>`;
+        caja.classList.remove('hidden');
+        caja.querySelectorAll('[data-i]').forEach((b) => b.addEventListener('mousedown', (e) => { e.preventDefault(); elegir(items[Number(b.dataset.i)]); }));
+    };
+
+    input.addEventListener('input', () => {
+        filtroProductoIdLotes = null;   // editó el texto: ya no es el producto elegido
+        clearTimeout(temporizador);
+        const texto = limpiarFiltroTexto(input.value);
+        if (texto.length < 2) { cerrar(); return; }
+        temporizador = setTimeout(async () => {
+            const mia = ++secuencia;
+            const { data } = await supabaseClient.from('productos').select('id, sku, nombre, tipo')
+                .or(`nombre.ilike.%${texto}%,sku.ilike.%${texto}%`).order('nombre').limit(10);
+            if (mia !== secuencia) return;   // llegó una búsqueda más nueva
+            pintar(data || [], texto);
+        }, 250);
+    });
+    input.addEventListener('keydown', (e) => {
+        if (caja.classList.contains('hidden') || !items.length) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); activo = Math.min(activo + 1, items.length - 1); marcar(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); activo = Math.max(activo - 1, 0); marcar(); }
+        else if (e.key === 'Enter' && activo >= 0) { e.preventDefault(); e.stopImmediatePropagation(); elegir(items[activo]); }
+        else if (e.key === 'Escape') cerrar();
+    }, true);
+    input.addEventListener('blur', () => setTimeout(cerrar, 150));
 }
 
 window.aplicarFiltroFechasLotes = function() {
     fechaInicioFiltro = document.getElementById('filtroFechaInicio')?.value || '';
     fechaFinFiltro = document.getElementById('filtroFechaFin')?.value || '';
+    const txtProd = document.getElementById('filtroLoteProducto')?.value || '';
+    if (txtProd !== filtroProductoLotes) filtroProductoIdLotes = null;   // escribió algo distinto a lo elegido: vuelve a buscar por texto
+    filtroProductoLotes = txtProd;
+    filtroNumeroLote = document.getElementById('filtroLoteNumero')?.value || '';
+    filtroSoloConExistencia = !!document.getElementById('filtroLoteConExistencia')?.checked;
     paginaActualLotes = 1;
     renderizarTablaLotes(document.getElementById('contenedorExistenciasLote'));
 };
@@ -333,6 +428,10 @@ window.aplicarFiltroFechasLotes = function() {
 window.limpiarFiltroFechasLotes = function() {
     fechaInicioFiltro = '';
     fechaFinFiltro = '';
+    filtroProductoLotes = '';
+    filtroProductoIdLotes = null;
+    filtroNumeroLote = '';
+    filtroSoloConExistencia = false;
     paginaActualLotes = 1;
     renderizarTablaLotes(document.getElementById('contenedorExistenciasLote'));
 };

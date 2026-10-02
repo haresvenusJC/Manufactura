@@ -1,5 +1,5 @@
 {
- "v": "20261002005817",
+ "v": "20261002202313",
  "modulos": [
   "activos-fijos.js",
   "app.js",
@@ -12,6 +12,7 @@
   "bancos-tesoreria.js",
   "bienvenida.js",
   "bitacora-cambios.js",
+  "buscador-productos.js",
   "buscador-select.js",
   "catalogo.js",
   "centros-costo.js",
@@ -55,6 +56,7 @@
   "prorrateo.js",
   "proveedores.js",
   "recibo-operador.js",
+  "regimenes-fiscales.js",
   "reparto-plantillas.js",
   "reportes.js",
   "requisiciones-compra.js",
@@ -62,6 +64,7 @@
   "state.js",
   "subventanas-movibles.js",
   "supabase.js",
+  "tablas.js",
   "tareas.js",
   "trazabilidad.js"
  ]

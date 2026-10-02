@@ -55,7 +55,7 @@ async function actualizarSelectProveedores() {
 
 // Alta de artículo: SOLO el formulario (crear, o editar si el nombre coincide con uno
 // existente), sin el listado de abajo — pantalla dedicada para no distraer con la tabla
-// mientras se está capturando (ver "Catálogo y Kardex" para el listado general).
+// mientras se está capturando (ver "Productos" para el listado general).
 export async function cargarModuloAltaArticulo() {
     const contenedor = document.getElementById('contenedorAltaArticulo');
     if (!contenedor) {
@@ -1185,7 +1185,7 @@ export async function cargarModuloAltaArticulo() {
 }
 
 // =====================================================================
-// Catálogo y Kardex: listado general de artículos (buscar, exportar,
+// Productos (antes "Catálogo y Kardex"): listado general de artículos (buscar, exportar,
 // ☰ acciones por fila) fusionado con el Kardex — al elegir "Kardex de
 // este producto" los movimientos se despliegan en esta misma pantalla,
 // sin navegar a otra vista.
@@ -1217,8 +1217,6 @@ export async function cargarModuloCatalogoKardex() {
                     <div class="flex flex-wrap gap-2 items-center">
                         <button type="button" id="btnExportProdXlsx" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇️ Excel</button>
                         <button type="button" id="btnExportProdCsv" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇️ CSV</button>
-                        <button type="button" id="btnTablaDensidades" title="Kilogramos que pesa 1 litro de cada insumo — para convertir fórmulas en volumen contra inventario en peso" class="text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⚖️ Densidades</button>
-                        <button type="button" id="btnTablaUnidades" title="Ver, editar y agregar unidades de medida (Piezas, Kilogramos, Litros...)" class="text-xs bg-slate-800 hover:bg-slate-700 text-indigo-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">📏 Unidades</button>
                     </div>
                 </div>
                 <input type="text" id="catBuscador" placeholder="🔍 Buscar por SKU o nombre..." value="${escaparHtml(catBusqueda)}"
@@ -1236,8 +1234,6 @@ export async function cargarModuloCatalogoKardex() {
 
         document.getElementById('btnExportProdCsv').addEventListener('click', () => exportarCatalogoProductos('csv'));
         document.getElementById('btnExportProdXlsx').addEventListener('click', () => exportarCatalogoProductos('xlsx'));
-        document.getElementById('btnTablaDensidades').addEventListener('click', abrirTablaDensidades);
-        document.getElementById('btnTablaUnidades').addEventListener('click', abrirTablaUnidades);
         document.getElementById('catBuscador').addEventListener('input', (e) => {
             catBusqueda = e.target.value;
             aplicarFiltroCatalogo();
@@ -1536,7 +1532,7 @@ const CAMPOS_OCULTOS_PRODUCTO = new Set(['es_semiterminado']);
 // las banderas. Los que no estén aquí (columnas nuevas a futuro) caen
 // después, en orden alfabético; los de solo lectura siempre van al final.
 const ORDEN_CAMPOS_PRODUCTO = [
-    'sku', 'nombre', 'tipo', 'descripcion', 'clave_sat', 'densidad_kg_l', 'rendimiento_lote_bom',
+    'sku', 'nombre', 'tipo', 'descripcion', 'clave_sat', 'densidad_kg_l', 'rendimiento_lote_bom', 'lote_minimo_fabricacion',
     'unidad_medida_id', 'proveedor_id', 'moneda_id',
     'costo_unitario', 'precio_venta', 'tasa_iva', 'tasa_ieps',
     'cuenta_inventario_id', 'cuenta_costo_id',
@@ -1711,7 +1707,7 @@ async function abrirVentanaBom(producto) {
         const conv = factorConversion(f.unidad, stockId, nombreUnidadPorId, nombreUnidadStock, cant, p.densidad_kg_l);
         const convertido = cant * conv.factor;
         const detalle = conv.tipo === 'aviso'
-            ? 'sin densidad capturada — se toma como agua (1 kg/L), agrégala en ⚖️ Densidades'
+            ? 'sin densidad capturada — se toma como agua (1 kg/L), agrégala en Configuración → Tablas → Densidades'
             : (conv.nota ? conv.nota.replace(/^Convertido con /, '').replace(/\.$/, '') : 'conversión exacta de unidad');
         const clase = conv.tipo === 'aviso' ? 'text-amber-400' : 'text-emerald-400';
         return `<span class="${clase}">Fórmula: ${fmtNum(cant)} ${escaparHtml(nombreUnidadReceta)} → se descontarán ${fmtNum(convertido)} ${escaparHtml(nombreUnidadStock)} (${detalle})</span>`;
@@ -1967,7 +1963,7 @@ const densOrden = crearOrdenTabla('nombre', 'asc');
 let densFiltro = '';
 let densFilas = [];
 
-async function abrirTablaDensidades() {
+export async function abrirTablaDensidades() {
     const idModal = window.idSubventana('modalDensidades');
     if (idModal === 'modalDensidades') document.getElementById('modalDensidades')?.remove();
     const modal = document.createElement('div');
@@ -2085,7 +2081,7 @@ const unidOrden = crearOrdenTabla('nombre', 'asc');
 let unidFiltro = '';
 let unidFilas = [];
 
-async function abrirTablaUnidades() {
+export async function abrirTablaUnidades() {
     const idModal = window.idSubventana('modalUnidades');
     if (idModal === 'modalUnidades') document.getElementById('modalUnidades')?.remove();
     const modal = document.createElement('div');
@@ -2238,10 +2234,11 @@ function tipoDeCampo(valor) {
 const ETIQUETAS_CAMPO_PRODUCTO = {
     sku: 'SKU / Código', clave_sat: 'Clave SAT (ClaveProdServ)', densidad_kg_l: 'Densidad (kg por litro)',
     rendimiento_lote_bom: 'Rendimiento del lote (para el BOM)', unidad_medida_id: 'Unidad de Medida',
-    descripcion: 'Descripción',
+    descripcion: 'Descripción', lote_minimo_fabricacion: 'Lote mínimo de fabricación',
 };
 // Pistas bajo cada campo de "Editar artículo" (las mismas ideas que el formulario del Catálogo).
 const PISTAS_CAMPO_PRODUCTO = {
+    lote_minimo_fabricacion: 'Lo mínimo que conviene fabricar por orden, en la unidad de este producto (solo referencia). Si un pedido pide menos, Producción te pregunta si fabricas este lote mínimo (lo que sobra queda en inventario) o solo lo necesario. Vacío = sin mínimo.',
     tipo: 'Un granel es "Semiterminado": se fabrica (lleva fórmula) y lo consumen otros productos; no se vende.',
     unidad_medida_id: 'En qué se cuenta en almacén y se descuenta. Granel: Litros o Kilogramos, nunca Pieza.',
     densidad_kg_l: 'Kilos que pesa 1 litro. Solo para insumos que la fórmula pide en volumen y se llevan en peso (o al revés). Ej.: Glicerina Vegetal Usp = 1.26. En un granel se calcula sola con su fórmula (densidad de la mezcla); el botón "Usar X kg/L como Densidad" la actualiza.',
@@ -2282,7 +2279,7 @@ function htmlGuiaGranel(d) {
         : 'Cambia "Tipo" a "Semiterminado (granel)" y da "Guardar cambios".');
 
     const fam = familiaDeUnidad(u);
-    if (fam) ok(`Unidad de Medida: <b>${escaparHtml(u)}</b> — el granel se cuenta en ${fam.familia === 'volumen' ? 'volumen' : 'peso'} y el terminado le descuenta ${fam.familia === 'volumen' ? 'mL' : 'g'}.`);
+    if (fam && fam.familia !== 'longitud') ok(`Unidad de Medida: <b>${escaparHtml(u)}</b> — el granel se cuenta en ${fam.familia === 'volumen' ? 'volumen' : 'peso'} y el terminado le descuenta ${fam.familia === 'volumen' ? 'mL' : 'g'}.`);
     else mal(`Unidad de Medida: "${escaparHtml(u || 'sin unidad')}".`, 'Cámbiala a <b>Litros</b> (o Kilogramos). En Pieza, el producto terminado no le puede descontar mL.');
 
     if (d.nComponentes > 0) ok(`Fórmula (BOM) con ${d.nComponentes} componente(s), escrita para <b>UNA tanda</b>.`);
@@ -2300,7 +2297,7 @@ function htmlGuiaGranel(d) {
     }
 
     if (d.res && d.nComponentes > 0) {
-        if (d.res.sinDensidad.length) mal(`Insumos sin densidad: ${d.res.sinDensidad.map(escaparHtml).join(', ')} (se tomaron como agua).`, 'Captúrala en Catálogo → ⚖️ Densidades. Solo importa si la fórmula los pide en otra unidad (ej. en L y se compran en kg).');
+        if (d.res.sinDensidad.length) mal(`Insumos sin densidad: ${d.res.sinDensidad.map(escaparHtml).join(', ')} (se tomaron como agua).`, 'Captúrala en Configuración → Tablas → Densidades. Solo importa si la fórmula los pide en otra unidad (ej. en L y se compran en kg).');
         else ok('Todos los insumos se convierten a la unidad del granel (densidades completas).');
         if (d.res.ignorados.length) mal(`La fórmula lleva piezas: ${d.res.ignorados.map(escaparHtml).join(', ')}.`, 'Un granel normalmente no lleva frascos ni etiquetas: esos van en el BOM del producto terminado.');
     }
@@ -2344,7 +2341,7 @@ function htmlAnalisisTanda(res, unidadNombre, rendActual, densActual) {
         <p>🧮 <b>Tamaño real de la tanda (suma de la fórmula):</b> <b class="text-sky-300 font-mono">${fmt(res.total)} ${u}</b>
            <span class="text-slate-500">· ≈ ${fmt(res.litros)} L / ${fmt(res.kilos)} kg${res.densidadMezcla ? ` · densidad estimada de la mezcla ${fmt(res.densidadMezcla, 3)} kg/L` : ''}</span></p>
         <p>${comparacion}</p>
-        ${res.sinDensidad.length ? `<p class="text-amber-400/90">⚠ Sin densidad (se tomó como agua, 1 kg/L): ${res.sinDensidad.map(escaparHtml).join(', ')} — captúrala en ⚖️ Densidades para afinar el cálculo.</p>` : ''}
+        ${res.sinDensidad.length ? `<p class="text-amber-400/90">⚠ Sin densidad (se tomó como agua, 1 kg/L): ${res.sinDensidad.map(escaparHtml).join(', ')} — captúrala en Configuración → Tablas → Densidades para afinar el cálculo.</p>` : ''}
         ${res.ignorados.length ? `<p class="text-slate-500">No cuentan para el tamaño (no son volumen ni peso): ${res.ignorados.map(escaparHtml).join(', ')}.</p>` : ''}
         <p class="text-slate-500">Es teórico: al mezclar, el volumen real puede salir un poco menor. Mide la primera tanda en el tanque y, si difiere, captura lo medido. <a href="manual-costos-produccion.html#m-granel-rendimiento" target="_blank" class="text-sky-400 underline">¿Por qué importa el rendimiento?</a></p>
         ${densActual === undefined ? '' : htmlDensidadMezcla(res, densActual)}
@@ -2388,7 +2385,7 @@ function confirmarCambioDensidad(res, valorNuevo, nombreProducto) {
         + `POR QUÉ NO CONVIENE CAMBIARLA${nuevo ? ` a ${n(nuevo, 4)}` : ' (dejarla vacía)'}:\n`
         + `  • Producción la usa para convertir litros ↔ kilos cuando un terminado pide este granel en otra unidad: un número distinto descuenta de más o de menos del inventario y el costo del terminado sale mal.\n`
         + `  • La calculada se actualiza sola si cambias la fórmula; una escrita a mano se queda fija y deja de coincidir con lo que realmente se mezcla.\n`
-        + `  • Si el número no te cuadra, lo que hay que corregir es la densidad del insumo (⚖️ Densidades)${res.densidadFaltante?.length ? ` — sin densidad: ${res.densidadFaltante.join(', ')}` : ''}, no la del granel.\n`
+        + `  • Si el número no te cuadra, lo que hay que corregir es la densidad del insumo (Configuración → Tablas → Densidades)${res.densidadFaltante?.length ? ` — sin densidad: ${res.densidadFaltante.join(', ')}` : ''}, no la del granel.\n`
         + `  • Solo conviene cambiarla si mediste la mezcla real (pesaste 1 litro del tanque).\n\n`
         + `¿Cambiarla de todos modos?`;
     return confirm(msg);
@@ -2402,7 +2399,7 @@ function htmlDensidadMezcla(res, densActual) {
     const d = res.densidadCalculada;
     if (!d) {
         return res.densidadFaltante?.length
-            ? '<p class="text-slate-500">⚖️ Densidad de la mezcla: no se puede calcular — ningún insumo de la fórmula tiene su densidad capturada (⚖️ Densidades).</p>'
+            ? '<p class="text-slate-500">⚖️ Densidad de la mezcla: no se puede calcular — ningún insumo de la fórmula tiene su densidad capturada (Configuración → Tablas → Densidades).</p>'
             : '';
     }
     const actual = Number(densActual) || 0;
@@ -2637,6 +2634,8 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
             art.tipo === 'producto' ? ['densidad_kg_l', 'rendimiento_lote_bom', 'requiere_caducidad'] : []
         );
         if (art.tipo !== 'semiterminado') camposOcultosPorTipo.add('rendimiento_lote_bom');
+        // Lote mínimo de fabricación: solo de lo que se fabrica (producto terminado o semiterminado).
+        if (art.tipo !== 'semiterminado' && art.tipo !== 'producto') camposOcultosPorTipo.add('lote_minimo_fabricacion');
         const claves = Object.keys(art)
             .filter((c) => c !== 'activo' && !CAMPOS_OCULTOS_PRODUCTO.has(c) && !camposOcultosPorTipo.has(c))
             .sort((a, b) => {

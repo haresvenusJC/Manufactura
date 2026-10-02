@@ -13,8 +13,47 @@ const PLANTILLA_DEFAULT = {
     mostrar_costos: true,
     mostrar_lote: true,
     notas_legales: '',
-    texto_pie: ''
+    texto_pie: '',
+    compacto: true
 };
+
+// Subtítulo de cada tipo de documento (antes todos decían "Comprobante de Movimiento de Almacén", incluso una póliza).
+// Se usa cuando el tipo no tiene plantilla propia o su subtítulo está vacío; sql/2026-11-02_plantillas_subtitulos.sql
+// los guarda en la tabla para poder editarlos en Configuración → Plantillas.
+export const SUBTITULOS_POR_TIPO = {
+    requisicion_compra: 'Requisición de compra',
+    orden_compra: 'Orden de compra',
+    entrada_compra: 'Entrada de almacén por compra',
+    entrada: 'Entrada directa de almacén',
+    entrada_produccion: 'Entrada de almacén por producción',
+    salida_venta: 'Salida de almacén por venta',
+    salida: 'Salida de almacén',
+    merma: 'Salida de almacén por merma',
+    ajuste: 'Ajuste de inventario',
+    nomina: 'Recibo de nómina',
+    orden_produccion: 'Estado de la orden de producción',
+    poliza: 'Póliza contable',
+    pedido_venta: 'Pedido de venta',
+    pago_proveedor: 'Comprobante de pago a proveedor',
+    cobro_cliente: 'Recibo de cobro de cliente',
+    conteo_auditoria: 'Auditoría de inventario',
+    salida_produccion: 'Salida de almacén por producción (consumo de materia prima)',
+    devolucion_cliente: 'Devolución de cliente',
+    devolucion_proveedor: 'Devolución a proveedor',
+    cancelacion_recibo: 'Cancelación de recibo de compra',
+    reporte: 'Reporte',
+};
+
+/**
+ * Marca de agua según el estatus del documento: cancelado → "CANCELADO", rechazado → "RECHAZADO"; otro → nada.
+ * Se usa así: imprimirConPlantilla(tipo, titulo, id, marcaDeEstatus(doc.estatus)).
+ */
+export function marcaDeEstatus(estatus) {
+    const e = String(estatus || '').toLowerCase();
+    if (e.startsWith('cancel')) return { marcaAgua: 'CANCELADO' };
+    if (e.startsWith('rechaz')) return { marcaAgua: 'RECHAZADO' };
+    return {};
+}
 
 export function invalidarCachePlantillas() {
     cachePlantillas = null;
@@ -55,36 +94,49 @@ function obtenerHostImpresion() {
     return host;
 }
 
+const escHtml = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
 /**
  * Imprime el contenido de un contenedor existente en el DOM aplicando
  * la plantilla configurada para ese tipo de documento.
  *
+ * Estilo único para TODOS los documentos de la app (carta, márgenes de 10 mm, encabezado de una sola
+ * franja, tablas compactas con encabezado repetido, sin fondos ni sombras para ahorrar hojas y tinta).
+ * La vista compacta se puede apagar por plantilla (Configuración → Plantillas, "Vista compacta").
+ *
  * @param {string} tipoDocumento - código del tipo (debe existir en tipos_movimiento, o 'generico')
  * @param {string} tituloDocumento - texto identificador, ej. "Folio FAC000069" o "Orden de Producción #14"
- * @param {string} idContenedor - id del elemento del DOM cuyo contenido se imprimirá
+ * @param {string|Element} idContenedor - id del elemento del DOM (o el elemento) cuyo contenido se imprimirá
+ * @param {{orientacion?: 'vertical'|'horizontal', marcaAgua?: string}} [opciones] - orientación: si no se indica, horizontal automático con más de 8 columnas;
+ *        marcaAgua: texto en diagonal que se repite en cada hoja (ver marcaDeEstatus)
  */
-export async function imprimirConPlantilla(tipoDocumento, tituloDocumento, idContenedor) {
-    const original = document.getElementById(idContenedor);
+export async function imprimirConPlantilla(tipoDocumento, tituloDocumento, idContenedor, opciones = {}) {
+    // Acepta el id del contenedor o el elemento mismo (subventanas con varias instancias abiertas: sin ids repetidos).
+    const original = typeof idContenedor === 'string' ? document.getElementById(idContenedor) : idContenedor;
     if (!original) {
         console.error(`No se encontró el contenedor #${idContenedor} para imprimir.`);
         return;
     }
 
     const p = await obtenerPlantilla(tipoDocumento);
+    // Reportes anchos (más de 8 columnas: balanza, auxiliares, tabla dinámica) salen en horizontal para no partir columnas.
+    const maxColumnas = Math.max(0, ...Array.from(original.querySelectorAll('tr')).map((r) => r.cells.length));
+    const orientacion = opciones.orientacion || (maxColumnas > 8 ? 'horizontal' : 'vertical');
+    const fecha = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
+    // Encabezado de UNA franja: logo | empresa y tipo | documento y fecha (antes eran 4 líneas centradas).
+    // Subtítulo: el de la plantilla propia del tipo si lo tiene; si no (cae en la genérica o viene vacío), el del tipo.
+    const subtitulo = (p.tipo_documento === tipoDocumento && p.subtitulo_encabezado) ? p.subtitulo_encabezado
+        : (SUBTITULOS_POR_TIPO[tipoDocumento] || p.subtitulo_encabezado || '');
     const encabezadoHtml = `
-        <div style="text-align:center; border-bottom:2px solid ${p.color_acento}; padding-bottom:10px; margin-bottom:16px;">
-            ${p.logo_url ? `<img src="${p.logo_url}" style="max-height:60px; margin-bottom:6px;">` : ''}
-            <h1 style="margin:0; font-size:18px; color:${p.color_acento};">${p.titulo_encabezado}</h1>
-            <p style="margin:2px 0; font-size:11px; color:#555;">${p.subtitulo_encabezado}</p>
-            <p style="margin:4px 0 0; font-size:12px; font-weight:bold; color:#000;">${tituloDocumento}</p>
-        </div>
-    `;
+        <div class="dpe">
+            <div class="dpe-logo">${p.logo_url ? `<img src="${escHtml(p.logo_url)}" alt="">` : ''}</div>
+            <div class="dpe-centro"><h1>${escHtml(p.titulo_encabezado)}</h1><p>${escHtml(subtitulo)}</p></div>
+            <div class="dpe-der"><strong>${escHtml(tituloDocumento)}</strong><span>${fecha}</span></div>
+        </div>`;
 
     const textoPie = [p.notas_legales, p.texto_pie].filter(Boolean).join(' — ');
-    const pieHtml = textoPie
-        ? `<div style="margin-top:20px; padding-top:8px; border-top:1px solid #ccc; font-size:10px; color:#666; text-align:center;">${textoPie}</div>`
-        : '';
+    const pieHtml = textoPie ? `<div class="dpe-pie">${escHtml(textoPie)}</div>` : '';
 
     // Se clona el contenido original (sin tocarlo) y se descarta cualquier
     // encabezado/pie que haya quedado de una versión anterior del motor.
@@ -92,12 +144,20 @@ export async function imprimirConPlantilla(tipoDocumento, tituloDocumento, idCon
     clon.querySelectorAll('.plantilla-encabezado-print, .plantilla-pie-print').forEach(el => el.remove());
 
     const host = obtenerHostImpresion();
-    host.innerHTML = encabezadoHtml + clon.innerHTML + pieHtml;
+    const marcaHtml = opciones.marcaAgua ? `<div class="dpe-marca" aria-hidden="true">${escHtml(opciones.marcaAgua)}</div>` : '';
+    host.innerHTML = marcaHtml + encabezadoHtml + clon.innerHTML + pieHtml;
     host.dataset.mostrarCostos = p.mostrar_costos ? '1' : '0';
     host.dataset.mostrarLote = p.mostrar_lote ? '1' : '0';
+    host.style.setProperty('--acento-print', p.color_acento || '#4f46e5');
+    host.classList.toggle('print-compacto', p.compacto !== false);
 
     document.querySelectorAll('.area-imprimible-activa').forEach(el => el.classList.remove('area-imprimible-activa'));
     host.classList.add('area-imprimible-activa');
+
+    // Tamaño/orientación de la hoja: se inyecta solo mientras se imprime (carta; horizontal para reportes anchos).
+    let estiloPagina = document.getElementById('print-page-style');
+    if (!estiloPagina) { estiloPagina = document.createElement('style'); estiloPagina.id = 'print-page-style'; document.head.appendChild(estiloPagina); }
+    estiloPagina.textContent = `@page { size: letter ${orientacion === 'horizontal' ? 'landscape' : 'portrait'}; margin: 10mm; }`;
 
     host.style.display = 'block';
 
@@ -114,6 +174,7 @@ export async function imprimirConPlantilla(tipoDocumento, tituloDocumento, idCon
         if (oculto) return;
         oculto = true;
         host.style.display = 'none';
+        estiloPagina.textContent = '';
         window.removeEventListener('afterprint', ocultar);
     };
     window.addEventListener('afterprint', ocultar);
@@ -122,26 +183,93 @@ export async function imprimirConPlantilla(tipoDocumento, tituloDocumento, idCon
     window.print();
 }
 
+/**
+ * Imprime un HTML armado al vuelo (comprobantes, hojas de captura) con el mismo estilo que todo lo demás:
+ * se monta fuera de pantalla, se imprime y se quita. Úsalo cuando el documento no vive en ninguna pantalla.
+ */
+export async function imprimirHtml(tipoDocumento, tituloDocumento, html, opciones = {}) {
+    const caja = document.createElement('div');
+    caja.style.display = 'none';
+    caja.innerHTML = html;
+    document.body.appendChild(caja);
+    try { await imprimirConPlantilla(tipoDocumento, tituloDocumento, caja, opciones); }
+    finally { setTimeout(() => caja.remove(), 6000); }
+}
+
 // Estilos globales de impresión (una sola vez para toda la app)
 if (!document.getElementById('print-styles-global')) {
     const styleSheet = document.createElement('style');
     styleSheet.id = 'print-styles-global';
     styleSheet.innerHTML = `
+        @page { margin: 10mm; @bottom-right { content: "Pág. " counter(page) " de " counter(pages); font: 8px sans-serif; color: #666; } }
         @media print {
-            body * { visibility: hidden; }
-            .area-imprimible-activa, .area-imprimible-activa * { visibility: visible; }
+            /* Solo se imprime el documento: todo lo demás de la página se quita (no basta ocultarlo, seguiría
+               ocupando altura y salían hojas en blanco al final). El host cuelga directo de <body>. */
+            html, body { height: auto !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; background: #fff !important; }
+            body::before, body::after { display: none !important; }   /* min-h-screen del <body> + márgenes de la hoja = una 2.ª hoja en blanco */
+            body > *:not(#motorImpresionGlobal) { display: none !important; }
             .area-imprimible-activa {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-                background: white !important;
-                color: #111 !important;
-                padding: 20px;
+                position: static !important; width: 100%;
+                background: white !important; color: #111 !important; padding: 0 !important;
+                font-family: system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
             }
-            .no-print { display: none !important; }
+            .no-print, .area-imprimible-activa button:not(.print-keep) { display: none !important; }
             .area-imprimible-activa[data-mostrar-costos="0"] .campo-costo { display: none !important; }
             .area-imprimible-activa[data-mostrar-lote="0"] .campo-lote { display: none !important; }
+
+            /* Blanco y negro, sin fondos ni sombras (ahorra tinta); lo que estaba recortado por scroll se imprime completo. */
+            .area-imprimible-activa * {
+                background: transparent !important; box-shadow: none !important; text-shadow: none !important;
+                color: #111 !important; border-color: #b5b5b5 !important; backdrop-filter: none !important;
+            }
+            .area-imprimible-activa [class*="overflow-"] { overflow: visible !important; }
+            .area-imprimible-activa [class*="max-h-"] { max-height: none !important; }
+            .area-imprimible-activa [class*="max-w-"] { max-width: none !important; }
+            .area-imprimible-activa input, .area-imprimible-activa select, .area-imprimible-activa textarea { border: none !important; padding: 0 !important; appearance: none; }
+
+            /* Encabezado de una franja */
+            .area-imprimible-activa .dpe { display: flex; align-items: center; gap: 10px; border-bottom: 1.5px solid var(--acento-print, #4f46e5) !important; padding-bottom: 4px; margin-bottom: 6px; }
+            .area-imprimible-activa .dpe-logo { flex: 0 0 auto; min-width: 0; }
+            .area-imprimible-activa .dpe-logo img { max-height: 28px; display: block; }
+            .area-imprimible-activa .dpe-centro { flex: 1 1 auto; }
+            .area-imprimible-activa .dpe .dpe-centro h1 { margin: 0; font-size: 13px !important; font-weight: 700; color: var(--acento-print, #4f46e5) !important; }
+            .area-imprimible-activa .dpe .dpe-centro p { margin: 0; font-size: 9px !important; color: #555 !important; }
+            .area-imprimible-activa .dpe-der { flex: 0 0 auto; text-align: right; display: flex; flex-direction: column; }
+            .area-imprimible-activa .dpe .dpe-der strong { font-size: 11px !important; }
+            .area-imprimible-activa .dpe .dpe-der span { font-size: 9px !important; color: #555 !important; }
+            .area-imprimible-activa .dpe-pie { margin-top: 8px; padding-top: 4px; border-top: 1px solid #b5b5b5 !important; font-size: 8px !important; color: #666 !important; text-align: center; }
+
+            /* Marca de agua (documento cancelado/rechazado): fija en cada hoja, diagonal, tenue para no tapar el texto ni gastar tinta */
+            .area-imprimible-activa .dpe-marca.dpe-marca {
+                position: fixed; top: 38%; left: 0; right: 0; text-align: center; transform: rotate(-30deg);
+                font-size: 96px !important; line-height: 1 !important; font-weight: 800; letter-spacing: .08em;
+                color: rgba(185, 28, 28, .22) !important; border: none !important; padding: 0 !important; margin: 0 !important;
+                z-index: 5; pointer-events: none; user-select: none;
+            }
+
+            /* Tablas: encabezado repetido en cada hoja y filas que no se parten */
+            .area-imprimible-activa table { width: 100%; border-collapse: collapse; }
+            .area-imprimible-activa thead { display: table-header-group; }
+            .area-imprimible-activa thead th { font-weight: 700; border-bottom: 1px solid #555 !important; }
+            :where(.area-imprimible-activa) :where(thead th) { text-align: left; }   /* sin especificidad: text-right/center de la tabla manda (Cargo/Abono alineados con sus números) */
+            .area-imprimible-activa tr { break-inside: avoid; page-break-inside: avoid; }
+            .area-imprimible-activa h1, .area-imprimible-activa h2, .area-imprimible-activa h3 { break-after: avoid; }
+
+            /* Vista compacta (por defecto): letra chica, espacios mínimos → menos hojas */
+            .area-imprimible-activa.print-compacto, .area-imprimible-activa.print-compacto * { font-size: 10px !important; line-height: 1.3 !important; }
+            .area-imprimible-activa.print-compacto h2, .area-imprimible-activa.print-compacto h3 { font-size: 11px !important; font-weight: 700; margin: 4px 0 2px !important; }
+            .area-imprimible-activa.print-compacto .dpe .dpe-centro h1 { font-size: 13px !important; }
+            .area-imprimible-activa.print-compacto .dpe .dpe-centro p, .area-imprimible-activa.print-compacto .dpe .dpe-der span { font-size: 9px !important; }
+            .area-imprimible-activa.print-compacto .dpe .dpe-der strong { font-size: 11px !important; }
+            .area-imprimible-activa.print-compacto .dpe-pie { font-size: 8px !important; }
+            .area-imprimible-activa.print-compacto th, .area-imprimible-activa.print-compacto td { padding: 2px 4px !important; border-bottom: 0.5px solid #cfcfcf !important; }
+            .area-imprimible-activa.print-compacto [class*="rounded"] { border-radius: 0 !important; }
+            .area-imprimible-activa.print-compacto [class*="border"]:not(table):not(tr):not(td):not(th):not(.dpe):not(.dpe-pie) { padding: 3px 5px !important; }
+            .area-imprimible-activa.print-compacto [class*="mt-"] { margin-top: 3px !important; }
+            .area-imprimible-activa.print-compacto [class*="mb-"] { margin-bottom: 3px !important; }
+            .area-imprimible-activa.print-compacto [class*="space-y-"] > * + * { margin-top: 3px !important; }
+            .area-imprimible-activa.print-compacto [class*="gap-"] { gap: 3px 8px !important; }
+            .area-imprimible-activa.print-compacto hr { margin: 3px 0 !important; }
         }
     `;
     document.head.appendChild(styleSheet);

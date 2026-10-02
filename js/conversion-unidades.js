@@ -5,17 +5,42 @@
 //  avisar, al capturar la fórmula, cuánto se va a descontar de verdad).
 // =====================================================================
 
-// Familias que se pueden convertir con exactitud: masa (mg, g, kg) y volumen (mL, L).
+// Familias que se pueden convertir con exactitud. `aBase` = cuántas unidades base vale 1 de esa unidad:
+//   masa → gramos · volumen → mililitros · longitud → milímetros.
+// Estándar: onza = masa avoirdupois (28.349523125 g); galón = galón US (3,785.411784 mL); tonelada = métrica.
+// ("Onzas fluidas" es aparte: volumen.) Lo que NO está aquí (Piezas, Cajas, Paquetes...) son conteos: no hay
+// factor universal, solo se comparan 1 a 1 (o con el factor que capture el proveedor).
+// OJO: SQL espejo en public._unidad_familia_base() (sql/2026-10-31_conversiones_unidades_ampliadas.sql) — si se cambia una, cambiar la otra.
 const FAMILIAS_UNIDAD = [
+    // masa
     [/^(miligramos?|mgs?)$/, 'masa', 0.001],
-    [/^(kilogramos?|kilos?|kgs?)$/, 'masa', 1000],
     [/^(gramos?|grs?|g)$/, 'masa', 1],
-    [/^(mililitros?|mls?|cc)$/, 'volumen', 1],
-    [/^(litros?|lts?|l)$/, 'volumen', 1000],
+    [/^(kilogramos?|kilos?|kgs?)$/, 'masa', 1000],
+    [/^(toneladas?|tons?)$/, 'masa', 1000000],
+    [/^(libras?|lbs?)$/, 'masa', 453.59237],
+    [/^(onzas?|oz)$/, 'masa', 28.349523125],
+    // volumen
+    [/^(mililitros?|mls?|cc|cm3|centimetros? cubicos?)$/, 'volumen', 1],
+    [/^(centilitros?|cls?)$/, 'volumen', 10],
+    [/^(decilitros?|dls?)$/, 'volumen', 100],
+    [/^(litros?|lts?|l|dm3|decimetros? cubicos?)$/, 'volumen', 1000],
+    [/^(metros? cubicos?|m3)$/, 'volumen', 1000000],
+    [/^(onzas? fluidas?|fl ?oz)$/, 'volumen', 29.5735295625],
+    [/^(galon|galones|gal|gals)$/, 'volumen', 3785.411784],
+    // longitud
+    [/^(milimetros?|mms?)$/, 'longitud', 1],
+    [/^(centimetros?|cms?)$/, 'longitud', 10],
+    [/^(metros?|mts?|mtrs?|m)$/, 'longitud', 1000],
+    [/^(kilometros?|kms?)$/, 'longitud', 1000000],
+    [/^(pulgadas?|pulg|in)$/, 'longitud', 25.4],
+    [/^(pies?|ft)$/, 'longitud', 304.8],
+    [/^(yardas?|yds?)$/, 'longitud', 914.4],
 ];
 
+export const BASE_FAMILIA = { masa: 'gramo', volumen: 'mililitro', longitud: 'milímetro' };
+
 export function familiaDeUnidad(nombre) {
-    const n = String(nombre || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+    const n = String(nombre || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
     for (const [re, familia, aBase] of FAMILIAS_UNIDAD) if (re.test(n)) return { familia, aBase };
     return null;
 }
@@ -45,9 +70,10 @@ export function factorConversion(unidadOrigenRaw, unidadDestinoId, nombreUnidadP
     const fd = familiaDeUnidad(nombreUnidadDestino);
     if (fo && fd && fo.familia === fd.familia) return { factor: fo.aBase / fd.aBase, nota: '', tipo: 'ok' };
 
-    if (fo && fd && fo.familia !== fd.familia) {
+    const masaVolumen = (a, b) => (a === 'masa' && b === 'volumen') || (a === 'volumen' && b === 'masa');
+    if (fo && fd && fo.familia !== fd.familia && masaVolumen(fo.familia, fd.familia)) {
         const densidad = Number(densidadKgL) || 0;
-        if (densidad > 0 && ((fo.familia === 'volumen' && fd.familia === 'masa') || (fo.familia === 'masa' && fd.familia === 'volumen'))) {
+        if (densidad > 0) {
             // kg/L y g/mL son el mismo número: se convierte a la unidad base de cada familia y se aplica la densidad.
             const factor = fo.familia === 'volumen'
                 ? (fo.aBase * densidad) / fd.aBase        // origen en volumen, destino en masa
@@ -76,7 +102,8 @@ export function factorConversion(unidadOrigenRaw, unidadDestinoId, nombreUnidadP
  * Es teórico: al mezclar líquidos el volumen real puede ser un poco menor que la suma.
  */
 export function tamanoTeoricoTanda(renglones, unidadProductoNombre) {
-    const fp = familiaDeUnidad(unidadProductoNombre);
+    const fp0 = familiaDeUnidad(unidadProductoNombre);
+    const fp = fp0 && fp0.familia !== 'longitud' ? fp0 : null;   // la longitud no es masa ni volumen: no entra en la suma
     let mL = 0, g = 0;
     const sinDensidad = [], ignorados = [], densidadFaltante = [];
     let conDensidad = 0;
@@ -85,7 +112,7 @@ export function tamanoTeoricoTanda(renglones, unidadProductoNombre) {
         const q = Number(r.cantidad) || 0;
         if (q <= 0) continue;
         const f = familiaDeUnidad(r.unidadNombre);
-        if (!f) { ignorados.push(r.nombre); continue; }
+        if (!f || f.familia === 'longitud') { ignorados.push(r.nombre); continue; }
         const d = Number(r.densidad) || 0;
         const dens = d > 0 ? d : 1;
         if (!(d > 0) && fp && f.familia !== fp.familia) sinDensidad.push(r.nombre);

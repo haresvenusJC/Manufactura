@@ -233,12 +233,11 @@
                         </button>
                         <ul id="submenu-catalogos" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
                             <li><button onclick="window.loadView('alta-articulo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Alta de artículo</button></li>
-                            <li><button onclick="window.loadView('catalogo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Catálogo y Kardex</button></li>
+                            <li><button onclick="window.loadView('catalogo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Productos</button></li>
                             <li><button onclick="window.loadView('proveedores')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Proveedores</button></li>
-                            <li><button onclick="window.loadView('clientes')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Clientes y listas de precio</button></li>
+                            <li><button onclick="window.loadView('clientes', {tab:'clientes'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Clientes</button></li>
+                            <li><button onclick="window.loadView('clientes', {tab:'listas'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Listas de precio</button></li>
                             <li><button onclick="window.loadView('empleados')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Empleados</button></li>
-                            <li><button onclick="window.loadView('importador')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Importar Excel/CSV</button></li>
-                            <li><button onclick="window.loadView('importador-claves-proveedor')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Importar claves de proveedor (XML)</button></li>
                         </ul>
                     </li>
 
@@ -265,6 +264,8 @@
                         </button>
                         <ul id="submenu-inventario" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
                             <li><button onclick="window.loadView('inventario')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Stock General</button></li>
+                            <li><button onclick="window.loadView('lotes')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Lotes</button></li>
+                            <li><button onclick="window.loadView('kardex')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Kardex</button></li>
                             <li><button onclick="window.loadView('auditoria')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Auditoría de inventarios</button></li>
                             <li><button onclick="window.loadView('tareas', {departamento:'almacen'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Tareas de almacén</button></li>
                         </ul>
@@ -346,6 +347,19 @@
                         </ul>
                     </li>
 
+                    <!-- Utilerías (importadores) -->
+                    <li>
+                        <button onclick="window.toggleSubmenu('submenu-utilerias')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
+                            <span>Utilerías</span>
+                            <span id="flecha-utilerias" class="text-xs">▼</span>
+                        </button>
+                        <ul id="submenu-utilerias" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
+                            <li><button onclick="window.loadView('importador')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Importar Excel/CSV</button></li>
+                            <li><button onclick="window.loadView('importador-claves-proveedor')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Importar claves de proveedor (XML)</button></li>
+                            <li><button onclick="window.loadView('accesos-operadores')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Accesos para operadores</button></li>
+                        </ul>
+                    </li>
+
                     <!-- Configuración -->
                     <li>
                         <button onclick="window.toggleSubmenu('submenu-configuracion')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
@@ -355,6 +369,22 @@
                         <ul id="submenu-configuracion" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
                             <li><button onclick="window.loadView('configuracion')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">General</button></li>
                             <li><button onclick="window.loadView('plantillas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Plantillas de Impresión</button></li>
+                            <li>
+                                <button onclick="window.toggleSubmenu('submenu-tablas')" class="w-full flex justify-between items-center px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">
+                                    <span>Tablas</span>
+                                    <span id="flecha-tablas" class="text-[10px]">▼</span>
+                                </button>
+                                <ul id="submenu-tablas" class="hidden pl-3 space-y-1 mt-1 border-l border-slate-800 ml-2">
+                                    <li><button onclick="window.loadView('tablas', {tabla:'unidades_medida'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Unidades de medida</button></li>
+                                    <li><button onclick="window.loadView('tablas', {tabla:'monedas'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Monedas</button></li>
+                                    <li><button onclick="window.loadView('tablas', {tabla:'conversiones'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Conversiones</button></li>
+                                    <li><button onclick="window.loadView('tablas', {tabla:'densidades'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Densidades</button></li>
+                                    <li><button onclick="window.loadView('tablas', {tabla:'c_uso_cfdi'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">SAT · Uso del CFDI</button></li>
+                                    <li><button onclick="window.loadView('tablas', {tabla:'c_forma_pago'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">SAT · Forma de pago</button></li>
+                                    <li><button onclick="window.loadView('tablas', {tabla:'c_metodo_pago'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">SAT · Método de pago</button></li>
+                                    <li><button onclick="window.loadView('tablas', {tabla:'regimenes'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">SAT · Regímenes fiscales</button></li>
+                                </ul>
+                            </li>
                             <li><button onclick="window.loadView('fresh-start')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Fresh start (mantenimiento)</button></li>
                         </ul>
                     </li>
@@ -395,10 +425,10 @@
                 </div>
             </section>
 
-            <!-- Vista: Catálogo y Kardex (listado general de artículos fusionado con sus movimientos) -->
+            <!-- Vista: Productos (listado general de artículos fusionado con sus movimientos) -->
             <section id="view-catalogo" class="vista-seccion hidden space-y-4">
                 <div class="flex items-center justify-between gap-2 flex-wrap">
-                    <h2 class="text-xl font-bold text-sky-400">Catálogo y Kardex</h2>
+                    <h2 class="text-xl font-bold text-sky-400">Productos</h2>
                     <button type="button" onclick="window.abrirManual('#m-catalogo', 'Productos')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
                 </div>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
@@ -420,7 +450,7 @@
             <!-- Vista: Clientes y listas de precio -->
             <section id="view-clientes" class="vista-seccion hidden space-y-4">
                 <div class="flex items-center justify-between gap-2 flex-wrap">
-                    <h2 class="text-xl font-bold text-sky-400">Clientes y listas de precio</h2>
+                    <h2 id="tituloClientes" class="text-xl font-bold text-sky-400">Clientes</h2>
                     <button type="button" onclick="window.abrirManual('#m-clientes', 'Clientes y listas de precio')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
                 </div>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
@@ -441,11 +471,29 @@
                                class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 mb-3">
                         <div id="contenedorInventario">Cargando inventario...</div>
                     </div>
-                    <hr class="border-slate-800">
-                    <div>
-                        <h3 class="text-sm font-semibold text-slate-300 mb-2">Existencias y Lotes Detallados</h3>
-                        <div id="contenedorExistenciasLote">Cargando lotes...</div>
-                    </div>
+                </div>
+            </section>
+
+            <!-- Vista: Kardex (visor por fechas y productos; el Kardex de un solo producto sigue embebido en Productos) -->
+            <section id="view-kardex" class="vista-seccion hidden space-y-4">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-sky-400">Kardex</h2>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <p class="text-xs text-slate-400 mb-3">Movimientos de inventario por periodo y producto: saldo inicial, entradas, salidas y saldo final. Elige uno o varios productos.</p>
+                    <div id="contenedorKardexVisor">Cargando...</div>
+                </div>
+            </section>
+
+            <!-- Vista: Lotes (antes "Existencias y Lotes Detallados" dentro de Stock General). Lo llena cargarInventarioCompleto() por id. -->
+            <section id="view-lotes" class="vista-seccion hidden space-y-4">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-sky-400">Lotes</h2>
+                    <button type="button" onclick="window.abrirManual('#m-inventario', 'Stock General y Lotes')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <p class="text-xs text-slate-400 mb-3">Existencias por lote: número de lote, fecha de ingreso, costo y cuánto queda de cada uno. Filtra por fechas de ingreso.</p>
+                    <div id="contenedorExistenciasLote">Cargando lotes...</div>
                 </div>
             </section>
 
@@ -752,6 +800,28 @@
                 </div>
             </section>
 
+            <!-- Vista: Configuración · Tablas (unidades de medida, monedas) -->
+            <section id="view-tablas" class="vista-seccion hidden space-y-4">
+                <h2 id="tituloTablas" class="text-xl font-bold text-sky-400">Tablas</h2>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div id="contenedorTablas">Cargando...</div>
+                </div>
+            </section>
+
+            <!-- Vista: Accesos para operadores (antes "Herramientas para operadores" dentro de Configuración). Las tarjetas las llena el script de enlaces/QR del pie. -->
+            <section id="view-accesos-operadores" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-sky-400">Accesos para operadores</h2>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
+                    <p class="text-xs text-slate-400">Páginas móviles independientes. Comparte el enlace, o escanéalo desde una tablet / celular y agrégalo a la pantalla de inicio para usarlo como una app.</p>
+                    <div id="enlacesOperador" class="grid gap-3 sm:grid-cols-2"></div>
+                    <div class="text-[11px] text-slate-500 border-t border-slate-800 pt-3 space-y-1">
+                        <p class="font-semibold text-slate-400">Instalar en el dispositivo</p>
+                        <p><b>Android (Chrome):</b> abre el enlace &rarr; menú &#8942; &rarr; &ldquo;Agregar a pantalla principal&rdquo;.</p>
+                        <p><b>iPhone / iPad (Safari):</b> abre el enlace &rarr; botón Compartir &rarr; &ldquo;Agregar a inicio&rdquo;.</p>
+                    </div>
+                </div>
+            </section>
+
             <!-- Vista: Configuración -->
             <section id="view-configuracion" class="vista-seccion hidden space-y-4">
                 <h2 class="text-xl font-bold text-sky-400">Configuración</h2>
@@ -815,6 +885,11 @@
                                 <span class="w-3 h-3 rounded-full" style="background:#5eead4"></span><span class="w-3 h-3 rounded-full" style="background:#60a5fa"></span><span class="w-3 h-3 rounded-full" style="background:#fb923c"></span>
                             </span><span class="text-sm text-slate-200">Océano</span>
                         </button>
+                        <button type="button" data-tema="macos" class="tema-card flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800 transition text-left" style="cursor:pointer">
+                            <span class="flex gap-1 shrink-0 p-1.5 rounded-lg" style="background:#f5f5f7;box-shadow:inset 0 0 0 1px #d2d2d7">
+                                <span class="w-3 h-3 rounded-full" style="background:#007aff"></span><span class="w-3 h-3 rounded-full" style="background:#34c759"></span><span class="w-3 h-3 rounded-full" style="background:#ff9500"></span>
+                            </span><span class="text-sm text-slate-200">Mac (claro y sencillo)</span>
+                        </button>
                     </div>
                 </div>
 
@@ -831,17 +906,6 @@
                         <button type="button" data-zoom="xl" class="zoom-card flex flex-col items-center gap-1.5 p-3 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800 transition" style="cursor:pointer">
                             <span class="font-bold text-slate-200" style="font-size:25px">Aa</span><span class="text-xs text-slate-400">Muy grande</span>
                         </button>
-                    </div>
-                </div>
-
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
-                    <h3 class="text-md font-semibold text-slate-200">Herramientas para operadores</h3>
-                    <p class="text-xs text-slate-400">Páginas móviles independientes. Comparte el enlace, o escanéalo desde una tablet / celular y agrégalo a la pantalla de inicio para usarlo como una app.</p>
-                    <div id="enlacesOperador" class="grid gap-3 sm:grid-cols-2"></div>
-                    <div class="text-[11px] text-slate-500 border-t border-slate-800 pt-3 space-y-1">
-                        <p class="font-semibold text-slate-400">Instalar en el dispositivo</p>
-                        <p><b>Android (Chrome):</b> abre el enlace &rarr; menú &#8942; &rarr; &ldquo;Agregar a pantalla principal&rdquo;.</p>
-                        <p><b>iPhone / iPad (Safari):</b> abre el enlace &rarr; botón Compartir &rarr; &ldquo;Agregar a inicio&rdquo;.</p>
                     </div>
                 </div>
             </section>
@@ -914,7 +978,7 @@
         })();
     </script>
 
-    <!-- QR para los enlaces de operador (Configuración > Herramientas) -->
+    <!-- QR para los enlaces de operador (Utilerías > Accesos para operadores) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script>
         (function () {
@@ -926,7 +990,8 @@
             var baseLocal = esLocal ? (location.origin + location.pathname.replace(/[^/]*$/, '')) : null;
             var paginas = [
                 { titulo: 'Orden de Trabajo', desc: 'Operarios de producción: registran tiempos por proceso.', archivo: 'orden-trabajo.html' },
-                { titulo: 'Pre-recibo de mercancía', desc: 'Almacén: foto del documento y confirmación al recibir.', archivo: 'recibo-operador.html' }
+                { titulo: 'Pre-recibo de mercancía', desc: 'Almacén: foto del documento y confirmación al recibir.', archivo: 'recibo-operador.html' },
+                { titulo: 'Conteo de inventario', desc: 'Almacén: conteo físico a ciegas de una auditoría abierta (nombre + PIN o patrón).', archivo: 'conteo-inventario.html' }
             ];
             cont.innerHTML = paginas.map(function (p, i) {
                 var url = base + p.archivo;

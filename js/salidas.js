@@ -4,6 +4,7 @@ import { cargarInventarioCompleto, registrarMovimientoAlmacen } from './inventar
 import { linkDoc, linkPoliza, etiquetaPoliza } from './enlaces-reporte.js';
 
 let partidasSalidaTemp = [];
+let reservadoPorProductoSal = {};   // producto_id -> { reservado, disponible } (pedidos pendientes)
 let listaProductosGlobal = [];
 let productoSeleccionadoActual = null;
 let loteSeleccionadoActual = null;
@@ -179,6 +180,12 @@ export async function cargarModuloSalidas() {
             if (!errProd && productos) {
                 listaProductosGlobal = productos;
             }
+            // Mercancía apartada por pedidos pendientes (vista de sql/2026-11-03; sin ella, queda vacío).
+            reservadoPorProductoSal = {};
+            try {
+                const { data: rsv, error: eRsv } = await supabaseClient.from('v_stock_disponible').select('producto_id, reservado, disponible').gt('reservado', 0);
+                if (!eRsv && Array.isArray(rsv)) rsv.forEach((r) => { reservadoPorProductoSal[r.producto_id] = { reservado: Number(r.reservado), disponible: Number(r.disponible) }; });
+            } catch (_) { /* sin reservas */ }
 
             const inputBuscador = document.getElementById('buscadorAjaxProducto');
             const contenedorSugerencias = document.getElementById('sugerenciasAjax');
@@ -213,7 +220,7 @@ export async function cargarModuloSalidas() {
                     htmlSugg += `
                         <div class="p-2.5 text-xs text-slate-200 hover:bg-slate-900 cursor-pointer border-b border-slate-900 flex justify-between items-center item-sugerencia-prod" data-id="${p.id}" data-nombre="${p.nombre.replace(/"/g, '&quot;')}">
                             <span class="font-medium">${p.nombre}</span>
-                            <span class="text-emerald-400 font-mono">Stock: ${p.stock_actual || 0}</span>
+                            <span class="text-emerald-400 font-mono">Stock: ${p.stock_actual || 0}${reservadoPorProductoSal[p.id] ? ` <span class="text-amber-300" title="Apartado por pedidos de venta pendientes">· apartado ${reservadoPorProductoSal[p.id].reservado} · libre ${reservadoPorProductoSal[p.id].disponible}</span>` : ''}</span>
                         </div>
                     `;
                 });
@@ -265,6 +272,17 @@ export async function cargarModuloSalidas() {
                 if ((cantidadReq + yaAcumuladoEnLista) > loteSeleccionadoActual.stock) {
                     alert(`⚠️ La cantidad total (${cantidadReq + yaAcumuladoEnLista}) excede el stock disponible en este lote (${loteSeleccionadoActual.stock}).`);
                     return;
+                }
+
+                // Aviso temprano (la validación firme está en registrarSalidaMultiPartida): no apartado por pedidos.
+                const tipoAct = document.getElementById('tipoSalida')?.value;
+                const rsvAct = reservadoPorProductoSal[productoSeleccionadoActual.id];
+                if (rsvAct && (tipoAct === 'salida_venta' || tipoAct === 'salida')) {
+                    const yaEnLista = partidasSalidaTemp.filter(p => p.productoId === productoSeleccionadoActual.id).reduce((acc, p) => acc + p.cantidad, 0);
+                    if (cantidadReq + yaEnLista > rsvAct.disponible + 1e-9) {
+                        alert(`⚠️ Solo hay ${rsvAct.disponible} libres de este producto: ${rsvAct.reservado} están apartadas por pedidos de venta pendientes.`);
+                        return;
+                    }
                 }
 
                 const prodInfo = listaProductosGlobal.find(p => p.id === productoSeleccionadoActual.id) || {};
@@ -530,6 +548,42 @@ export async function registrarSalidaMultiPartida(datosDoc) {
     try {
         if (!supabaseClient) throw new Error("Cliente de Supabase no inicializado.");
         const { tipoMovimiento, folio, descripcion, partidas, pedidoVentaId } = datosDoc;
+
+        // Reservas (sql/2026-11-03_reservas_pedidos.sql): una venta o salida directa no puede llevarse mercancía apartada
+        // por pedidos pendientes. El surtido de un pedido (pedidoVentaId) sí. Merma y ajuste negativo NO se bloquean: es
+        // una pérdida real; las reservas se recortan solas (el pedido más nuevo primero) y ese pedido queda marcado "Falta stock".
+        // Sin la migración, la vista no existe y esta revisión se omite.
+        if (!pedidoVentaId && (tipoMovimiento === 'salida_venta' || tipoMovimiento === 'salida')) {
+            const aSacar = {};
+            for (const pt of partidas) aSacar[pt.productoId] = (aSacar[pt.productoId] || 0) + Number(pt.cantidad || 0);
+            const { data: disp, error: errDisp } = await supabaseClient.from('v_stock_disponible')
+                .select('producto_id, reservado, disponible').in('producto_id', Object.keys(aSacar).map(Number));
+            if (!errDisp && Array.isArray(disp)) {
+                for (const d of disp) {
+                    if (Number(d.reservado) > 0 && aSacar[d.producto_id] > Number(d.disponible) + 1e-9) {
+                        const nombre = partidas.find((pt) => pt.productoId === d.producto_id)?.productoNombre || ('producto ' + d.producto_id);
+                        return { success: false, error: `"${nombre}": sacas ${aSacar[d.producto_id]} pero solo hay ${Number(d.disponible)} libres — ${Number(d.reservado)} están apartadas por pedidos de venta pendientes. Surte esos pedidos o cancélalos para liberar la mercancía.` };
+                    }
+                }
+            }
+        }
+
+        // Guardia en la base (sql/2026-11-05_reservas_guardia_bd.sql): el surtido de un pedido y las bajas que no son venta
+        // (merma, ajuste...) piden una autorizacion corta por producto; una venta/salida directa NO se autoriza, la base
+        // rechaza que se lleve lo apartado. Sin la migracion la RPC no existe y se omite.
+        if (pedidoVentaId || !(tipoMovimiento === 'salida_venta' || tipoMovimiento === 'salida')) {
+            const porProducto = {};
+            for (const pt of partidas) porProducto[pt.productoId] = (porProducto[pt.productoId] || 0) + Number(pt.cantidad || 0);
+            for (const [pid, cant] of Object.entries(porProducto)) {
+                if (!(cant > 0)) continue;
+                try {
+                    await supabaseClient.rpc('reserva_autorizar_salida', {
+                        p_producto_id: Number(pid), p_cantidad: cant,
+                        p_motivo: pedidoVentaId ? ('surtido pedido ' + pedidoVentaId) : tipoMovimiento
+                    });
+                } catch (_) { /* sin migracion: sigue como antes */ }
+            }
+        }
 
         const filaDoc = {
             tipo_movimiento: tipoMovimiento,

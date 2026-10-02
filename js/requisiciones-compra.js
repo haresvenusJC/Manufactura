@@ -2,7 +2,7 @@ import { supabaseClient } from './supabase.js';
 import { siguienteFolio } from './folios.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
-import { imprimirConPlantilla } from './impresion.js';
+import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 import { obtenerInfoProveedorProducto } from './info-proveedor-producto.js';
 import './trazabilidad.js';
 
@@ -40,6 +40,8 @@ let reqFiltro = 'pendiente';
 // Orden de producción de la que salió la requisición ({ id, folio }), vía window.__reqPreOrden
 // ("Faltantes para producir"). Se guarda en requisiciones_compra.orden_produccion_id.
 let reqOrdenProd = null;
+// Pedido de venta cuyo faltante cubre la requisición ({ id, folio }), vía window.__reqPrePedido. Se guarda en requisiciones_compra.pedido_venta_id.
+let reqPedido = null;
 const reqListaOrden = crearOrdenTabla('id', 'desc');
 
 const REQ_FILTROS = [
@@ -165,6 +167,8 @@ async function reqAplicarPreseleccion() {
     // Liga a la orden de producción: se conserva mientras queden grupos de otros proveedores por cargar.
     reqOrdenProd = conPre && window.__reqPreOrden && window.__reqPreOrden.id ? window.__reqPreOrden : null;
     if (!conPre || !Array.isArray(window.__reqPreGruposRestantes) || !window.__reqPreGruposRestantes.length) window.__reqPreOrden = null;
+    reqPedido = conPre && window.__reqPrePedido && window.__reqPrePedido.id ? window.__reqPrePedido : null;
+    if (!conPre || !Array.isArray(window.__reqPreGruposRestantes) || !window.__reqPreGruposRestantes.length) window.__reqPrePedido = null;
 
     // Nota con la que llega la preselección (p. ej. desde Producción: "Faltantes para producir…").
     // Se conserva mientras queden grupos de otros proveedores por cargar.
@@ -197,6 +201,7 @@ function reqAvisarGruposRestantes() {
     if (!msg) return;
     const partes = [];
     if (reqOrdenProd) partes.push(`Ligada a la orden de producción ${reqOrdenProd.folio || '#' + reqOrdenProd.id}.`);
+    if (reqPedido) partes.push(`Ligada al pedido de venta ${reqPedido.folio || '#' + reqPedido.id}.`);
     if (Array.isArray(restantes) && restantes.length) {
         partes.push(`Guarda esta requisición y se va a abrir la del siguiente proveedor automáticamente (quedan ${restantes.length}).`);
     }
@@ -432,10 +437,16 @@ async function reqGuardarRequisicion() {
             notas: notas || null,
         };
         if (reqOrdenProd) filaReq.orden_produccion_id = reqOrdenProd.id;
+        if (reqPedido) filaReq.pedido_venta_id = reqPedido.id;
         let { data: req, error: e1 } = await supabaseClient.from('requisiciones_compra').insert([filaReq]).select('id, folio').single();
         if (e1 && reqOrdenProd && TABLA_FALTA.test(e1.message || '')) {
             // aún sin sql/2026-09-22_requisicion_orden_produccion.sql: se guarda sin la liga.
             delete filaReq.orden_produccion_id;
+            ({ data: req, error: e1 } = await supabaseClient.from('requisiciones_compra').insert([filaReq]).select('id, folio').single());
+        }
+        if (e1 && reqPedido && /pedido_venta_id/i.test(e1.message || '')) {
+            // aún sin sql/2026-11-04_pedido_venta_cobertura.sql: se guarda sin la liga al pedido.
+            delete filaReq.pedido_venta_id;
             ({ data: req, error: e1 } = await supabaseClient.from('requisiciones_compra').insert([filaReq]).select('id, folio').single());
         }
         if (e1) throw e1;
@@ -483,6 +494,7 @@ async function reqGuardarRequisicion() {
         const siguiente = await reqCargarSiguienteGrupoPendiente();
         if (!siguiente) {
             reqOrdenProd = null;
+            reqPedido = null;
             const texto = `Requisición ${req.folio} guardada, pendiente de autorización.`;
             if (!reqOfrecerSiguientePaso(msg, texto)) {
                 msg.textContent = texto;
@@ -654,7 +666,7 @@ async function abrirDetalleReq(id) {
         if (error) throw error;
 
         modal.querySelector('#tituloDetalleReqSub').textContent = r.folio || ('#' + r.id);
-        modal.querySelector('#btnImprimirReq').onclick = () => imprimirConPlantilla('requisicion_compra', 'Requisición ' + (r.folio || '#' + r.id), idCuerpo);
+        modal.querySelector('#btnImprimirReq').onclick = () => imprimirConPlantilla('requisicion_compra', 'Requisición ' + (r.folio || '#' + r.id), idCuerpo, marcaDeEstatus(r.estatus));
 
         const cuerpo = modal.querySelector('#' + idCuerpo);
         const det = r.requisiciones_compra_detalle || [];

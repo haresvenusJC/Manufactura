@@ -9,12 +9,11 @@ export const SECCIONES = [
     {
         grupo: 'Catálogos', ancla: 'cat', items: [
             { v: 'alta-articulo', t: 'Alta de artículo', d: 'Solo el formulario para dar de alta (o editar por nombre) un producto, materia prima o insumo: SKU, unidad, costo, bandera de control de caducidad.', cfg: true },
-            { v: 'catalogo', t: 'Catálogo y Kardex', d: 'Listado general de artículos (buscar, exportar, editar) fusionado con el Kardex: movimientos de entrada y salida por producto, con el criterio FIFO/FEFO usado.', cfg: true },
+            { v: 'catalogo', t: 'Productos', d: 'Listado general de artículos (buscar, exportar, editar) con su Kardex: movimientos de entrada y salida por producto, con el criterio FIFO/FEFO usado.', cfg: true },
             { v: 'proveedores', t: 'Proveedores', d: 'Datos fiscales: RFC, régimen, uso CFDI, forma y método de pago, cuenta de gasto por defecto.', cfg: true },
-            { v: 'clientes', t: 'Clientes y listas de precio', d: 'Clientes y sus listas de precio.', cfg: true },
+            { v: 'clientes', t: 'Clientes', d: 'Datos fiscales del cliente (RFC, régimen, uso CFDI), condición y días de crédito, cuenta de cobro y la lista de precios que le toca.', cfg: true, extra: "{tab:'clientes'}" },
+            { v: 'clientes', t: 'Listas de precio', d: 'Listas de precio y el precio de cada producto en cada una; se asignan desde la ficha del cliente.', cfg: true, extra: "{tab:'listas'}" },
             { v: 'empleados', t: 'Empleados', d: 'Plantilla, costo por hora y PIN para la Orden de Trabajo en el celular.', cfg: true },
-            { v: 'importador', t: 'Importar Excel/CSV', d: 'Carga masiva de productos desde una plantilla.' },
-            { v: 'importador-claves-proveedor', t: 'Importar claves de proveedor (XML)', d: 'Lee facturas XML de tus proveedores y las empareja con tu catálogo, para capturar de golpe su SKU, descripción y unidad por producto — sin mover inventario ni contabilidad.' },
         ],
     },
     {
@@ -29,6 +28,8 @@ export const SECCIONES = [
     {
         grupo: 'Inventario', ancla: 'inv', items: [
             { v: 'inventario', t: 'Stock General', d: 'Existencias por producto y por lote, con mínimos.' },
+            { v: 'lotes', t: 'Lotes', d: 'Existencias por lote: número de lote, fecha de ingreso, costo y cuánto queda de cada uno, con filtro por fechas.' },
+            { v: 'kardex', t: 'Kardex', d: 'Movimientos de inventario por periodo y por uno o varios productos: saldo inicial, entradas, salidas y saldo final. Se puede imprimir o bajar en CSV.' },
             { v: 'auditoria', t: 'Auditoría de inventarios', d: 'Toma física de inventario: crea auditorías, revisa el conteo de los operadores y compáralo contra el stock del sistema.' },
             { v: 'tareas', t: 'Tareas de almacén', d: 'Pendientes automáticos de almacén: inventario bajo mínimo, lotes por caducar.', extra: "{departamento:'almacen'}" },
         ],
@@ -82,9 +83,24 @@ export const SECCIONES = [
         ],
     },
     {
+        grupo: 'Utilerías', ancla: 'util', items: [
+            { v: 'importador', t: 'Importar Excel/CSV', d: 'Carga masiva de productos desde una plantilla.' },
+            { v: 'importador-claves-proveedor', t: 'Importar claves de proveedor (XML)', d: 'Lee facturas XML de tus proveedores y las empareja con tu catálogo, para capturar de golpe su SKU, descripción y unidad por producto — sin mover inventario ni contabilidad.' },
+            { v: 'accesos-operadores', t: 'Accesos para operadores', d: 'Enlaces y códigos QR de las pantallas móviles de los operadores (Orden de Trabajo, Pre-recibo de mercancía y Conteo de inventario), para compartirlos o instalarlos en el celular.' },
+        ],
+    },
+    {
         grupo: 'Configuración', ancla: 'cfg', config: true, items: [
-            { v: 'configuracion', t: 'General', d: 'Tema de colores, tamaño de texto y enlaces a las pantallas móviles para operadores.', cfg: true },
+            { v: 'configuracion', t: 'General', d: 'Tema de colores y tamaño de texto.', cfg: true },
             { v: 'plantillas', t: 'Plantillas de impresión', d: 'Diseño de los documentos que se imprimen.', cfg: true },
+            { v: 'tablas', t: 'Tablas · Unidades de medida', d: 'Ver los datos de la tabla de unidades de medida (con acceso a su editor).', extra: "{tabla:'unidades_medida'}" },
+            { v: 'tablas', t: 'Tablas · Monedas', d: 'Ver los datos de la tabla de monedas.', extra: "{tabla:'monedas'}" },
+            { v: 'tablas', t: 'Tablas · Conversiones', d: 'Equivalencias entre unidades (masa y volumen) que usa el sistema para las fórmulas, con acceso a las densidades.', extra: "{tabla:'conversiones'}" },
+            { v: 'tablas', t: 'Tablas · Densidades', d: 'Kilogramos por litro de cada insumo, para convertir fórmulas en volumen contra inventario en peso (se edita ahí mismo).', extra: "{tabla:'densidades'}" },
+            { v: 'tablas', t: 'Tablas · SAT · Uso del CFDI', d: 'Catálogo de usos del CFDI con la cuenta contable sugerida (solo lectura).', extra: "{tabla:'c_uso_cfdi'}" },
+            { v: 'tablas', t: 'Tablas · SAT · Forma de pago', d: 'Catálogo de formas de pago del SAT (solo lectura).', extra: "{tabla:'c_forma_pago'}" },
+            { v: 'tablas', t: 'Tablas · SAT · Método de pago', d: 'Catálogo de métodos de pago del SAT, PUE / PPD (solo lectura).', extra: "{tabla:'c_metodo_pago'}" },
+            { v: 'tablas', t: 'Tablas · SAT · Regímenes fiscales', d: 'Catálogo de regímenes fiscales del SAT que usan Proveedores y Clientes (solo lectura).', extra: "{tabla:'regimenes'}" },
         ],
     },
 ];

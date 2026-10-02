@@ -20,6 +20,9 @@ import { cargarVistaDocumentos } from './documentos.js';
 import { cargarModuloPlantillas } from './plantillas.js';
 import { cargarModuloEmpleados } from './empleados.js';
 import { cargarModuloImportador } from './importador.js';
+import { cargarModuloTablas } from './tablas.js';
+import { cargarModuloKardex } from './kardex.js';
+import { cargarRegimenes } from './regimenes-fiscales.js';
 import { cargarModuloImportadorClavesProveedor } from './importador-claves-proveedor.js';
 import { cargarModuloImportadorBom } from './importador-bom.js';
 import { cargarModuloClientes } from './clientes.js';
@@ -238,7 +241,11 @@ window.loadView = function(viewName, opciones = {}) {
             cargarModuloProveedores();
             break;
         case 'inventario':
+        case 'lotes':   // Stock General y Lotes son dos pantallas; el mismo módulo llena las dos (por id de contenedor)
             cargarInventarioCompleto();
+            break;
+        case 'kardex':
+            cargarModuloKardex();
             break;
         case 'documentos':
             cargarVistaDocumentos();
@@ -257,7 +264,7 @@ window.loadView = function(viewName, opciones = {}) {
             cargarModuloImportadorClavesProveedor();
             break;
         case 'clientes':
-            cargarModuloClientes();
+            cargarModuloClientes(opciones.tab);
             break;
         case 'plan-cuentas':
             cargarModuloContabilidad();
@@ -310,6 +317,9 @@ window.loadView = function(viewName, opciones = {}) {
         case 'fresh-start':
             cargarModuloFreshStart();
             break;
+        case 'tablas':
+            cargarModuloTablas(opciones.tabla);
+            break;
         default:
             break;
     }
@@ -344,6 +354,7 @@ async function iniciarApp() {
 
     try {
         await verificarConexionReal();
+        cargarRegimenes();   // catálogo SAT de regímenes (los formularios de alta rápida lo usan sin esperar)
         await cargarModuloAltaArticulo();
         await cargarModuloCatalogoKardex();
 

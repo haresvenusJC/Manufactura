@@ -29,14 +29,8 @@
 --  pago, y su poliza_id queda apuntando a la nueva póliza Diario (correcta).
 --
 --  Candado: si un documento ya tiene su póliza de reclasificación
---  (origen = 'ajuste', origen_tabla = 'documentos', mismo origen_id, y el
---  concepto de "reclasificada a credito"), se omite — se puede correr
+--  (origen = 'ajuste_condicion_compra'), se omite — se puede correr
 --  varias veces sin duplicar.
---
---  OJO: la primera corrida truena con "violates check constraint
---  polizas_origen_check" si usa un origen inventado — 'ajuste' ya es un
---  valor válido del catálogo (el mismo que usa cancelar_poliza para sus
---  reversos), por eso se usa ese y no uno nuevo.
 --
 --  Documentos incluidos (id, folio): 38 F-2407 · 39 OC-000033 ·
 --  37 OC-000031 · 10 OC-000015 · 15 OC-000017 · 12 OC-787934 ·
@@ -72,8 +66,7 @@ begin
 
         select exists(
             select 1 from public.polizas
-             where origen = 'ajuste' and origen_tabla = 'documentos' and origen_id = v_id
-               and concepto ilike '%reclasificada a credito%'
+             where origen = 'ajuste_condicion_compra' and origen_tabla = 'documentos' and origen_id = v_id
         ) into v_ya_existe;
         if v_ya_existe then
             raise notice 'Documento % (%): ya tiene su reclasificacion, se omite.', v_id, v_doc.folio;
@@ -128,7 +121,7 @@ begin
             'tipo', 'Diario',
             'concepto', 'Compra ' || coalesce(v_doc.folio, '') || ' (reclasificada a credito - no se pago de contado)',
             'folio', v_doc.folio,
-            'origen', 'ajuste',
+            'origen', 'ajuste_condicion_compra',
             'origen_tabla', 'documentos',
             'origen_id', v_id,
             'movimientos', v_movs
