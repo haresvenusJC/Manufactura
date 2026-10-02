@@ -20,6 +20,7 @@ import { cargarVistaDocumentos } from './documentos.js';
 import { cargarModuloPlantillas } from './plantillas.js';
 import { cargarModuloEmpleados } from './empleados.js';
 import { cargarModuloImportador } from './importador.js';
+import { cargarModuloTablas } from './tablas.js';
 import { cargarModuloImportadorClavesProveedor } from './importador-claves-proveedor.js';
 import { cargarModuloImportadorBom } from './importador-bom.js';
 import { cargarModuloClientes } from './clientes.js';
@@ -309,6 +310,9 @@ window.loadView = function(viewName, opciones = {}) {
             break;
         case 'fresh-start':
             cargarModuloFreshStart();
+            break;
+        case 'tablas':
+            cargarModuloTablas(opciones.tabla);
             break;
         default:
             break;

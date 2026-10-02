@@ -4,6 +4,11 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/tablas.js` (nuevo), `js/app.js`, `js/catalogo.js` (solo `export` de `abrirTablaUnidades`), `js/indice.js`,
+  `index.html`, `version.json`. Configuración → nuevo submenú **Tablas** (Unidades de medida / Monedas): visor de solo lectura,
+  columnas dinámicas + buscador (`window.loadView('tablas', {tabla:'unidades_medida'|'monedas'})`). Unidades trae botón "✏️ Editar / agregar
+  unidades" (el mismo editor de Catálogo y Kardex → "📏 Unidades", que se dejó donde estaba). Monedas no tenía pantalla propia, así que no
+  hubo nada que mover: solo se puede ver. Pendiente: probar en el navegador (¿`monedas` permite lectura por RLS?).
 - Archivos tocados (lo último): `index.html`, `js/indice.js`, `version.json`. Nuevo grupo de menú **Utilerías** (antes de
   Configuración, también en el Índice): ahí viven "Importar Excel/CSV" (productos/BOM) e "Importar claves de proveedor
   (XML)", que salieron de Catálogos. Sin cambios de lógica ni SQL, mismas vistas (`importador`, `importador-claves-proveedor`).
@@ -656,6 +661,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `subventanas-movibles.js` — hace arrastrables TODAS las subventanas (detección automática, sin llamar nada desde
   cada módulo); se importa en `app.js` y en las 3 apps de operador.
 - `supabase.js` — cliente y credenciales de Supabase.
+- `tablas.js` — Configuración → Tablas: visor de solo lectura de `unidades_medida` y `monedas` (columnas dinámicas, buscador).
 - `tareas.js` — bandeja de pendientes (inventario bajo mínimo, caducidad próxima, nómina en borrador...) con historial.
 - `trazabilidad.js` — antecedentes de proceso: Requisición → Orden de compra → Documento(s) de recepción.
 

@@ -2085,7 +2085,7 @@ const unidOrden = crearOrdenTabla('nombre', 'asc');
 let unidFiltro = '';
 let unidFilas = [];
 
-async function abrirTablaUnidades() {
+export async function abrirTablaUnidades() {
     const idModal = window.idSubventana('modalUnidades');
     if (idModal === 'modalUnidades') document.getElementById('modalUnidades')?.remove();
     const modal = document.createElement('div');

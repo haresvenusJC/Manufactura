@@ -1,5 +1,5 @@
 {
- "v": "20261002035100",
+ "v": "20261002041855",
  "modulos": [
   "activos-fijos.js",
   "app.js",
@@ -62,6 +62,7 @@
   "state.js",
   "subventanas-movibles.js",
   "supabase.js",
+  "tablas.js",
   "tareas.js",
   "trazabilidad.js"
  ]

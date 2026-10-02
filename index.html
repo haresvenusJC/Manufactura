@@ -365,6 +365,16 @@
                         <ul id="submenu-configuracion" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
                             <li><button onclick="window.loadView('configuracion')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">General</button></li>
                             <li><button onclick="window.loadView('plantillas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Plantillas de Impresión</button></li>
+                            <li>
+                                <button onclick="window.toggleSubmenu('submenu-tablas')" class="w-full flex justify-between items-center px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">
+                                    <span>Tablas</span>
+                                    <span id="flecha-tablas" class="text-[10px]">▼</span>
+                                </button>
+                                <ul id="submenu-tablas" class="hidden pl-3 space-y-1 mt-1 border-l border-slate-800 ml-2">
+                                    <li><button onclick="window.loadView('tablas', {tabla:'unidades_medida'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Unidades de medida</button></li>
+                                    <li><button onclick="window.loadView('tablas', {tabla:'monedas'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Monedas</button></li>
+                                </ul>
+                            </li>
                             <li><button onclick="window.loadView('fresh-start')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Fresh start (mantenimiento)</button></li>
                         </ul>
                     </li>
@@ -759,6 +769,14 @@
                 <h2 class="text-xl font-bold text-sky-400">Fresh start (mantenimiento)</h2>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorFreshStart">Cargando...</div>
+                </div>
+            </section>
+
+            <!-- Vista: Configuración · Tablas (unidades de medida, monedas) -->
+            <section id="view-tablas" class="vista-seccion hidden space-y-4">
+                <h2 id="tituloTablas" class="text-xl font-bold text-sky-400">Tablas</h2>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div id="contenedorTablas">Cargando...</div>
                 </div>
             </section>
 

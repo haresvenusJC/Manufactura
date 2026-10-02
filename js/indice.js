@@ -89,6 +89,8 @@ export const SECCIONES = [
         grupo: 'Configuración', ancla: 'cfg', config: true, items: [
             { v: 'configuracion', t: 'General', d: 'Tema de colores, tamaño de texto y enlaces a las pantallas móviles para operadores.', cfg: true },
             { v: 'plantillas', t: 'Plantillas de impresión', d: 'Diseño de los documentos que se imprimen.', cfg: true },
+            { v: 'tablas', t: 'Tablas · Unidades de medida', d: 'Ver los datos de la tabla de unidades de medida (con acceso a su editor).', extra: "{tabla:'unidades_medida'}" },
+            { v: 'tablas', t: 'Tablas · Monedas', d: 'Ver los datos de la tabla de monedas.', extra: "{tabla:'monedas'}" },
         ],
     },
 ];
