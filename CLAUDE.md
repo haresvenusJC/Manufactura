@@ -4,6 +4,19 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-11-04_pedido_venta_cobertura.sql` (nuevo), `js/produccion.js`, `js/requisiciones-compra.js`, `js/pedidos-venta.js`, `version.json`. **Reservas, ENTREGA 3 de 4: el
+  faltante de un pedido se cubre con producción o compra, ligado al pedido.** Se REUTILIZA el flujo de "Faltantes" de Producción (`generarRequisicionFaltantes`, ahora con 5.º parámetro
+  `opciones.pedido = {id, folio}`; cada elemento de `faltan` puede traer `pedidoDetalleId`): reparte lo que se FABRICA (tipo producto/semiterminado y abastecimiento ≠ 'comprado') → formulario de
+  Producción precargado (`window.__prodPre`, cada item con `pedido`), y lo que se COMPRA → requisición precargada agrupada por proveedor (`window.__reqPre*` + nuevo `window.__reqPrePedido`);
+  muestra el recuadro "Ya solicitado para el pedido" y DESCUENTA lo que ya va en camino (OPs borrador/en_proceso del pedido + requisiciones pendientes/autorizadas sin recibir). La
+  precarga NO inserta nada sola: producción asigna procesos/equipo (una OP los exige) y la requisición se confirma antes de guardar. Ligas (migración, todas opcionales/null):
+  `ordenes_produccion.pedido_venta_id/pedido_venta_detalle_id` (se llenan en `generarOrdenDeProduccion` vía `datos.pedidoVentaId/DetalleId`, que el formulario toma de `__prodPre.lista[0].pedido`
+  solo si sigue siendo ese producto) y `requisiciones_compra.pedido_venta_id` (`reqPedido` en requisiciones-compra.js). Sin la migración ambos guardan igual SIN la liga (reintento). Nuevas funciones
+  exportadas: `requisicionesDePedido`, `ordenesDePedido`. Pedidos de venta: al guardar con faltante pregunta "¿Generar ahora lo necesario?"; el detalle gana el bloque "🔗 Cobertura del faltante"
+  (OPs y requisiciones ligadas con su estado, y el botón "Generar producción / requisición por lo que falta" o "✔ ya está en camino"); al CANCELAR un pedido avisa qué OP/requisiciones siguen
+  vigentes (no se cancelan solas). Cuando llega la mercancía (cierre de OP, recepción) la reserva se asigna sola (entrega 1). Probado en Chromium con Supabase simulado (cantidades: pedido 150,
+  apartadas 2, 30 ya en proceso → propone 118; comprados por proveedor; liga al guardar; degradación sin migración) y en Postgres local (migración 2 corridas). Pendiente: correr el SQL, probar con
+  PED-000001 (148 faltantes de Aceite Sey Kiss Fresa 60 ml) y entregas 2 (guardia en BD) y 4 (seguimiento 🔗 completo con Cierre → Surtido).
 - Archivos tocados (lo último): `sql/2026-11-03b_reservas_liberar.sql` (nuevo), `js/pedidos-venta.js`, `version.json`. A petición del usuario ("debo poder des-apartar en algún lado, para
   solucionar problemas de apartados"). Como las reservas se recalculan solas, "des-apartar" se guarda como MARCA en el renglón (`pedidos_venta_detalle.apartar=false` +
   `motivo_liberacion`): `reservas_reasignar` la respeta (el renglón queda en 0 y esa mercancía se reparte entre los demás pedidos) y NO se re-aparta solo con el siguiente

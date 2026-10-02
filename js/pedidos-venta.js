@@ -1,6 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { siguienteFolio } from './folios.js';
 import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
+import { generarRequisicionFaltantes, requisicionesDePedido, ordenesDePedido } from './produccion.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
 import { registrarSalidaMultiPartida } from './salidas.js';
@@ -34,6 +35,21 @@ const PV_FILTROS = [
 const pvFalta = (d) => (d.cantidad_reservada === undefined || d.cantidad_reservada === null || d.apartar === false)
     ? 0 : Math.max(Number(d.cantidad || 0) - Number(d.cantidad_surtida || 0) - Number(d.cantidad_reservada || 0), 0);
 const pvNum = (n) => Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 });
+
+// Cubre el faltante de un pedido: lo que se FABRICA va a una orden de producción (formulario precargado) y lo que se COMPRA a una
+// requisición (agrupada por proveedor) — reutiliza el flujo de "Faltantes" de Producción, ligado al pedido. Lo que ya va en camino se descuenta.
+// filas: [{ detalle_id, producto_id, producto, pendiente, reservado, faltante }]
+async function pvCubrirFaltante(pedidoId, folio, filas) {
+    const faltan = (filas || []).filter((f) => Number(f.faltante) > 1e-9);
+    if (!faltan.length) return;
+    const ids = [...new Set(faltan.map((f) => f.producto_id))];
+    const { data: info } = await supabaseClient.from('productos').select('id, unidades_medida ( nombre )').in('id', ids);
+    const unidad = new Map((info || []).map((x) => [x.id, x.unidades_medida?.nombre || '']));
+    await generarRequisicionFaltantes(
+        faltan.map((f) => ({ componenteId: f.producto_id, nombre: f.producto || 'Producto', unidad: unidad.get(f.producto_id) || '',
+            requerido: Number(f.pendiente), disponible: Number(f.reservado), pedidoDetalleId: f.detalle_id })),
+        'Pedido ' + folio, 1, null, { pedido: { id: pedidoId, folio } });
+}
 
 // Aviso de lo que falta al guardar un pedido (resultado de pedido_venta_reservar).
 function pvHtmlFaltantes(filas) {
@@ -199,10 +215,10 @@ async function pvGuardarPedido() {
 
         // Reservas (sql/2026-11-03_reservas_pedidos.sql): el pedido aparta lo que hay y avisa lo que falta.
         // Sin la migración esta llamada falla y simplemente se omite.
-        let avisoReservas = '', hayFalta = false;
+        let avisoReservas = '', hayFalta = false, filasReserva = [];
         try {
             const { data: rsv, error: eRsv } = await supabaseClient.rpc('pedido_venta_reservar', { p_pedido_id: pedido.id });
-            if (!eRsv && Array.isArray(rsv)) { avisoReservas = pvHtmlFaltantes(rsv); hayFalta = rsv.some((f) => Number(f.faltante) > 1e-9); }
+            if (!eRsv && Array.isArray(rsv)) { filasReserva = rsv; avisoReservas = pvHtmlFaltantes(rsv); hayFalta = rsv.some((f) => Number(f.faltante) > 1e-9); }
         } catch (_) { /* sin reservas */ }
         msg.innerHTML = `Pedido ${esc(pedido.folio)} guardado.${avisoReservas}`;
         msg.className = `text-xs mt-2 ${hayFalta ? 'text-slate-200' : 'text-emerald-400'}`;
@@ -212,6 +228,11 @@ async function pvGuardarPedido() {
         pvFiltro = 'pendiente';
         pvPintarFiltros();
         await pvRenderLista();
+
+        // Falta mercancía: se ofrece cubrirla ya (producción si se fabrica, requisición si se compra). Si dice que no, queda el botón en el detalle del pedido.
+        if (hayFalta && confirm(`El pedido ${pedido.folio} tiene mercancía que falta.\n\n¿Generar ahora lo necesario para cubrirla?\n(lo que se fabrica pasa a una orden de producción y lo que se compra, a una requisición)`)) {
+            await pvCubrirFaltante(pedido.id, pedido.folio, filasReserva);
+        }
     } catch (err) {
         msg.textContent = 'No se pudo guardar: ' + (err.message || err);
         msg.className = 'text-xs mt-2 text-rose-400';
@@ -357,6 +378,22 @@ async function pvPintarDetalle(id, modal) {
         const hayFalta = conReservas && det.some((d) => pvFalta(d) > 1e-9);
         const puedeLiberar = conReservas && det.some((d) => d.apartar !== undefined);   // migración …03b corrida
         const hayLiberadas = puedeLiberar && det.some((d) => d.apartar === false);
+
+        // Cobertura del faltante: lo que ya se fabrica / se pide para este pedido (sql/2026-11-04; sin ella, no se muestra el bloque).
+        const filasFalta = det.filter((d) => pvFalta(d) > 1e-9).map((d) => ({
+            detalle_id: d.id, producto_id: d.producto_id, producto: d.productos?.nombre || d.descripcion,
+            pendiente: Number(d.cantidad) - Number(d.cantidad_surtida), reservado: Number(d.cantidad_reservada), faltante: pvFalta(d) }));
+        let opsPed = null, reqsPed = null;
+        if (conReservas) { opsPed = await ordenesDePedido(p.id); reqsPed = await requisicionesDePedido(p.id); }
+        const hayCobertura = (opsPed && opsPed.length) || (reqsPed && reqsPed.length);
+        let porCubrirTotal = 0;
+        if (filasFalta.length) {
+            const faltaPorProd = new Map(); filasFalta.forEach((f) => faltaPorProd.set(f.producto_id, (faltaPorProd.get(f.producto_id) || 0) + f.faltante));
+            const camino = new Map();
+            (opsPed || []).filter((o) => o.estado === 'borrador' || o.estado === 'en_proceso').forEach((o) => camino.set(o.productoId, (camino.get(o.productoId) || 0) + o.cantidad));
+            (reqsPed || []).filter((r) => r.enCamino).forEach((r) => r.detalle.forEach((x) => camino.set(x.productoId, (camino.get(x.productoId) || 0) + x.cantidad)));
+            faltaPorProd.forEach((f, prod) => { porCubrirTotal += Math.max(f - (camino.get(prod) || 0), 0); });
+        }
         const hayApartadas = puedeLiberar && det.some((d) => d.apartar !== false);
 
         cuerpo.innerHTML = `
@@ -370,6 +407,16 @@ async function pvPintarDetalle(id, modal) {
                 ${hayApartadas ? '<button type="button" id="pvLiberarTodo" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-3 py-1.5 rounded-lg" title="Deja libre toda la mercancía apartada de este pedido">Liberar reservas del pedido</button>' : ''}
                 ${hayLiberadas ? '<button type="button" id="pvReactivarTodo" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg">Volver a apartar todo</button>' : ''}
                 <button type="button" id="pvRecalcularPedido" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg" title="Vuelve a calcular las reservas de los productos de este pedido">↻ Recalcular</button>
+              </div>` : ''}
+            ${(filasFalta.length || hayCobertura) ? `<div class="bg-slate-950 border border-slate-800 rounded-lg p-3 mb-3 text-xs">
+                <p class="font-semibold text-sky-400 mb-1.5">🔗 Cobertura del faltante</p>
+                ${hayCobertura ? `<ul class="space-y-1 mb-2">
+                    ${(opsPed || []).map((o) => `<li><span class="text-slate-100 font-mono">${esc(o.folio)}</span> <span class="text-slate-400">· orden de producción · ${esc(o.estadoTexto)}</span> <span class="text-slate-500">— ${esc(o.nombre)}: ${pvNum(o.cantidad)}${o.unidad ? ' ' + esc(o.unidad) : ''}</span></li>`).join('')}
+                    ${(reqsPed || []).map((r) => `<li><span class="text-slate-100 font-mono">${esc(r.folio)}</span> <span class="text-slate-400">· requisición · ${esc(r.estadoTexto)}</span> <span class="text-slate-500">— ${esc(r.detalle.map((x) => `${x.nombre}: ${pvNum(x.cantidad)}`).join(', '))}</span></li>`).join('')}
+                  </ul>` : '<p class="text-slate-500 mb-2">Todavía no hay producción ni requisiciones ligadas a este pedido.</p>'}
+                ${filasFalta.length ? (porCubrirTotal > 1e-9
+                    ? `<button type="button" id="pvCubrirFaltante" class="bg-amber-700 hover:bg-amber-600 text-white text-xs font-medium px-3 py-2 rounded-lg">🏭🛒 Generar producción / requisición por lo que falta</button> <span class="text-slate-500 ml-1">Lo que ya va en camino se descuenta.</span>`
+                    : '<p class="text-emerald-400">✔ Lo que falta ya está en camino (producción o compra). Cuando llegue, se aparta solo a este pedido.</p>') : ''}
               </div>` : ''}
             ${hayFalta ? '<p class="text-xs text-amber-300 bg-amber-950/30 border border-amber-800 rounded-lg px-3 py-2 mb-3">⚠ Hay renglones sin mercancía suficiente apartada. Lo que falta se cubre con producción o compra; cuando llegue, se aparta solo (el pedido más antiguo primero).</p>' : ''}
             <div class="overflow-x-auto border border-slate-800 rounded-lg mb-3">
@@ -432,6 +479,9 @@ async function pvPintarDetalle(id, modal) {
             if (btnRecPed) btnRecPed.onclick = async () => { if (await llamar('pedido_venta_reservar', { p_pedido_id: p.id })) await refrescar(); };
         }
 
+        const btnCubrir = modal.querySelector('#pvCubrirFaltante');
+        if (btnCubrir) btnCubrir.onclick = async () => { btnCubrir.disabled = true; await pvCubrirFaltante(p.id, p.folio || ('#' + p.id), filasFalta); btnCubrir.disabled = false; };
+
         const btnImp = modal.querySelector('#pvImprimirDetalle');
         if (btnImp) { btnImp.disabled = false; btnImp.onclick = () => imprimirConPlantilla('pedido_venta', 'Pedido de venta ' + (p.folio || '#' + p.id), cuerpo, marcaDeEstatus(p.estatus)); }
 
@@ -443,6 +493,14 @@ async function pvPintarDetalle(id, modal) {
             if (motivo === null) return;
             const { error: eCan } = await supabaseClient.rpc('pedido_venta_cancelar', { p_pedido_id: p.id, p_motivo: motivo || null });
             if (eCan) { alert('No se pudo cancelar: ' + eCan.message); return; }
+            // Producción / requisiciones que se abrieron para este pedido NO se cancelan solas: se avisa para que se revisen.
+            try {
+                const ligadas = [
+                    ...((await ordenesDePedido(p.id)) || []).filter((o) => o.estado === 'borrador' || o.estado === 'en_proceso').map((o) => `${o.folio} (orden de producción, ${o.estadoTexto})`),
+                    ...((await requisicionesDePedido(p.id)) || []).filter((r) => r.enCamino).map((r) => `${r.folio} (requisición, ${r.estadoTexto})`),
+                ];
+                if (ligadas.length) alert(`Pedido cancelado.\n\nOJO: estos documentos se abrieron para surtirlo y siguen vigentes — revisa si también hay que cancelarlos:\n• ${ligadas.join('\n• ')}`);
+            } catch (_) { /* sin migración: nada que avisar */ }
             modal.remove();
             await pvRenderLista();
         };
