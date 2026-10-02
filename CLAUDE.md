@@ -4,6 +4,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/tablas.js`, `version.json`. Captura del celular: la matriz de Conversiones mostraba notación científica
+  (`1.00e+3`) y se cortaba a lo ancho (Kilogramos/Litros quedaban fuera de vista). Ahora una tarjeta por unidad ("1 Kilogramos = 1,000 Gramos…"),
+  números con separador de miles. Los regímenes (`…10-30` y `…30b`) ya están corridos. Hallazgo sin tocar: Libras, Onzas y Galones caen en
+  "Sin conversión automática" porque `FAMILIAS_UNIDAD` (`js/conversion-unidades.js`) solo conoce mg/g/kg y mL/L — pendiente de decisión.
 - Archivos tocados (lo último): `sql/2026-10-30_c_regimen_fiscal.sql` y `sql/2026-10-30b_regimen_fiscal_fk.sql` (nuevos), `js/regimenes-fiscales.js`
   (nuevo), `js/tablas.js`, `js/proveedores.js`, `js/clientes.js`, `js/contabilidad.js`, `js/ordenes-compra.js`, `js/app.js`, `version.json`.
   Regímenes fiscales del SAT pasan de lista en el código a TABLA `c_regimen_fiscal` (clave/descripcion/activo), en 2 pasos. **Paso 1** (`…30`):

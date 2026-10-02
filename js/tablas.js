@@ -41,16 +41,19 @@ async function cargarConversiones(cont, titulo) {
         if (f) (fam[f.familia] = fam[f.familia] || []).push({ nombre: u.nombre, aBase: f.aBase });
         else sin.push(u.nombre);
     });
-    const num = (v) => (v >= 1000 || v < 0.001 ? v.toExponential(2) : String(Number(v.toPrecision(6))));
+    const num = (v) => v.toLocaleString('es-MX', { maximumFractionDigits: 6 });
     const base = { masa: 'gramo', volumen: 'mililitro' };
+    // Una tarjeta por unidad ("1 Kilogramos = 1,000 Gramos · 1,000,000 Miligramos"): se lee bien en celular, sin tabla ancha.
     const bloque = (nombre, lista) => {
         lista.sort((a, b) => a.aBase - b.aBase);
         return `
-        <h3 class="text-sm font-semibold text-slate-200 mt-4 mb-1">${nombre === 'masa' ? '⚖️ Masa' : '🧪 Volumen'} <span class="text-[11px] font-normal text-slate-500">(base: ${base[nombre]})</span></h3>
-        <div class="overflow-x-auto border border-slate-800 rounded-lg"><table class="w-full text-sm text-left">
-            <thead class="bg-slate-950 text-[11px] uppercase text-slate-400"><tr><th class="px-3 py-2">1 de ↓ equivale a →</th>${lista.map((c) => `<th class="px-3 py-2">${esc(c.nombre)}</th>`).join('')}</tr></thead>
-            <tbody class="divide-y divide-slate-800 text-slate-200">${lista.map((r) => `<tr><td class="px-3 py-1.5 font-medium">${esc(r.nombre)}</td>${lista.map((c) => `<td class="px-3 py-1.5 font-mono">${num(r.aBase / c.aBase)}</td>`).join('')}</tr>`).join('')}</tbody>
-        </table></div>`;
+        <h3 class="text-sm font-semibold text-slate-200 mt-4 mb-2">${nombre === 'masa' ? '⚖️ Masa' : '🧪 Volumen'} <span class="text-[11px] font-normal text-slate-500">(base: ${base[nombre]})</span></h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">${lista.map((r) => `
+            <div class="bg-slate-950 border border-slate-800 rounded-lg p-3">
+                <div class="text-sm font-semibold text-slate-100 mb-1">1 ${esc(r.nombre)}</div>
+                <ul class="text-xs text-slate-300 space-y-0.5">${lista.filter((c) => c !== r).map((c) => `<li>= <span class="font-mono text-sky-300">${num(r.aBase / c.aBase)}</span> ${esc(c.nombre)}</li>`).join('')}</ul>
+            </div>`).join('')}
+        </div>`;
     };
     cont.innerHTML = `
         <p class="text-xs text-slate-400">Así convierte el sistema las fórmulas (BOM) a la unidad de inventario. Dentro de la misma familia es exacto; entre masa y volumen usa la <strong>densidad</strong> del artículo (kg/L). Solo ve la regla del sistema, no se edita aquí.</p>
