@@ -4,6 +4,30 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Sesión de sincronización (sin archivos de producto; vía API de GitHub desde Claude Code, carpeta local sin
+  git). El usuario pidió sincronizar GitHub con los últimos cambios locales ("sincroniza con github, todos
+  los últimos cambios que hice desde Claude Code"). Al comparar el árbol local contra `main` se detectó que
+  GitHub ya tenía 9 commits del día con trabajo real hecho por **otra sesión de Claude Code en la nube,
+  trabajando directo contra GitHub** (nunca pasó por esta carpeta local): tema **Mac (claro y sencillo)**,
+  **Lote mínimo de fabricación**, **Reservas de inventario para pedidos de venta** (5 entregas completas),
+  **Accesos para operadores** (tarjeta Conteo de inventario) y **Kardex por rango de fechas y varios
+  productos** (`js/buscador-productos.js` nuevo) — además de una historia de sesiones previas (marca de agua
+  en impresión, subtítulos de plantillas, split Clientes/Listas de precio, catálogo de regímenes fiscales en
+  `js/regimenes-fiscales.js`, renombre Catálogo→Productos) que tampoco estaban en esta carpeta. El primer
+  push (comparación por sha de blob local-vs-remoto) subió sin querer la versión VIEJA de 15 archivos que
+  coincidían en nombre con los tocados por esa sesión en la nube, **sobrescribiendo esas funciones nuevas**
+  en GitHub. Se detectó de inmediato (revisando `git log` de GitHub) y se corrigió con un **commit nuevo
+  hacia adelante** (no destructivo — mover la rama hacia atrás con `force:true` está bloqueado a propósito
+  por el clasificador de Claude Code como "Git Destructive", correctamente) que restauró esos 15 archivos al
+  contenido bueno y agregó los 13 archivos que solo existían en GitHub. Verificado archivo por archivo
+  (`diff -u`) antes de corregir: GitHub siempre resultó ser una evolución estricta hacia adelante de lo mismo
+  que había en local (ninguna pérdida real de trabajo local). Carpeta local sincronizada 1:1 con GitHub
+  (verificación final por sha de blob: 0 diferencias), con respaldo de lo sobrescrito en
+  `respaldo/pre-sync_20261002_172322/`. Lección guardada en memoria
+  (`feedback-sync-verificar-antes-de-pushear`): antes de cualquier push local→GitHub, comparar contenido
+  (no solo que el sha difiera) porque puede haber una sesión en la nube más avanzada. Pendiente: ninguno de
+  código; si el usuario sigue usando dos sesiones en paralelo (local y nube), repetir esta verificación antes
+  de cada "comitea".
 - Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`. A petición del usuario ("un tema para usuarios inspirado en la simpleza y colores muy estilo Mac de Apple"): nuevo tema
   **Mac (claro y sencillo)** (`data-theme="macos"`, tarjeta en Configuración → General → Tema de colores). Claro y plano: fondo gris `#f5f5f7`, tarjetas blancas con línea fina y sombra suave,
   acento azul `#0071e3`/`#007aff` y colores de sistema (verde `#30b050`, rojo `#ff3b30`, naranja `#ff9500`), tipografía del sistema (-apple-system / SF Pro), botones planos de esquina de 9 px
