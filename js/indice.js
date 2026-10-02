@@ -93,6 +93,10 @@ export const SECCIONES = [
             { v: 'tablas', t: 'Tablas · Monedas', d: 'Ver los datos de la tabla de monedas.', extra: "{tabla:'monedas'}" },
             { v: 'tablas', t: 'Tablas · Conversiones', d: 'Equivalencias entre unidades (masa y volumen) que usa el sistema para las fórmulas, con acceso a las densidades.', extra: "{tabla:'conversiones'}" },
             { v: 'tablas', t: 'Tablas · Densidades', d: 'Kilogramos por litro de cada insumo, para convertir fórmulas en volumen contra inventario en peso (se edita ahí mismo).', extra: "{tabla:'densidades'}" },
+            { v: 'tablas', t: 'Tablas · SAT · Uso del CFDI', d: 'Catálogo de usos del CFDI con la cuenta contable sugerida (solo lectura).', extra: "{tabla:'c_uso_cfdi'}" },
+            { v: 'tablas', t: 'Tablas · SAT · Forma de pago', d: 'Catálogo de formas de pago del SAT (solo lectura).', extra: "{tabla:'c_forma_pago'}" },
+            { v: 'tablas', t: 'Tablas · SAT · Método de pago', d: 'Catálogo de métodos de pago del SAT, PUE / PPD (solo lectura).', extra: "{tabla:'c_metodo_pago'}" },
+            { v: 'tablas', t: 'Tablas · SAT · Regímenes fiscales', d: 'Catálogo de regímenes fiscales del SAT que usan Proveedores y Clientes (solo lectura).', extra: "{tabla:'regimenes'}" },
         ],
     },
 ];

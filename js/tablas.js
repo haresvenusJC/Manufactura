@@ -1,5 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { abrirTablaUnidades, abrirTablaDensidades } from './catalogo.js';
+import { REGIMENES } from './proveedores.js';
 import { familiaDeUnidad } from './conversion-unidades.js';
 
 // =====================================================================
@@ -13,6 +14,10 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 
 const TABLAS = {
     unidades_medida: { titulo: '📏 Unidades de medida', desc: 'Piezas, Kilogramos, Litros... "Fraccionable" indica si se puede pedir/producir en decimales.', orden: 'nombre' },
+    c_uso_cfdi: { titulo: '🧾 SAT · Uso del CFDI', desc: 'Catálogo c_UsoCFDI del SAT, con la cuenta contable sugerida para cada uso (la usan Recibo de mercancía y Gastos).', orden: 'clave' },
+    c_forma_pago: { titulo: '🧾 SAT · Forma de pago', desc: 'Catálogo c_FormaPago del SAT (01 Efectivo, 03 Transferencia...).', orden: 'clave' },
+    c_metodo_pago: { titulo: '🧾 SAT · Método de pago', desc: 'Catálogo c_MetodoPago del SAT (PUE / PPD).', orden: 'clave' },
+    regimenes: { titulo: '🧾 SAT · Regímenes fiscales', desc: 'Catálogo c_RegimenFiscal del SAT que usan Proveedores y Clientes (vive en el código, js/proveedores.js).', orden: 'clave', local: true },
     monedas: { titulo: '💱 Monedas', desc: 'Monedas disponibles en Órdenes de compra y Compra directa (MXN, USD...).', orden: 'id' },
 };
 
@@ -77,7 +82,9 @@ export async function cargarModuloTablas(tabla = 'unidades_medida') {
     if (titulo) titulo.textContent = cfg.titulo;
     cont.innerHTML = '<p class="text-sm text-slate-400">Cargando…</p>';
 
-    const { data, error } = await supabaseClient.from(nombre).select('*').order(cfg.orden, { ascending: true });
+    const { data, error } = cfg.local
+        ? { data: REGIMENES.map(([clave, descripcion]) => ({ clave, descripcion })), error: null }
+        : await supabaseClient.from(nombre).select('*').order(cfg.orden, { ascending: true });
     if (error) {
         cont.innerHTML = `<p class="text-sm text-rose-400">No se pudo leer la tabla <code>${esc(nombre)}</code>: ${esc(error.message)}</p>`;
         return;

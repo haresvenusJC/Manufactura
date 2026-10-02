@@ -4,6 +4,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/tablas.js`, `index.html`, `js/indice.js`, `version.json`. Configuración → Tablas gana 4 catálogos SAT de
+  solo lectura: Uso del CFDI (`c_uso_cfdi`, con su cuenta sugerida), Forma de pago (`c_forma_pago`), Método de pago (`c_metodo_pago`) y
+  Regímenes fiscales (`REGIMENES` de `js/proveedores.js`, no es tabla de la base). A petición del usuario NO se movieron Tabla ISR, Centros de
+  costo, Áreas y bases de prorrateo, Reparto de gastos compartidos ni Plan de cuentas (siguen en Contabilidad y control). Pendiente: probar.
 - Archivos tocados (lo último): `js/catalogo.js`, `js/tablas.js`, `index.html`, `js/indice.js`, `version.json`. A petición del usuario ("para ir
   ordenando el ERP"): los botones "⚖️ Densidades" y "📏 Unidades" salieron de Catálogo y Kardex; ahora viven solo en Configuración → Tablas
   (Unidades de medida / Monedas / Conversiones / **Densidades**, esta última abre la misma subventana editable). Los avisos de "captúrala en
