@@ -4,6 +4,12 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `index.html`, `js/indice.js`, `js/app.js`, `js/clientes.js`, `version.json`. A petición del usuario: "Clientes y listas de
+  precio" se divide en DOS entradas del menú Catálogos — **Clientes** y **Listas de precio** (también dos tarjetas en el Índice). Misma vista y módulo
+  (`clientes`); `window.loadView('clientes', {tab:'clientes'|'listas'})` → `cargarModuloClientes(tab)` fija la sección, cambia el título
+  (`#tituloClientes`) y oculta la barra de pestañas (ya no hace falta). Sin cambios de lógica ni SQL; el botón "📖 Cómo llenar esta pantalla"
+  sigue apuntando al manual `#m-clientes`. Pendiente: probar ambas entradas en el navegador (que Listas de precio no muestre el formulario de
+  clientes y viceversa).
 - Archivos tocados (lo último): `index.html`, `js/indice.js`, `js/catalogo.js` (solo comentarios), `js/tablas.js` (comentario), `version.json`. A petición del
   usuario: la pantalla "Catálogo y Kardex" (vista `catalogo`, `cargarModuloCatalogoKardex`) se llama ahora solo **"Productos"** — entrada del menú
   Catálogos, título de la pantalla y tarjeta del Índice. Solo cambió el rótulo: la vista, las funciones y el Kardex embebido siguen igual. En

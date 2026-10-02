@@ -259,7 +259,7 @@ window.loadView = function(viewName, opciones = {}) {
             cargarModuloImportadorClavesProveedor();
             break;
         case 'clientes':
-            cargarModuloClientes();
+            cargarModuloClientes(opciones.tab);
             break;
         case 'plan-cuentas':
             cargarModuloContabilidad();

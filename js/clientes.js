@@ -25,15 +25,20 @@ let listasCache = [];
 let clientesCache = [];
 let cliEditId = null;
 
-export async function cargarModuloClientes() {
+// tab: 'clientes' | 'listas' — son dos entradas del menú (Catálogos → Clientes / Listas de precio); cada una abre solo lo suyo.
+export async function cargarModuloClientes(tab) {
     const cont = document.getElementById('contenedorClientes');
     if (!cont) return;
+    if (tab === 'clientes' || tab === 'listas') cliTab = tab;
+    const titulo = document.getElementById('tituloClientes');
+    if (titulo) titulo.textContent = cliTab === 'listas' ? 'Listas de precio' : 'Clientes';
     cont.innerHTML = `
         <div class="space-y-4">
             <div class="bg-slate-900 border border-slate-800 rounded-xl p-1 flex flex-wrap gap-1" id="cliTabs"></div>
             <div id="cliContenido"></div>
         </div>`;
     renderTabs();
+    document.getElementById('cliTabs').classList.add('hidden');   // ya no hay pestañas: cada pantalla del menú es una sola cosa
     await cargarComunes();
     activarTab(cliTab);
 }
