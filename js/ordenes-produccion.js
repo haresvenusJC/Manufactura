@@ -12,7 +12,7 @@
 import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { calcularRequerimientosProduccion, formatoCantidad, fmtFaltante, generarRequisicionFaltantes, requisicionesDeOrden, documentosDeOrden, consumosDeOrden } from './produccion.js';
-import { imprimirConPlantilla } from './impresion.js';
+import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 
 const ordenTabla = crearOrdenTabla('created_at', 'desc');
 let ordenesCache = [];
@@ -297,7 +297,7 @@ export async function abrirDetalle(ordenId) {
         doc.innerHTML = html.cuerpo;
         const btn = host.querySelector('#opDocImprimir');
         btn.disabled = false;
-        btn.addEventListener('click', () => imprimirConPlantilla('orden_produccion', `Estado de la orden de producción ${html.folio}`, idDoc));
+        btn.addEventListener('click', () => imprimirConPlantilla('orden_produccion', `Estado de la orden de producción ${html.folio}`, idDoc, marcaDeEstatus(html.estado)));
     } catch (e) {
         doc.innerHTML = `<p class="text-rose-400 text-xs">No se pudo armar el documento: ${escD(e.message || e)}</p>`;
     }
@@ -558,6 +558,7 @@ async function armarDocumentoEstado(ordenId) {
 
     return {
         folio,
+        estado: o.estado,
         cuerpo: `<div style="${ST.hoja}">
             ${encabezado}
             ${cerrada ? costeoHtml : `

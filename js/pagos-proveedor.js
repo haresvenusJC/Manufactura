@@ -2,7 +2,7 @@ import { supabaseClient } from './supabase.js';
 import { montarGuia } from './asistente-contable.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { linkDoc, linkPoliza, etiquetaPoliza } from './enlaces-reporte.js';
-import { imprimirHtml } from './impresion.js';
+import { imprimirHtml, marcaDeEstatus } from './impresion.js';
 
 // =====================================================================
 //  Cuentas por pagar / Pagos a proveedores
@@ -331,7 +331,7 @@ async function cxpImprimirComprobante(id) {
             <tbody>${filas || '<tr><td colspan="3">Sin documentos aplicados.</td></tr>'}</tbody>
             <tfoot><tr><td colspan="2" style="text-align:right"><b>Total pagado</b></td><td style="text-align:right"><b>${money(p.total)}</b></td></tr></tfoot></table>
             ${p.notas ? `<p style="margin-top:6px"><b>Notas:</b> ${esc(p.notas)}</p>` : ''}
-            <div style="display:flex;gap:40px;margin-top:28px"><div style="flex:1;border-top:1px solid #555;text-align:center;padding-top:2px">Elaboró</div><div style="flex:1;border-top:1px solid #555;text-align:center;padding-top:2px">Recibió proveedor</div></div>`);
+            <div style="display:flex;gap:40px;margin-top:28px"><div style="flex:1;border-top:1px solid #555;text-align:center;padding-top:2px">Elaboró</div><div style="flex:1;border-top:1px solid #555;text-align:center;padding-top:2px">Recibió proveedor</div></div>`, marcaDeEstatus(p.estatus));
     } catch (e) { alert('No se pudo armar el comprobante: ' + (e.message || e)); }
 }
 

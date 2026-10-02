@@ -44,6 +44,17 @@ export const SUBTITULOS_POR_TIPO = {
     reporte: 'Reporte',
 };
 
+/**
+ * Marca de agua según el estatus del documento: cancelado → "CANCELADO", rechazado → "RECHAZADO"; otro → nada.
+ * Se usa así: imprimirConPlantilla(tipo, titulo, id, marcaDeEstatus(doc.estatus)).
+ */
+export function marcaDeEstatus(estatus) {
+    const e = String(estatus || '').toLowerCase();
+    if (e.startsWith('cancel')) return { marcaAgua: 'CANCELADO' };
+    if (e.startsWith('rechaz')) return { marcaAgua: 'RECHAZADO' };
+    return {};
+}
+
 export function invalidarCachePlantillas() {
     cachePlantillas = null;
 }
@@ -96,7 +107,8 @@ const escHtml = (x) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;'
  * @param {string} tipoDocumento - código del tipo (debe existir en tipos_movimiento, o 'generico')
  * @param {string} tituloDocumento - texto identificador, ej. "Folio FAC000069" o "Orden de Producción #14"
  * @param {string|Element} idContenedor - id del elemento del DOM (o el elemento) cuyo contenido se imprimirá
- * @param {{orientacion?: 'vertical'|'horizontal'}} [opciones] - si no se indica, horizontal automático con más de 8 columnas
+ * @param {{orientacion?: 'vertical'|'horizontal', marcaAgua?: string}} [opciones] - orientación: si no se indica, horizontal automático con más de 8 columnas;
+ *        marcaAgua: texto en diagonal que se repite en cada hoja (ver marcaDeEstatus)
  */
 export async function imprimirConPlantilla(tipoDocumento, tituloDocumento, idContenedor, opciones = {}) {
     // Acepta el id del contenedor o el elemento mismo (subventanas con varias instancias abiertas: sin ids repetidos).
@@ -132,7 +144,8 @@ export async function imprimirConPlantilla(tipoDocumento, tituloDocumento, idCon
     clon.querySelectorAll('.plantilla-encabezado-print, .plantilla-pie-print').forEach(el => el.remove());
 
     const host = obtenerHostImpresion();
-    host.innerHTML = encabezadoHtml + clon.innerHTML + pieHtml;
+    const marcaHtml = opciones.marcaAgua ? `<div class="dpe-marca" aria-hidden="true">${escHtml(opciones.marcaAgua)}</div>` : '';
+    host.innerHTML = marcaHtml + encabezadoHtml + clon.innerHTML + pieHtml;
     host.dataset.mostrarCostos = p.mostrar_costos ? '1' : '0';
     host.dataset.mostrarLote = p.mostrar_lote ? '1' : '0';
     host.style.setProperty('--acento-print', p.color_acento || '#4f46e5');
@@ -225,6 +238,14 @@ if (!document.getElementById('print-styles-global')) {
             .area-imprimible-activa .dpe .dpe-der strong { font-size: 11px !important; }
             .area-imprimible-activa .dpe .dpe-der span { font-size: 9px !important; color: #555 !important; }
             .area-imprimible-activa .dpe-pie { margin-top: 8px; padding-top: 4px; border-top: 1px solid #b5b5b5 !important; font-size: 8px !important; color: #666 !important; text-align: center; }
+
+            /* Marca de agua (documento cancelado/rechazado): fija en cada hoja, diagonal, tenue para no tapar el texto ni gastar tinta */
+            .area-imprimible-activa .dpe-marca.dpe-marca {
+                position: fixed; top: 38%; left: 0; right: 0; text-align: center; transform: rotate(-30deg);
+                font-size: 96px !important; line-height: 1 !important; font-weight: 800; letter-spacing: .08em;
+                color: rgba(185, 28, 28, .22) !important; border: none !important; padding: 0 !important; margin: 0 !important;
+                z-index: 5; pointer-events: none; user-select: none;
+            }
 
             /* Tablas: encabezado repetido en cada hoja y filas que no se parten */
             .area-imprimible-activa table { width: 100%; border-collapse: collapse; }

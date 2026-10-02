@@ -1,6 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { siguienteFolio } from './folios.js';
-import { imprimirConPlantilla } from './impresion.js';
+import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
 import { registrarSalidaMultiPartida } from './salidas.js';
@@ -347,7 +347,7 @@ async function pvPintarDetalle(id, modal) {
             <p id="pvMsgDetalle" class="text-xs mt-2 min-h-[1rem]"></p>`;
 
         const btnImp = modal.querySelector('#pvImprimirDetalle');
-        if (btnImp) { btnImp.disabled = false; btnImp.onclick = () => imprimirConPlantilla('pedido_venta', 'Pedido de venta ' + (p.folio || '#' + p.id), cuerpo); }
+        if (btnImp) { btnImp.disabled = false; btnImp.onclick = () => imprimirConPlantilla('pedido_venta', 'Pedido de venta ' + (p.folio || '#' + p.id), cuerpo, marcaDeEstatus(p.estatus)); }
 
         const btnSurtir = modal.querySelector('#pvBtnSurtir');
         if (btnSurtir) btnSurtir.onclick = () => pvAbrirSurtir(p, det.filter((d) => Number(d.cantidad) - Number(d.cantidad_surtida) > 0), modal);

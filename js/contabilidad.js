@@ -1,5 +1,5 @@
 import { supabaseClient } from './supabase.js';
-import { imprimirConPlantilla } from './impresion.js';
+import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 import { montarGuia, crearPanelAsistente, abrirManual } from './asistente-contable.js';
 import { parsearCfdi, formaPagoSimple, extraerTextoPdf, parsearCfdiPdf } from './cfdi.js';
 import { opcionesRegimen } from './regimenes-fiscales.js';
@@ -2566,7 +2566,7 @@ window.rcVerPoliza = async function (polId) {
             </div>
         </div>`;
         cont.querySelector('.rc-pol-imprimir').onclick = () =>
-            imprimirConPlantilla('poliza', `Póliza ${pol.tipo} #${pol.numero} · ${pol.fecha}`, cont.querySelector('.rc-pol-cuerpo'));
+            imprimirConPlantilla('poliza', `Póliza ${pol.tipo} #${pol.numero} · ${pol.fecha}`, cont.querySelector('.rc-pol-cuerpo'), marcaDeEstatus(pol.estatus));
     } catch (err) {
         cont.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 text-sm">
             <p class="text-rose-400">No se pudo cargar la póliza.<br>${err.message || err}</p>

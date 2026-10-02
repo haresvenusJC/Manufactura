@@ -4,6 +4,15 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/impresion.js`, `js/contabilidad.js`, `js/pedidos-venta.js`, `js/pagos-proveedor.js`, `js/cuentas-por-cobrar.js`,
+  `js/ordenes-compra.js`, `js/requisiciones-compra.js`, `js/nomina.js`, `js/documentos.js`, `js/ordenes-produccion.js`, `js/produccion.js`,
+  `version.json`. A petición del usuario ("cuando un documento esté cancelado quiero una marca de agua en la versión imprimible"): nueva opción
+  `marcaAgua` en `imprimirConPlantilla`/`imprimirHtml` (texto en diagonal, rojo tenue, fijo en CADA hoja, no tapa el texto) y helper
+  `marcaDeEstatus(estatus)` — `cancel*` → "CANCELADO", `rechaz*` → "RECHAZADO" (requisición rechazada), otro → nada. Conectado en todo lo que
+  se imprime y tiene estatus: Póliza (`cancelada`), Pedido de venta, Comprobante de pago y Recibo de cobro, Orden de compra, Requisición,
+  Nómina, Estado de la orden de producción (+ impresión desde Producción) y el expediente de documentos (`documentos.estado = 'cancelado'`:
+  recibos cancelados, devoluciones...). Verificado en Chromium (documento corto y de 2 hojas: la marca sale en ambas). Regla nueva: todo documento
+  imprimible con estatus debe pasar `marcaDeEstatus(...)` como último argumento. Pendiente: imprimir una póliza cancelada y un recibo cancelado reales.
 - Archivos tocados (lo último): `js/impresion.js`, `version.json`. PDF de la Póliza Diario #26 tras correr `…11-02`: subtítulo "Póliza contable",
   logo, cuentas con nombre y Cargo/Abono alineados ya salían bien, pero seguía sobrando UNA hoja en blanco (2 en vez de 1): `<body class="…
   min-h-screen">` (100vh) + los márgenes de 10 mm de la hoja = más alto que el área imprimible. Ahora en `@media print` `html, body` llevan

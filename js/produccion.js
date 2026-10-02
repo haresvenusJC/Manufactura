@@ -1,7 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { siguienteFolio } from './folios.js';
 import { cargarInventarioCompleto } from './inventario.js';
-import { imprimirConPlantilla } from './impresion.js';
+import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { convertirEnBuscador } from './buscador-select.js';
 import { factorConversion } from './conversion-unidades.js';
@@ -1670,7 +1670,7 @@ async function cargarHistorialProduccion(idSeleccionarReciente = null) {
                 const ordenActual = ordenes.find(o => o.id === idActual);
                 if (!ordenActual) return;
                 const titulo = `Orden de Producción #${ordenActual.id} — Lote ${ordenActual.numero_lote || 'S/L'}`;
-                imprimirConPlantilla('entrada_produccion', titulo, 'detalleResumenOrden');
+                imprimirConPlantilla('entrada_produccion', titulo, 'detalleResumenOrden', marcaDeEstatus(ordenActual.estado));
             };
         }
 

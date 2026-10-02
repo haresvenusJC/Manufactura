@@ -2,7 +2,7 @@ import { supabaseClient } from './supabase.js';
 import { siguienteFolio } from './folios.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
-import { imprimirConPlantilla } from './impresion.js';
+import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 import { obtenerInfoProveedorProducto } from './info-proveedor-producto.js';
 import './trazabilidad.js';
 
@@ -654,7 +654,7 @@ async function abrirDetalleReq(id) {
         if (error) throw error;
 
         modal.querySelector('#tituloDetalleReqSub').textContent = r.folio || ('#' + r.id);
-        modal.querySelector('#btnImprimirReq').onclick = () => imprimirConPlantilla('requisicion_compra', 'Requisición ' + (r.folio || '#' + r.id), idCuerpo);
+        modal.querySelector('#btnImprimirReq').onclick = () => imprimirConPlantilla('requisicion_compra', 'Requisición ' + (r.folio || '#' + r.id), idCuerpo, marcaDeEstatus(r.estatus));
 
         const cuerpo = modal.querySelector('#' + idCuerpo);
         const det = r.requisiciones_compra_detalle || [];

@@ -1,5 +1,5 @@
 import { supabaseClient } from './supabase.js';
-import { imprimirConPlantilla } from './impresion.js';
+import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 import './trazabilidad.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
@@ -361,7 +361,7 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
 
         // Se guarda por instancia (idModal) para que window.imprimirDocumentoActual sepa qué
         // plantilla y título usar de ESTA subventana, no de la última que se haya abierto/cargado.
-        const datosParaImprimir = { tipoDocumento: docInfo.tipo_movimiento || 'generico', titulo: `Folio: ${docInfo.folio || 'S/Folio'} (Doc #${docId})` };
+        const datosParaImprimir = { tipoDocumento: docInfo.tipo_movimiento || 'generico', titulo: `Folio: ${docInfo.folio || 'S/Folio'} (Doc #${docId})`, estatus: docInfo.estado };
         docsParaImprimirPorModal.set(idModal, datosParaImprimir);
         if (esPrincipal) docActualParaImprimir = datosParaImprimir;
 
@@ -549,7 +549,7 @@ window.imprimirDocumentoActual = function(idModal) {
         return;
     }
     const idContenido = (!idModal || idModal === 'modalDetalleDocKardex') ? 'contenidoModalDoc' : `contenidoModalDoc__${idModal}`;
-    imprimirConPlantilla(datos.tipoDocumento, datos.titulo, idContenido);
+    imprimirConPlantilla(datos.tipoDocumento, datos.titulo, idContenido, marcaDeEstatus(datos.estatus));
 };
 
 // idModal: qué instancia cerrar — la de siempre ('modalDetalleDocKardex', o sin

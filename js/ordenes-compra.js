@@ -4,7 +4,7 @@ import { cargarInventarioCompleto } from './inventario.js';
 import { opcionesRegimen } from './regimenes-fiscales.js';
 import { parsearCfdi, extraerTextoPdf, parsearCfdiPdf } from './cfdi.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
-import { imprimirConPlantilla } from './impresion.js';
+import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 import { obtenerInfoProveedorProducto } from './info-proveedor-producto.js';
 import { opcionesPresentacionHtml, sugerirPresetPorUnidadCfdi } from './presentaciones-proveedor.js';
 import './trazabilidad.js';
@@ -506,7 +506,7 @@ async function abrirDetalleOC(id) {
     if (btnImprimir) {
         btnImprimir.onclick = async () => {
             await renderVistaOC(o, cuerpo);
-            await imprimirConPlantilla('orden_compra', 'Orden de compra ' + (o.folio || ('#' + o.id)), idCuerpo);
+            await imprimirConPlantilla('orden_compra', 'Orden de compra ' + (o.folio || ('#' + o.id)), idCuerpo, marcaDeEstatus(o.estatus));
         };
     }
 
