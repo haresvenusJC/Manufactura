@@ -4,6 +4,21 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-11-03_reservas_pedidos.sql` (nuevo), `js/pedidos-venta.js`, `js/salidas.js`, `js/inventario.js`, `version.json`. **Reservas de inventario,
+  ENTREGA 1 de 4** (a petición del usuario: pedido sin stock → orden de producción/requisición con trazabilidad; eligió reservas reales). Un pedido pendiente ya APARTA
+  mercancía: `pedidos_venta_detalle.cantidad_reservada`; disponible = existencia en lotes − reservado (vista `v_stock_disponible`). `reservas_reasignar(producto)` recalcula
+  TODO el producto en orden de prioridad (pedido más antiguo primero: fecha, id, renglón), es idempotente y toma `pg_advisory_xact_lock` por producto (dos pedidos
+  simultáneos no se pisan); triggers en `lotes_inventario` (stock), `pedidos_venta_detalle` (cantidad/surtida/producto — NO cantidad_reservada, para no recursar) y
+  `pedidos_venta` (estatus: cancelar/surtir libera) lo disparan solos, así llega mercancía (compra, cierre de OP, devolución) y se aparta al pedido pendiente sin hacer nada.
+  **A prueba de fallos**: cada trigger atrapa cualquier error y solo emite WARNING — una falla aquí NUNCA bloquea una recepción/venta/cierre (probado en Postgres local,
+  incluida una función rota a propósito). `pedido_venta_reservar(pedido)` devuelve por renglón pedido/reservado/FALTANTE/stock/apartado por otros. Pantallas: al guardar un
+  pedido avisa lo que falta (producto, faltante, apartado, en almacén, apartado por otros); lista de pedidos con badge "⚠ Falta stock"; detalle con columnas Reservado/Falta;
+  "Surtir" tope = lo apartado del renglón; Salidas: `registrarSalidaMultiPartida` rechaza `salida_venta`/`salida` que se lleve mercancía apartada (el surtido de pedido sí
+  pasa; **merma y ajuste NO se bloquean**: son pérdidas reales, las reservas se recortan solas — el pedido más nuevo primero — y queda "Falta stock"), sugerencias de
+  Salidas muestran apartado/libre; Stock General (solo Terminados) gana Reservado y Libre. Todo degrada sin la migración (vista/columna ausentes → se omite). **LÍMITE**: el candado
+  de esta entrega es de pantallas; el guardia en la BASE (trigger + autorización corta de surtido) es la entrega 2. Pendiente: correr el SQL, probar con un pedido real
+  (guardar uno que exceda el stock y revisar aviso/columnas/Surtir), y entregas 2 (guardia en BD), 3 (orden de producción por el faltante si se fabrica / requisición si se
+  compra, ligadas al pedido) y 4 (seguimiento 🔗 Pedido→OP/Req→OC→Recepción→Cierre→Surtido).
 - Archivos tocados (lo último): `index.html`, `js/indice.js`, `version.json`. Accesos para operadores gana la tarjeta **Conteo de inventario** (`conteo-inventario.html`, con su
   QR, enlace y botón Copiar — mismo mecanismo que las otras dos). Ahora el panel lista las 3 apps móviles de operador. Pendiente: abrir la pantalla y escanear el QR nuevo.
 - Archivos tocados (lo último): `index.html`, `js/indice.js`, `version.json`. A petición del usuario: el bloque "Herramientas para operadores" (enlaces y QR de las

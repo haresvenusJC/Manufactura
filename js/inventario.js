@@ -46,6 +46,7 @@ let paginaActualLotes = 1;
 const porPaginaLotes = 50;
 let fechaInicioFiltro = '';
 let fechaFinFiltro = '';
+let invReservas = {};   // producto_id -> { reservado, disponible } (pedidos de venta pendientes; vista de sql/2026-11-03)
 let filtroProductoLotes = '';     // SKU o nombre del producto (texto)
 let filtroProductoIdLotes = null;   // si se eligió un producto de las sugerencias: se filtra por ese producto exacto
 let filtroNumeroLote = '';         // número de lote (texto)
@@ -86,6 +87,13 @@ export async function cargarInventarioCompleto() {
             if (errProd) throw errProd;
 
             invProductosCache = productos || [];
+
+            // Reservado / disponible por producto (sin la migración de reservas queda vacío y no se muestran las columnas).
+            invReservas = {};
+            try {
+                const { data: rsv, error: eRsv } = await supabaseClient.from('v_stock_disponible').select('producto_id, reservado, disponible');
+                if (!eRsv && Array.isArray(rsv)) { invReservas = { _ok: true }; rsv.forEach((r) => { invReservas[r.producto_id] = { reservado: Number(r.reservado), disponible: Number(r.disponible) }; }); }
+            } catch (_) { /* sin reservas */ }
 
             const inputBuscar = document.getElementById('invBuscador');
             if (inputBuscar) {
@@ -157,7 +165,8 @@ function renderInventarioResumen() {
                             <tr>
                                 ${thOrden(invResumenOrden, 'nombre', 'Elemento / SKU')}
                                 ${thOrden(invResumenOrden, 'unidad', 'Unidad')}
-                                ${thOrden(invResumenOrden, 'stock', 'Stock Disponible')}
+                                ${thOrden(invResumenOrden, 'stock', key === 'terminados' && invReservas._ok ? 'Existencia' : 'Stock Disponible')}
+                                ${key === 'terminados' && invReservas._ok ? '<th class="p-3" title="Apartado por pedidos de venta pendientes">Reservado</th><th class="p-3" title="Existencia menos lo reservado">Libre</th>' : ''}
                                 ${thOrden(invResumenOrden, 'costo', 'Costo Unitario')}
                             </tr>
                         </thead>
@@ -171,6 +180,8 @@ function renderInventarioResumen() {
                         <td class="p-3 font-medium text-slate-100">${item.nombre} <span class="text-xs text-slate-500 font-mono">(${item.sku || 'N/D'})</span></td>
                         <td class="p-3 text-slate-400 text-xs">${nombreUnidad}</td>
                         <td class="p-3 font-mono font-semibold">${item.stock_actual || 0}</td>
+                        ${key === 'terminados' && invReservas._ok ? `<td class="p-3 font-mono ${(invReservas[item.id]?.reservado || 0) > 0 ? 'text-sky-300' : 'text-slate-600'}">${invReservas[item.id]?.reservado || 0}</td>
+                        <td class="p-3 font-mono ${(invReservas[item.id]?.reservado || 0) > 0 ? 'text-amber-300 font-semibold' : 'text-slate-400'}">${invReservas[item.id] ? invReservas[item.id].disponible : (item.stock_actual || 0)}</td>` : ''}
                         <td class="p-3 font-mono text-slate-300">$${Number(item.costo_unitario || 0).toFixed(2)} <span class="text-[10px] text-slate-500">${codigoMoneda}</span></td>
                     </tr>
                 `;
