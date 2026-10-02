@@ -1,5 +1,5 @@
 /* =====================================================================
-   Guías y manuales — siguen el tema de la app (Configuración > Tema de colores)
+   Guías y manuales — siguen el tema de la app (Configuración > Temas de usuario)
    Se carga junto con tema-base.css y ui-moderno.css. El atributo data-theme
    va en <body> (no en <html>) para que las variables --warn/--ok/--bad del
    tema ganen a las que definen las propias guías en :root.

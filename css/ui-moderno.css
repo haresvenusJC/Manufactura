@@ -426,3 +426,129 @@ span.rounded-full[class*="bg-"] { box-shadow: inset 0 0 0 1px color-mix(in srgb,
 }
 [data-theme="macos"] .bv-tile:hover { transform: translateY(-2px); border-color: var(--bd-2); }
 [data-theme="macos"] .bv-tile .ico { background-image: none; background-color: color-mix(in srgb, currentColor 12%, transparent); box-shadow: none; }
+
+/* =====================================================================
+   Tema "Mac oscuro" (data-theme="macos-dark") — el mismo Mac claro y
+   sencillo de arriba, en la paleta oscura de sistema de macOS (fondo gris
+   carbón #1c1c1e, tarjetas #2c2c2e, acento azul de modo oscuro #0a84ff,
+   colores de sistema en su variante oscura). Mismas reglas de forma
+   (sin degradados, sin brillos, sin botones 3D, esquinas de 9 px),
+   solo cambia la paleta. Todo cuelga de [data-theme="macos-dark"].
+   ===================================================================== */
+[data-theme="macos-dark"] {
+    color-scheme: dark;
+    --bg-0:#1c1c1e; --bg-1:#2c2c2e; --bg-2:#3a3a3c; --bg-3:#48484a; --soft:#242426;
+    --bd-0:#38383a; --bd-1:#3a3a3c; --bd-2:#48484a;
+    --tx-0:#f5f5f7; --tx-1:#e5e5e7; --tx-2:#c7c7cc; --tx-3:#98989d; --tx-4:#8e8e93; --tx-5:#636366;
+    --acc:#0a84ff; --acc-2:#409cff; --ind:#7d7aff; --acc-3:#da8fff;
+    --ok:#32d74b; --bad:#ff453a; --warn:#ff9f0a; --err:#ff453a; --chip:#3a3a3c;
+    /* Botones sólidos: los mismos colores de sistema de Apple, en su variante de modo oscuro. */
+    --acc-s:#0a84ff; --ok-s:#32d74b; --ind-s:#7d7aff; --bad-s:#ff453a; --wrn-s:#ff9f0a;
+    --acc-h:#409cff; --ok-h:#30c249; --ind-h:#938fff; --bad-h:#ff6961; --wrn-h:#ffb340;
+    --r-sm: 8px; --r-md: 12px; --r-lg: 16px;
+    --sh-1: 0 0 0 .5px rgba(0, 0, 0, .5), 0 1px 3px rgba(0, 0, 0, .4), 0 6px 20px -8px rgba(0, 0, 0, .5);
+    --sh-2: 0 0 0 .5px rgba(0, 0, 0, .6), 0 24px 60px -16px rgba(0, 0, 0, .7);
+    --in-sh: none;
+    --btn-drop: rgba(0, 0, 0, .5);
+}
+[data-theme="macos-dark"] body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", "Inter", system-ui, sans-serif;
+    background-image: none;
+    letter-spacing: -0.003em;
+}
+[data-theme="macos-dark"] ::selection { background: rgba(10, 132, 255, .35); }
+[data-theme="macos-dark"] h2.text-xl {
+    background-image: none; -webkit-text-fill-color: var(--tx-0); color: var(--tx-0) !important;
+    font-weight: 700; letter-spacing: -0.022em;
+}
+
+/* Tarjetas: gris carbón, línea finísima y sombra oscura (sin borde degradado). */
+[data-theme="macos-dark"] .bg-slate-900.border:not(input):not(select):not(textarea):not(button):not(span) {
+    background-image: none;
+    background-color: var(--bg-1) !important;
+    border-color: var(--bd-1) !important;
+    box-shadow: var(--sh-1);
+}
+[data-theme="macos-dark"] .fixed > .bg-slate-900.border, [data-theme="macos-dark"] .fixed.bg-slate-900.border { box-shadow: var(--sh-2); }
+
+/* Botones: esquina suave (no píldora), planos. */
+[data-theme="macos-dark"] button:not(.text-left):not(.w-full):not([class*="border-b-2"]):not(.th-orden) { border-radius: 9px !important; }
+[data-theme="macos-dark"] button.w-full:not(.text-left) { border-radius: 10px !important; }
+[data-theme="macos-dark"] button.text-left { border-radius: 10px !important; }
+[data-theme="macos-dark"] button:focus-visible, [data-theme="macos-dark"] a:focus-visible { outline: 3px solid rgba(10, 132, 255, .45); outline-offset: 1px; }
+
+[data-theme="macos-dark"] button[class*="bg-emerald-"], [data-theme="macos-dark"] button[class*="bg-sky-"],
+[data-theme="macos-dark"] button[class*="bg-indigo-"], [data-theme="macos-dark"] button[class*="bg-rose-"],
+[data-theme="macos-dark"] button[class*="bg-red-"], [data-theme="macos-dark"] button[class*="bg-amber-"] {
+    background-image: none !important;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, .4) !important;
+    text-shadow: none !important;
+    color: #fff;
+    font-weight: 500;
+}
+[data-theme="macos-dark"] button:not([disabled])[class*="bg-emerald-"]:hover, [data-theme="macos-dark"] button:not([disabled])[class*="bg-sky-"]:hover,
+[data-theme="macos-dark"] button:not([disabled])[class*="bg-indigo-"]:hover, [data-theme="macos-dark"] button:not([disabled])[class*="bg-rose-"]:hover,
+[data-theme="macos-dark"] button:not([disabled])[class*="bg-red-"]:hover, [data-theme="macos-dark"] button:not([disabled])[class*="bg-amber-"]:hover {
+    transform: none; filter: brightness(1.12);
+}
+[data-theme="macos-dark"] button:not([disabled])[class*="bg-emerald-"]:active, [data-theme="macos-dark"] button:not([disabled])[class*="bg-sky-"]:active,
+[data-theme="macos-dark"] button:not([disabled])[class*="bg-indigo-"]:active, [data-theme="macos-dark"] button:not([disabled])[class*="bg-rose-"]:active,
+[data-theme="macos-dark"] button:not([disabled])[class*="bg-red-"]:active, [data-theme="macos-dark"] button:not([disabled])[class*="bg-amber-"]:active {
+    transform: none; filter: brightness(.86); box-shadow: none !important;
+}
+/* Botones secundarios: gris oscuro suave, sin volumen. */
+[data-theme="macos-dark"] button:is(.bg-slate-800, .bg-slate-700) {
+    background-image: none; box-shadow: none; background-color: var(--bg-2) !important;
+    border-color: transparent !important; color: var(--tx-1);
+}
+[data-theme="macos-dark"] button:not([disabled]):is(.bg-slate-800, .bg-slate-700):hover { transform: none; background-color: var(--bg-3) !important; border-color: transparent !important; }
+[data-theme="macos-dark"] button:not([disabled]):is(.bg-slate-800, .bg-slate-700):active { transform: none; box-shadow: none; filter: brightness(1.12); }
+/* Los textos de acento dentro de botones grises siguen legibles en azul de sistema. */
+[data-theme="macos-dark"] button.text-sky-300, [data-theme="macos-dark"] button.text-sky-400 { color: var(--acc) !important; }
+
+/* Campos: planos, gris carbón, halo azul al enfocar (como los campos de macOS en modo oscuro). */
+[data-theme="macos-dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+[data-theme="macos-dark"] select, [data-theme="macos-dark"] textarea { box-shadow: none; background-color: var(--bg-2); }
+[data-theme="macos-dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):focus,
+[data-theme="macos-dark"] select:focus, [data-theme="macos-dark"] textarea:focus {
+    border-color: var(--acc) !important;
+    box-shadow: 0 0 0 4px rgba(10, 132, 255, .28) !important;
+}
+[data-theme="macos-dark"] input[type="checkbox"], [data-theme="macos-dark"] input[type="radio"] { accent-color: #0a84ff !important; }
+
+/* Tablas: encabezado limpio, filas con línea fina. */
+[data-theme="macos-dark"] table thead { background-image: none; }
+[data-theme="macos-dark"] table thead th { letter-spacing: .02em; font-weight: 600; }
+[data-theme="macos-dark"] table tbody tr:not([class*="bg-"]):hover { background-color: rgba(255, 255, 255, .04); }
+[data-theme="macos-dark"] table tbody tr:not([class*="bg-"]):hover > td:first-child { box-shadow: none; }
+
+/* Chips de estatus: sin brillo ni sombra. */
+[data-theme="macos-dark"] span.rounded-full[class*="bg-"] { box-shadow: none; }
+
+/* Tarjetas de tema / zoom (Configuración). */
+[data-theme="macos-dark"] .tema-card, [data-theme="macos-dark"] .zoom-card { background-image: none; box-shadow: var(--sh-1); }
+[data-theme="macos-dark"] .tema-card:hover, [data-theme="macos-dark"] .zoom-card:hover { transform: none; }
+[data-theme="macos-dark"] .tema-card:active, [data-theme="macos-dark"] .zoom-card:active { transform: none; box-shadow: none; }
+
+/* Menú lateral: panel translúcido con desenfoque, como la barra lateral de Finder en modo oscuro. */
+[data-theme="macos-dark"] #sidebar {
+    background-image: none;
+    background-color: rgba(28, 28, 30, .72) !important;
+    -webkit-backdrop-filter: saturate(180%) blur(22px); backdrop-filter: saturate(180%) blur(22px);
+    box-shadow: 0 0 0 .5px rgba(255, 255, 255, .08);
+}
+[data-theme="macos-dark"] #sidebar.nav-abierto { box-shadow: 0 0 0 .5px rgba(255, 255, 255, .08), 16px 0 40px -20px rgba(0, 0, 0, .6); }
+[data-theme="macos-dark"] #sidebar button { border-radius: 8px !important; }
+[data-theme="macos-dark"] #sidebar li > button:hover { background-image: none; background-color: rgba(255, 255, 255, .06); box-shadow: none; transform: none; }
+[data-theme="macos-dark"] #sidebar ul[id^="submenu-"] { border-left-color: var(--bd-1) !important; }
+[data-theme="macos-dark"] #statusConexion { box-shadow: none; }
+[data-theme="macos-dark"] #btnAbrirMenu { background-image: none; box-shadow: var(--sh-1); }
+
+/* Inicio (bienvenida): sin orbes de color ni degradados. */
+[data-theme="macos-dark"] .bv-orbe { display: none; }
+[data-theme="macos-dark"] .bv-nombre { background-image: none; -webkit-text-fill-color: var(--acc); color: var(--acc); }
+[data-theme="macos-dark"] .bv-tile {
+    background-image: none; background-color: var(--bg-1); border-color: var(--bd-1); box-shadow: var(--sh-1);
+}
+[data-theme="macos-dark"] .bv-tile:hover { transform: translateY(-2px); border-color: var(--bd-2); }
+[data-theme="macos-dark"] .bv-tile .ico { background-image: none; background-color: color-mix(in srgb, currentColor 16%, transparent); box-shadow: none; }

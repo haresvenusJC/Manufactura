@@ -4,6 +4,17 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`, `js/indice.js`, `orden-trabajo.html`,
+  `recibo-operador.html`, `conteo-inventario.html`, `css/doc-tema.css`. A petición del usuario: nuevo tema
+  **Mac (oscuro)** (`data-theme="macos-dark"`, tarjeta en Configuración, junto a "Mac (claro y sencillo)") —
+  misma estética plana y sobria (sin degradados, sin botones 3D, esquinas de 9 px, menú lateral translúcido),
+  en la paleta oscura de sistema de macOS: fondo gris carbón `#1c1c1e`, tarjetas `#2c2c2e`, acento azul de modo
+  oscuro `#0a84ff`, verde/rojo/naranja de sistema en su variante oscura. Mismo mecanismo que los demás temas
+  (`data-tema` del botón → `data-theme` global, genérico, sin lista fija en JS). También a petición del
+  usuario, la sección/tarjeta se renombró de **"Tema de colores" a "Temas de usuario"** (encabezado en
+  Configuración, subtítulo de la tarjeta del Índice, y los comentarios de referencia en las 3 apps de
+  operador y en `css/doc-tema.css`). Sin migración SQL. Pendiente: probar el tema nuevo en el navegador
+  (sobre todo contraste de texto y la transparencia del menú lateral sobre fondo oscuro).
 - Sesión de sincronización (sin archivos de producto; vía API de GitHub desde Claude Code, carpeta local sin
   git). El usuario pidió sincronizar GitHub con los últimos cambios locales ("sincroniza con github, todos
   los últimos cambios que hice desde Claude Code"). Al comparar el árbol local contra `main` se detectó que
