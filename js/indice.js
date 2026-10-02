@@ -92,6 +92,7 @@ export const SECCIONES = [
             { v: 'tablas', t: 'Tablas · Unidades de medida', d: 'Ver los datos de la tabla de unidades de medida (con acceso a su editor).', extra: "{tabla:'unidades_medida'}" },
             { v: 'tablas', t: 'Tablas · Monedas', d: 'Ver los datos de la tabla de monedas.', extra: "{tabla:'monedas'}" },
             { v: 'tablas', t: 'Tablas · Conversiones', d: 'Equivalencias entre unidades (masa y volumen) que usa el sistema para las fórmulas, con acceso a las densidades.', extra: "{tabla:'conversiones'}" },
+            { v: 'tablas', t: 'Tablas · Densidades', d: 'Kilogramos por litro de cada insumo, para convertir fórmulas en volumen contra inventario en peso (se edita ahí mismo).', extra: "{tabla:'densidades'}" },
         ],
     },
 ];

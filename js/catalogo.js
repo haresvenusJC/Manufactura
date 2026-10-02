@@ -1217,8 +1217,6 @@ export async function cargarModuloCatalogoKardex() {
                     <div class="flex flex-wrap gap-2 items-center">
                         <button type="button" id="btnExportProdXlsx" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇️ Excel</button>
                         <button type="button" id="btnExportProdCsv" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⬇️ CSV</button>
-                        <button type="button" id="btnTablaDensidades" title="Kilogramos que pesa 1 litro de cada insumo — para convertir fórmulas en volumen contra inventario en peso" class="text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">⚖️ Densidades</button>
-                        <button type="button" id="btnTablaUnidades" title="Ver, editar y agregar unidades de medida (Piezas, Kilogramos, Litros...)" class="text-xs bg-slate-800 hover:bg-slate-700 text-indigo-300 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">📏 Unidades</button>
                     </div>
                 </div>
                 <input type="text" id="catBuscador" placeholder="🔍 Buscar por SKU o nombre..." value="${escaparHtml(catBusqueda)}"
@@ -1236,8 +1234,6 @@ export async function cargarModuloCatalogoKardex() {
 
         document.getElementById('btnExportProdCsv').addEventListener('click', () => exportarCatalogoProductos('csv'));
         document.getElementById('btnExportProdXlsx').addEventListener('click', () => exportarCatalogoProductos('xlsx'));
-        document.getElementById('btnTablaDensidades').addEventListener('click', abrirTablaDensidades);
-        document.getElementById('btnTablaUnidades').addEventListener('click', abrirTablaUnidades);
         document.getElementById('catBuscador').addEventListener('input', (e) => {
             catBusqueda = e.target.value;
             aplicarFiltroCatalogo();
@@ -1711,7 +1707,7 @@ async function abrirVentanaBom(producto) {
         const conv = factorConversion(f.unidad, stockId, nombreUnidadPorId, nombreUnidadStock, cant, p.densidad_kg_l);
         const convertido = cant * conv.factor;
         const detalle = conv.tipo === 'aviso'
-            ? 'sin densidad capturada — se toma como agua (1 kg/L), agrégala en ⚖️ Densidades'
+            ? 'sin densidad capturada — se toma como agua (1 kg/L), agrégala en Configuración → Tablas → Densidades'
             : (conv.nota ? conv.nota.replace(/^Convertido con /, '').replace(/\.$/, '') : 'conversión exacta de unidad');
         const clase = conv.tipo === 'aviso' ? 'text-amber-400' : 'text-emerald-400';
         return `<span class="${clase}">Fórmula: ${fmtNum(cant)} ${escaparHtml(nombreUnidadReceta)} → se descontarán ${fmtNum(convertido)} ${escaparHtml(nombreUnidadStock)} (${detalle})</span>`;
@@ -2300,7 +2296,7 @@ function htmlGuiaGranel(d) {
     }
 
     if (d.res && d.nComponentes > 0) {
-        if (d.res.sinDensidad.length) mal(`Insumos sin densidad: ${d.res.sinDensidad.map(escaparHtml).join(', ')} (se tomaron como agua).`, 'Captúrala en Catálogo → ⚖️ Densidades. Solo importa si la fórmula los pide en otra unidad (ej. en L y se compran en kg).');
+        if (d.res.sinDensidad.length) mal(`Insumos sin densidad: ${d.res.sinDensidad.map(escaparHtml).join(', ')} (se tomaron como agua).`, 'Captúrala en Configuración → Tablas → Densidades. Solo importa si la fórmula los pide en otra unidad (ej. en L y se compran en kg).');
         else ok('Todos los insumos se convierten a la unidad del granel (densidades completas).');
         if (d.res.ignorados.length) mal(`La fórmula lleva piezas: ${d.res.ignorados.map(escaparHtml).join(', ')}.`, 'Un granel normalmente no lleva frascos ni etiquetas: esos van en el BOM del producto terminado.');
     }
@@ -2344,7 +2340,7 @@ function htmlAnalisisTanda(res, unidadNombre, rendActual, densActual) {
         <p>🧮 <b>Tamaño real de la tanda (suma de la fórmula):</b> <b class="text-sky-300 font-mono">${fmt(res.total)} ${u}</b>
            <span class="text-slate-500">· ≈ ${fmt(res.litros)} L / ${fmt(res.kilos)} kg${res.densidadMezcla ? ` · densidad estimada de la mezcla ${fmt(res.densidadMezcla, 3)} kg/L` : ''}</span></p>
         <p>${comparacion}</p>
-        ${res.sinDensidad.length ? `<p class="text-amber-400/90">⚠ Sin densidad (se tomó como agua, 1 kg/L): ${res.sinDensidad.map(escaparHtml).join(', ')} — captúrala en ⚖️ Densidades para afinar el cálculo.</p>` : ''}
+        ${res.sinDensidad.length ? `<p class="text-amber-400/90">⚠ Sin densidad (se tomó como agua, 1 kg/L): ${res.sinDensidad.map(escaparHtml).join(', ')} — captúrala en Configuración → Tablas → Densidades para afinar el cálculo.</p>` : ''}
         ${res.ignorados.length ? `<p class="text-slate-500">No cuentan para el tamaño (no son volumen ni peso): ${res.ignorados.map(escaparHtml).join(', ')}.</p>` : ''}
         <p class="text-slate-500">Es teórico: al mezclar, el volumen real puede salir un poco menor. Mide la primera tanda en el tanque y, si difiere, captura lo medido. <a href="manual-costos-produccion.html#m-granel-rendimiento" target="_blank" class="text-sky-400 underline">¿Por qué importa el rendimiento?</a></p>
         ${densActual === undefined ? '' : htmlDensidadMezcla(res, densActual)}
@@ -2388,7 +2384,7 @@ function confirmarCambioDensidad(res, valorNuevo, nombreProducto) {
         + `POR QUÉ NO CONVIENE CAMBIARLA${nuevo ? ` a ${n(nuevo, 4)}` : ' (dejarla vacía)'}:\n`
         + `  • Producción la usa para convertir litros ↔ kilos cuando un terminado pide este granel en otra unidad: un número distinto descuenta de más o de menos del inventario y el costo del terminado sale mal.\n`
         + `  • La calculada se actualiza sola si cambias la fórmula; una escrita a mano se queda fija y deja de coincidir con lo que realmente se mezcla.\n`
-        + `  • Si el número no te cuadra, lo que hay que corregir es la densidad del insumo (⚖️ Densidades)${res.densidadFaltante?.length ? ` — sin densidad: ${res.densidadFaltante.join(', ')}` : ''}, no la del granel.\n`
+        + `  • Si el número no te cuadra, lo que hay que corregir es la densidad del insumo (Configuración → Tablas → Densidades)${res.densidadFaltante?.length ? ` — sin densidad: ${res.densidadFaltante.join(', ')}` : ''}, no la del granel.\n`
         + `  • Solo conviene cambiarla si mediste la mezcla real (pesaste 1 litro del tanque).\n\n`
         + `¿Cambiarla de todos modos?`;
     return confirm(msg);
@@ -2402,7 +2398,7 @@ function htmlDensidadMezcla(res, densActual) {
     const d = res.densidadCalculada;
     if (!d) {
         return res.densidadFaltante?.length
-            ? '<p class="text-slate-500">⚖️ Densidad de la mezcla: no se puede calcular — ningún insumo de la fórmula tiene su densidad capturada (⚖️ Densidades).</p>'
+            ? '<p class="text-slate-500">⚖️ Densidad de la mezcla: no se puede calcular — ningún insumo de la fórmula tiene su densidad capturada (Configuración → Tablas → Densidades).</p>'
             : '';
     }
     const actual = Number(densActual) || 0;

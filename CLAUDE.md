@@ -4,6 +4,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/catalogo.js`, `js/tablas.js`, `index.html`, `js/indice.js`, `version.json`. A petición del usuario ("para ir
+  ordenando el ERP"): los botones "⚖️ Densidades" y "📏 Unidades" salieron de Catálogo y Kardex; ahora viven solo en Configuración → Tablas
+  (Unidades de medida / Monedas / Conversiones / **Densidades**, esta última abre la misma subventana editable). Los avisos de "captúrala en
+  Densidades" apuntan a la nueva ruta. Mismas funciones, solo cambió el punto de entrada. Pendiente: probar.
 - Archivos tocados (lo último): `js/tablas.js`, `js/catalogo.js` (solo `export` de `abrirTablaDensidades`), `js/indice.js`, `index.html`,
   `version.json`. Configuración → Tablas → **Conversiones**: no existe tabla de conversiones en la base (la regla vive en
   `js/conversion-unidades.js`, familias masa/volumen + densidad), así que se muestra la matriz calculada con las unidades reales de
@@ -589,8 +593,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `buscador-select.js` — convierte un `<select>` largo en un buscador con teclado, sin cambiar su comportamiento.
 - `catalogo.js` — dos pantallas separadas: `cargarModuloAltaArticulo` ("Alta de artículo", solo el
   formulario: alta/edición por nombre, clasificación, BOM) y `cargarModuloCatalogoKardex` ("Catálogo y
-  Kardex", el listado general con ☰ acciones, export Excel/CSV, tabla de Densidades y de Unidades de
-  medida, y el panel de Kardex embebido al elegir un artículo).
+  Kardex", el listado general con ☰ acciones, export Excel/CSV, y el panel de Kardex embebido al elegir un artículo).
 - `centros-costo.js` — centros de costo para prorrateo de CIF: capacidad normal en horas y variables del cálculo.
 - `cfdi.js` — lector de CFDI: XML (confiable) y PDF (mejor esfuerzo, sin namespaces).
 - `cierre-periodo.js` — cierre de periodo contable: revisa los 8 candados antes de cerrar un mes, permite reabrir.

@@ -59,6 +59,13 @@ async function cargarConversiones(cont, titulo) {
 export async function cargarModuloTablas(tabla = 'unidades_medida') {
     const cont = document.getElementById('contenedorTablas');
     if (!cont) return;
+    if (tabla === 'densidades') {
+        const t = document.getElementById('tituloTablas'); if (t) t.textContent = '⚖️ Densidades';
+        cont.innerHTML = '<p class="text-xs text-slate-400 mb-3">Kilogramos que pesa 1 litro de cada insumo — para convertir fórmulas en volumen contra inventario en peso. Se ve y edita en la subventana.</p><button type="button" id="tablasDens2" class="text-xs bg-slate-800 hover:bg-slate-700 text-amber-300 px-3 py-2 rounded-lg border border-slate-700 cursor-pointer">⚖️ Abrir tabla de densidades</button>';
+        cont.querySelector('#tablasDens2').addEventListener('click', abrirTablaDensidades);
+        abrirTablaDensidades();
+        return;
+    }
     if (tabla === 'conversiones') {
         cont.innerHTML = '<p class="text-sm text-slate-400">Cargando…</p>';
         return cargarConversiones(cont, document.getElementById('tituloTablas'));
