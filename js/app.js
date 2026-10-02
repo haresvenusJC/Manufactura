@@ -240,6 +240,7 @@ window.loadView = function(viewName, opciones = {}) {
             cargarModuloProveedores();
             break;
         case 'inventario':
+        case 'lotes':   // Stock General y Lotes son dos pantallas; el mismo módulo llena las dos (por id de contenedor)
             cargarInventarioCompleto();
             break;
         case 'documentos':

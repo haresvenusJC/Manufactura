@@ -4,6 +4,12 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `index.html`, `js/app.js`, `js/indice.js`, `version.json`. A petición del usuario: la sección "Existencias y Lotes
+  Detallados" (antes al pie de Stock General) sale a su propia pantalla — nueva entrada **Lotes** en el menú Inventario (vista `lotes`, también en el
+  Índice). Stock General conserva solo el resumen por insumo. Sin cambios de lógica: `cargarInventarioCompleto()` (`js/inventario.js`) llena cada
+  tabla por id de contenedor (`contenedorInventario` / `contenedorExistenciasLote`), así que funciona igual con las dos en vistas distintas;
+  el router (`app.js`) atiende `'inventario'` y `'lotes'` con la misma función, y las demás pantallas que la llaman al terminar un movimiento
+  siguen refrescando ambas. Pendiente: probar Stock General y Lotes en el navegador (filtros de fecha y paginación de lotes).
 - Archivos tocados (lo último): `index.html`, `js/indice.js`, `js/app.js`, `js/clientes.js`, `version.json`. A petición del usuario: "Clientes y listas de
   precio" se divide en DOS entradas del menú Catálogos — **Clientes** y **Listas de precio** (también dos tarjetas en el Índice). Misma vista y módulo
   (`clientes`); `window.loadView('clientes', {tab:'clientes'|'listas'})` → `cargarModuloClientes(tab)` fija la sección, cambia el título

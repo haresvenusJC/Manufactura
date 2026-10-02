@@ -28,6 +28,7 @@ export const SECCIONES = [
     {
         grupo: 'Inventario', ancla: 'inv', items: [
             { v: 'inventario', t: 'Stock General', d: 'Existencias por producto y por lote, con mínimos.' },
+            { v: 'lotes', t: 'Lotes', d: 'Existencias por lote: número de lote, fecha de ingreso, costo y cuánto queda de cada uno, con filtro por fechas.' },
             { v: 'auditoria', t: 'Auditoría de inventarios', d: 'Toma física de inventario: crea auditorías, revisa el conteo de los operadores y compáralo contra el stock del sistema.' },
             { v: 'tareas', t: 'Tareas de almacén', d: 'Pendientes automáticos de almacén: inventario bajo mínimo, lotes por caducar.', extra: "{departamento:'almacen'}" },
         ],

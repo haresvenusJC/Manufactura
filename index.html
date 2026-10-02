@@ -264,6 +264,7 @@
                         </button>
                         <ul id="submenu-inventario" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
                             <li><button onclick="window.loadView('inventario')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Stock General</button></li>
+                            <li><button onclick="window.loadView('lotes')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Lotes</button></li>
                             <li><button onclick="window.loadView('auditoria')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Auditoría de inventarios</button></li>
                             <li><button onclick="window.loadView('tareas', {departamento:'almacen'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Tareas de almacén</button></li>
                         </ul>
@@ -468,11 +469,18 @@
                                class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 mb-3">
                         <div id="contenedorInventario">Cargando inventario...</div>
                     </div>
-                    <hr class="border-slate-800">
-                    <div>
-                        <h3 class="text-sm font-semibold text-slate-300 mb-2">Existencias y Lotes Detallados</h3>
-                        <div id="contenedorExistenciasLote">Cargando lotes...</div>
-                    </div>
+                </div>
+            </section>
+
+            <!-- Vista: Lotes (antes "Existencias y Lotes Detallados" dentro de Stock General). Lo llena cargarInventarioCompleto() por id. -->
+            <section id="view-lotes" class="vista-seccion hidden space-y-4">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <h2 class="text-xl font-bold text-sky-400">Lotes</h2>
+                    <button type="button" onclick="window.abrirManual('#m-inventario', 'Stock General y Lotes')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <p class="text-xs text-slate-400 mb-3">Existencias por lote: número de lote, fecha de ingreso, costo y cuánto queda de cada uno. Filtra por fechas de ingreso.</p>
+                    <div id="contenedorExistenciasLote">Cargando lotes...</div>
                 </div>
             </section>
 
