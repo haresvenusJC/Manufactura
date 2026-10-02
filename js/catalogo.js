@@ -1532,7 +1532,7 @@ const CAMPOS_OCULTOS_PRODUCTO = new Set(['es_semiterminado']);
 // las banderas. Los que no estén aquí (columnas nuevas a futuro) caen
 // después, en orden alfabético; los de solo lectura siempre van al final.
 const ORDEN_CAMPOS_PRODUCTO = [
-    'sku', 'nombre', 'tipo', 'descripcion', 'clave_sat', 'densidad_kg_l', 'rendimiento_lote_bom',
+    'sku', 'nombre', 'tipo', 'descripcion', 'clave_sat', 'densidad_kg_l', 'rendimiento_lote_bom', 'lote_minimo_fabricacion',
     'unidad_medida_id', 'proveedor_id', 'moneda_id',
     'costo_unitario', 'precio_venta', 'tasa_iva', 'tasa_ieps',
     'cuenta_inventario_id', 'cuenta_costo_id',
@@ -2234,10 +2234,11 @@ function tipoDeCampo(valor) {
 const ETIQUETAS_CAMPO_PRODUCTO = {
     sku: 'SKU / Código', clave_sat: 'Clave SAT (ClaveProdServ)', densidad_kg_l: 'Densidad (kg por litro)',
     rendimiento_lote_bom: 'Rendimiento del lote (para el BOM)', unidad_medida_id: 'Unidad de Medida',
-    descripcion: 'Descripción',
+    descripcion: 'Descripción', lote_minimo_fabricacion: 'Lote mínimo de fabricación',
 };
 // Pistas bajo cada campo de "Editar artículo" (las mismas ideas que el formulario del Catálogo).
 const PISTAS_CAMPO_PRODUCTO = {
+    lote_minimo_fabricacion: 'Lo mínimo que conviene fabricar por orden, en la unidad de este producto (solo referencia). Si un pedido pide menos, Producción te pregunta si fabricas este lote mínimo (lo que sobra queda en inventario) o solo lo necesario. Vacío = sin mínimo.',
     tipo: 'Un granel es "Semiterminado": se fabrica (lleva fórmula) y lo consumen otros productos; no se vende.',
     unidad_medida_id: 'En qué se cuenta en almacén y se descuenta. Granel: Litros o Kilogramos, nunca Pieza.',
     densidad_kg_l: 'Kilos que pesa 1 litro. Solo para insumos que la fórmula pide en volumen y se llevan en peso (o al revés). Ej.: Glicerina Vegetal Usp = 1.26. En un granel se calcula sola con su fórmula (densidad de la mezcla); el botón "Usar X kg/L como Densidad" la actualiza.',
@@ -2633,6 +2634,8 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
             art.tipo === 'producto' ? ['densidad_kg_l', 'rendimiento_lote_bom', 'requiere_caducidad'] : []
         );
         if (art.tipo !== 'semiterminado') camposOcultosPorTipo.add('rendimiento_lote_bom');
+        // Lote mínimo de fabricación: solo de lo que se fabrica (producto terminado o semiterminado).
+        if (art.tipo !== 'semiterminado' && art.tipo !== 'producto') camposOcultosPorTipo.add('lote_minimo_fabricacion');
         const claves = Object.keys(art)
             .filter((c) => c !== 'activo' && !CAMPOS_OCULTOS_PRODUCTO.has(c) && !camposOcultosPorTipo.has(c))
             .sort((a, b) => {

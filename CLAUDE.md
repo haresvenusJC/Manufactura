@@ -4,6 +4,13 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-11-06_lote_minimo_fabricacion.sql` (nuevo), `js/catalogo.js`, `js/produccion.js`, `version.json`. A petición del usuario ("que sea solo un número, para
+  tenerlo como referencia y que me pregunte y me permita decidir"): `productos.lote_minimo_fabricacion` (numérico > 0, en la unidad del producto, null = sin mínimo; solo referencia). Se captura en
+  Productos → ☰ → Editar artículo (solo producto terminado y semiterminado). En Producción, al precargar una orden sugerida (desde un pedido o "Faltantes") cuyo faltante es MENOR al mínimo,
+  `mostrarPreguntaMinimo` (en el recuadro `#preguntaTandaBOM`) pregunta "Lote mínimo: X (sobran Y)" [marcado por defecto] o "Solo lo necesario: faltante"; la cantidad también se puede teclear a mano.
+  Tiene prioridad sobre la pregunta de tanda de graneles. Sin la migración no hay pregunta (la consulta falla en silencio). El pedido cuenta TODA la cantidad de la orden como "en camino" y el sobrante
+  queda como stock libre. Probado en Chromium con Supabase simulado (mínimo 300 vs faltante 148 → pregunta; mínimo 100 o sin mínimo → no). Pendiente: correr `…11-06`, capturar un mínimo en un
+  producto y probar con PED-000001.
 - Archivos tocados (lo último): `sql/2026-11-05_reservas_guardia_bd.sql` (nuevo), `js/salidas.js`, `js/trazabilidad.js`, `js/pedidos-venta.js`, `js/ordenes-produccion.js`, `version.json`. **Reservas,
   ENTREGAS 2 y 4 de 4.** **Entrega 2 — guardia en la BASE:** trigger `trg_guardia_reservas_lote` (BEFORE UPDATE OF stock_actual en `lotes_inventario`): rechaza con `RESERVA_PROTEGIDA` toda BAJA que
   se meta en lo apartado por pedidos pendientes/parciales, salvo que exista una autorización corta (`reserva_autorizar_salida(producto, cantidad, motivo)`, tabla `reservas_autorizaciones`, vigencia 2 min,

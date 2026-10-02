@@ -735,6 +735,12 @@ export async function cargarModuloProduccion() {
                 rend: Number(p.rendimiento_lote_bom), unidad: p.unidades_medida?.nombre || '',
             }));
         }
+        // Lote mínimo de fabricación (sql/2026-11-06; sin la columna simplemente no hay pregunta).
+        const minimoPorProducto = new Map();   // id -> lote mínimo en la unidad del producto
+        {
+            const r = await supabaseClient.from('productos').select('id, lote_minimo_fabricacion').gt('lote_minimo_fabricacion', 0);
+            if (!r.error) (r.data || []).forEach((p) => minimoPorProducto.set(String(p.id), Number(p.lote_minimo_fabricacion)));
+        }
         const redondear = (n) => Math.round(n * 10000) / 10000;
         const unidadPorProducto = new Map((productos || []).map((p) => [String(p.id), p.unidades_medida?.nombre || '']));
         const etiquetaUnidadCant = document.getElementById('unidadCantidadProd');
@@ -1015,6 +1021,13 @@ export async function cargarModuloProduccion() {
             // Granel con "Rendimiento del lote": si lo que falta no es una tanda redonda, se pregunta en el
             // recuadro de existencias si se fabrica la tanda completa (menos de 1 → 1; más → siguiente media
             // tanda: 1.5, 2, 2.5…; es lo que queda marcado) o solo lo necesario.
+            // Lote mínimo de fabricación: si lo que falta es menos, se pregunta (no se decide solo).
+            const minimo = minimoPorProducto.get(String(item.id)) || 0;
+            if (minimo > item.cantidad + 1e-9) {
+                mostrarPreguntaMinimo(item, minimo, cargar);
+                document.getElementById('numeroLoteResultante')?.focus();
+                return;
+            }
             const info = rendimientoPorProducto.get(String(item.id));
             const tandasExactas = info ? redondear(item.cantidad / info.rend) : 0;
             const tandasSugeridas = tandasExactas < 1 ? 1 : Math.ceil(tandasExactas * 2) / 2;
@@ -1063,6 +1076,37 @@ export async function cargarModuloProduccion() {
             preguntaTanda.dataset.producto = String(item.id);
             preguntaTanda.classList.remove('hidden');
             elegir(true);   // por defecto: tanda completa
+        }
+        // Pregunta "lote mínimo / solo lo necesario" cuando lo que falta es menor al lote mínimo de fabricación del producto.
+        function mostrarPreguntaMinimo(item, minimo, cargar) {
+            const u = item.unidad ? ' ' + item.unidad : '';
+            const sobra = redondear(minimo - item.cantidad);
+            const pintar = (usaMinimo) => {
+                const clase = (activo) => activo
+                    ? 'bg-amber-700 border-amber-500 text-white'
+                    : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800';
+                preguntaTanda.innerHTML = `
+                    <p class="mb-1.5">Falta <b class="text-slate-100">${formatoCantidad(item.cantidad)}${u}</b> pero tu <b class="text-slate-100">lote mínimo de fabricación</b> es <b class="text-slate-100">${formatoCantidad(minimo)}${u}</b>. ¿Cuánto fabricas? <span class="opacity-70">(también puedes escribir otra cantidad abajo)</span></p>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" data-min="minimo" class="border rounded-lg px-2.5 py-1.5 text-left cursor-pointer ${clase(usaMinimo)}">
+                            ${usaMinimo ? '● ' : '○ '}🏭 Lote mínimo: ${formatoCantidad(minimo)}${u}
+                            <span class="block text-[10px] opacity-80">Sobran ${formatoCantidad(sobra)}${u} que quedan en inventario.</span>
+                        </button>
+                        <button type="button" data-min="necesario" class="border rounded-lg px-2.5 py-1.5 text-left cursor-pointer ${clase(!usaMinimo)}">
+                            ${usaMinimo ? '○ ' : '● '}🎯 Solo lo necesario: ${formatoCantidad(item.cantidad)}${u}
+                            <span class="block text-[10px] opacity-80">Por debajo de tu lote mínimo; no sobra nada.</span>
+                        </button>
+                    </div>`;
+                preguntaTanda.querySelectorAll('[data-min]').forEach((b) => b.addEventListener('click', () => elegir(b.dataset.min === 'minimo')));
+            };
+            const elegir = (usaMinimo) => {
+                pintar(usaMinimo);
+                if (usaMinimo) cargar(minimo, `lote mínimo; se necesitaban ${formatoCantidad(item.cantidad)}${u}`);
+                else cargar(item.cantidad, 'solo lo necesario, menos que tu lote mínimo');
+            };
+            preguntaTanda.dataset.producto = String(item.id);
+            preguntaTanda.classList.remove('hidden');
+            elegir(true);   // por defecto: el lote mínimo (el usuario decide)
         }
         // Lote sugerido al abrir el formulario ("🎲 Sugerir" lo vuelve a calcular a partir de hoy).
         document.getElementById('numeroLoteResultante').value = generarLoteSugerido();
