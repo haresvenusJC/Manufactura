@@ -21,6 +21,7 @@ import { cargarModuloPlantillas } from './plantillas.js';
 import { cargarModuloEmpleados } from './empleados.js';
 import { cargarModuloImportador } from './importador.js';
 import { cargarModuloTablas } from './tablas.js';
+import { cargarModuloKardex } from './kardex.js';
 import { cargarRegimenes } from './regimenes-fiscales.js';
 import { cargarModuloImportadorClavesProveedor } from './importador-claves-proveedor.js';
 import { cargarModuloImportadorBom } from './importador-bom.js';
@@ -242,6 +243,9 @@ window.loadView = function(viewName, opciones = {}) {
         case 'inventario':
         case 'lotes':   // Stock General y Lotes son dos pantallas; el mismo módulo llena las dos (por id de contenedor)
             cargarInventarioCompleto();
+            break;
+        case 'kardex':
+            cargarModuloKardex();
             break;
         case 'documentos':
             cargarVistaDocumentos();

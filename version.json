@@ -1,5 +1,5 @@
 {
- "v": "20261002055839",
+ "v": "20261002060339",
  "modulos": [
   "activos-fijos.js",
   "app.js",
@@ -12,6 +12,7 @@
   "bancos-tesoreria.js",
   "bienvenida.js",
   "bitacora-cambios.js",
+  "buscador-productos.js",
   "buscador-select.js",
   "catalogo.js",
   "centros-costo.js",

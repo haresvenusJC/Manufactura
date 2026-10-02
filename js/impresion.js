@@ -213,7 +213,7 @@ if (!document.getElementById('print-styles-global')) {
                 background: white !important; color: #111 !important; padding: 0 !important;
                 font-family: system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
             }
-            .no-print, .area-imprimible-activa button { display: none !important; }
+            .no-print, .area-imprimible-activa button:not(.print-keep) { display: none !important; }
             .area-imprimible-activa[data-mostrar-costos="0"] .campo-costo { display: none !important; }
             .area-imprimible-activa[data-mostrar-lote="0"] .campo-lote { display: none !important; }
 

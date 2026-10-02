@@ -4,6 +4,14 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/kardex.js`, `js/buscador-productos.js` (nuevo), `js/app.js`, `js/impresion.js`, `js/indice.js`, `index.html`, `version.json`. A petición
+  del usuario: nueva entrada **Kardex** en el menú Inventario (vista `kardex`, `cargarModuloKardex`) — visor por **rango de fechas** (Desde = día 1 del mes, Hasta = hoy)
+  y **uno o varios productos** (hasta 10, buscador con sugerencias + chips). Por producto: saldo inicial (todo lo anterior a Desde), movimientos del periodo en orden
+  cronológico, entradas, salidas y saldo final; el saldo corriente de cada fila es POR LOTE sobre todo el historial (misma regla del Kardex de Productos). Pide al
+  menos un producto (el saldo exige el historial completo). Botones 🖨️ Imprimir (plantilla 'reporte') y ⬇ CSV. `filaMovimientoKardex()` se extrajo de
+  `renderizarKardexProducto` (ahora la comparten el Kardex embebido de Productos y el visor; el embebido se verificó igual). El botón del Doc ID lleva `print-keep` y
+  el CSS de impresión ya no oculta los botones con esa clase. `js/buscador-productos.js`: `montarBuscadorProductos()` reutilizable (el filtro de Lotes tiene su propia
+  copia inline — unificar si se toca). Probado en Chromium con Supabase simulado (saldos y rango correctos). Pendiente: probar con la base real y revisar la impresión.
 - Archivos tocados (lo último): `js/inventario.js`, `version.json`. A petición del usuario ("cuando estoy buscando que vaya haciendo la búsqueda para traerme
   opciones de resultados e ir eligiendo el buscado"): el filtro **Producto** de Lotes ahora es un buscador con sugerencias — desde 2 letras (con espera de
   250 ms y descartando respuestas viejas) trae hasta 10 productos (SKU o nombre) de `productos`, se elige con clic o ↑/↓ + Enter (Esc cierra) y filtra por
@@ -695,6 +703,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   (tabla `accesos_directos_usuario`, respaldo en el navegador).
 - `iconos-accesos.js` — galería de íconos de línea (por categoría) para los accesos rápidos de Inicio.
 - `bitacora-cambios.js` — consulta de la bitácora de movimientos (quién/cuándo/qué cambió) de todo el negocio.
+- `buscador-productos.js` — `montarBuscadorProductos()`: input con sugerencias de productos (SKU o nombre) mientras se escribe.
 - `buscador-select.js` — convierte un `<select>` largo en un buscador con teclado, sin cambiar su comportamiento.
 - `catalogo.js` — dos pantallas separadas: `cargarModuloAltaArticulo` ("Alta de artículo", solo el
   formulario: alta/edición por nombre, clasificación, BOM) y `cargarModuloCatalogoKardex` ("Catálogo y
@@ -728,8 +737,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   + última compra real).
 - `inventario.js` — stock general por producto y lote, con mínimos y deterioro de inventario (NIF C-4).
 - `isr.js` — tabla ISR versionada (tarifas de retención sobre sueldos) + extracción desde PDF/OCR.
-- `kardex.js` — `renderizarKardexProducto`: movimientos de un producto, embebidos en el panel de
-  "Catálogo y Kardex" (`js/catalogo.js`); ya no tiene vista ni buscador propios. También trae
+- `kardex.js` — `renderizarKardexProducto` (movimientos de UN producto, embebidos en Productos) + `cargarModuloKardex` (Inventario → Kardex: visor por fechas y varios productos). También trae
   `window.abrirDetalleDocumento`/`cerrarDetalleDocumento` (modal de documento usado por esa tabla).
 - `nomina.js` — nómina: cálculo (IMSS/ISR real vía RPC), autorización, póliza y recibo imprimible.
 - `orden-tabla.js` — ordenamiento client-side reutilizable para encabezados de tabla en toda la app.

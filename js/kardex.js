@@ -1,4 +1,48 @@
 import { supabaseClient } from './supabase.js';
+import { montarBuscadorProductos } from './buscador-productos.js';
+import { imprimirConPlantilla } from './impresion.js';
+
+// Una fila de la tabla de movimientos del Kardex (la usan el Kardex embebido de Productos y el visor de Inventario → Kardex).
+export function filaMovimientoKardex(m) {
+                                    const fechaHora = m.created_at ? new Date(m.created_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : 'N/D';
+                                    const docId = m.documento_id;
+                                    const cantNum = Number(m.cantidad || 0);
+                                    const esEntrada = cantNum >= 0;
+                                    const claseCantidad = esEntrada ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold';
+                                    const signo = esEntrada ? '+' : '';
+                                    const numeroLote = m.lotes_inventario?.numero_lote || 'N/D';
+                                    const chipFefo = m.criterio_lote === 'FEFO'
+                                        ? ' <span class="text-[9px] bg-amber-900/50 text-amber-300 border border-amber-700 rounded px-1 py-0.5 align-middle" title="Este lote se adelantó por caducidad (conviene a producción)">FEFO</span>'
+                                        : '';
+
+                                    const colDocId = docId ? `
+                                        <button onclick="window.abrirDetalleDocumento('${docId}')" class="print-keep font-mono text-xs text-indigo-400 hover:text-indigo-300 hover:underline bg-indigo-950/50 hover:bg-indigo-900/50 px-2 py-1 rounded border border-indigo-800/50 transition flex items-center gap-1 w-fit cursor-pointer">
+                                            <span>#${docId}</span>
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                        </button>
+                                    ` : `<span class="text-slate-500">N/D</span>`;
+
+                                    return `
+                                        <tr class="border-b border-slate-800/60 hover:bg-slate-800/40 transition">
+                                            <td class="p-3">${colDocId}</td>
+                                            <td class="p-3 text-xs text-slate-400 font-mono">${fechaHora}</td>
+                                            <td class="p-3 text-xs uppercase font-semibold text-indigo-300">${m.tipo_movimiento || 'N/D'}</td>
+                                            <td class="p-3 text-xs font-mono text-amber-300">${numeroLote}${chipFefo}</td>
+                                            <td class="p-3 font-mono text-slate-300">
+                                                $${Number(m.costo_unitario || 0).toFixed(4)}
+                                                ${(() => {
+                                                    const adic = Number(m.lotes_inventario?.costo_adicional_unitario || 0);
+                                                    if (!adic) return '';
+                                                    const mat = Number(m.costo_unitario || 0) - adic;
+                                                    return `<span class="block text-[10px] text-sky-400 font-sans">incluye landed cost: mat. $${mat.toFixed(4)} + $${adic.toFixed(4)} flete/seguro</span>`;
+                                                })()}
+                                            </td>
+                                            <td class="p-3 text-center font-mono text-slate-400">${m.stock_anterior_calc ?? 0}</td>
+                                            <td class="p-3 text-center font-mono ${claseCantidad}">${signo}${cantNum}</td>
+                                            <td class="p-3 text-center font-mono text-amber-300 font-semibold">${m.stock_resultante_calc ?? 0}</td>
+                                        </tr>
+                                    `;
+}
 
 // Kardex de un producto específico, embebido en la pantalla "Catálogo y
 // Kardex" (js/catalogo.js, ☰ → "Kardex de este producto") — sin vista ni
@@ -140,46 +184,7 @@ export async function renderizarKardexProducto(productoIdParam, contenedorResult
                                 </tr>
                             </thead>
                             <tbody>
-                                ${movimientosFiltrados.map((m) => {
-                                    const fechaHora = m.created_at ? new Date(m.created_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : 'N/D';
-                                    const docId = m.documento_id;
-                                    const cantNum = Number(m.cantidad || 0);
-                                    const esEntrada = cantNum >= 0;
-                                    const claseCantidad = esEntrada ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold';
-                                    const signo = esEntrada ? '+' : '';
-                                    const numeroLote = m.lotes_inventario?.numero_lote || 'N/D';
-                                    const chipFefo = m.criterio_lote === 'FEFO'
-                                        ? ' <span class="text-[9px] bg-amber-900/50 text-amber-300 border border-amber-700 rounded px-1 py-0.5 align-middle" title="Este lote se adelantó por caducidad (conviene a producción)">FEFO</span>'
-                                        : '';
-
-                                    const colDocId = docId ? `
-                                        <button onclick="window.abrirDetalleDocumento('${docId}')" class="font-mono text-xs text-indigo-400 hover:text-indigo-300 hover:underline bg-indigo-950/50 hover:bg-indigo-900/50 px-2 py-1 rounded border border-indigo-800/50 transition flex items-center gap-1 w-fit cursor-pointer">
-                                            <span>#${docId}</span>
-                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                                        </button>
-                                    ` : `<span class="text-slate-500">N/D</span>`;
-
-                                    return `
-                                        <tr class="border-b border-slate-800/60 hover:bg-slate-800/40 transition">
-                                            <td class="p-3">${colDocId}</td>
-                                            <td class="p-3 text-xs text-slate-400 font-mono">${fechaHora}</td>
-                                            <td class="p-3 text-xs uppercase font-semibold text-indigo-300">${m.tipo_movimiento || 'N/D'}</td>
-                                            <td class="p-3 text-xs font-mono text-amber-300">${numeroLote}${chipFefo}</td>
-                                            <td class="p-3 font-mono text-slate-300">
-                                                $${Number(m.costo_unitario || 0).toFixed(4)}
-                                                ${(() => {
-                                                    const adic = Number(m.lotes_inventario?.costo_adicional_unitario || 0);
-                                                    if (!adic) return '';
-                                                    const mat = Number(m.costo_unitario || 0) - adic;
-                                                    return `<span class="block text-[10px] text-sky-400 font-sans">incluye landed cost: mat. $${mat.toFixed(4)} + $${adic.toFixed(4)} flete/seguro</span>`;
-                                                })()}
-                                            </td>
-                                            <td class="p-3 text-center font-mono text-slate-400">${m.stock_anterior_calc ?? 0}</td>
-                                            <td class="p-3 text-center font-mono ${claseCantidad}">${signo}${cantNum}</td>
-                                            <td class="p-3 text-center font-mono text-amber-300 font-semibold">${m.stock_resultante_calc ?? 0}</td>
-                                        </tr>
-                                    `;
-                                }).join('')}
+                                ${movimientosFiltrados.map(filaMovimientoKardex).join('')}
                             </tbody>
                         </table>
                     </div>
@@ -335,3 +340,179 @@ window.abrirDetalleDocumento = async function(docId) {
 };
 // window.cerrarDetalleDocumento vive en js/documentos.js (se carga después y
 // pisa cualquier definición de aquí) — cierra tanto esta como esa, no se repite.
+
+// =====================================================================
+//  Inventario → Kardex: visor por RANGO DE FECHAS y uno o varios PRODUCTOS.
+//  Por cada producto: saldo inicial (todo lo anterior a "Desde"), sus movimientos del periodo en orden cronológico
+//  (el saldo corriente de cada fila es por lote, igual que en el Kardex de Productos), entradas, salidas y saldo final.
+//  Pide al menos un producto: el saldo corriente exige el historial completo de cada uno.
+// =====================================================================
+const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmtNum = (n) => Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 });
+const hoyISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const inicioMesISO = () => hoyISO().slice(0, 8) + '01';
+const MAX_PRODUCTOS_KARDEX = 10;
+
+let kdxProductos = [];          // [{ id, sku, nombre }] elegidos
+let kdxUltimo = null;           // { bloques, desde, hasta } para exportar a CSV
+
+// Mismos degradados que el Kardex de Productos si faltan columnas de migraciones viejas.
+async function consultarMovimientosKardex(productoId) {
+    const cols = `id, tipo_movimiento, cantidad, stock_anterior, stock_resultante, costo_unitario, created_at,
+        documento_id, lote_id, criterio_lote, lotes_inventario ( id, numero_lote, costo_adicional_unitario )`;
+    const intentos = [cols, cols.replace('criterio_lote,', ''), cols.replace('criterio_lote,', '').replace(', costo_adicional_unitario', '')];
+    let ultimoError = null;
+    for (const c of intentos) {
+        const { data, error } = await supabaseClient.from('movimientos_inventario').select(c)
+            .eq('producto_id', productoId).order('created_at', { ascending: true }).order('id', { ascending: true });
+        if (!error) return data || [];
+        ultimoError = error;
+        if (!/criterio_lote|costo_adicional_unitario|column .* does not exist/i.test(error.message || '')) break;
+    }
+    throw ultimoError;
+}
+
+export async function cargarModuloKardex() {
+    const cont = document.getElementById('contenedorKardexVisor');
+    if (!cont) return;
+    if (!cont.dataset.armado) {
+        cont.dataset.armado = '1';
+        cont.innerHTML = `
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-4 space-y-3">
+                <div class="flex flex-wrap items-end gap-3">
+                    <div><label class="block text-xs text-slate-400 mb-1">Desde:</label>
+                        <input type="date" id="kdxDesde" value="${inicioMesISO()}" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-1.5"></div>
+                    <div><label class="block text-xs text-slate-400 mb-1">Hasta:</label>
+                        <input type="date" id="kdxHasta" value="${hoyISO()}" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-1.5"></div>
+                    <div class="relative flex-1 min-w-[16rem]">
+                        <label class="block text-xs text-slate-400 mb-1">Producto (SKU o nombre) — puedes elegir varios:</label>
+                        <input type="text" id="kdxBuscar" autocomplete="off" placeholder="🔍 Escribe para buscar y elige de la lista…" class="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-1.5">
+                        <div id="kdxSug" class="hidden absolute left-0 right-0 top-full mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl max-h-60 overflow-y-auto z-30"></div>
+                    </div>
+                    <button type="button" id="kdxConsultar" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-4 py-2 rounded-lg font-medium">Consultar</button>
+                </div>
+                <div id="kdxChips" class="flex flex-wrap gap-1.5"></div>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" id="kdxImprimir" disabled class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 px-3 py-1.5 rounded-lg border border-slate-700 disabled:opacity-40">🖨️ Imprimir</button>
+                    <button type="button" id="kdxCsv" disabled class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 px-3 py-1.5 rounded-lg border border-slate-700 disabled:opacity-40">⬇ CSV</button>
+                </div>
+            </div>
+            <div id="kdxResultado"><p class="text-sm text-slate-500">Elige el periodo y al menos un producto, y da "Consultar".</p></div>`;
+
+        const pintarChips = () => {
+            cont.querySelector('#kdxChips').innerHTML = kdxProductos.map((p) => `
+                <span class="inline-flex items-center gap-1.5 bg-indigo-950/60 border border-indigo-800 text-indigo-200 text-[11px] rounded-full pl-3 pr-1.5 py-1">
+                    ${esc(p.nombre)} <span class="font-mono text-indigo-400/70">${esc(p.sku || '')}</span>
+                    <button type="button" data-quitar="${p.id}" class="text-indigo-300 hover:text-white px-1" title="Quitar">&times;</button>
+                </span>`).join('');
+            cont.querySelectorAll('[data-quitar]').forEach((b) => b.addEventListener('click', () => {
+                kdxProductos = kdxProductos.filter((x) => String(x.id) !== b.dataset.quitar);
+                pintarChips();
+            }));
+        };
+        montarBuscadorProductos({
+            input: cont.querySelector('#kdxBuscar'), caja: cont.querySelector('#kdxSug'),
+            alElegir: (p) => {
+                if (kdxProductos.some((x) => x.id === p.id)) return;
+                if (kdxProductos.length >= MAX_PRODUCTOS_KARDEX) { alert(`Máximo ${MAX_PRODUCTOS_KARDEX} productos por consulta.`); return; }
+                kdxProductos.push(p);
+                pintarChips();
+                cont.querySelector('#kdxBuscar').focus();
+            },
+        });
+        cont.querySelector('#kdxConsultar').addEventListener('click', () => consultarKardexVisor(cont));
+        cont.querySelector('#kdxImprimir').addEventListener('click', () => {
+            if (!kdxUltimo) return;
+            imprimirConPlantilla('reporte', `Kardex ${kdxUltimo.desde} a ${kdxUltimo.hasta}`, cont.querySelector('#kdxResultado'));
+        });
+        cont.querySelector('#kdxCsv').addEventListener('click', () => exportarKardexCsv());
+    }
+}
+
+async function consultarKardexVisor(cont) {
+    const res = cont.querySelector('#kdxResultado');
+    const desde = cont.querySelector('#kdxDesde').value;
+    const hasta = cont.querySelector('#kdxHasta').value;
+    if (!kdxProductos.length) { res.innerHTML = '<p class="text-sm text-amber-300">Elige al menos un producto.</p>'; return; }
+    if (desde && hasta && desde > hasta) { res.innerHTML = '<p class="text-sm text-amber-300">"Desde" no puede ser posterior a "Hasta".</p>'; return; }
+    const ini = desde ? new Date(desde + 'T00:00:00') : null;
+    const fin = hasta ? new Date(hasta + 'T23:59:59.999') : null;
+
+    res.innerHTML = '<div class="bg-slate-900 border border-slate-800 p-8 rounded-xl text-center text-slate-400 text-sm">Consultando movimientos…</div>';
+    cont.querySelector('#kdxImprimir').disabled = true; cont.querySelector('#kdxCsv').disabled = true;
+    try {
+        const bloques = [];
+        for (const p of kdxProductos) {
+            const [{ data: info, error: eInfo }, movs] = await Promise.all([
+                supabaseClient.from('productos').select('nombre, sku, stock_actual, unidades_medida ( nombre )').eq('id', p.id).single(),
+                consultarMovimientosKardex(p.id),
+            ]);
+            if (eInfo) throw eInfo;
+            // Saldo corriente por lote sobre TODO el historial (así el saldo de la primera fila del periodo es el real).
+            const acum = {};
+            const filas = movs.map((m) => {
+                const k = m.lote_id || 'SIN_LOTE';
+                const ant = acum[k] || 0;
+                const nuevo = ant + Number(m.cantidad || 0);
+                acum[k] = nuevo;
+                return { ...m, stock_anterior_calc: ant, stock_resultante_calc: nuevo };
+            });
+            const t = (m) => new Date(m.created_at).getTime();
+            const antes = filas.filter((m) => ini && t(m) < ini.getTime());
+            const enRango = filas.filter((m) => (!ini || t(m) >= ini.getTime()) && (!fin || t(m) <= fin.getTime()));
+            const suma = (arr, f) => arr.reduce((a, m) => a + f(Number(m.cantidad || 0)), 0);
+            const saldoInicial = suma(antes, (c) => c);
+            const entradas = suma(enRango, (c) => (c > 0 ? c : 0));
+            const salidas = suma(enRango, (c) => (c < 0 ? -c : 0));
+            bloques.push({ producto: { ...p, ...info }, unidad: info.unidades_medida?.nombre || 'unidad', filas: enRango, saldoInicial, entradas, salidas, saldoFinal: saldoInicial + entradas - salidas });
+        }
+        kdxUltimo = { bloques, desde, hasta };
+        res.innerHTML = bloques.map((b) => bloqueKardexHtml(b)).join('');
+        cont.querySelector('#kdxImprimir').disabled = false; cont.querySelector('#kdxCsv').disabled = false;
+    } catch (err) {
+        console.error('Error en el visor de Kardex:', err);
+        res.innerHTML = `<div class="bg-rose-950/40 border border-rose-900 p-6 rounded-xl text-center text-rose-300 text-sm">No se pudo consultar el Kardex: ${esc(err.message || err)}</div>`;
+    }
+}
+
+function bloqueKardexHtml(b) {
+    const tarjeta = (titulo, valor, clase) => `<div class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-right"><span class="block text-[10px] uppercase tracking-wider text-slate-400">${titulo}</span><span class="font-mono text-sm font-bold ${clase}">${fmtNum(valor)}</span></div>`;
+    return `
+    <div class="mb-6 break-inside-avoid-page">
+        <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl flex flex-wrap items-center justify-between gap-3 mb-2">
+            <div><span class="text-base font-bold text-amber-400">${esc(b.producto.nombre)}</span>
+                <span class="block text-xs text-slate-500">SKU: ${esc(b.producto.sku || 'N/D')} · Unidad: ${esc(b.unidad)} · Stock actual: <span class="font-mono text-emerald-400">${fmtNum(b.producto.stock_actual)}</span></span></div>
+            <div class="flex flex-wrap gap-2">
+                ${tarjeta('Saldo inicial', b.saldoInicial, 'text-slate-200')}${tarjeta('Entradas', b.entradas, 'text-emerald-400')}${tarjeta('Salidas', b.salidas, 'text-rose-400')}${tarjeta('Saldo final', b.saldoFinal, 'text-amber-300')}
+            </div>
+        </div>
+        ${b.filas.length ? `
+        <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-900">
+            <table class="w-full text-left text-sm text-slate-300">
+                <thead class="bg-slate-950 text-indigo-400 border-b border-slate-800 text-xs uppercase"><tr>
+                    <th class="p-3">Doc ID</th><th class="p-3">Fecha y Hora</th><th class="p-3">Operación</th><th class="p-3">Lote</th>
+                    <th class="p-3">Costo Unit.</th><th class="p-3 text-center">Stock Ant.</th><th class="p-3 text-center">Cantidad</th><th class="p-3 text-center">Stock Nuevo</th>
+                </tr></thead>
+                <tbody>${b.filas.map(filaMovimientoKardex).join('')}</tbody>
+            </table>
+        </div>` : '<div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center text-slate-500 text-sm">Sin movimientos en el periodo.</div>'}
+    </div>`;
+}
+
+function exportarKardexCsv() {
+    if (!kdxUltimo) return;
+    const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const filas = [['Producto', 'SKU', 'Fecha', 'Documento', 'Operación', 'Lote', 'Costo unitario', 'Stock anterior (lote)', 'Cantidad', 'Stock nuevo (lote)']];
+    kdxUltimo.bloques.forEach((b) => {
+        filas.push([b.producto.nombre, b.producto.sku, `Saldo inicial al ${kdxUltimo.desde}`, '', '', '', '', '', b.saldoInicial, '']);
+        b.filas.forEach((m) => filas.push([b.producto.nombre, b.producto.sku, m.created_at ? new Date(m.created_at).toLocaleString('es-MX') : '', m.documento_id || '',
+            m.tipo_movimiento || '', m.lotes_inventario?.numero_lote || '', m.costo_unitario ?? '', m.stock_anterior_calc, m.cantidad, m.stock_resultante_calc]));
+        filas.push([b.producto.nombre, b.producto.sku, `Saldo final al ${kdxUltimo.hasta}`, '', '', '', '', '', b.saldoFinal, '']);
+    });
+    const blob = new Blob(['\ufeff' + filas.map((r) => r.map(q).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `kardex_${kdxUltimo.desde}_a_${kdxUltimo.hasta}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
