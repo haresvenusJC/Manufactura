@@ -4,6 +4,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/tablas.js`, `js/catalogo.js` (solo `export` de `abrirTablaDensidades`), `js/indice.js`, `index.html`,
+  `version.json`. Configuración → Tablas → **Conversiones**: no existe tabla de conversiones en la base (la regla vive en
+  `js/conversion-unidades.js`, familias masa/volumen + densidad), así que se muestra la matriz calculada con las unidades reales de
+  `unidades_medida` + botón a las densidades; las unidades sin familia (Piezas...) se listan como 1 a 1. Solo lectura. Pendiente: probar.
 - Archivos tocados (lo último): `js/tablas.js` (nuevo), `js/app.js`, `js/catalogo.js` (solo `export` de `abrirTablaUnidades`), `js/indice.js`,
   `index.html`, `version.json`. Configuración → nuevo submenú **Tablas** (Unidades de medida / Monedas): visor de solo lectura,
   columnas dinámicas + buscador (`window.loadView('tablas', {tabla:'unidades_medida'|'monedas'})`). Unidades trae botón "✏️ Editar / agregar

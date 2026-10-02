@@ -1967,7 +1967,7 @@ const densOrden = crearOrdenTabla('nombre', 'asc');
 let densFiltro = '';
 let densFilas = [];
 
-async function abrirTablaDensidades() {
+export async function abrirTablaDensidades() {
     const idModal = window.idSubventana('modalDensidades');
     if (idModal === 'modalDensidades') document.getElementById('modalDensidades')?.remove();
     const modal = document.createElement('div');

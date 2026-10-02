@@ -1,5 +1,6 @@
 import { supabaseClient } from './supabase.js';
-import { abrirTablaUnidades } from './catalogo.js';
+import { abrirTablaUnidades, abrirTablaDensidades } from './catalogo.js';
+import { familiaDeUnidad } from './conversion-unidades.js';
 
 // =====================================================================
 // Configuración · Tablas
@@ -22,9 +23,46 @@ const fmt = (v) => {
     return esc(v);
 };
 
+// Conversiones: no es una tabla de la base, es la regla de js/conversion-unidades.js (familias masa/volumen)
+// aplicada a las unidades que SÍ existen en `unidades_medida`. Entre familias distintas interviene la densidad.
+async function cargarConversiones(cont, titulo) {
+    if (titulo) titulo.textContent = '🔄 Tabla de conversiones';
+    const { data, error } = await supabaseClient.from('unidades_medida').select('nombre').order('nombre');
+    if (error) { cont.innerHTML = `<p class="text-sm text-rose-400">No se pudo leer unidades_medida: ${esc(error.message)}</p>`; return; }
+    const fam = {};
+    const sin = [];
+    (data || []).forEach((u) => {
+        const f = familiaDeUnidad(u.nombre);
+        if (f) (fam[f.familia] = fam[f.familia] || []).push({ nombre: u.nombre, aBase: f.aBase });
+        else sin.push(u.nombre);
+    });
+    const num = (v) => (v >= 1000 || v < 0.001 ? v.toExponential(2) : String(Number(v.toPrecision(6))));
+    const base = { masa: 'gramo', volumen: 'mililitro' };
+    const bloque = (nombre, lista) => {
+        lista.sort((a, b) => a.aBase - b.aBase);
+        return `
+        <h3 class="text-sm font-semibold text-slate-200 mt-4 mb-1">${nombre === 'masa' ? '⚖️ Masa' : '🧪 Volumen'} <span class="text-[11px] font-normal text-slate-500">(base: ${base[nombre]})</span></h3>
+        <div class="overflow-x-auto border border-slate-800 rounded-lg"><table class="w-full text-sm text-left">
+            <thead class="bg-slate-950 text-[11px] uppercase text-slate-400"><tr><th class="px-3 py-2">1 de ↓ equivale a →</th>${lista.map((c) => `<th class="px-3 py-2">${esc(c.nombre)}</th>`).join('')}</tr></thead>
+            <tbody class="divide-y divide-slate-800 text-slate-200">${lista.map((r) => `<tr><td class="px-3 py-1.5 font-medium">${esc(r.nombre)}</td>${lista.map((c) => `<td class="px-3 py-1.5 font-mono">${num(r.aBase / c.aBase)}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table></div>`;
+    };
+    cont.innerHTML = `
+        <p class="text-xs text-slate-400">Así convierte el sistema las fórmulas (BOM) a la unidad de inventario. Dentro de la misma familia es exacto; entre masa y volumen usa la <strong>densidad</strong> del artículo (kg/L). Solo ve la regla del sistema, no se edita aquí.</p>
+        <div class="flex flex-wrap gap-2 mt-3"><button type="button" id="tablasDens" class="text-xs bg-slate-800 hover:bg-slate-700 text-indigo-300 px-3 py-2 rounded-lg border border-slate-700 cursor-pointer">⚖️ Ver / editar densidades</button></div>
+        ${Object.keys(fam).map((k) => bloque(k, fam[k])).join('')}
+        <h3 class="text-sm font-semibold text-slate-200 mt-4 mb-1">Sin conversión automática</h3>
+        <p class="text-xs text-slate-400">${sin.length ? sin.map(esc).join(', ') : '—'} — se comparan 1 a 1 (solo con la misma unidad). Si compras en una y surtes en otra, captura el factor en la clave del proveedor.</p>`;
+    cont.querySelector('#tablasDens')?.addEventListener('click', abrirTablaDensidades);
+}
+
 export async function cargarModuloTablas(tabla = 'unidades_medida') {
     const cont = document.getElementById('contenedorTablas');
     if (!cont) return;
+    if (tabla === 'conversiones') {
+        cont.innerHTML = '<p class="text-sm text-slate-400">Cargando…</p>';
+        return cargarConversiones(cont, document.getElementById('tituloTablas'));
+    }
     const cfg = TABLAS[tabla] || TABLAS.unidades_medida;
     const nombre = TABLAS[tabla] ? tabla : 'unidades_medida';
 
