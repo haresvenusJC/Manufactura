@@ -356,6 +356,7 @@
                         <ul id="submenu-utilerias" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
                             <li><button onclick="window.loadView('importador')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Importar Excel/CSV</button></li>
                             <li><button onclick="window.loadView('importador-claves-proveedor')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Importar claves de proveedor (XML)</button></li>
+                            <li><button onclick="window.loadView('accesos-operadores')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Accesos para operadores</button></li>
                         </ul>
                     </li>
 
@@ -807,6 +808,20 @@
                 </div>
             </section>
 
+            <!-- Vista: Accesos para operadores (antes "Herramientas para operadores" dentro de Configuración). Las tarjetas las llena el script de enlaces/QR del pie. -->
+            <section id="view-accesos-operadores" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-sky-400">Accesos para operadores</h2>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
+                    <p class="text-xs text-slate-400">Páginas móviles independientes. Comparte el enlace, o escanéalo desde una tablet / celular y agrégalo a la pantalla de inicio para usarlo como una app.</p>
+                    <div id="enlacesOperador" class="grid gap-3 sm:grid-cols-2"></div>
+                    <div class="text-[11px] text-slate-500 border-t border-slate-800 pt-3 space-y-1">
+                        <p class="font-semibold text-slate-400">Instalar en el dispositivo</p>
+                        <p><b>Android (Chrome):</b> abre el enlace &rarr; menú &#8942; &rarr; &ldquo;Agregar a pantalla principal&rdquo;.</p>
+                        <p><b>iPhone / iPad (Safari):</b> abre el enlace &rarr; botón Compartir &rarr; &ldquo;Agregar a inicio&rdquo;.</p>
+                    </div>
+                </div>
+            </section>
+
             <!-- Vista: Configuración -->
             <section id="view-configuracion" class="vista-seccion hidden space-y-4">
                 <h2 class="text-xl font-bold text-sky-400">Configuración</h2>
@@ -888,17 +903,6 @@
                         </button>
                     </div>
                 </div>
-
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
-                    <h3 class="text-md font-semibold text-slate-200">Herramientas para operadores</h3>
-                    <p class="text-xs text-slate-400">Páginas móviles independientes. Comparte el enlace, o escanéalo desde una tablet / celular y agrégalo a la pantalla de inicio para usarlo como una app.</p>
-                    <div id="enlacesOperador" class="grid gap-3 sm:grid-cols-2"></div>
-                    <div class="text-[11px] text-slate-500 border-t border-slate-800 pt-3 space-y-1">
-                        <p class="font-semibold text-slate-400">Instalar en el dispositivo</p>
-                        <p><b>Android (Chrome):</b> abre el enlace &rarr; menú &#8942; &rarr; &ldquo;Agregar a pantalla principal&rdquo;.</p>
-                        <p><b>iPhone / iPad (Safari):</b> abre el enlace &rarr; botón Compartir &rarr; &ldquo;Agregar a inicio&rdquo;.</p>
-                    </div>
-                </div>
             </section>
         </main>
     </div>
@@ -969,7 +973,7 @@
         })();
     </script>
 
-    <!-- QR para los enlaces de operador (Configuración > Herramientas) -->
+    <!-- QR para los enlaces de operador (Utilerías > Accesos para operadores) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script>
         (function () {

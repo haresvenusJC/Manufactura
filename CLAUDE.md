@@ -4,6 +4,11 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `index.html`, `js/indice.js`, `version.json`. A petición del usuario: el bloque "Herramientas para operadores" (enlaces y QR de las
+  apps móviles) sale de Configuración → General y pasa a su propia pantalla **Accesos para operadores** (vista `accesos-operadores`, menú **Utilerías**, también en el
+  Índice). Mismo contenido y mismo script de enlaces/QR del pie de `index.html` (llena `#enlacesOperador` por id); Configuración → General conserva Tema de
+  colores y Tamaño de texto. **Hallazgo sin tocar:** ese panel solo lista Orden de Trabajo y Pre-recibo — `conteo-inventario.html` (la app móvil del conteo de
+  auditoría) no tiene tarjeta/QR ahí. Pendiente: probar la pantalla nueva y decidir si se agrega el conteo.
 - Archivos tocados (lo último): `js/kardex.js`, `js/buscador-productos.js` (nuevo), `js/app.js`, `js/impresion.js`, `js/indice.js`, `index.html`, `version.json`. A petición
   del usuario: nueva entrada **Kardex** en el menú Inventario (vista `kardex`, `cargarModuloKardex`) — visor por **rango de fechas** (Desde = día 1 del mes, Hasta = hoy)
   y **uno o varios productos** (hasta 10, buscador con sugerencias + chips). Por producto: saldo inicial (todo lo anterior a Desde), movimientos del periodo en orden

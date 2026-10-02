@@ -86,11 +86,12 @@ export const SECCIONES = [
         grupo: 'Utilerías', ancla: 'util', items: [
             { v: 'importador', t: 'Importar Excel/CSV', d: 'Carga masiva de productos desde una plantilla.' },
             { v: 'importador-claves-proveedor', t: 'Importar claves de proveedor (XML)', d: 'Lee facturas XML de tus proveedores y las empareja con tu catálogo, para capturar de golpe su SKU, descripción y unidad por producto — sin mover inventario ni contabilidad.' },
+            { v: 'accesos-operadores', t: 'Accesos para operadores', d: 'Enlaces y códigos QR de las pantallas móviles de los operadores (Orden de Trabajo y Pre-recibo de mercancía), para compartirlos o instalarlos en el celular.' },
         ],
     },
     {
         grupo: 'Configuración', ancla: 'cfg', config: true, items: [
-            { v: 'configuracion', t: 'General', d: 'Tema de colores, tamaño de texto y enlaces a las pantallas móviles para operadores.', cfg: true },
+            { v: 'configuracion', t: 'General', d: 'Tema de colores y tamaño de texto.', cfg: true },
             { v: 'plantillas', t: 'Plantillas de impresión', d: 'Diseño de los documentos que se imprimen.', cfg: true },
             { v: 'tablas', t: 'Tablas · Unidades de medida', d: 'Ver los datos de la tabla de unidades de medida (con acceso a su editor).', extra: "{tabla:'unidades_medida'}" },
             { v: 'tablas', t: 'Tablas · Monedas', d: 'Ver los datos de la tabla de monedas.', extra: "{tabla:'monedas'}" },
