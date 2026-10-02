@@ -37,6 +37,10 @@ export const SUBTITULOS_POR_TIPO = {
     pago_proveedor: 'Comprobante de pago a proveedor',
     cobro_cliente: 'Recibo de cobro de cliente',
     conteo_auditoria: 'Auditoría de inventario',
+    salida_produccion: 'Salida de almacén por producción (consumo de materia prima)',
+    devolucion_cliente: 'Devolución de cliente',
+    devolucion_proveedor: 'Devolución a proveedor',
+    cancelacion_recibo: 'Cancelación de recibo de compra',
     reporte: 'Reporte',
 };
 

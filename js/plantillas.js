@@ -138,6 +138,10 @@ export async function cargarModuloPlantillas() {
         { codigo: 'pago_proveedor', nombre: 'Pago a proveedor' },
         { codigo: 'cobro_cliente', nombre: 'Cobro de cliente' },
         { codigo: 'conteo_auditoria', nombre: 'Auditoría de inventario (hoja y resultado)' },
+        { codigo: 'salida_produccion', nombre: 'Salida por Producción (consumo de materia prima)' },
+        { codigo: 'devolucion_cliente', nombre: 'Devolución de cliente' },
+        { codigo: 'devolucion_proveedor', nombre: 'Devolución a proveedor' },
+        { codigo: 'cancelacion_recibo', nombre: 'Cancelación de recibo de compra' },
         { codigo: 'orden_produccion', nombre: 'Estado de la orden de producción' },
         { codigo: 'reporte', nombre: 'Reportes (balanza, auxiliares, tabla dinámica)' },
     ];

@@ -4,6 +4,12 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/impresion.js`, `js/plantillas.js`, `sql/2026-11-02_plantillas_subtitulos.sql`, `version.json`. A petición del usuario
+  ("genera todas las plantillas que faltan también"): el SQL `…11-02` ahora crea la plantilla de los 21 tipos de documento + la genérica de respaldo
+  (22 filas; probado en Postgres local con tabla vacía y con genérica propia, dos corridas). Se sumaron 4 tipos que SÍ se imprimen vía el expediente
+  de documentos pero no estaban en la lista de Plantillas (la comparación anterior los había descartado como "sin usar"): `salida_produccion`
+  (consumo de MP al cerrar orden), `devolucion_cliente`, `devolucion_proveedor` y `cancelacion_recibo`. La genérica solo se crea si no existe
+  (nunca se pisa su subtítulo). Pendiente: correr el SQL; imprimir un documento de cada familia para revisar encabezado.
 - Archivos tocados (lo último): `js/impresion.js`, `js/plantillas.js`, `js/contabilidad.js`, `js/reportes.js`, `sql/2026-11-02_plantillas_subtitulos.sql`
   (nuevo), `version.json`. A petición del usuario ("sube todos los subtítulos que faltan"): todo documento imprimía bajo "Comprobante de
   Movimiento de Almacén" (hasta una póliza o nómina). Nuevo `SUBTITULOS_POR_TIPO` (exportado de `impresion.js`) con el subtítulo de los 17 tipos;

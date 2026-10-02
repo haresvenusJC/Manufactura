@@ -5,7 +5,7 @@
 --  Hasta hoy casi todos los documentos imprimían bajo el subtítulo de la plantilla
 --  genérica ("Comprobante de Movimiento de Almacén"), incluso una póliza, una
 --  nómina o un reporte. Este archivo:
---   1. Crea la plantilla de cada tipo que aún no la tenga, copiando logo, título,
+--   1. Crea la plantilla de CADA tipo que aún no la tenga (21 tipos + la genérica de respaldo), copiando logo, título,
 --      color, pie y opciones de la plantilla 'generico' (si no existe, usa valores
 --      por omisión) y poniéndole su subtítulo correcto.
 --   2. En las plantillas que YA existen, solo corrige el subtítulo si está vacío o
@@ -33,6 +33,11 @@ with subs (tipo_documento, nombre_plantilla, subtitulo) as (values
     ('pago_proveedor', 'Plantilla Pago a proveedor', 'Comprobante de pago a proveedor'),
     ('cobro_cliente', 'Plantilla Cobro de cliente', 'Recibo de cobro de cliente'),
     ('conteo_auditoria', 'Plantilla Auditoría de inventario', 'Auditoría de inventario'),
+    ('salida_produccion', 'Plantilla Salida por Producción', 'Salida de almacén por producción (consumo de materia prima)'),
+    ('devolucion_cliente', 'Plantilla Devolución de cliente', 'Devolución de cliente'),
+    ('devolucion_proveedor', 'Plantilla Devolución a proveedor', 'Devolución a proveedor'),
+    ('cancelacion_recibo', 'Plantilla Cancelación de recibo', 'Cancelación de recibo de compra'),
+    ('generico', 'Plantilla General (respaldo para todos)', 'Documento'),
     ('reporte', 'Plantilla Reportes', 'Reporte')
 ),
 base as (
@@ -75,9 +80,15 @@ update public.plantillas_documentos p
     ('pago_proveedor', 'Pago a proveedor', 'Comprobante de pago a proveedor'),
     ('cobro_cliente', 'Cobro de cliente', 'Recibo de cobro de cliente'),
     ('conteo_auditoria', 'Auditoría de inventario', 'Auditoría de inventario'),
+    ('salida_produccion', 'Salida por Producción', 'Salida de almacén por producción (consumo de materia prima)'),
+    ('devolucion_cliente', 'Devolución de cliente', 'Devolución de cliente'),
+    ('devolucion_proveedor', 'Devolución a proveedor', 'Devolución a proveedor'),
+    ('cancelacion_recibo', 'Cancelación de recibo', 'Cancelación de recibo de compra'),
+    ('generico', 'General (respaldo para todos)', 'Documento'),
     ('reporte', 'Reportes', 'Reporte')
   ) as s (tipo_documento, nombre_plantilla, subtitulo)
  where p.tipo_documento = s.tipo_documento
+   and p.tipo_documento <> 'generico'      -- la genérica (respaldo de todo) la editas tú; aquí solo se crea si no existe
    and (coalesce(trim(p.subtitulo_encabezado), '') = ''
         or (p.subtitulo_encabezado = 'Comprobante de Movimiento de Almacén'
             and s.tipo_documento not in ('entrada_compra','entrada','entrada_produccion','salida_venta','salida','merma','ajuste')));
