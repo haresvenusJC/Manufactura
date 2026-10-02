@@ -192,7 +192,8 @@ if (!document.getElementById('print-styles-global')) {
         @media print {
             /* Solo se imprime el documento: todo lo demás de la página se quita (no basta ocultarlo, seguiría
                ocupando altura y salían hojas en blanco al final). El host cuelga directo de <body>. */
-            html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
+            html, body { height: auto !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; background: #fff !important; }
+            body::before, body::after { display: none !important; }   /* min-h-screen del <body> + márgenes de la hoja = una 2.ª hoja en blanco */
             body > *:not(#motorImpresionGlobal) { display: none !important; }
             .area-imprimible-activa {
                 position: static !important; width: 100%;

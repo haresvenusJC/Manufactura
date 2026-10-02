@@ -4,6 +4,11 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/impresion.js`, `version.json`. PDF de la Póliza Diario #26 tras correr `…11-02`: subtítulo "Póliza contable",
+  logo, cuentas con nombre y Cargo/Abono alineados ya salían bien, pero seguía sobrando UNA hoja en blanco (2 en vez de 1): `<body class="…
+  min-h-screen">` (100vh) + los márgenes de 10 mm de la hoja = más alto que el área imprimible. Ahora en `@media print` `html, body` llevan
+  `min-height:0`, sin margen/padding, y se apagan `body::before/::after`. Reproducido en Chromium con `min-height:100vh` (antes 2 hojas, ahora 1).
+  Pendiente: que el usuario reimprima la póliza #26 y confirme 1 sola hoja.
 - Archivos tocados (lo último): `js/impresion.js`, `js/plantillas.js`, `sql/2026-11-02_plantillas_subtitulos.sql`, `version.json`. A petición del usuario
   ("genera todas las plantillas que faltan también"): el SQL `…11-02` ahora crea la plantilla de los 21 tipos de documento + la genérica de respaldo
   (22 filas; probado en Postgres local con tabla vacía y con genérica propia, dos corridas). Se sumaron 4 tipos que SÍ se imprimen vía el expediente
