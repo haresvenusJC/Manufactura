@@ -4,6 +4,20 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-11-05_reservas_guardia_bd.sql` (nuevo), `js/salidas.js`, `js/trazabilidad.js`, `js/pedidos-venta.js`, `js/ordenes-produccion.js`, `version.json`. **Reservas,
+  ENTREGAS 2 y 4 de 4.** **Entrega 2 — guardia en la BASE:** trigger `trg_guardia_reservas_lote` (BEFORE UPDATE OF stock_actual en `lotes_inventario`): rechaza con `RESERVA_PROTEGIDA` toda BAJA que
+  se meta en lo apartado por pedidos pendientes/parciales, salvo que exista una autorización corta (`reserva_autorizar_salida(producto, cantidad, motivo)`, tabla `reservas_autorizaciones`, vigencia 2 min,
+  se consume al usarse; RLS sin políticas, solo vía función security definer). `registrarSalidaMultiPartida` (`js/salidas.js`) autoriza ANTES de mover stock: el surtido de un pedido (`pedidoVentaId`) y
+  toda salida que no sea venta/salida directa (merma, ajuste…); una venta/salida directa NO se autoriza (la pantalla ya la bloquea y ahora también la base). Merma/ajuste autorizados recortan las
+  reservas (pedido más nuevo primero) y `trg_nota_reserva_recortada` deja una nota en ese pedido (→ Bitácora) solo si hay una autorización vigente que no sea de surtido. Solo `RESERVA_PROTEGIDA`
+  detiene; cualquier otro error de la guardia es WARNING (a prueba de fallos). Otras rutas que bajan stock sin autorización (devolución a proveedor, cancelar recibo, cancelar devolución de cliente)
+  quedan bloqueadas SOLO si de verdad se meten en lo apartado: hay que liberar la reserva / surtir / cancelar el pedido primero. Probado en Postgres local (venta directa rechazada, surtido y merma
+  autorizados, nota solo en merma, autorización insuficiente rechazada, falla interna = WARNING, dos corridas de la migración). **Entrega 4 — seguimiento 🔗:** `abrirSeguimientoPedido(pedidoId)`
+  (`js/trazabilidad.js`, `window.abrirSeguimientoPedido`): Pedido (con surtido/apartado por renglón) → órdenes de producción ligadas → requisiciones ligadas → su OC → recepciones → surtidos
+  (documentos con `pedido_venta_id`); cada folio abre su detalle. Botón "🔗 Seguimiento" en el detalle del pedido y "🔗 Pedido de venta" en el documento de la orden de producción ligada
+  (`window.abrirDetalleOrdenProduccion` nuevo). Sin `…11-04` muestra pedido y surtidos y avisa que falta la migración. Probado en Chromium con Supabase simulado (con y sin migración; autorizaciones
+  de Salidas: venta no, surtido y merma sí). NO se creó Tarea de almacén "listo para surtir" (el cierre de la OC ya aparta solo; decidir si hace falta). Pendiente: correr `…11-05` (después de
+  `…11-03`, `…03b` y `…11-04`) y probar con PED-000001: surtir, una venta directa que invada lo apartado (debe rechazar) y una merma (debe pasar y dejar nota).
 - Archivos tocados (lo último): `sql/2026-11-04_pedido_venta_cobertura.sql` (nuevo), `js/produccion.js`, `js/requisiciones-compra.js`, `js/pedidos-venta.js`, `version.json`. **Reservas, ENTREGA 3 de 4: el
   faltante de un pedido se cubre con producción o compra, ligado al pedido.** Se REUTILIZA el flujo de "Faltantes" de Producción (`generarRequisicionFaltantes`, ahora con 5.º parámetro
   `opciones.pedido = {id, folio}`; cada elemento de `faltan` puede traer `pedidoDetalleId`): reparte lo que se FABRICA (tipo producto/semiterminado y abastecimiento ≠ 'comprado') → formulario de
@@ -829,6 +843,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `regimenes-fiscales.js` — catálogo SAT de regímenes (tabla `c_regimen_fiscal`, respaldo en código): `cargarRegimenes()` y `opcionesRegimen()` para todos los selects.
 - `tareas.js` — bandeja de pendientes (inventario bajo mínimo, caducidad próxima, nómina en borrador...) con historial.
 - `trazabilidad.js` — antecedentes de proceso: Requisición → Orden de compra → Documento(s) de recepción.
+  También `abrirSeguimientoPedido`: seguimiento 🔗 de un pedido de venta (producción/requisición → OC → recepción → surtidos).
 
 ## Convenciones
 

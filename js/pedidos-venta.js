@@ -5,6 +5,7 @@ import { generarRequisicionFaltantes, requisicionesDePedido, ordenesDePedido } f
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
 import { registrarSalidaMultiPartida } from './salidas.js';
+import './trazabilidad.js';   // window.abrirSeguimientoPedido (seguimiento del pedido)
 
 // =====================================================================
 //  Pedidos de venta — cliente pide, se surte después (total o en
@@ -340,6 +341,7 @@ window.pvAbrirDetalle = async (id) => {
         <div class="flex justify-between items-center p-4 border-b border-slate-800">
             <h3 class="text-base font-semibold text-slate-100">Pedido <span id="pvTituloDetalle" class="text-emerald-300 font-mono"></span></h3>
             <div class="flex items-center gap-3">
+                <button id="pvSeguimientoDetalle" type="button" class="text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 px-3 py-1 rounded-lg" title="Pedido → producción / compra → recepción → surtido">🔗 Seguimiento</button>
                 <button id="pvImprimirDetalle" type="button" disabled class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1 rounded-lg disabled:opacity-40">🖨️ Imprimir</button>
                 <button id="pvCerrarDetalle" class="text-slate-400 hover:text-slate-200 text-xl leading-none">&times;</button>
             </div>
@@ -351,6 +353,7 @@ window.pvAbrirDetalle = async (id) => {
     const cerrarEsc = (e) => { if (e.key === 'Escape') cerrar(); };
     function cerrar() { modal.remove(); document.removeEventListener('click', cerrarFuera); document.removeEventListener('keydown', cerrarEsc); }
     modal.querySelector('#pvCerrarDetalle').onclick = cerrar;
+    modal.querySelector('#pvSeguimientoDetalle').onclick = () => window.abrirSeguimientoPedido(id);
     setTimeout(() => { document.addEventListener('click', cerrarFuera); document.addEventListener('keydown', cerrarEsc); }, 0);
 
     await pvPintarDetalle(id, modal);

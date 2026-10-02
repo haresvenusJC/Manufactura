@@ -13,6 +13,7 @@ import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { calcularRequerimientosProduccion, formatoCantidad, fmtFaltante, generarRequisicionFaltantes, requisicionesDeOrden, documentosDeOrden, consumosDeOrden } from './produccion.js';
 import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
+import './trazabilidad.js';   // window.abrirSeguimientoPedido
 
 const ordenTabla = crearOrdenTabla('created_at', 'desc');
 let ordenesCache = [];
@@ -297,6 +298,15 @@ export async function abrirDetalle(ordenId) {
         doc.innerHTML = html.cuerpo;
         const btn = host.querySelector('#opDocImprimir');
         btn.disabled = false;
+        if (html.pedidoVentaId) {   // orden ligada a un pedido de venta (sql/2026-11-04): acceso a su seguimiento
+            const bSeg = document.createElement('button');
+            bSeg.type = 'button';
+            bSeg.className = 'text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 px-3 py-1.5 rounded-lg cursor-pointer';
+            bSeg.textContent = '🔗 Pedido de venta';
+            bSeg.title = 'Ver el seguimiento del pedido que originó esta orden';
+            bSeg.addEventListener('click', () => window.abrirSeguimientoPedido && window.abrirSeguimientoPedido(html.pedidoVentaId));
+            btn.parentNode.insertBefore(bSeg, btn);
+        }
         btn.addEventListener('click', () => imprimirConPlantilla('orden_produccion', `Estado de la orden de producción ${html.folio}`, idDoc, marcaDeEstatus(html.estado)));
     } catch (e) {
         doc.innerHTML = `<p class="text-rose-400 text-xs">No se pudo armar el documento: ${escD(e.message || e)}</p>`;
@@ -559,6 +569,7 @@ async function armarDocumentoEstado(ordenId) {
     return {
         folio,
         estado: o.estado,
+        pedidoVentaId: o.pedido_venta_id || null,
         cuerpo: `<div style="${ST.hoja}">
             ${encabezado}
             ${cerrada ? costeoHtml : `
@@ -573,3 +584,5 @@ async function armarDocumentoEstado(ordenId) {
         </div>`,
     };
 }
+
+window.abrirDetalleOrdenProduccion = (id) => abrirDetalle(Number(id));

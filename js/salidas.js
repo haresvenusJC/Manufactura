@@ -568,6 +568,23 @@ export async function registrarSalidaMultiPartida(datosDoc) {
             }
         }
 
+        // Guardia en la base (sql/2026-11-05_reservas_guardia_bd.sql): el surtido de un pedido y las bajas que no son venta
+        // (merma, ajuste...) piden una autorizacion corta por producto; una venta/salida directa NO se autoriza, la base
+        // rechaza que se lleve lo apartado. Sin la migracion la RPC no existe y se omite.
+        if (pedidoVentaId || !(tipoMovimiento === 'salida_venta' || tipoMovimiento === 'salida')) {
+            const porProducto = {};
+            for (const pt of partidas) porProducto[pt.productoId] = (porProducto[pt.productoId] || 0) + Number(pt.cantidad || 0);
+            for (const [pid, cant] of Object.entries(porProducto)) {
+                if (!(cant > 0)) continue;
+                try {
+                    await supabaseClient.rpc('reserva_autorizar_salida', {
+                        p_producto_id: Number(pid), p_cantidad: cant,
+                        p_motivo: pedidoVentaId ? ('surtido pedido ' + pedidoVentaId) : tipoMovimiento
+                    });
+                } catch (_) { /* sin migracion: sigue como antes */ }
+            }
+        }
+
         const filaDoc = {
             tipo_movimiento: tipoMovimiento,
             folio: folio,
