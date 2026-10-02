@@ -114,23 +114,28 @@ function cxpPintarDocumentos() {
     const panel = document.getElementById('cxpPanelDocumentos');
     if (!panel) return;
 
-    // Filtros de fecha / proveedor: se aplican antes que el de estatus, para
-    // que los contadores de los botones reflejen ya el rango elegido.
-    const porFechaProv = cxpCache.filter((x) =>
-        (!cxpDesde || (x.fecha || '') >= cxpDesde) &&
-        (!cxpHasta || (x.fecha || '') <= cxpHasta) &&
-        (!cxpProveedorId || String(x.proveedor_id || '') === cxpProveedorId)
-    );
+    // "Pendientes de pago" nunca se oculta por fecha (es lo que debes, no
+    // caduca por ser de un mes anterior) — a petición del usuario, antes
+    // se escondía fuera del rango "inicio de mes a hoy" y avisaba con un
+    // banner aparte; ahora simplemente siempre se ve todo. "Pagadas" /
+    // "Canceladas" / "Todas" sí respetan el rango elegido (ahí sí es un
+    // historial, tiene sentido acotarlo).
+    const porProveedor = (x) => !cxpProveedorId || String(x.proveedor_id || '') === cxpProveedorId;
+    const porFecha = (x) => (!cxpDesde || (x.fecha || '') >= cxpDesde) && (!cxpHasta || (x.fecha || '') <= cxpHasta);
+    const pendientesTodas = cxpCache.filter((x) => x.estatus_cxp === 'pendiente' && porProveedor(x));
+    const noPendientesConFecha = cxpCache.filter((x) => x.estatus_cxp !== 'pendiente' && porProveedor(x) && porFecha(x));
+    const todasVista = [...pendientesTodas, ...noPendientesConFecha];
 
-    const conteos = { pendiente: 0, pagado: 0, cancelado: 0 };
-    porFechaProv.forEach((x) => { if (conteos[x.estatus_cxp] != null) conteos[x.estatus_cxp]++; });
+    const conteos = {
+        pendiente: pendientesTodas.length,
+        pagado: noPendientesConFecha.filter((x) => x.estatus_cxp === 'pagado').length,
+        cancelado: noPendientesConFecha.filter((x) => x.estatus_cxp === 'cancelado').length,
+    };
 
-    const filtrados = cxpFiltro === 'todas' ? porFechaProv : porFechaProv.filter((x) => x.estatus_cxp === cxpFiltro);
     const esPendiente = cxpFiltro === 'pendiente';
-    // Aviso: pendientes de fechas fuera del rango (el default es el mes actual) para no perder saldos viejos.
-    const fueraRango = cxpCache.filter((x) => x.estatus_cxp === 'pendiente'
-        && (!cxpProveedorId || String(x.proveedor_id || '') === cxpProveedorId)
-        && (((cxpDesde && (x.fecha || '') < cxpDesde)) || (cxpHasta && (x.fecha || '') > cxpHasta)));
+    const filtrados = esPendiente ? pendientesTodas
+        : cxpFiltro === 'todas' ? todasVista
+        : noPendientesConFecha.filter((x) => x.estatus_cxp === cxpFiltro);
     const totalGeneral = filtrados.reduce((a, x) => a + Number(x.saldo || 0), 0);
 
     aplicarOrden(cxpOrden, filtrados, (x, campo) => {
@@ -147,7 +152,7 @@ function cxpPintarDocumentos() {
     });
 
     const pills = CXP_FILTROS.map((f) => {
-        const n = f.v === 'todas' ? porFechaProv.length : (conteos[f.v] || 0);
+        const n = f.v === 'todas' ? todasVista.length : (conteos[f.v] || 0);
         const on = f.v === cxpFiltro;
         return `<button type="button" class="cxp-filtro-btn text-xs px-3 py-1.5 rounded-lg border transition ${on ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'}" data-filtro="${f.v}">${f.t} <span class="opacity-70">(${n})</span></button>`;
     }).join('');
@@ -172,15 +177,15 @@ function cxpPintarDocumentos() {
       </div>
       <div class="flex flex-wrap items-end gap-2 mb-3">
         <div><label class="block text-[10px] text-slate-400 mb-1">Desde</label>
-          <input type="date" id="cxpDesde" value="${cxpDesde}" class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></div>
+          <input type="date" id="cxpDesde" value="${cxpDesde}" ${esPendiente ? 'disabled' : ''} class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 disabled:opacity-40"></div>
         <div><label class="block text-[10px] text-slate-400 mb-1">Hasta</label>
-          <input type="date" id="cxpHasta" value="${cxpHasta}" class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></div>
+          <input type="date" id="cxpHasta" value="${cxpHasta}" ${esPendiente ? 'disabled' : ''} class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 disabled:opacity-40"></div>
         <div class="min-w-[200px]"><label class="block text-[10px] text-slate-400 mb-1">Proveedor</label>
           <select id="cxpFiltroProveedor" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100">${optProveedor}</select></div>
         <button type="button" id="cxpLimpiarFiltros" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg">Limpiar</button>
       </div>
+      ${esPendiente ? '<p class="text-[10px] text-slate-500 mb-3">"Desde/Hasta" no aplica aquí — pendientes de pago siempre se ven todos, sin importar la fecha.</p>' : ''}
       <div class="flex flex-wrap gap-2 mb-3">${pills}</div>
-      ${fueraRango.length ? `<div class="mb-3 text-xs text-amber-300 bg-amber-950/30 border border-amber-800 rounded-lg px-3 py-2">⚠ Hay ${fueraRango.length} documentos pendientes fuera del rango de fechas (saldo ${money(fueraRango.reduce((a, x) => a + Number(x.saldo || 0), 0))}). <button type="button" id="cxpVerFueraRango" class="underline hover:text-amber-200">Ver todas las fechas</button></div>` : ''}
       ${filtrados.length ? `
       <div class="overflow-x-auto border border-slate-800 rounded-lg">
         <table class="w-full text-left text-xs text-slate-300">
@@ -234,7 +239,6 @@ function cxpPintarDocumentos() {
     document.getElementById('cxpDesde').onchange = (e) => { cxpDesde = e.target.value; cxpPintarDocumentos(); };
     document.getElementById('cxpHasta').onchange = (e) => { cxpHasta = e.target.value; cxpPintarDocumentos(); };
     document.getElementById('cxpFiltroProveedor').onchange = (e) => { cxpProveedorId = e.target.value; cxpPintarDocumentos(); };
-    document.getElementById('cxpVerFueraRango')?.addEventListener('click', () => { cxpDesde = ''; cxpHasta = ''; cxpPintarDocumentos(); });
     document.getElementById('cxpLimpiarFiltros').onclick = () => { cxpDesde = ''; cxpHasta = ''; cxpProveedorId = ''; cxpPintarDocumentos(); };
     wireOrdenTabla(panel, cxpOrden, cxpPintarDocumentos);
 

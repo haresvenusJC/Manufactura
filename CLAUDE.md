@@ -4,6 +4,39 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`. Confirmado: `sql/2026-10-29_resolucion_anticipo_oc.sql`
+  ya está corrida. Bug reportado con captura: "Pendientes de pago" en Pagos a proveedores no mostraba nada aunque
+  había 22 documentos pendientes — no era bug, era el filtro de fechas por default (inicio de mes a hoy) ocultando
+  pendientes de meses anteriores (con su aviso "Ver todas las fechas"). A petición del usuario, se rediseñó: la
+  pestaña **"Pendientes de pago" ya NO respeta el filtro Desde/Hasta — siempre muestra TODO lo pendiente** (no es
+  un historial, es lo que se debe, no caduca por fecha); los campos Desde/Hasta se deshabilitan visualmente en esa
+  pestaña con una nota. **"Pagadas" / "Canceladas" / "Todas" sí siguen respetando el rango de fechas** como antes
+  ("Todas" = todos los pendientes + pagadas/canceladas dentro del rango). Se quitó el banner "⚠ Hay N documentos
+  pendientes fuera del rango" y su botón "Ver todas las fechas" — ya no hace falta, nunca se ocultan. Sin
+  migración SQL. Pendiente: probar en el navegador que "Pendientes de pago" ya muestra los 22 documentos.
+- Archivos tocados (lo último): `sql/2026-10-29_resolucion_anticipo_oc.sql` (nuevo), `js/auxiliar-anticipos.js`,
+  `version.json`. A petición del usuario: cuando una OC con anticipo pagado ya NO se va a completar (el
+  proveedor no entrega el resto), antes ese saldo se quedaba "disponible" para siempre en esa OC sin ninguna
+  pantalla para resolverlo. Nuevo botón "Resolver saldo" en el Auxiliar de Anticipos a proveedores (por cada
+  OC con disponible > 0), con 3 escenarios reales — cada uno con su propio tratamiento contable, NIF, no solo
+  "que cuadre" (regla de este CLAUDE.md):
+  1. **Reasignado** — el proveedor deja aplicarlo a OTRA compra suya (se elige la OC destino, mismo proveedor,
+     abierta/recibida_parcial). Sin póliza: el dinero nunca salió de 109.01, solo se reetiqueta a qué OC
+     pertenece el derecho a usarlo.
+  2. **Reembolsado** — el proveedor regresa el efectivo. Póliza Ingreso: Cargo banco / Abono 109.01.
+  3. **Baja** — no hay nada que recuperar. Póliza Diario: Cargo a una cuenta de gasto (la que corresponda,
+     elegida a mano) / Abono 109.01 — es una pérdida real, no se deja como si siguiera siendo un activo.
+  Nueva tabla `anticipo_oc_resoluciones` + RPC `resolver_anticipo_oc()`; `_saldo_anticipo_oc()` y la vista
+  `v_anticipos_oc` se corrigieron para restar lo resuelto y sumar lo reasignado ENTRANTE — esto también corrige
+  un hueco real: antes una OC que solo recibía un reasignado (sin haber tenido su propio anticipo pagado)
+  ni siquiera aparecía en `v_anticipos_oc` (el join arrancaba desde el pago, nunca desde la OC). El Auxiliar
+  ahora también ajusta su columna "Disponible" por fila (FIFO por OC, mismo orden que ya usa
+  `contabilizar_compra` al consumir anticipo) y el "Cuadre contra 109.01" resta reembolsos/bajas reales
+  (reasignado se neutraliza solo, no toca la cuenta). Nueva sub-tabla "Resoluciones de saldo" debajo del
+  Auxiliar, con su folio/OC destino/póliza. El selector Contado/Crédito de "Recibo de mercancía" (punto 2 de
+  la misma conversación) se dejó **pendiente a propósito**, sin tocar. Pendiente: correr
+  `sql/2026-10-29_resolucion_anticipo_oc.sql` y probar "Resolver saldo" en el navegador con los 3 escenarios
+  (sobre todo reasignado, que no genera póliza — confirmar que el saldo sí se mueve de una OC a otra).
 - Archivos tocados (lo último): `js/ordenes-compra.js`, `js/pagos-proveedor.js`, `version.json`. A petición del
   usuario, la lista y el detalle de Órdenes de compra dejaron de ser un panel de acciones: se quitaron los
   botones "Recibir", "💰 Anticipo" y "Pagar" de cada fila (el de "Cancelar" se queda igual), y el badge de
