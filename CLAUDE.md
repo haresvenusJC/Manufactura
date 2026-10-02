@@ -4,6 +4,12 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/inventario.js`, `version.json`. A petición del usuario ("cuando estoy buscando que vaya haciendo la búsqueda para traerme
+  opciones de resultados e ir eligiendo el buscado"): el filtro **Producto** de Lotes ahora es un buscador con sugerencias — desde 2 letras (con espera de
+  250 ms y descartando respuestas viejas) trae hasta 10 productos (SKU o nombre) de `productos`, se elige con clic o ↑/↓ + Enter (Esc cierra) y filtra por
+  ESE producto (`producto_id`, `filtroProductoIdLotes`); sin elegir, Enter/"Filtrar" sigue buscando por texto. Si se edita el texto después de elegir,
+  se descarta la elección. Probado en Chromium con un Supabase simulado (sugerencias, clic y teclado generan la consulta correcta). Pendiente: probar con la
+  base real; extender el mismo patrón a otros buscadores de la app si el usuario lo pide (hoy solo Lotes).
 - Archivos tocados (lo último): `js/inventario.js`, `version.json`. Reportado: Lotes no tenía filtro por producto. `renderizarTablaLotes` gana, junto a Desde/Hasta,
   **Producto (SKU o nombre)**, **N.º de lote** y casilla **Solo con existencia** (stock > 0); se aplican con "Filtrar" o Enter y "Limpiar" los borra.
   Filtran en el servidor (la tabla está paginada): el de producto usa `productos!inner` + `.or(nombre.ilike, sku.ilike)` sobre la tabla relacionada (se pasan
