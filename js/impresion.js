@@ -160,10 +160,12 @@ if (!document.getElementById('print-styles-global')) {
     styleSheet.innerHTML = `
         @page { margin: 10mm; @bottom-right { content: "Pág. " counter(page) " de " counter(pages); font: 8px sans-serif; color: #666; } }
         @media print {
-            body * { visibility: hidden; }
-            .area-imprimible-activa, .area-imprimible-activa * { visibility: visible; }
+            /* Solo se imprime el documento: todo lo demás de la página se quita (no basta ocultarlo, seguiría
+               ocupando altura y salían hojas en blanco al final). El host cuelga directo de <body>. */
+            html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
+            body > *:not(#motorImpresionGlobal) { display: none !important; }
             .area-imprimible-activa {
-                position: absolute; left: 0; top: 0; width: 100%;
+                position: static !important; width: 100%;
                 background: white !important; color: #111 !important; padding: 0 !important;
                 font-family: system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
             }
@@ -196,7 +198,8 @@ if (!document.getElementById('print-styles-global')) {
             /* Tablas: encabezado repetido en cada hoja y filas que no se parten */
             .area-imprimible-activa table { width: 100%; border-collapse: collapse; }
             .area-imprimible-activa thead { display: table-header-group; }
-            .area-imprimible-activa thead th { font-weight: 700; border-bottom: 1px solid #555 !important; text-align: left; }
+            .area-imprimible-activa thead th { font-weight: 700; border-bottom: 1px solid #555 !important; }
+            :where(.area-imprimible-activa) :where(thead th) { text-align: left; }   /* sin especificidad: text-right/center de la tabla manda (Cargo/Abono alineados con sus números) */
             .area-imprimible-activa tr { break-inside: avoid; page-break-inside: avoid; }
             .area-imprimible-activa h1, .area-imprimible-activa h2, .area-imprimible-activa h3 { break-after: avoid; }
 

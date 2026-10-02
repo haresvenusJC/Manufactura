@@ -4,6 +4,15 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/impresion.js`, `js/contabilidad.js`, `version.json`. Bug reportado con el PDF de la Póliza Diario #26 impresa:
+  salían **8 hojas, 7 en blanco**. Causa: el motor ocultaba el resto de la pantalla con `visibility:hidden`, que NO libera su altura — el
+  menú y la pantalla de atrás seguían ocupando espacio y el navegador paginaba todo. Ahora, al imprimir, todo hijo de `<body>` que no sea
+  `#motorImpresionGlobal` va `display:none`, el host es `position:static` y `html/body` quedan `height:auto`. Reproducido y verificado en
+  Chromium (pantalla alta simulada: antes 2 hojas, ahora 1; documento de 70 filas sigue en 2 con encabezado repetido). También en ese PDF:
+  los encabezados "Cargo/Abono" salían alineados a la izquierda sobre cifras a la derecha (mi `text-align:left` pisaba `text-right`; ahora va
+  con `:where()`), y la póliza mostraba "cuenta 11/24/108" en vez de código · nombre cuando se abre desde otra pantalla (el catálogo no estaba
+  en memoria): `rcVerPoliza` ahora trae las cuentas que faltan. Pendiente: el subtítulo "Comprobante de Movimiento de Almacén" sale en la
+  póliza porque usa la plantilla genérica — cambiarlo en Configuración → Plantillas → "Póliza contable" (o crear esa plantilla).
 - Archivos tocados (lo último): `js/impresion.js`, `js/plantillas.js`, `js/contabilidad.js`, `js/pedidos-venta.js`, `js/pagos-proveedor.js`,
   `js/cuentas-por-cobrar.js`, `js/auditoria-inventario.js`, `sql/2026-11-01_plantillas_compacto.sql` (nuevo), `version.json`. A petición del usuario
   ("estandariza todos los documentos imprimibles… que no gasten mucha hoja"): **un solo estilo de impresión en el motor** `imprimirConPlantilla()` —

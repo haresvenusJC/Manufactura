@@ -2504,6 +2504,13 @@ window.rcVerPoliza = async function (polId) {
         } catch (_) {}
 
         const movs = (pol.poliza_movimientos || []).slice().sort((a, b) => (a.orden || 0) - (b.orden || 0));
+        // Si la póliza se abre desde otra pantalla (Bitácora, Pagos, Documentos...) el catálogo de cuentas no está en memoria
+        // y salía "cuenta 11": se traen solo las cuentas que faltan.
+        const faltan = [...new Set(movs.map((m) => m.cuenta_id).filter((id) => id != null && !ctaMapa.has(id)))];
+        if (faltan.length) {
+            const { data: ctasFaltan } = await supabaseClient.from('cuentas_contables').select('id, codigo, nombre').in('id', faltan);
+            (ctasFaltan || []).forEach((c) => ctaMapa.set(c.id, c));
+        }
         const totC = movs.reduce((s, m) => s + (Number(m.cargo) || 0), 0);
         const totA = movs.reduce((s, m) => s + (Number(m.abono) || 0), 0);
 
