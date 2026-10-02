@@ -4,6 +4,12 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`. A petición del usuario ("un tema para usuarios inspirado en la simpleza y colores muy estilo Mac de Apple"): nuevo tema
+  **Mac (claro y sencillo)** (`data-theme="macos"`, tarjeta en Configuración → General → Tema de colores). Claro y plano: fondo gris `#f5f5f7`, tarjetas blancas con línea fina y sombra suave,
+  acento azul `#0071e3`/`#007aff` y colores de sistema (verde `#30b050`, rojo `#ff3b30`, naranja `#ff9500`), tipografía del sistema (-apple-system / SF Pro), botones planos de esquina de 9 px
+  (sin píldora ni 3D), campos planos con halo azul, tablas limpias, menú lateral translúcido con desenfoque, Inicio sin orbes ni degradados. TODO cuelga de `[data-theme="macos"]` al final de
+  `css/ui-moderno.css` (no cambia ningún otro tema; lo cargan también las 3 apps de operador, el manual y la guía). Para quitarlo: borrar ese bloque y la tarjeta `data-tema="macos"`.
+  Probado solo con una página de muestra en Chromium (Tailwind CDN no carga aquí): falta verlo en la app real. Pendiente: probar con Ctrl+Shift+R (el CSS no se versiona en `version.json`).
 - Archivos tocados (lo último): `sql/2026-11-06_lote_minimo_fabricacion.sql` (nuevo), `js/catalogo.js`, `js/produccion.js`, `version.json`. A petición del usuario ("que sea solo un número, para
   tenerlo como referencia y que me pregunte y me permita decidir"): `productos.lote_minimo_fabricacion` (numérico > 0, en la unidad del producto, null = sin mínimo; solo referencia). Se captura en
   Productos → ☰ → Editar artículo (solo producto terminado y semiterminado). En Producción, al precargar una orden sugerida (desde un pedido o "Faltantes") cuyo faltante es MENOR al mínimo,
