@@ -4,6 +4,32 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `manual-costos-produccion.html`. A petición del usuario ("revisa que falta de
+  actualizar en todos los manuales"): auditoría completa de `manual-costos-produccion.html` contra el menú
+  VIGENTE (`index.html`/`js/indice.js`) — venía con la estructura de hace varias reorganizaciones de menú
+  atrás. Corregido: 11 referencias literales "Menú → Finanzas → X" que en realidad viven en **Contabilidad**
+  (Plan de cuentas, Centros de costo, Áreas y bases de prorrateo, Reparto de gastos compartidos, Pólizas,
+  Reportes contables — "Finanzas → Gastos/Prorrateo de gastos" sí seguían correctas, no se tocaron);
+  "Compras / Proveedores" → **Catálogos → Proveedores** (Proveedores se movió de grupo hace tiempo); el botón
+  "Ver póliza" decía que navegaba a Pólizas — ya no navega, abre una subventana (regla de este CLAUDE.md,
+  corregida de paso). Los encabezados de la Parte 8 (guía rápida por módulo) traían nombres de ANTES del
+  reacomodo de 9 grupos ("Datos Maestros", "Operación — Compras/Abastecimiento", etc.) — renombrados a los
+  grupos vigentes (Catálogos, Compras, Inventario y Ventas, Producción, Documentos, Reportes, Finanzas,
+  Nómina y cierre de mes, Configuración); donde un mismo bloque mezcla dos grupos (Inventario+Ventas,
+  Finanzas+Contabilidad) se dejó una nota aclaratoria en vez de reordenar el contenido (reordenar bloques
+  grandes de HTML a mano es más riesgo del que vale). Se encontraron y documentaron DOS huecos reales nunca
+  escritos en el manual: nuevo `<h3>Utilerías</h3>` (los dos importadores vivían bajo "Catálogos" en el texto,
+  pero el menú real los movió a Utilerías hace sesiones) y nueva sección **"Accesos para operadores"** (la
+  pantalla existe desde hace tiempo — enlaces/QR de las 3 apps móviles — pero nunca tuvo su entrada en el
+  manual, porque nació después de escribir esta Parte 8). También se renombró el h4 "General" → **"Temas de
+  usuario"** (la sesión de hoy) y se le quitó la mención de los enlaces de operador (ya no viven ahí).
+  `guia-costos-produccion.html` se revisó y no tenía ninguna de estas referencias — no necesitó cambios.
+  Sin migración SQL. Pendiente: ninguno de código; si el usuario vuelve a reacomodar el menú, repetir esta
+  auditoría contra `manual-costos-produccion.html` (Parte 8 especialmente).
+- Archivos tocados (lo último): `index.html`, `js/indice.js`. El renombre de "Tema de colores" a "Temas de
+  usuario" (sesión anterior) había cambiado el encabezado de la pantalla pero no el ítem **"General"** del
+  menú lateral (Configuración) ni el título de su tarjeta en el Índice — a petición del usuario, ambos ya
+  dicen **"Temas de usuario"**. Pendiente: ninguno.
 - Archivos tocados (lo último): `js/bienvenida.js`, `css/bienvenida.css`. A petición del usuario ("un efecto en
   el casco y en los ojos del casco, algo que se vea muy de película"), en el logo de Inicio (`.bv-disco`,
   `img/HARES_icono_tinta.svg`): **brillo de poder** que respira sobre todo el casco (`filter: drop-shadow`
