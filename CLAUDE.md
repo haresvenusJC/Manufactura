@@ -4,6 +4,18 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/bienvenida.js`, `css/bienvenida.css`. A petición del usuario ("un efecto en
+  el casco y en los ojos del casco, algo que se vea muy de película"), en el logo de Inicio (`.bv-disco`,
+  `img/HARES_icono_tinta.svg`): **brillo de poder** que respira sobre todo el casco (`filter: drop-shadow`
+  pulsando en el acento del tema), **dos "ojos" que encienden** con parpadeo tipo arranque de máscara de
+  película (`bv-ojo-i`/`bv-ojo-d`, `mix-blend-mode: screen`, con bloom) y un **barrido de luz diagonal**
+  tipo escaneo/holograma sobre el disco (`bv-escaneo`). El SVG no tiene una forma de "ojo" propia (es un
+  trazo abstracto sin hueco dedicado) — la posición de los dos brillos (`left: 40%`/`54%`, `top: 51%` sobre
+  `.bv-disco`) es una ESTIMACIÓN visual sobre dónde cae la ranura del visor, no viene de coordenadas reales
+  del SVG; si no caen justo sobre los ojos del casco, ajustar esos `left`/`top` en `css/bienvenida.css`.
+  Respeta `prefers-reduced-motion` (apaga las 3 animaciones nuevas, deja los ojos fijos a media opacidad).
+  Sin migración SQL. Pendiente: que el usuario revise en el navegador si los dos brillos caen sobre los ojos
+  del casco o hace falta correr el `left`/`top`.
 - Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`, `js/indice.js`, `orden-trabajo.html`,
   `recibo-operador.html`, `conteo-inventario.html`, `css/doc-tema.css`. A petición del usuario: nuevo tema
   **Mac (oscuro)** (`data-theme="macos-dark"`, tarjeta en Configuración, junto a "Mac (claro y sencillo)") —

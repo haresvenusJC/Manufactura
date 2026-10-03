@@ -345,7 +345,12 @@ export async function montarBienvenida() {
             <div class="bv-orbes"><div class="bv-orbe o1"></div><div class="bv-orbe o2"></div><div class="bv-orbe o3"></div></div>
 
             <div class="bv-logo">
-                <div class="bv-disco"><img src="img/HARES_icono_tinta.svg" alt="Hares de México"></div>
+                <div class="bv-disco">
+                    <img src="img/HARES_icono_tinta.svg" alt="Hares de México">
+                    <span class="bv-ojo bv-ojo-i"></span>
+                    <span class="bv-ojo bv-ojo-d"></span>
+                    <span class="bv-escaneo"></span>
+                </div>
             </div>
 
             <div id="bvFecha" class="bv-fecha">${esc(fechaHora(ahora))}</div>
