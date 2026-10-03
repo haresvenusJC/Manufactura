@@ -1709,6 +1709,11 @@ function renderTarjetaOrdenEnProceso(o, registros, solicitudes = []) {
                 </div>
                 <button type="button" class="btn-cerrar-orden bg-rose-700 hover:bg-rose-600 text-white text-xs px-3 py-1.5 rounded-lg" data-id="${o.id}" data-folio="${folio}" data-cant="${Number(o.cantidad_producida) || 0}" data-unidad="${String(o.productos?.unidades_medida?.nombre || '').replace(/"/g, '&quot;')}">🔒 Cerrar orden</button>
             </div>
+            ${(() => {
+                const procs = (o.orden_produccion_procesos || []);
+                const listos = procs.length > 0 && procs.every(p => (p.orden_produccion_proceso_empleados || []).length > 0 && (p.orden_produccion_proceso_empleados || []).every(e => !!e.finalizado_at));
+                return listos ? '<p class="text-xs text-emerald-400 bg-emerald-950/30 border border-emerald-900/50 rounded-lg px-3 py-1.5 mb-2">✅ Todas las tareas finalizadas, falta cerrar la orden.</p>' : '';
+            })()}
             <div class="space-y-2">${procesosHtml}</div>
             <div class="flex justify-between items-center text-xs mt-3 pt-2 border-t border-slate-800">
                 <span class="text-slate-400">Mano de obra registrada (parcial)</span>

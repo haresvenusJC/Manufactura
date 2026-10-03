@@ -11,7 +11,7 @@
 // =====================================================================
 import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
-import { calcularRequerimientosProduccion, formatoCantidad, fmtFaltante, generarRequisicionFaltantes, requisicionesDeOrden, documentosDeOrden, consumosDeOrden } from './produccion.js';
+import { calcularRequerimientosProduccion, formatoCantidad, fmtFaltante, generarRequisicionFaltantes, requisicionesDeOrden, documentosDeOrden, consumosDeOrden, cerrarOrdenDeProduccion } from './produccion.js';
 import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 import './trazabilidad.js';   // window.abrirSeguimientoPedido
 
@@ -83,7 +83,7 @@ async function cargarOrdenes() {
         producto_id, productos ( nombre, sku ),
         orden_produccion_procesos (
             id, proceso_nombre,
-            orden_produccion_proceso_empleados ( empleado_id, empleados ( nombre ) )
+            orden_produccion_proceso_empleados ( empleado_id, finalizado_at, empleados ( nombre ) )
         )`;
     let { data, error } = await supabaseClient.from('ordenes_produccion').select(columnas)
         .order('created_at', { ascending: false }).limit(500);
@@ -97,6 +97,33 @@ async function cargarOrdenes() {
     }
     ordenesCache = data || [];
     pintarTabla();
+}
+
+// Todas las tareas terminadas: hay al menos un proceso y cada proceso tiene equipo con TODOS finalizados
+// (el botón "🏁 Finalizar tarea" del celular solo marca la tarea; la orden se cierra aparte).
+function todasLasTareasFinalizadas(o) {
+    const procs = o.orden_produccion_procesos || [];
+    if (!procs.length) return false;
+    return procs.every((p) => {
+        const eq = p.orden_produccion_proceso_empleados || [];
+        return eq.length > 0 && eq.every((e) => !!e.finalizado_at);
+    });
+}
+
+// Cierre manual desde esta pantalla (mismo cierre que el botón de Producción → Órdenes en Proceso).
+async function cerrarOrdenDesdeAqui(ordenId, folio, btn) {
+    if (!confirm(`¿Cerrar la orden ${folio}? Se descontará el inventario (FIFO) y se calcularán los costos. Esto no se puede deshacer.`)) return false;
+    const textoOriginal = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Cerrando...'; }
+    const res = await cerrarOrdenDeProduccion(Number(ordenId));
+    if (res.success) {
+        alert('✅ ' + res.mensaje);
+        if (document.getElementById('opTbody')) await cargarOrdenes();
+        return true;
+    }
+    alert('❌ ' + res.error);
+    if (btn && document.body.contains(btn)) { btn.disabled = false; btn.textContent = textoOriginal; }
+    return false;
 }
 
 function pintarTabla() {
@@ -137,6 +164,9 @@ function pintarTabla() {
         const folio = o.folio || ('#' + o.id);
         const creada = o.created_at ? new Date(o.created_at).toLocaleString() : '';
         const acciones = [`<button type="button" class="btn-op-detalle text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded-lg border border-slate-700" data-id="${o.id}">👁 Detalle</button>`];
+        if (o.estado === 'en_proceso') {
+            acciones.push(`<button type="button" class="btn-op-cerrar text-xs bg-rose-700 hover:bg-rose-600 text-white px-2 py-1 rounded-lg" data-id="${o.id}" data-folio="${folio}">🔒 Cerrar orden</button>`);
+        }
         if (o.estado === 'borrador') {
             acciones.push(`<button type="button" class="btn-op-continuar text-xs bg-amber-700 hover:bg-amber-600 text-white px-2 py-1 rounded-lg" data-id="${o.id}">🔄 Revisar y continuar</button>`);
             acciones.push(`<button type="button" class="btn-op-cancelar text-xs bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded-lg" data-id="${o.id}">🗑 Cancelar</button>`);
@@ -147,7 +177,7 @@ function pintarTabla() {
                 <td class="p-3 text-slate-200">${o.productos?.nombre || 'Producto'}</td>
                 <td class="p-3 text-right font-mono text-slate-300">${formatoCantidad(o.cantidad_producida)}</td>
                 <td class="p-3 text-slate-400">${o.numero_lote || 'S/L'}</td>
-                <td class="p-3">${badgeEstado(o.estado)}</td>
+                <td class="p-3">${badgeEstado(o.estado)}${o.estado === 'en_proceso' && todasLasTareasFinalizadas(o) ? '<div class="text-[10px] text-emerald-400 mt-1">✅ Todas las tareas finalizadas, falta cerrar la orden</div>' : ''}</td>
                 <td class="p-3 text-slate-500 text-xs">${creada}</td>
                 <td class="p-3"><div class="flex flex-wrap gap-1.5">${acciones.join('')}</div></td>
             </tr>`;
@@ -158,6 +188,9 @@ function pintarTabla() {
     });
     tbody.querySelectorAll('.btn-op-continuar').forEach((btn) => {
         btn.addEventListener('click', () => continuarOrdenPendiente(Number(btn.dataset.id), btn));
+    });
+    tbody.querySelectorAll('.btn-op-cerrar').forEach((btn) => {
+        btn.addEventListener('click', () => cerrarOrdenDesdeAqui(btn.dataset.id, btn.dataset.folio, btn));
     });
     tbody.querySelectorAll('.btn-op-cancelar').forEach((btn) => {
         btn.addEventListener('click', () => cancelarOrdenPendiente(Number(btn.dataset.id)));
@@ -306,6 +339,20 @@ export async function abrirDetalle(ordenId) {
             bSeg.title = 'Ver el seguimiento del pedido que originó esta orden';
             bSeg.addEventListener('click', () => window.abrirSeguimientoPedido && window.abrirSeguimientoPedido(html.pedidoVentaId));
             btn.parentNode.insertBefore(bSeg, btn);
+        }
+        if (html.estado === 'en_proceso') {   // cerrar la orden también desde su vista de detalle
+            const bCerrar = document.createElement('button');
+            bCerrar.type = 'button';
+            bCerrar.className = 'text-xs bg-rose-700 hover:bg-rose-600 text-white font-medium px-3 py-1.5 rounded-lg cursor-pointer';
+            bCerrar.textContent = '🔒 Cerrar orden';
+            bCerrar.addEventListener('click', async () => { if (await cerrarOrdenDesdeAqui(ordenId, html.folio, bCerrar)) cerrar(); });
+            btn.parentNode.insertBefore(bCerrar, btn.parentNode.firstChild);
+            if (html.todasFinalizadas) {
+                const aviso = document.createElement('span');
+                aviso.className = 'text-[11px] text-emerald-400 font-semibold';
+                aviso.textContent = '✅ Todas las tareas finalizadas';
+                btn.parentNode.insertBefore(aviso, bCerrar);
+            }
         }
         btn.addEventListener('click', () => imprimirConPlantilla('orden_produccion', `Estado de la orden de producción ${html.folio}`, idDoc, marcaDeEstatus(html.estado)));
     } catch (e) {
@@ -570,6 +617,7 @@ async function armarDocumentoEstado(ordenId) {
         folio,
         estado: o.estado,
         pedidoVentaId: o.pedido_venta_id || null,
+        todasFinalizadas: todasLasTareasFinalizadas(o),
         cuerpo: `<div style="${ST.hoja}">
             ${encabezado}
             ${cerrada ? costeoHtml : `

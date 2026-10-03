@@ -4,6 +4,15 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/ordenes-produccion.js`, `js/produccion.js`, `version.json`. **Cierre automático de órdenes de producción, ENTREGA 1 de 3** (reportado: OP-000011 seguía "en_proceso" aunque los 3
+  operadores ya habían pulsado "🏁 Finalizar tarea"; verificado con SQL: los 6 renglones con `finalizado_at` y 0 cronómetros abiertos — por diseño `ot_finalizar` solo cierra el cronómetro y marca la tarea del operador; la orden se cierra
+  aparte con `cerrarOrdenDeProduccion`, que descuenta MP PEPS, costea, da entrada al terminado y genera póliza). El botón "🔒 Cerrar orden" SOLO existía en Producción → "⏱️ Órdenes en Proceso". Ahora también: en Órdenes de producción
+  (lista, columna Acciones, y 👁 Detalle) para órdenes `en_proceso`, mismo cierre y misma confirmación (`cerrarOrdenDesdeAqui`); y aviso verde "✅ Todas las tareas finalizadas, falta cerrar la orden" cuando cada proceso tiene equipo y TODOS
+  tienen `finalizado_at` (`todasLasTareasFinalizadas`, en lista, detalle y tarjeta de Producción). La consulta de la lista ahora trae `finalizado_at`. Probado en Chromium con Supabase simulado (aviso solo en la orden terminada, botón en las 2
+  en proceso). **Plan aprobado por el usuario para las entregas 2 y 3 (pendientes):** (2) función SQL atómica `cerrar_orden_produccion(orden_id)` que reproduce el cierre actual (probar en Postgres local con existencias suficientes e
+  insuficientes) y `cerrarOrdenDeProduccion` pasa a llamarla (una sola versión del cálculo); (3) cierre AUTOMÁTICO con pg_cron cada 5 min: cierra las órdenes con todas las tareas finalizadas y la última finalización de hace ≥10 min (ventana para que
+  un operador reabra su tarea); si algo falta (alguien asignado sin finalizar) NO se cierra sola; si faltan existencias se queda abierta con nota "no pudo cerrarse: faltan X" + Tarea; el trabajo programado no afecta nunca a `ot_finalizar` ni al
+  operador. Cierra con lo planeado (como el botón). Pendiente: que el usuario pruebe la entrega 1 (cerrar OP-000011 desde Órdenes de producción) antes de seguir con la 2.
 - **EN DISCUSIÓN (solo propuestas, sin código):** dos temas abiertos para retomar. Maquetas privadas (no son pantallas reales): lista y pago de Cuentas por pagar v2 https://claude.ai/artifact/PeKAi5Wsp4VdokSwZzMDoi (la v1 y su revisión contable: https://claude.ai/artifact/Y76kgS8aiL775ifwQPmT1c).
   **A) Cuentas por pagar (Finanzas) — ya acordado en la maqueta:** documento = OC autorizada (sin folio de recepción en la lista); columnas Total y Saldo (sin "pagado"); botón siempre "Pagar"; filtros en los encabezados
   (Documento ▾ busca folio de OC, Proveedor ▾, Estatus ▾ con Pendientes/Pendiente/Vencida/Parcial/Pagada/Cancelada/Todas) + solo "desde"/"hasta" arriba; sin columna de alertas; columna "Póliza"; sin enlace de anticipo en la tarjeta de anticipos;
