@@ -4,9 +4,35 @@ import { cargarInventarioCompleto } from './inventario.js';
 import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { convertirEnBuscador } from './buscador-select.js';
+import { ordenarCentrosProduccion } from './centros-costo.js';
 import { factorConversion } from './conversion-unidades.js';
 
 const histProdOrden = crearOrdenTabla('fecha', 'desc');
+
+// Tarjetas de "Centro de costo" (Procesos y equipo de trabajo): ícono + color por código.
+// Cualquier centro fuera de estos 4 (ej. PROD) usa el ícono/color genérico — no se oculta.
+const ICONO_CENTRO = {
+    SURT: '<path d="M9 2v6.3a2 2 0 0 1-.4 1.2L4 16a2 2 0 0 0 1.6 3.2h12.8A2 2 0 0 0 20 16l-4.6-6.5A2 2 0 0 1 15 8.3V2"/><path d="M8.5 2h7"/>',
+    MEZ: '<path d="M17 2.1l4 4-4 4"/><path d="M3 12.3a9 9 0 0 1 15-6.7l3 2.7"/><path d="M7 21.9l-4-4 4-4"/><path d="M21 11.7a9 9 0 0 1-15 6.7l-3-2.7"/>',
+    ENV: '<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/>',
+    ACOND: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8"/><path d="M16.5 8a2.5 2.5 0 0 0 0-5C13 3 12 8 12 8"/>',
+};
+const ICONO_CENTRO_DEFAULT = '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 2.5"/>';
+const COLOR_CENTRO = {
+    SURT: { ico: 'text-teal-400', fondo: 'bg-teal-500/10', borde: 'border-teal-500' },
+    MEZ: { ico: 'text-violet-400', fondo: 'bg-violet-500/10', borde: 'border-violet-500' },
+    ENV: { ico: 'text-sky-400', fondo: 'bg-sky-500/10', borde: 'border-sky-500' },
+    ACOND: { ico: 'text-amber-400', fondo: 'bg-amber-500/10', borde: 'border-amber-500' },
+};
+const COLOR_CENTRO_DEFAULT = { ico: 'text-slate-400', fondo: 'bg-slate-500/10', borde: 'border-slate-500' };
+
+// Avatares del equipo de trabajo: color cíclico por posición (no por persona, para no
+// andar guardando una paleta por empleado) + iniciales (nombre y primer apellido).
+const COLOR_AVATAR = ['bg-sky-600', 'bg-violet-600', 'bg-emerald-600', 'bg-amber-600', 'bg-rose-600', 'bg-teal-600'];
+function inicialesDe(nombre) {
+    const p = String(nombre || '').trim().split(/\s+/);
+    return (((p[0] || '')[0] || '') + ((p[1] || '')[0] || '')).toUpperCase();
+}
 
 // Formatea cantidades evitando colas de decimales largas (10.0000001 -> "10").
 export function formatoCantidad(n) {
@@ -810,7 +836,7 @@ export async function cargarModuloProduccion() {
                 .eq('tipo', 'produccion')
                 .eq('activo', true)
                 .order('codigo', { ascending: true });
-            if (!r.error) centrosCosto = r.data || [];
+            if (!r.error) centrosCosto = ordenarCentrosProduccion(r.data || []);
         }
 
         const listaEmpleados = empleadosCatalogo || [];
@@ -831,11 +857,27 @@ export async function cargarModuloProduccion() {
             const uid = `proc-${procesoContador}`;
 
             const opcionesProcesos = listaProcesos.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('');
-            const opcionesCentros = centrosCosto.map(c => `<option value="${c.id}">${c.codigo} · ${c.nombre}</option>`).join('');
-            const casillasEmpleados = listaEmpleados.map(e => `
-                <label class="flex items-center gap-2 text-xs text-slate-200 px-1.5 py-1 rounded hover:bg-slate-800 cursor-pointer">
-                    <input type="checkbox" class="chkEmpleado accent-amber-500 w-3.5 h-3.5" value="${e.id}" data-costo-hora="${e.costo_hora}" data-nombre="${(e.nombre || '').replace(/"/g, '&quot;')}">
-                    <span>${e.nombre} <span class="text-slate-500">($${Number(e.costo_hora).toFixed(2)}/hr)</span></span>
+            const tarjetasCentros = centrosCosto.map(c => {
+                const color = COLOR_CENTRO[c.codigo] || COLOR_CENTRO_DEFAULT;
+                const icono = ICONO_CENTRO[c.codigo] || ICONO_CENTRO_DEFAULT;
+                return `
+                <button type="button" class="tarjetaCentro flex flex-col items-center gap-1 p-2 rounded-xl border border-slate-800 bg-slate-900 hover:border-slate-700 transition" data-id="${c.id}" title="${(c.nombre || '').replace(/"/g, '&quot;')}">
+                    <span class="iconoTarjetaCentro w-8 h-8 rounded-lg grid place-items-center ${color.fondo} ${color.ico}">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icono}</svg>
+                    </span>
+                    <span class="textoTarjetaCentro text-[10px] font-bold text-slate-400">${c.codigo}</span>
+                </button>`;
+            }).join('');
+            const avataresEmpleados = listaEmpleados.map((e, i) => `
+                <label class="flex flex-col items-center gap-1 w-14 cursor-pointer select-none" title="${(e.nombre || '').replace(/"/g, '&quot;')} ($${Number(e.costo_hora).toFixed(2)}/hr)">
+                    <input type="checkbox" class="chkEmpleado hidden peer" value="${e.id}" data-costo-hora="${e.costo_hora}" data-nombre="${(e.nombre || '').replace(/"/g, '&quot;')}">
+                    <span class="relative w-9 h-9 rounded-full grid place-items-center text-[11px] font-bold text-white opacity-50 peer-checked:opacity-100 peer-checked:ring-2 peer-checked:ring-offset-2 peer-checked:ring-offset-slate-950 peer-checked:ring-emerald-400 ${COLOR_AVATAR[i % COLOR_AVATAR.length]}">
+                        ${inicialesDe(e.nombre)}
+                        <span class="hidden peer-checked:grid absolute -right-0.5 -bottom-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-slate-950 place-items-center">
+                            <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        </span>
+                    </span>
+                    <span class="text-[9.5px] text-slate-400 text-center leading-tight line-clamp-2">${e.nombre}</span>
                 </label>`).join('');
 
             const div = document.createElement('div');
@@ -850,17 +892,16 @@ export async function cargarModuloProduccion() {
                     <input type="text" class="inputProcesoNuevoNombre hidden flex-1 bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100" placeholder="Nombre del proceso nuevo">
                     <button type="button" class="btnQuitarProceso text-rose-400 hover:text-rose-300 text-xs px-1" title="Quitar proceso">✕</button>
                 </div>
-                <div class="${opcionesCentros ? '' : 'hidden'}">
-                    <label class="text-[10px] text-slate-500 block mb-1">CENTRO DE COSTO (dónde se acumula la mano de obra y el CIF de este proceso)</label>
-                    <select class="selectProcesoCentro w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100">
-                        <option value="">— sin asignar (usa el de producción por defecto) —</option>
-                        ${opcionesCentros}
-                    </select>
+                <div class="${centrosCosto.length ? '' : 'hidden'}">
+                    <label class="text-[10px] text-slate-500 block mb-1">CENTRO DE COSTO (dónde se acumula la mano de obra y el CIF de este proceso) — toca para elegir, toca de nuevo para quitar</label>
+                    <input type="hidden" class="selectProcesoCentro" value="">
+                    <div class="gridTarjetasCentro grid grid-cols-4 gap-1.5">${tarjetasCentros}</div>
+                    <p class="centroCostoNombre text-[10px] text-slate-500 mt-1">Sin asignar (usa el de producción por defecto)</p>
                 </div>
                 <div>
-                    <label class="text-[10px] text-slate-500 block mb-1">EQUIPO DE TRABAJO (marca a quienes participan)</label>
-                    <div class="equipoEmpleados max-h-28 overflow-y-auto bg-slate-900 border border-slate-800 rounded-lg p-1 space-y-0.5">
-                        ${casillasEmpleados}
+                    <label class="text-[10px] text-slate-500 block mb-1">EQUIPO DE TRABAJO (toca a quienes participan)</label>
+                    <div class="equipoEmpleados flex flex-wrap gap-2.5 bg-slate-900 border border-slate-800 rounded-lg p-2">
+                        ${avataresEmpleados}
                     </div>
                     <p class="text-[10px] text-slate-500 mt-1"><span class="equipoCount text-amber-400 font-semibold">0</span> empleado(s) asignado(s)</p>
                 </div>
@@ -869,10 +910,35 @@ export async function cargarModuloProduccion() {
             const selectProcesoNombre = div.querySelector('.selectProcesoNombre');
             const inputNuevoNombre = div.querySelector('.inputProcesoNuevoNombre');
             const selectProcesoCentro = div.querySelector('.selectProcesoCentro');
+            const centroCostoNombre = div.querySelector('.centroCostoNombre');
+
+            function pintarTarjetasCentro() {
+                const seleccionado = selectProcesoCentro.value;
+                div.querySelectorAll('.tarjetaCentro').forEach(btn => {
+                    const activo = seleccionado && btn.dataset.id === seleccionado;
+                    btn.classList.toggle('bg-slate-900', !activo);
+                    btn.classList.toggle('border-slate-800', !activo);
+                    const color = COLOR_CENTRO[centrosCosto.find(c => String(c.id) === btn.dataset.id)?.codigo] || COLOR_CENTRO_DEFAULT;
+                    btn.classList.toggle(color.borde, activo);
+                    btn.querySelector('.iconoTarjetaCentro').classList.toggle(color.fondo.replace('/10', '/20'), activo);
+                    btn.querySelector('.textoTarjetaCentro').classList.toggle('text-slate-400', !activo);
+                    btn.querySelector('.textoTarjetaCentro').classList.toggle(color.ico, activo);
+                });
+                const centro = centrosCosto.find(c => String(c.id) === seleccionado);
+                centroCostoNombre.textContent = centro ? `${centro.nombre} — dónde se acumula la mano de obra y el CIF.` : 'Sin asignar (usa el de producción por defecto)';
+            }
+            div.querySelectorAll('.tarjetaCentro').forEach(btn => {
+                btn.onclick = () => {
+                    selectProcesoCentro.value = selectProcesoCentro.value === btn.dataset.id ? '' : btn.dataset.id;
+                    pintarTarjetasCentro();
+                };
+            });
+
             selectProcesoNombre.onchange = () => {
                 inputNuevoNombre.classList.toggle('hidden', selectProcesoNombre.value !== '__otro__');
                 if (selectProcesoCentro && selectProcesoNombre.value !== '__otro__' && centroPorProceso.has(selectProcesoNombre.value)) {
                     selectProcesoCentro.value = String(centroPorProceso.get(selectProcesoNombre.value));
+                    pintarTarjetasCentro();
                 }
             };
             selectProcesoNombre.onchange();

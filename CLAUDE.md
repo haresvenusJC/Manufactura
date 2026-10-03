@@ -4,6 +4,35 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/produccion.js`, `version.json`. A petición del usuario ("alguna idea para
+  hacer esta selección más ágil e interactiva"), se exploraron 3 variantes en un Artifact de diseño (canvas
+  interactivo, no comiteado — solo vive en claude.ai) y el usuario eligió la **Opción B**: en "Procesos y
+  equipo de trabajo asignado" (formulario de nueva orden), el `<select>` de **Centro de costo** se reemplazó
+  por una cuadrícula de 4 tarjetas con ícono y color propio por código (SURT teal, MEZ violeta, ENV cian/sky,
+  ACOND ámbar — cualquier otro código usa un ícono/color genérico, no se oculta) — tocar una la selecciona,
+  tocarla de nuevo la quita (vuelve a "sin asignar"); y la lista de checkboxes de **Equipo de trabajo** se
+  reemplazó por avatares circulares con iniciales (color cíclico por posición), que se iluminan y marcan con
+  un check al tocarlos. Implementado SIN tocar la lógica de guardado: los checkboxes de empleados siguen
+  siendo `<input type="checkbox" class="chkEmpleado">` reales (solo ocultos, con `peer-checked:` para el
+  estilo), y el centro de costo sigue siendo un `<input type="hidden" class="selectProcesoCentro">` — ambos
+  con el mismo `.value`/`:checked` que ya leía `recolectarProcesosDefinidos()`, así que esa función y el envío
+  del formulario no se tocaron. Nuevas constantes de módulo en `produccion.js`: `ICONO_CENTRO`/`COLOR_CENTRO`
+  (con su versión `_DEFAULT` genérica) y `COLOR_AVATAR`/`inicialesDe()`. Sin migración SQL. Pendiente: probar
+  en el navegador — elegir un centro, quitarlo tocándolo de nuevo, marcar/desmarcar empleados y confirmar que
+  "Generar Orden" guarda igual que antes.
+- Archivos tocados (lo último): `js/centros-costo.js`, `js/produccion.js`, `js/contabilidad.js`,
+  `js/reparto-plantillas.js`, `version.json`. Bug reportado con captura: el selector "Equipo de trabajo" de
+  Producción (centro de costo por proceso) salía ordenado alfabéticamente por código (`ENV, MEZ, SURT`) en
+  vez del orden real del flujo de planta. Nuevo `ordenarCentrosProduccion()` (exportado de
+  `js/centros-costo.js`, mapa fijo `{SURT:0, MEZ:1, ENV:2, ACOND:3}` — a petición del usuario se agregó
+  Acondicionamiento al final de la secuencia fija, no como comodín alfabético — cualquier otro código fuera
+  de estos 4 —como `PROD`— sí queda al final por código) aplicado en los 3 lugares que arman un desplegable
+  de centros de costo:
+  `js/produccion.js` (Equipo de trabajo, el reportado), `js/contabilidad.js` (Gastos → clasificación
+  Indirecto/CIF) y `js/reparto-plantillas.js` (plantilla de reparto). La tabla de administración propia de
+  Centros de costo (`js/centros-costo.js`, `cargarModuloCentrosCosto`) NO se tocó a propósito — ya tiene su
+  propio ordenamiento por columna (clic en encabezado), no es un selector de opción única. Sin migración SQL.
+  Pendiente: probar en el navegador los 3 selectores — confirmar que siempre salen SURT, MEZ, ENV.
 - Archivos tocados (lo último): `manual-costos-produccion.html`. A petición del usuario ("revisa que falta de
   actualizar en todos los manuales"): auditoría completa de `manual-costos-produccion.html` contra el menú
   VIGENTE (`index.html`/`js/indice.js`) — venía con la estructura de hace varias reorganizaciones de menú

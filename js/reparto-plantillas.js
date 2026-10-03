@@ -1,6 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { montarGuia } from './asistente-contable.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+import { ordenarCentrosProduccion } from './centros-costo.js';
 
 const rpOrden = crearOrdenTabla();
 
@@ -48,7 +49,7 @@ export async function cargarModuloRepartoPlantillas() {
         estado.plantillas = pl.data || [];
         estado.cuentas = ctas.data || [];
         estado.proveedores = prov.data || [];
-        estado.centros = centros.data || [];
+        estado.centros = ordenarCentrosProduccion(centros.data || []);
         estado.bases = bases.data || [];
     } catch (err) {
         const m = err.message || String(err);
