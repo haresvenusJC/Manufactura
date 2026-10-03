@@ -177,16 +177,16 @@
 
     <h3>Cómo moverte por el menú</h3>
     <p>Al entrar, lo primero que ves es la pantalla de <strong>Inicio</strong> (🏠 en el menú): tu logo, un saludo según la hora con tu nombre y seis accesos rápidos (Producción, Recibo de mercancía, Inventario, Productos y BOM, Órdenes de compra e Índice). El lápiz junto al nombre te deja cambiar cómo te saluda; se guarda en ese navegador. Sus colores siguen la plantilla que elijas en Configuración.</p>
-    <p>Arriba a la izquierda está el ícono de menú (☰). El primer botón, <span class="path">🧭 Índice</span>, te lleva a un mapa con acceso directo a todas las pantallas — las de configuración salen marcadas en ámbar. Todo lo de este manual vive bajo <span class="path">Contabilidad</span>, salvo el proveedor que está en <span class="path">Compras / Proveedores</span>:</p>
+    <p>Arriba a la izquierda está el ícono de menú (☰). El primer botón, <span class="path">🧭 Índice</span>, te lleva a un mapa con acceso directo a todas las pantallas — las de configuración salen marcadas en ámbar. Lo de este manual se reparte entre <span class="path">Contabilidad</span> y <span class="path">Finanzas</span> (dos grupos distintos del menú), salvo el proveedor que está en <span class="path">Catálogos</span>:</p>
     <div class="tbl">
       <table>
         <thead><tr><th>Pantalla</th><th>Ruta</th><th>¿Cada cuándo?</th></tr></thead>
         <tbody>
-          <tr><td>Proveedores</td><td class="path">Compras / Proveedores</td><td>Una vez por proveedor (o alta rápida desde el XML al capturar el gasto)</td></tr>
-          <tr><td>Plan de cuentas</td><td class="path">Finanzas → Plan de cuentas</td><td>Se revisa una vez; se ajusta rara vez</td></tr>
-          <tr><td>Centros de costo</td><td class="path">Finanzas → Centros de costo</td><td>Ya vienen creados los 3; solo ajustas su capacidad al inicio y la revisas 1–2 veces al año</td></tr>
-          <tr><td>Áreas y bases de prorrateo</td><td class="path">Finanzas → Áreas y bases de prorrateo</td><td>Una vez al inicio: m², kW y personas por área. Se actualiza si cambia la planta</td></tr>
-          <tr><td>Reparto de gastos compartidos</td><td class="path">Finanzas → Reparto de gastos compartidos</td><td>Una vez: define cómo se parte cada gasto compartido (renta, luz…)</td></tr>
+          <tr><td>Proveedores</td><td class="path">Catálogos → Proveedores</td><td>Una vez por proveedor (o alta rápida desde el XML al capturar el gasto)</td></tr>
+          <tr><td>Plan de cuentas</td><td class="path">Contabilidad → Plan de cuentas</td><td>Se revisa una vez; se ajusta rara vez</td></tr>
+          <tr><td>Centros de costo</td><td class="path">Contabilidad → Centros de costo</td><td>Ya vienen creados los 3; solo ajustas su capacidad al inicio y la revisas 1–2 veces al año</td></tr>
+          <tr><td>Áreas y bases de prorrateo</td><td class="path">Contabilidad → Áreas y bases de prorrateo</td><td>Una vez al inicio: m², kW y personas por área. Se actualiza si cambia la planta</td></tr>
+          <tr><td>Reparto de gastos compartidos</td><td class="path">Contabilidad → Reparto de gastos compartidos</td><td>Una vez: define cómo se parte cada gasto compartido (renta, luz…)</td></tr>
           <tr><td>Gastos</td><td class="path">Finanzas → Gastos</td><td>Cada factura de gasto (con lector de XML y asistente)</td></tr>
           <tr><td>Prorrateo de gastos</td><td class="path">Finanzas → Prorrateo de gastos</td><td>Una vez al mes, después del cierre</td></tr>
         </tbody>
@@ -226,7 +226,7 @@
 
     <ol class="steps">
       <li><strong>Abre la pantalla</strong>
-        <p>Menú → <span class="path">Compras / Proveedores</span>. Verás un formulario a la izquierda y la lista de proveedores a la derecha.</p></li>
+        <p>Menú → <span class="path">Catálogos → Proveedores</span>. Verás un formulario a la izquierda y la lista de proveedores a la derecha.</p></li>
 
       <li><strong>Llena los datos básicos</strong>
         <div class="tbl"><table class="fieldguide">
@@ -276,7 +276,7 @@
 
     <ol class="steps">
       <li><strong>Abre la pantalla</strong>
-        <p>Menú → <span class="path">Finanzas → Plan de cuentas</span>. Verás la lista de cuentas agrupada por tipo: Activo, Pasivo, Capital, Ingresos, Costos, Gastos.</p></li>
+        <p>Menú → <span class="path">Contabilidad → Plan de cuentas</span>. Verás la lista de cuentas agrupada por tipo: Activo, Pasivo, Capital, Ingresos, Costos, Gastos.</p></li>
 
       <li><strong>Busca el bloque de gastos indirectos de fabricación</strong>
         <p>Son las cuentas que empiezan con <code>503</code>. La migración de la Fase 1 las crea si no existían. Deberías ver algo así:</p>
@@ -374,7 +374,7 @@
 
     <ol class="steps">
       <li><strong>Abre la pantalla</strong>
-        <p>Menú → <span class="path">Finanzas → Centros de costo</span>. Verás los tres centros (más <code>PROD</code>) ya en la lista. Dale <strong>Editar</strong> a cada uno de los tres para ajustar su capacidad.</p></li>
+        <p>Menú → <span class="path">Contabilidad → Centros de costo</span>. Verás los tres centros (más <code>PROD</code>) ya en la lista. Dale <strong>Editar</strong> a cada uno de los tres para ajustar su capacidad.</p></li>
 
       <li><strong>Datos de identificación (ya vienen llenos)</strong>
         <div class="tbl"><table class="fieldguide">
@@ -510,7 +510,7 @@ Lovlub Chocolate 60 Gr:  $51,676.49 × 37.5% = $19,378.68</div>
 
     <ol class="steps">
       <li><strong>Abre la pantalla</strong>
-        <p>Menú → <span class="path">Finanzas → Áreas y bases de prorrateo</span>. Ya vienen sembradas las áreas de la planta (Almacén Insumos, Surtido MP, Cosméticos, Lotificación, Envasado, Acondicionamiento) más <strong>Oficina</strong>, y los equipos conocidos con un kW <em>placeholder</em>.</p></li>
+        <p>Menú → <span class="path">Contabilidad → Áreas y bases de prorrateo</span>. Ya vienen sembradas las áreas de la planta (Almacén Insumos, Surtido MP, Cosméticos, Lotificación, Envasado, Acondicionamiento) más <strong>Oficina</strong>, y los equipos conocidos con un kW <em>placeholder</em>.</p></li>
 
       <li><strong>Cada área tiene un rol</strong>
         <div class="tbl"><table class="fieldguide">
@@ -555,7 +555,7 @@ Lovlub Chocolate 60 Gr:  $51,676.49 × 37.5% = $19,378.68</div>
 
     <ol class="steps">
       <li><strong>Abre la pantalla</strong>
-        <p>Menú → <span class="path">Finanzas → Reparto de gastos compartidos</span>. Ya vienen sembradas 5 plantillas típicas: renta (m²), energía (kW), agua (m²), vigilancia (m²), internet/teléfono (personas).</p></li>
+        <p>Menú → <span class="path">Contabilidad → Reparto de gastos compartidos</span>. Ya vienen sembradas 5 plantillas típicas: renta (m²), energía (kW), agua (m²), vigilancia (m²), internet/teléfono (personas).</p></li>
 
       <li><strong>Qué lleva cada plantilla</strong>
         <div class="tbl"><table class="fieldguide">
@@ -745,7 +745,7 @@ Cargo  119.01  IVA acreditable pend. de pago               6,400.00
     <div class="tbl"><table>
       <thead><tr><th>Dato</th><th>Qué es</th><th>En el ejemplo</th></tr></thead>
       <tbody>
-        <tr><td>🧾 Póliza #N</td><td>Botón directo a la póliza que generó este prorrateo — salta a <span class="path">Finanzas → Pólizas</span> con esa póliza enfocada.</td><td>🧾 Póliza #58</td></tr>
+        <tr><td>🧾 Póliza #N</td><td>Botón directo a la póliza que generó este prorrateo — salta a <span class="path">Contabilidad → Pólizas</span> con esa póliza enfocada.</td><td>🧾 Póliza #58</td></tr>
         <tr><td>aplicado</td><td>El total de CIF que sí se repartió a las órdenes ese mes, sumando TODOS los centros.</td><td><code>$51,676.49</code> (si solo hubiera corrido <code>ENV</code>)</td></tr>
         <tr><td>ociosidad</td><td>El total de capacidad no utilizada del mes, sumando todos los centros.</td><td><code>$12,323.51</code></td></tr>
         <tr><td>N gasto(s)</td><td>Cuántos gastos indirectos distintos se incluyeron en este prorrateo.</td><td>5 gasto(s)</td></tr>
@@ -879,10 +879,10 @@ costo total del granel              1,958.65
     <p>En <span class="path">Inventario → Kardex</span> de un producto verás el movimiento de entrada por producción con su costo ya completo. Si el prorrateo ajustó el costo de una orden cerrada, ese ajuste se refleja aquí.</p>
 
     <h3>Ver la póliza desde cualquier documento</h3>
-    <p>Cualquier pantalla que te muestre un documento ya registrado — Kardex, historial de Salidas, historial de Recibo de mercancía, detalle de una orden de Producción, historial de Nómina, Cuentas por pagar, Prorrateo, historial de Gastos, y los historiales de Entradas Directas y Compras — trae un botón <strong>"🧾 Ver póliza #N"</strong> junto al documento cuando ya se contabilizó (o el aviso "Sin póliza" cuando no). Te lleva directo a <span class="path">Finanzas → Pólizas</span> con esa póliza enfocada y resaltada, sin buscarla a mano por fecha o folio.</p>
+    <p>Cualquier pantalla que te muestre un documento ya registrado — Kardex, historial de Salidas, historial de Recibo de mercancía, detalle de una orden de Producción, historial de Nómina, Cuentas por pagar, Prorrateo, historial de Gastos, y los historiales de Entradas Directas y Compras — trae un botón <strong>"🧾 Ver póliza #N"</strong> junto al documento cuando ya se contabilizó (o el aviso "Sin póliza" cuando no). Abre la póliza en una subventana flotante, sin salir de la pantalla en la que estabas ni navegar a <span class="path">Contabilidad → Pólizas</span>.</p>
 
     <h3>Los reportes contables</h3>
-    <p>En <span class="path">Finanzas → Reportes contables</span>:</p>
+    <p>En <span class="path">Contabilidad → Reportes contables</span>:</p>
     <ul>
       <li><strong>Cuenta <code>503.98</code> — Costo de capacidad no utilizada</strong>: cuánto dinero se fue a resultados por planta parada. Si crece mes con mes, es una señal fuerte: tienes capacidad que estás pagando y no usas.</li>
       <li><strong>Cuenta <code>115.03</code> — Producción en proceso</strong>: debería quedar cerca de cero después del prorrateo y de cerrar las órdenes. Si acumula saldo, hay CIF "colgado" de órdenes que no se han cerrado.</li>
@@ -968,7 +968,7 @@ costo total del granel              1,958.65
     <h2><span class="n">8</span>Parte 8 — Guía rápida de los demás módulos</h2>
     <p class="lead">Las Partes 1–7 cubren el flujo de costos a fondo. Esta parte es más breve: qué es cada pantalla, cómo se usa y el error más común, para el resto de los módulos del ERP. El botón <strong>"📖 Cómo llenar esta pantalla"</strong> de cada módulo te trae directo aquí.</p>
 
-    <h3>Datos Maestros <span style="font-weight:400;font-size:.7em;color:var(--mut)">(antes "Catálogos")</span></h3>
+    <h3>Catálogos</h3>
 
     <h4 id="m-catalogo">Productos</h4>
     <p><strong>Para qué sirve.</strong> Alta y edición del catálogo de productos, materias primas e insumos: SKU, unidad de medida, costo, cuenta de inventario y si requiere control de caducidad.</p>
@@ -1008,6 +1008,8 @@ costo total del granel              1,958.65
     <p><strong>Errores comunes.</strong> No actualizar el costo por hora tras un aumento de sueldo — el costeo seguiría usando el sueldo anterior en las órdenes nuevas.</p>
     <p><strong>Ejemplo real.</strong> <strong>Ramon Reyes</strong>, $71.25/hora — así se ve un empleado ya dado de alta, con su costo por hora listo para el costeo de mano de obra.</p>
 
+    <h3>Utilerías</h3>
+
     <h4 id="m-importador">Importar Excel/CSV</h4>
     <p><strong>Para qué sirve.</strong> Carga masiva de productos desde una plantilla, en vez de darlos de alta uno por uno — y también actualización masiva de los que ya existen (por ejemplo, para clasificarlos como semiterminado).</p>
     <p><strong>Pasos.</strong> Descarga la plantilla de ejemplo, llénala respetando las columnas y súbela; el importador hace <em>upsert</em> por SKU (actualiza si ya existe, crea si no). Las columnas se detectan solas por su encabezado y puedes reasignarlas a mano en el mapeo. Pulsa <strong>Validar</strong> para ver la vista previa fila por fila y luego <strong>Importar</strong>.</p>
@@ -1025,7 +1027,7 @@ costo total del granel              1,958.65
     <p><strong>📏 Tabla de unidades de medida.</strong> El botón "📏 Unidades", junto a "⚖️ Densidades", abre el catálogo de unidades (Piezas, Kilogramos, Litros…): antes solo se podía tocar entrando a Supabase → Table Editor. Aquí se ve cuántos productos usan cada una, se corrige el nombre o si es "Fraccionable" (admite decimales al sugerir compra, o solo enteros como Piezas) con guardado automático, y se agregan unidades nuevas con el campo "＋ Agregar" — no deja crear un nombre repetido. Requiere <code>sql/2026-10-25_unidades_medida_editable.sql</code> (da permiso de escritura sobre esa tabla); sin ella la pantalla solo muestra el aviso de que falta correrla.</p>
     <p><strong>Errores comunes.</strong> Guardar una partida emparejada con el producto equivocado sin revisarla primero. Los conceptos de flete/seguro/maniobras/aduana se excluyen a propósito, igual que en Recibo de mercancía — no vas a verlos en la tabla.</p>
 
-    <h3>Operación — Compras / Abastecimiento <span style="font-weight:400;font-size:.7em;color:var(--mut)">(antes "Entradas")</span></h3>
+    <h3>Compras</h3>
 
     <h4 id="m-requisiciones-compra">Requisiciones de compra</h4>
     <p><strong>Para qué sirve.</strong> El paso antes de la Orden de compra. Nadie compromete dinero con un proveedor directo desde aquí: se solicita comprar algo (a mano, o solo cuando <a href="#m-tareas">Tareas</a> detecta un producto bajo su stock mínimo) y el admin lo revisa antes de que se convierta en una Orden de compra real.</p>
@@ -1052,7 +1054,7 @@ costo total del granel              1,958.65
     <p><strong>Errores comunes.</strong> Confirmar la recepción sin revisar el costo real contra la factura. Volver a recibir una orden que ya tiene una recepción capturada — el sistema avisa, pero no bloquea.</p>
     <p>El detalle completo (XML/PDF/QR, conversión de presentación, landed cost, edición y cancelación) está en la <a href="#p7">Parte 7</a>, con el ejemplo numérico de la Betaina De Coco.</p>
 
-    <h4 id="m-compras">Compras / Proveedores</h4>
+    <h4 id="m-compras">Compra directa</h4>
     <p><strong>Para qué sirve.</strong> Registrar una compra con afectación contable directa (documento + póliza) cuando no necesitas pasar por el flujo Orden de compra → Recibo de mercancía.</p>
     <p><strong>Pasos.</strong> Captura las partidas y los datos fiscales (subtotal / IVA / condición); la casilla <strong>"Generar póliza contable"</strong> arma la póliza de la compra.</p>
     <p><strong>Errores comunes.</strong> Usarla para compras que sí traen flete/seguro que quieras prorratear — para eso está Recibo de mercancía (Parte 7), que sí tiene el landed cost.</p>
@@ -1063,37 +1065,37 @@ costo total del granel              1,958.65
     <p><strong>Pasos.</strong> Elige el motivo, agrega las partidas con cantidad, costo y lote; "Generar póliza contable" es opcional.</p>
     <p><strong>Errores comunes.</strong> Usarla para registrar una compra real — eso debe ir por Compras u Órdenes de compra, para no perder el rastro del proveedor y su factura.</p>
 
-    <h3>Operación — Inventario y almacén <span style="font-weight:400;font-size:.7em;color:var(--mut)">(antes "Inventario" + "Salidas")</span></h3>
+    <h3>Inventario y Ventas <span style="font-weight:400;font-size:.7em;color:var(--mut)">(Stock General y Auditoría viven en el menú "Inventario"; Pedidos de venta, Salidas y Devoluciones en "Ventas")</span></h3>
 
-    <h4 id="m-inventario">Stock General</h4>
+    <h4 id="m-inventario">Stock General <span style="font-weight:400;font-size:.7em;color:var(--mut)">(menú: Inventario)</span></h4>
     <p><strong>Para qué sirve.</strong> Existencias por producto y por lote, con mínimos.</p>
     <p><strong>Pasos.</strong> Filtra por producto o por lo que está debajo de su mínimo. Cada lote muestra su costo (ya con landed cost, si aplicó) y su caducidad.</p>
     <p><strong>Errores comunes.</strong> Leer solo el total del producto e ignorar que puede estar repartido en varios lotes con costos distintos entre sí (por eso importa el FIFO/FEFO, ver Kardex abajo).</p>
     <p><strong>Ejemplo real.</strong> Busca <code>PETBOSTON60ML</code> · Sonata 60-6 Ml Natural 9.5 G (insumo de empaque, proveedor Escowill Envases Pet) para ver cómo se ve un insumo con existencia por lote.</p>
     <p>El detalle de movimientos por producto está en <a href="#m-kardex">Kardex, dentro de la Parte 6</a>.</p>
 
-    <h4 id="m-pedidos-venta">Pedidos de venta</h4>
+    <h4 id="m-pedidos-venta">Pedidos de venta <span style="font-weight:400;font-size:.7em;color:var(--mut)">(menú: Ventas)</span></h4>
     <p><strong>Para qué sirve.</strong> Anotar que un cliente pidió algo que se le va a surtir después — total o en varias partes — sin forzar una salida inmediata. Antes, "Salidas / Ventas" solo sabía sacar inventario de golpe y completo; esto es lo mismo que ya existía para compras (<a href="#m-requisiciones-compra">Requisición → Orden de compra</a>) pero del lado de venta.</p>
     <p><strong>Pasos.</strong> Captura cliente y las partidas (producto, cantidad, precio) y guarda — el pedido queda "pendiente" sin tocar inventario. Cuando haya mercancía lista, abre el pedido por su folio y usa <strong>"📦 Surtir pendiente"</strong>: eliges el lote y la cantidad a surtir de cada partida (puede ser menos de lo pedido). Cada surtido genera una salida real — mismo motor de inventario/kardex que <a href="#m-salidas">Salidas / Ventas</a> — enlazada de vuelta al pedido; el estatus pasa a "parcial" o "surtido" según quede.</p>
     <p><strong>Errores comunes.</strong> Intentar cancelar un pedido que ya tiene algo surtido — no se puede: para lo ya entregado usa <a href="#m-devoluciones">Devoluciones</a>, no la cancelación del pedido.</p>
 
-    <h4 id="m-salidas">Salidas / Ventas</h4>
+    <h4 id="m-salidas">Salidas / Ventas <span style="font-weight:400;font-size:.7em;color:var(--mut)">(menú: Ventas)</span></h4>
     <p><strong>Para qué sirve.</strong> Sacar inventario (venta, merma, ajuste) y, si es venta, generar la póliza de ingreso.</p>
     <p><strong>Pasos.</strong> Elige el producto y el lote (el sistema sugiere el que caduca primero, FEFO) y la cantidad; si es venta, captura cliente y totales.</p>
     <p><strong>Errores comunes.</strong> Elegir a mano un lote distinto al sugerido sin necesidad — rompe el orden FEFO. No capturar el motivo en una merma.</p>
 
-    <h4 id="m-devoluciones">Devoluciones</h4>
+    <h4 id="m-devoluciones">Devoluciones <span style="font-weight:400;font-size:.7em;color:var(--mut)">(menú: Ventas)</span></h4>
     <p><strong>Para qué sirve.</strong> Registrar cuando un cliente regresa producto, o cuando tú le regresas producto a un proveedor — con su efecto real de inventario y su propia póliza. Antes no existía ningún módulo de esto; solo estaban sembradas las cuentas 402/402.01 "Devoluciones sobre ventas" sin usarse.</p>
     <p><strong>Pasos.</strong> Elige la pestaña de cliente o de proveedor. <strong>De cliente:</strong> cliente + por partida producto/cantidad/costo/precio — entra a inventario como un lote nuevo, a ese costo (no se intenta encontrar el lote original: puede ya no existir o estar mezclado). <strong>A proveedor:</strong> proveedor + por partida producto y el <em>lote existente</em> del que sale (debe tener suficiente stock físico y de costeo) — el costo se toma del lote, no se captura a mano. Al registrar se genera la póliza sola; "Cancelar" en el historial la revierte completa.</p>
     <p><strong>Errores comunes.</strong> Usarlo para corregir un error de captura en vez de cancelar el documento original. Esperar que ajuste IVA/IEPS o timbre un CFDI de nota de crédito — no lo hace: es el asiento base, y si el proveedor/cliente exige el ajuste fiscal se complementa a mano en la póliza generada.</p>
 
-    <h4 id="m-auditoria">Auditoría de inventarios</h4>
+    <h4 id="m-auditoria">Auditoría de inventarios <span style="font-weight:400;font-size:.7em;color:var(--mut)">(menú: Inventario)</span></h4>
     <p><strong>Para qué sirve.</strong> Organizar un conteo físico de inventario (materia prima, insumo o producto terminado) y compararlo contra el stock del sistema. El conteo lo captura un operador externo desde <span class="path">conteo-inventario.html</span> en su celular, con su PIN — es una pantalla aparte, pensada para que la use alguien que no tiene acceso al ERP completo.</p>
     <p><strong>Pasos.</strong> Crea la auditoría eligiendo tipo de producto en bloque, o busca y agrega SKUs específicos uno por uno. El operador entra con su PIN, elige la auditoría y captura cantidad por renglón — sueltos o por caja, con la caducidad del lote que está contando; es <strong>conteo a ciegas</strong>: nunca ve el stock del sistema, solo lo que él mismo ha ido acumulando. Antes de dar por terminado, el operador puede revisar, corregir o borrar sus propias capturas en "📋 Ver mi resumen", y debe confirmar explícitamente ("¿Estás seguro?") para cerrar su parte. Tú revisas el resultado (sistema vs. contado, con la diferencia) y cierras la auditoría.</p>
     <p><strong>Errores comunes.</strong> Cerrar la captura de la auditoría antes de que el operador termine de confirmar todos los renglones asignados. Mezclar cajas y piezas sueltas del mismo SKU sin declarar cuántas piezas trae cada caja — el acumulado saldría mal.</p>
     <p><strong>Ejemplo real.</strong> Una auditoría de insumos de empaque incluyendo <code>PETBOSTON60ML</code> y <code>PETBOSTON250</code> (los envases Sonata, proveedor Escowill Envases Pet) para conciliar contra el sistema.</p>
 
-    <h3>Operación — Producción</h3>
+    <h3>Producción</h3>
 
     <h4 id="m-produccion">Producción</h4>
     <p><strong>Para qué sirve.</strong> Crear y dar seguimiento a una orden de producción: fórmula (BOM), procesos con sus operarios y centro de costo, y el cierre que calcula el costo final del lote.</p>
@@ -1104,19 +1106,19 @@ costo total del granel              1,958.65
     <p><strong>Ejemplo real.</strong> Una orden para producir <strong>Lovlub Bubblegum 60 Gr</strong> (<code>7506163801025L</code>), consumiendo Betaina De Coco y los demás componentes de su fórmula, con <strong>Ramon Reyes</strong> registrando su tiempo en el proceso.</p>
     <p>Cómo se arma el costo centro por centro está en la <a href="#p3">Parte 3</a> y en <a href="#p6">Parte 6</a>.</p>
 
-    <h3>Documentos <span style="font-weight:400;font-size:.7em;color:var(--mut)">(antes parte de "Documentos y reportes")</span></h3>
+    <h3>Documentos</h3>
 
     <h4 id="m-documentos">Documentos</h4>
     <p><strong>Para qué sirve.</strong> Consecutivos y consulta de todos los documentos generados (compras, recibos, salidas, entradas, etc.), cada uno con acceso directo a su póliza.</p>
     <p><strong>Pasos.</strong> Filtra por tipo, fecha o folio. <strong>"Ver Detalle"</strong> abre el expediente completo; la columna <strong>"Póliza"</strong> (botón "🧾 Ver póliza #N") salta directo a la póliza contable de ese documento. Si el documento viene de una Orden de compra, dentro del expediente aparece <strong>"🔗 Antecedentes de proceso"</strong>: la cadena completa Requisición → Orden de compra → Documento(s) de recepción.</p>
     <p><strong>Errores comunes.</strong> Buscar un folio sin darte cuenta de que un filtro de tipo o estatus lo está ocultando.</p>
 
-    <h3>Control y Análisis <span style="font-weight:400;font-size:.7em;color:var(--mut)">(nuevo grupo, antes parte de "Documentos y reportes")</span></h3>
+    <h3>Reportes</h3>
 
     <h4 id="m-reportes">Reportes</h4>
     <p><strong>Para qué sirve.</strong> Reportes operativos (no contables) — por ejemplo, compras y gastos por rango de fechas — exportables a CSV o imprimibles con una plantilla.</p>
     <p><strong>Pasos.</strong> Elige el rango de fechas y el tipo de reporte; exporta o imprime.</p>
-    <p><strong>Errores comunes.</strong> Confundirlo con <span class="path">Finanzas → Reportes contables</span>, que es el que trae balanza de comprobación y estado de resultados.</p>
+    <p><strong>Errores comunes.</strong> Confundirlo con <span class="path">Contabilidad → Reportes contables</span>, que es el que trae balanza de comprobación y estado de resultados.</p>
 
     <h4 id="m-bitacora-cambios">Bitácora de cambios</h4>
     <p><strong>Para qué sirve.</strong> Ver <strong>quién hizo qué y cuándo</strong> en todo el sistema: altas, cambios y bajas de productos, BOM, proveedores, clientes, requisiciones, órdenes de compra, recibos, documentos, pedidos, producción, gastos, pólizas, pagos, nómina, plan de cuentas, periodos, activos fijos y más — y también cuándo entró y salió cada usuario. Cada renglón guarda el <strong>correo</strong> de quien lo hizo. Es de <strong>solo lectura</strong> — la tabla que la guarda (<code>bitacora_cambios</code>) solo admite escritura desde los triggers que la llenan solos; ni el admin puede alterar o borrar el rastro.</p>
@@ -1124,7 +1126,7 @@ costo total del granel              1,958.65
     <p><strong>Qué no se registra una por una.</strong> Lo que el sistema genera solo a partir de otras cosas: los movimientos de inventario y lotes, las líneas de póliza, las aplicaciones de prorrateo y las sesiones de operador. De todo eso queda el registro del documento, la póliza o la orden que lo originó. Los cambios sin efecto (guardar sin modificar nada) tampoco se anotan, y los datos muy grandes (fotos, archivos) se omiten del antes/después.</p>
     <p><strong>Errores comunes.</strong> Buscar aquí lo que hacen los operarios desde el celular: sus movimientos salen como "Operador / sistema", porque no inician sesión con un correo. Esperar ver movimientos anteriores a la migración con el correo de quien los hizo: las filas viejas se rellenan solo si esa persona sigue existiendo en la cuenta.</p>
 
-    <h3>Finanzas — operación diaria <span style="font-weight:400;font-size:.7em;color:var(--mut)">(antes "Contabilidad")</span></h3>
+    <h3>Finanzas</h3>
 
     <h4 id="m-gastos">Gastos</h4>
     <p><strong>Para qué sirve.</strong> Capturar una factura de gasto (renta, luz, mantenimiento, servicios, gasto directo de una orden…) y clasificarla para que su costo llegue a donde debe: a una orden de producción, al CIF del mes, o directo a resultados.</p>
@@ -1149,48 +1151,52 @@ costo total del granel              1,958.65
     <p><strong>Pasos.</strong> Da de alta cada cuenta bancaria ligándola a su cuenta contable. Haz clic en su alias para ver sus movimientos (vienen de las pólizas que ya genera todo el sistema) — marca "Conciliado" y anota la referencia del banco conforme revisas el estado de cuenta. El panel de <strong>"Flujo proyectado"</strong> se actualiza solo: saldo de tus cuentas + lo que te deben − lo que debes — no tiene fechas de vencimiento (no existen todavía en el sistema), es una fotografía de lo que ya se sabe hoy, no un calendario.</p>
     <p><strong>Errores comunes.</strong> Esperar que el flujo proyectado tenga fechas. Ligar dos cuentas bancarias a la misma cuenta contable — no se puede, es una relación de uno a uno.</p>
 
-    <h4 id="m-tareas">Tareas</h4>
+    <h4 id="m-tareas">Tareas <span style="font-weight:400;font-size:.7em;color:var(--mut)">(hoy divididas en dos pantallas: "Tareas de almacén" en el menú Inventario — inventario bajo mínimo, caducidad — y "Tareas contables" aquí en Finanzas — nómina por generar)</span></h4>
     <p><strong>Para qué sirve.</strong> Avisos y pendientes que el sistema genera solo: inventario bajo mínimo, lotes por caducar, nómina por generar.</p>
     <p><strong>Pasos.</strong> Revisa las tarjetas; marca cada una como atendida o descártala si no aplica. Un aviso de "Inventario bajo mínimo" trae el botón <strong>"📝 Generar requisición"</strong>, que lleva a <a href="#m-requisiciones-compra">Requisiciones de compra</a> con el producto y la cantidad sugerida ya precargados — de ahí el admin la revisa y decide si autorizarla como Orden de compra. El historial muestra quién resolvió cada tarea y cuándo.</p>
     <p><strong>Errores comunes.</strong> Descartar una tarea sin resolver el problema de fondo que la generó.</p>
 
-    <h3>Finanzas — nómina y cierre de mes</h3>
+    <h3>Nómina y cierre de mes <span style="font-weight:400;font-size:.7em;color:var(--mut)">(Nómina y Activos fijos viven en el menú "Finanzas"; Pólizas, Reportes contables y Cierre de periodo en "Contabilidad")</span></h3>
 
-    <h4 id="m-nomina">Nómina</h4>
+    <h4 id="m-nomina">Nómina <span style="font-weight:400;font-size:.7em;color:var(--mut)">(menú: Finanzas)</span></h4>
     <p><strong>Para qué sirve.</strong> Calcular y contabilizar la nómina del periodo: sueldos, cuotas IMSS/INFONAVIT e ISR retenido.</p>
     <p><strong>Pasos.</strong> Genera el borrador del periodo, revisa percepciones, deducciones y días trabajados por empleado, y confírmala — se genera la póliza y la mano de obra queda disponible para el costeo de las órdenes de producción del periodo.</p>
     <p><strong>Errores comunes.</strong> Confirmarla sin revisar los días trabajados. Correrla dos veces para el mismo periodo.</p>
 
-    <h4 id="m-polizas">Pólizas</h4>
+    <h4 id="m-polizas">Pólizas <span style="font-weight:400;font-size:.7em;color:var(--mut)">(menú: Contabilidad)</span></h4>
     <p><strong>Para qué sirve.</strong> Ver los asientos contables (cargos y abonos) que el sistema generó por cada gasto, nómina, producción, compra o prorrateo.</p>
     <p><strong>Pasos.</strong> Filtra por fecha, tipo u origen; abre una póliza para ver sus movimientos y su cuadre (Σ cargos = Σ abonos). Para corregir, cancela desde el origen (el gasto, el recibo de compra, la corrida de prorrateo) — nunca a mano aquí.</p>
     <p><strong>Errores comunes.</strong> Intentar "arreglar" una póliza directamente: siempre se corrige cancelando y rehaciendo la operación que la generó.</p>
 
-    <h4 id="m-reportes-contables">Reportes contables</h4>
+    <h4 id="m-reportes-contables">Reportes contables <span style="font-weight:400;font-size:.7em;color:var(--mut)">(menú: Contabilidad)</span></h4>
     <p><strong>Para qué sirve.</strong> Cuatro pestañas: <strong>Balanza de comprobación</strong> (movimientos del periodo elegido), <strong>Estado de resultados</strong> (utilidad del periodo), <strong>Balance general</strong> (saldo acumulado de activo, pasivo y capital a una fecha) y <strong>Auxiliar de cuentas contables</strong> (el detalle, movimiento por movimiento, de una o varias cuentas).</p>
     <p><strong>Pasos.</strong> Elige el periodo y pulsa <strong>Generar</strong>. En el <strong>Balance general</strong>, "Desde" no aplica — un balance es siempre acumulado desde el inicio hasta la fecha "Hasta", nunca "de un periodo". Las cuentas-mayor (115, 201, 501…) arrancan <strong>colapsadas</strong>; haz clic para desglosarlas en sus subcuentas, y en una subcuenta de detalle para ver sus movimientos uno por uno — así no arranca con todo el catálogo abierto de golpe. Al pie, revisa el aviso "Activo = Pasivo + Capital": si no cuadra, algo en la Balanza está mal.</p>
     <p>En Balanza/Estado de resultados: revisa <code>503.98</code> (capacidad no utilizada) — si crece mes a mes, tienes planta que pagas y no usas; y <code>115.03</code> (producción en proceso) — debería quedar cerca de cero tras cerrar órdenes y correr el prorrateo.</p>
     <p><strong>Auxiliar de cuentas contables.</strong> Es el reporte que traen todos los sistemas contables (CONTPAQi, Aspel COI, SAP…): para cada cuenta muestra su <em>saldo inicial</em> al comenzar el periodo, cada movimiento (fecha, póliza, concepto, origen, cargo, abono) con el <em>saldo corriendo</em>, y al final el <em>total del periodo</em> y el <em>saldo final</em>. Sirve para responder "¿de dónde sale este saldo?" o para conciliar una cuenta. <strong>Pasos:</strong> elige el periodo (Desde/Hasta) y, en el selector <em>Cuenta</em>, la cuenta que quieres — el reporte se genera solo con elegirla. Puedes elegir una cuenta de detalle (trae solo esa) o una cuenta-mayor, por ejemplo <code>115</code> (trae todas sus subcuentas); la opción "── Todas las cuentas ──" trae el auxiliar completo. No hay un rango "desde/hasta" de cuentas: es una sola selección. "Solo cuentas con movimientos" oculta las que no tuvieron saldo ni movimientos. Haz clic en cualquier póliza para ver su detalle. El saldo corre en la naturaleza de cada cuenta (deudora: cargos − abonos; acreedora: abonos − cargos) y va entre paréntesis si sale contrario. Solo cuentan las pólizas <em>contabilizadas</em>; las canceladas no aparecen. <strong>Exportar CSV</strong> baja una hoja con una fila por movimiento (cuenta, fecha, póliza, concepto, cargos, abonos, saldo), lista para filtrar en Excel; <strong>Imprimir</strong> saca el reporte con la plantilla.</p>
     <p><strong>Errores comunes.</strong> Leer los números antes de haber corrido el prorrateo del mes — faltaría todo el CIF. Esperar que "Desde" filtre el Balance general. En el Auxiliar, esperar movimientos de una cuenta-mayor que no es "afectable": los movimientos viven en sus subcuentas, por eso el auxiliar de una cuenta-mayor las incluye a todas.</p>
 
-    <h4 id="m-activos-fijos">Activos fijos</h4>
+    <h4 id="m-activos-fijos">Activos fijos <span style="font-weight:400;font-size:.7em;color:var(--mut)">(menú: Finanzas)</span></h4>
     <p><strong>Para qué sirve.</strong> Llevar el catálogo de tu maquinaria, equipo y vehículos, y calcular su depreciación mensual en línea recta (NIF C-6) — cuánto valen en libros y cuánto gasto de depreciación cae cada mes.</p>
     <p><strong>Pasos.</strong> Da de alta el activo: costo de adquisición, valor residual (lo que valdría al final de su vida útil — puede ser 0), vida útil en meses, y sus 3 cuentas (de activo, de gasto de depreciación, y de depreciación acumulada — esta última es nueva: <code>153.01</code> maquinaria, <code>153.02</code> equipo de cómputo). En "Depreciación del mes" elige año y mes, "Calcular" (vista previa, no aplica nada) y si cuadra, "Aplicar" — genera UNA póliza con todos los activos de ese mes. "Cancelar" desde el historial revierte esa póliza. "Dar de baja" un activo (pide fecha y motivo) lo saca de los cálculos futuros.</p>
     <p><strong>Errores comunes.</strong> Confundir el orden: aplica primero Nómina y Prorrateo, y la depreciación antes del <a href="#m-cierre-periodo">Cierre de periodo</a> del mes. Dar de baja un activo sin revisar antes cuánto le quedaba por depreciar.</p>
 
-    <h4 id="m-cierre-periodo">Cierre de periodo</h4>
+    <h4 id="m-cierre-periodo">Cierre de periodo <span style="font-weight:400;font-size:.7em;color:var(--mut)">(menú: Contabilidad)</span></h4>
     <p><strong>Para qué sirve.</strong> Revisar que un mes esté "limpio" contablemente y cerrarlo — después de cerrado, ya no se pueden registrar ni cancelar pólizas con fecha dentro de ese mes (ver Apéndice) hasta reabrirlo.</p>
     <p><strong>Pasos.</strong> Elige el mes y pulsa <strong>"🔍 Revisar candados"</strong> — es solo una vista previa. Si sale limpio, <strong>"🔒 Cerrar periodo"</strong>. Si hay pendientes (documentos de compra/venta/producción, gastos, nóminas, cobros o pagos sin póliza; auditorías abiertas; pólizas descuadradas), resuélvelos en su propio módulo y vuelve a revisar, o usa <strong>"🔓 Cerrar de todos modos"</strong> si de verdad necesitas cerrar así — queda registrado qué se ignoró. Desde el historial, <strong>"Reabrir"</strong> permite corregir un mes ya cerrado (pide un motivo).</p>
     <p><strong>Errores comunes.</strong> Cerrar el mes antes de correr el prorrateo del CIF (Parte 5) — las órdenes ya cerradas se quedarían sin su CIF. Forzar el cierre por costumbre en vez de resolver los pendientes.</p>
 
-    <h3>Configuración contable <span style="font-weight:400;font-size:.7em;color:var(--mut)">(y Tabla ISR — Finanzas → Fiscal)</span></h3>
+    <h3>Configuración <span style="font-weight:400;font-size:.7em;color:var(--mut)">(y Tabla ISR, que vive en Contabilidad)</span></h3>
 
-    <h4 id="m-configuracion">General</h4>
-    <p><strong>Para qué sirve.</strong> Ajustes de la pantalla, no de la empresa: tema de colores, tamaño de texto, y los enlaces a las páginas móviles independientes para operadores (Orden de Trabajo, Pre-recibo, Conteo de Inventario) para compartirlas o instalarlas en un celular/tablet.</p>
-    <p><strong>Pasos.</strong> Elige tema y tamaño de texto — se guardan en este navegador, cada dispositivo puede tener el suyo. Copia o escanea el enlace de la herramienta de operador que necesites y agrégalo a la pantalla de inicio del celular.</p>
+    <h4 id="m-configuracion">Temas de usuario</h4>
+    <p><strong>Para qué sirve.</strong> Ajustes de la pantalla, no de la empresa: elegir el tema de colores (incluye los temas "Mac", claro y oscuro) y el tamaño de texto. Se guardan en este navegador — cada dispositivo puede tener el suyo.</p>
+    <p><strong>Pasos.</strong> Elige tema y tamaño de texto en las tarjetas correspondientes.</p>
     <p><strong>Errores comunes.</strong> Pensar que aquí se editan los datos fiscales de la empresa — eso no vive en esta pantalla.</p>
 
-    <h4 id="m-isr">Tabla ISR</h4>
+    <h4 id="m-accesos-operadores">Accesos para operadores <span style="font-weight:400;font-size:.7em;color:var(--mut)">(menú: Utilerías)</span></h4>
+    <p><strong>Para qué sirve.</strong> Enlaces y código QR de las 3 páginas móviles independientes para operadores — Orden de Trabajo, Pre-recibo y Conteo de Inventario — para compartirlas o instalarlas en un celular/tablet. Antes vivía dentro de Configuración → General; ahora es su propia pantalla.</p>
+    <p><strong>Pasos.</strong> Copia o escanea el enlace/QR de la herramienta que necesites y agrégalo a la pantalla de inicio del celular del operador.</p>
+
+    <h4 id="m-isr">Tabla ISR <span style="font-weight:400;font-size:.7em;color:var(--mut)">(menú: Contabilidad)</span></h4>
     <p><strong>Para qué sirve.</strong> Las tarifas de ISR (LISR art. 96) y el subsidio al empleo que usa el cálculo de Nómina.</p>
     <p><strong>Pasos.</strong> Revisa que la periodicidad (mensual/quincenal/semanal) y el año sean los vigentes; si el SAT publica tarifas nuevas, actualízalas aquí antes de correr la nómina.</p>
     <p><strong>Errores comunes.</strong> Mezclar tarifas de distintas periodicidades.</p>

@@ -30,12 +30,49 @@
     background: conic-gradient(from 0deg, var(--acc), var(--acc-3), var(--ind), var(--acc)); animation: bv-gira 10s linear infinite; }
 .bv-logo::after { content: ""; position: absolute; inset: -46px; border-radius: 50%; z-index: -2;
     background: radial-gradient(circle, color-mix(in srgb, var(--acc) 42%, transparent), transparent 66%); animation: bv-pulso 4.5s ease-in-out infinite; }
-.bv-disco { width: 100%; height: 100%; border-radius: 50%; overflow: hidden; background: #16191d;
+.bv-disco { position: relative; width: 100%; height: 100%; border-radius: 50%; overflow: hidden; background: #16191d;
     box-shadow: 0 0 0 6px var(--bg-0), 0 26px 50px -14px rgba(0, 0, 0, .65); }
-.bv-disco img { display: block; width: 100%; height: 100%; transform: scale(1.115); }   /* recorta el margen crema del SVG */
+.bv-disco img { display: block; width: 100%; height: 100%; transform: scale(1.115);   /* recorta el margen crema del SVG */
+    animation: bv-casco-brillo 4.5s ease-in-out infinite; }
 @keyframes bv-gira  { to { transform: rotate(360deg); } }
 @keyframes bv-flota { 50% { transform: translateY(-9px); } }
 @keyframes bv-pulso { 50% { opacity: .55; transform: scale(1.08); } }
+/* Brillo de "poder" que respira sobre todo el casco, como si se cargara de energía. */
+@keyframes bv-casco-brillo {
+    0%, 100% { filter: drop-shadow(0 0 2px color-mix(in srgb, var(--acc) 25%, transparent)); }
+    50%      { filter: drop-shadow(0 0 9px color-mix(in srgb, var(--acc) 65%, transparent)) drop-shadow(0 0 20px color-mix(in srgb, var(--ind) 45%, transparent)); }
+}
+
+/* Ojos del casco: dos brillos que encienden como si el casco "despertara", muy de película.
+   Posición estimada sobre la ranura del visor del SVG — ajustar left/top si no cae justo en los ojos. */
+.bv-ojo {
+    position: absolute; top: 51%; width: 9%; height: 9%; border-radius: 50%;
+    background: radial-gradient(circle, #eafcff 0%, var(--acc) 42%, transparent 72%);
+    mix-blend-mode: screen; filter: blur(.5px); opacity: 0; transform: scale(.6);
+    box-shadow: 0 0 6px 2px color-mix(in srgb, var(--acc) 70%, transparent), 0 0 18px 7px color-mix(in srgb, var(--acc) 35%, transparent);
+    animation: bv-ojo-encender 4.5s ease-in-out infinite;
+}
+.bv-ojo-i { left: 40%; }
+.bv-ojo-d { left: 54%; animation-delay: .12s; }
+@keyframes bv-ojo-encender {
+    0%, 100% { opacity: 0;   transform: scale(.55); }
+    6%       { opacity: 1;   transform: scale(1.25); }
+    12%      { opacity: .7;  transform: scale(.9); }
+    18%      { opacity: 1;   transform: scale(1.08); }
+    45%      { opacity: .85; transform: scale(1); }
+    60%      { opacity: .25; transform: scale(.82); }
+    72%      { opacity: .95; transform: scale(1.05); }
+    86%      { opacity: .45; transform: scale(.88); }
+}
+
+/* Barrido de luz diagonal sobre el casco, como un escaneo/holograma. */
+.bv-escaneo {
+    position: absolute; inset: 0; pointer-events: none; mix-blend-mode: overlay; opacity: .85;
+    background: linear-gradient(115deg, transparent 42%, color-mix(in srgb, var(--acc) 60%, transparent) 50%, transparent 58%);
+    background-size: 260% 260%; background-position: -80% -80%;
+    animation: bv-escanear 5.5s ease-in-out infinite;
+}
+@keyframes bv-escanear { 0%, 100% { background-position: -80% -80%; } 50% { background-position: 180% 180%; } }
 
 /* Texto */
 .bv-fecha { font-size: .78rem; letter-spacing: .16em; text-transform: uppercase; color: var(--tx-3); font-variant-numeric: tabular-nums; }
@@ -110,4 +147,7 @@
 
 @media (prefers-reduced-motion: reduce) {
     .bv-orbe, .bv-logo, .bv-logo::before, .bv-logo::after, .bv-fecha, .bv-saludo, .bv-sub, .bv-tile { animation: none !important; }
+    .bv-disco img, .bv-ojo, .bv-escaneo { animation: none !important; opacity: 1; }
+    .bv-ojo { opacity: .85; }
+    .bv-escaneo { display: none; }
 }

@@ -33,6 +33,108 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   Propuestas: tarjeta por producto terminado (stock, reservado por cliente, en camino, proyectado vs mínimo), estados de orden Solicitada → Lista → En proceso → Terminada/Cancelada con fechas, fecha prometida calculada por la ruta más larga, semáforo de retrasos, prioridad
   por fecha prometida. DECISIONES PENDIENTES: tanda nunca fraccionable o casilla por producto; MOQ solo si el faltante es menor o siempre múltiplos; prioridad de apartado (pedido más antiguo vs fecha prometida). Folios: criterio propuesto = serie por tipo, consecutivo continuo
   asignado por la base, nunca se reutiliza, cancelado conserva folio, hijos heredan el del padre; series sin folio propio: pagos, cobros, nómina, auditoría, recepción/pre-recibo.
+- Archivos tocados (lo último): `js/produccion.js`, `version.json`. A petición del usuario ("alguna idea para
+  hacer esta selección más ágil e interactiva"), se exploraron 3 variantes en un Artifact de diseño (canvas
+  interactivo, no comiteado — solo vive en claude.ai) y el usuario eligió la **Opción B**: en "Procesos y
+  equipo de trabajo asignado" (formulario de nueva orden), el `<select>` de **Centro de costo** se reemplazó
+  por una cuadrícula de 4 tarjetas con ícono y color propio por código (SURT teal, MEZ violeta, ENV cian/sky,
+  ACOND ámbar — cualquier otro código usa un ícono/color genérico, no se oculta) — tocar una la selecciona,
+  tocarla de nuevo la quita (vuelve a "sin asignar"); y la lista de checkboxes de **Equipo de trabajo** se
+  reemplazó por avatares circulares con iniciales (color cíclico por posición), que se iluminan y marcan con
+  un check al tocarlos. Implementado SIN tocar la lógica de guardado: los checkboxes de empleados siguen
+  siendo `<input type="checkbox" class="chkEmpleado">` reales (solo ocultos, con `peer-checked:` para el
+  estilo), y el centro de costo sigue siendo un `<input type="hidden" class="selectProcesoCentro">` — ambos
+  con el mismo `.value`/`:checked` que ya leía `recolectarProcesosDefinidos()`, así que esa función y el envío
+  del formulario no se tocaron. Nuevas constantes de módulo en `produccion.js`: `ICONO_CENTRO`/`COLOR_CENTRO`
+  (con su versión `_DEFAULT` genérica) y `COLOR_AVATAR`/`inicialesDe()`. Sin migración SQL. Pendiente: probar
+  en el navegador — elegir un centro, quitarlo tocándolo de nuevo, marcar/desmarcar empleados y confirmar que
+  "Generar Orden" guarda igual que antes.
+- Archivos tocados (lo último): `js/centros-costo.js`, `js/produccion.js`, `js/contabilidad.js`,
+  `js/reparto-plantillas.js`, `version.json`. Bug reportado con captura: el selector "Equipo de trabajo" de
+  Producción (centro de costo por proceso) salía ordenado alfabéticamente por código (`ENV, MEZ, SURT`) en
+  vez del orden real del flujo de planta. Nuevo `ordenarCentrosProduccion()` (exportado de
+  `js/centros-costo.js`, mapa fijo `{SURT:0, MEZ:1, ENV:2, ACOND:3}` — a petición del usuario se agregó
+  Acondicionamiento al final de la secuencia fija, no como comodín alfabético — cualquier otro código fuera
+  de estos 4 —como `PROD`— sí queda al final por código) aplicado en los 3 lugares que arman un desplegable
+  de centros de costo:
+  `js/produccion.js` (Equipo de trabajo, el reportado), `js/contabilidad.js` (Gastos → clasificación
+  Indirecto/CIF) y `js/reparto-plantillas.js` (plantilla de reparto). La tabla de administración propia de
+  Centros de costo (`js/centros-costo.js`, `cargarModuloCentrosCosto`) NO se tocó a propósito — ya tiene su
+  propio ordenamiento por columna (clic en encabezado), no es un selector de opción única. Sin migración SQL.
+  Pendiente: probar en el navegador los 3 selectores — confirmar que siempre salen SURT, MEZ, ENV.
+- Archivos tocados (lo último): `manual-costos-produccion.html`. A petición del usuario ("revisa que falta de
+  actualizar en todos los manuales"): auditoría completa de `manual-costos-produccion.html` contra el menú
+  VIGENTE (`index.html`/`js/indice.js`) — venía con la estructura de hace varias reorganizaciones de menú
+  atrás. Corregido: 11 referencias literales "Menú → Finanzas → X" que en realidad viven en **Contabilidad**
+  (Plan de cuentas, Centros de costo, Áreas y bases de prorrateo, Reparto de gastos compartidos, Pólizas,
+  Reportes contables — "Finanzas → Gastos/Prorrateo de gastos" sí seguían correctas, no se tocaron);
+  "Compras / Proveedores" → **Catálogos → Proveedores** (Proveedores se movió de grupo hace tiempo); el botón
+  "Ver póliza" decía que navegaba a Pólizas — ya no navega, abre una subventana (regla de este CLAUDE.md,
+  corregida de paso). Los encabezados de la Parte 8 (guía rápida por módulo) traían nombres de ANTES del
+  reacomodo de 9 grupos ("Datos Maestros", "Operación — Compras/Abastecimiento", etc.) — renombrados a los
+  grupos vigentes (Catálogos, Compras, Inventario y Ventas, Producción, Documentos, Reportes, Finanzas,
+  Nómina y cierre de mes, Configuración); donde un mismo bloque mezcla dos grupos (Inventario+Ventas,
+  Finanzas+Contabilidad) se dejó una nota aclaratoria en vez de reordenar el contenido (reordenar bloques
+  grandes de HTML a mano es más riesgo del que vale). Se encontraron y documentaron DOS huecos reales nunca
+  escritos en el manual: nuevo `<h3>Utilerías</h3>` (los dos importadores vivían bajo "Catálogos" en el texto,
+  pero el menú real los movió a Utilerías hace sesiones) y nueva sección **"Accesos para operadores"** (la
+  pantalla existe desde hace tiempo — enlaces/QR de las 3 apps móviles — pero nunca tuvo su entrada en el
+  manual, porque nació después de escribir esta Parte 8). También se renombró el h4 "General" → **"Temas de
+  usuario"** (la sesión de hoy) y se le quitó la mención de los enlaces de operador (ya no viven ahí).
+  `guia-costos-produccion.html` se revisó y no tenía ninguna de estas referencias — no necesitó cambios.
+  Sin migración SQL. Pendiente: ninguno de código; si el usuario vuelve a reacomodar el menú, repetir esta
+  auditoría contra `manual-costos-produccion.html` (Parte 8 especialmente).
+- Archivos tocados (lo último): `index.html`, `js/indice.js`. El renombre de "Tema de colores" a "Temas de
+  usuario" (sesión anterior) había cambiado el encabezado de la pantalla pero no el ítem **"General"** del
+  menú lateral (Configuración) ni el título de su tarjeta en el Índice — a petición del usuario, ambos ya
+  dicen **"Temas de usuario"**. Pendiente: ninguno.
+- Archivos tocados (lo último): `js/bienvenida.js`, `css/bienvenida.css`. A petición del usuario ("un efecto en
+  el casco y en los ojos del casco, algo que se vea muy de película"), en el logo de Inicio (`.bv-disco`,
+  `img/HARES_icono_tinta.svg`): **brillo de poder** que respira sobre todo el casco (`filter: drop-shadow`
+  pulsando en el acento del tema), **dos "ojos" que encienden** con parpadeo tipo arranque de máscara de
+  película (`bv-ojo-i`/`bv-ojo-d`, `mix-blend-mode: screen`, con bloom) y un **barrido de luz diagonal**
+  tipo escaneo/holograma sobre el disco (`bv-escaneo`). El SVG no tiene una forma de "ojo" propia (es un
+  trazo abstracto sin hueco dedicado) — la posición de los dos brillos (`left: 40%`/`54%`, `top: 51%` sobre
+  `.bv-disco`) es una ESTIMACIÓN visual sobre dónde cae la ranura del visor, no viene de coordenadas reales
+  del SVG; si no caen justo sobre los ojos del casco, ajustar esos `left`/`top` en `css/bienvenida.css`.
+  Respeta `prefers-reduced-motion` (apaga las 3 animaciones nuevas, deja los ojos fijos a media opacidad).
+  Sin migración SQL. Pendiente: que el usuario revise en el navegador si los dos brillos caen sobre los ojos
+  del casco o hace falta correr el `left`/`top`.
+- Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`, `js/indice.js`, `orden-trabajo.html`,
+  `recibo-operador.html`, `conteo-inventario.html`, `css/doc-tema.css`. A petición del usuario: nuevo tema
+  **Mac (oscuro)** (`data-theme="macos-dark"`, tarjeta en Configuración, junto a "Mac (claro y sencillo)") —
+  misma estética plana y sobria (sin degradados, sin botones 3D, esquinas de 9 px, menú lateral translúcido),
+  en la paleta oscura de sistema de macOS: fondo gris carbón `#1c1c1e`, tarjetas `#2c2c2e`, acento azul de modo
+  oscuro `#0a84ff`, verde/rojo/naranja de sistema en su variante oscura. Mismo mecanismo que los demás temas
+  (`data-tema` del botón → `data-theme` global, genérico, sin lista fija en JS). También a petición del
+  usuario, la sección/tarjeta se renombró de **"Tema de colores" a "Temas de usuario"** (encabezado en
+  Configuración, subtítulo de la tarjeta del Índice, y los comentarios de referencia en las 3 apps de
+  operador y en `css/doc-tema.css`). Sin migración SQL. Pendiente: probar el tema nuevo en el navegador
+  (sobre todo contraste de texto y la transparencia del menú lateral sobre fondo oscuro).
+- Sesión de sincronización (sin archivos de producto; vía API de GitHub desde Claude Code, carpeta local sin
+  git). El usuario pidió sincronizar GitHub con los últimos cambios locales ("sincroniza con github, todos
+  los últimos cambios que hice desde Claude Code"). Al comparar el árbol local contra `main` se detectó que
+  GitHub ya tenía 9 commits del día con trabajo real hecho por **otra sesión de Claude Code en la nube,
+  trabajando directo contra GitHub** (nunca pasó por esta carpeta local): tema **Mac (claro y sencillo)**,
+  **Lote mínimo de fabricación**, **Reservas de inventario para pedidos de venta** (5 entregas completas),
+  **Accesos para operadores** (tarjeta Conteo de inventario) y **Kardex por rango de fechas y varios
+  productos** (`js/buscador-productos.js` nuevo) — además de una historia de sesiones previas (marca de agua
+  en impresión, subtítulos de plantillas, split Clientes/Listas de precio, catálogo de regímenes fiscales en
+  `js/regimenes-fiscales.js`, renombre Catálogo→Productos) que tampoco estaban en esta carpeta. El primer
+  push (comparación por sha de blob local-vs-remoto) subió sin querer la versión VIEJA de 15 archivos que
+  coincidían en nombre con los tocados por esa sesión en la nube, **sobrescribiendo esas funciones nuevas**
+  en GitHub. Se detectó de inmediato (revisando `git log` de GitHub) y se corrigió con un **commit nuevo
+  hacia adelante** (no destructivo — mover la rama hacia atrás con `force:true` está bloqueado a propósito
+  por el clasificador de Claude Code como "Git Destructive", correctamente) que restauró esos 15 archivos al
+  contenido bueno y agregó los 13 archivos que solo existían en GitHub. Verificado archivo por archivo
+  (`diff -u`) antes de corregir: GitHub siempre resultó ser una evolución estricta hacia adelante de lo mismo
+  que había en local (ninguna pérdida real de trabajo local). Carpeta local sincronizada 1:1 con GitHub
+  (verificación final por sha de blob: 0 diferencias), con respaldo de lo sobrescrito en
+  `respaldo/pre-sync_20261002_172322/`. Lección guardada en memoria
+  (`feedback-sync-verificar-antes-de-pushear`): antes de cualquier push local→GitHub, comparar contenido
+  (no solo que el sha difiera) porque puede haber una sesión en la nube más avanzada. Pendiente: ninguno de
+  código; si el usuario sigue usando dos sesiones en paralelo (local y nube), repetir esta verificación antes
+  de cada "comitea".
 - Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`. A petición del usuario ("un tema para usuarios inspirado en la simpleza y colores muy estilo Mac de Apple"): nuevo tema
   **Mac (claro y sencillo)** (`data-theme="macos"`, tarjeta en Configuración → General → Tema de colores). Claro y plano: fondo gris `#f5f5f7`, tarjetas blancas con línea fina y sombra suave,
   acento azul `#0071e3`/`#007aff` y colores de sistema (verde `#30b050`, rojo `#ff3b30`, naranja `#ff9500`), tipografía del sistema (-apple-system / SF Pro), botones planos de esquina de 9 px

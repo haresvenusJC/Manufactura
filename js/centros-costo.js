@@ -22,6 +22,18 @@ const TIPO_LABEL = { produccion: 'Producción', servicio: 'Servicio', administra
 const MANUAL_URL = 'manual-costos-produccion.html';
 const GUIA_URL = 'guia-costos-produccion.html';
 
+// Orden real del flujo de planta (Surtido → Mezclado → Envasado → Acondicionamiento), no alfabético
+// por código ("ACOND" < "ENV" < "MEZ" < "SURT" saldría todo al revés). Cualquier otro centro (ej. PROD)
+// queda al final, después de estos cuatro.
+const ORDEN_CENTROS_PRODUCCION = { SURT: 0, MEZ: 1, ENV: 2, ACOND: 3 };
+export function ordenarCentrosProduccion(lista) {
+    return [...(lista || [])].sort((a, b) => {
+        const oa = ORDEN_CENTROS_PRODUCCION[a.codigo] ?? 99;
+        const ob = ORDEN_CENTROS_PRODUCCION[b.codigo] ?? 99;
+        return oa !== ob ? oa - ob : String(a.codigo).localeCompare(String(b.codigo));
+    });
+}
+
 // globo de ayuda: <label>Campo ${hint('texto que aparece al pasar por encima')}</label>
 const hint = (t) => `<span class="hint" tabindex="0" role="note" aria-label="${esc(t)}" data-tip="${esc(t)}">?</span>`;
 

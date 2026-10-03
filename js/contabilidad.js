@@ -7,6 +7,7 @@ import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-
 import { prepararFiltrosAuxInv, generarAuxInventarios } from './auxiliar-inventarios.js';
 import { prepararFiltrosAuxAnt, generarAuxAnticipos } from './auxiliar-anticipos.js';
 import { ESTATUS_CONSULTA, traerReversos, enSaldo } from './polizas-saldo.js';
+import { ordenarCentrosProduccion } from './centros-costo.js';
 
 // =====================================================================
 //  Contabilidad - FASE 1: Plan de cuentas
@@ -1489,7 +1490,7 @@ async function gaCargarCatalogos() {
         if (ctas.error) throw ctas.error;
 
         gaProveedores = prov.data || [];
-        gaCentros = (centros.error ? [] : centros.data) || [];
+        gaCentros = ordenarCentrosProduccion((centros.error ? [] : centros.data) || []);
         gaOrdenes = (ordenes.error ? [] : ordenes.data) || [];
         gaPlantillas = (plant.error ? [] : plant.data) || [];
         gaBases = (bases.error ? [] : bases.data) || [];
