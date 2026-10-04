@@ -1,5 +1,4 @@
 import { supabaseClient } from './supabase.js';
-import { siguienteFolio } from './folios.js';
 import { cargarInventarioCompleto } from './inventario.js';
 import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
@@ -1313,9 +1312,11 @@ export async function generarOrdenDeProduccion(datos) {
 }
 
 /**
- * Etapa 3: cierra una orden 'en_proceso'. Cierra cronómetros abiertos, calcula
- * la mano de obra a partir de registros_tiempo, re-valida existencias, descuenta
- * insumos (FIFO), da entrada al producto terminado y marca la orden como cerrada.
+ * Etapa 3: cierra una orden 'en_proceso' en UNA sola transacción de la base
+ * (sql/2026-11-07_cerrar_orden_produccion.sql → cerrar_orden_produccion): cierra cronómetros abiertos,
+ * calcula la mano de obra, re-valida existencias, descuenta insumos (PEPS), da entrada al producto
+ * terminado, marca la orden como cerrada y genera la póliza. Si algo falla no se escribe nada.
+ * Es la única versión del cálculo (la usan el botón "Cerrar orden" y el cierre automático).
  */
 // cantidadReal: lo que salió de verdad (ej. 14.6 L de una tanda planeada de 15). Los insumos se
 // descuentan por lo planeado; al inventario entra lo real y el costo unitario = costo total ÷ real.
@@ -1323,224 +1324,25 @@ export async function generarOrdenDeProduccion(datos) {
 export async function cerrarOrdenDeProduccion(ordenId, cantidadReal = null) {
     try {
         if (!supabaseClient) throw new Error("Cliente de Supabase no inicializado.");
-        ordenId = Number(ordenId);
-
-        const { data: orden, error: errO } = await supabaseClient
-            .from('ordenes_produccion')
-            .select('id, producto_id, cantidad_producida, numero_lote, estado')
-            .eq('id', ordenId)
-            .single();
-
-        if (errO) throw errO;
-        if (!orden) throw new Error("Orden no encontrada.");
-        if (orden.estado !== 'en_proceso') throw new Error(`La orden ya está "${orden.estado}".`);
-
-        const productoId = Number(orden.producto_id);
-        const cantidadProducida = Number(orden.cantidad_producida) || 0;   // planeada: con ella se descuentan los insumos
-        const numeroLote = String(orden.numero_lote || '').trim();
-        if (cantidadProducida <= 0 || !numeroLote) throw new Error("La orden no tiene cantidad o lote válidos.");
-        const cantidadObtenida = Number(cantidadReal) > 0 ? Number(cantidadReal) : cantidadProducida;   // entra al inventario
-
-        const { data: procesos, error: errP } = await supabaseClient
-            .from('orden_produccion_procesos')
-            .select('id, proceso_nombre, orden_produccion_proceso_empleados ( empleado_id, costo_hora_snapshot )')
-            .eq('orden_produccion_id', ordenId);
-
-        if (errP) throw errP;
-        const procIds = (procesos || []).map(p => p.id);
-
-        // Cierra cualquier cronómetro que quedó abierto.
-        if (procIds.length) {
-            const { error: errCierre } = await supabaseClient.from('registros_tiempo')
-                .update({ fin: new Date().toISOString() })
-                .is('fin', null)
-                .in('orden_produccion_proceso_id', procIds);
-            if (errCierre) throw new Error(`No se pudieron cerrar los cronómetros abiertos: ${errCierre.message}`);
-        }
-
-        let registros = [];
-        if (procIds.length) {
-            const { data: regs, error: errR } = await supabaseClient.from('registros_tiempo')
-                .select('orden_produccion_proceso_id, empleado_id, inicio, fin')
-                .in('orden_produccion_proceso_id', procIds);
-            if (errR) throw errR;
-            registros = regs || [];
-        }
-
-        // Mano de obra por proceso = suma de (segundos del empleado / 3600) * costo_hora_snapshot.
-        let costoTotalManoObra = 0;
-        const empleadosSet = new Set();
-        const actualizacionesProceso = [];
-        for (const p of procesos) {
-            const snap = new Map((p.orden_produccion_proceso_empleados || []).map(e => [Number(e.empleado_id), Number(e.costo_hora_snapshot || 0)]));
-            let segProc = 0;
-            let costoProc = 0;
-            registros.filter(r => r.orden_produccion_proceso_id === p.id).forEach(r => {
-                const seg = segundosDeIntervalo(r.inicio, r.fin);
-                segProc += seg;
-                empleadosSet.add(Number(r.empleado_id));
-                costoProc += (seg / 3600) * (snap.get(Number(r.empleado_id)) || 0);
-            });
-            costoTotalManoObra += costoProc;
-            actualizacionesProceso.push({ id: p.id, segundos: Math.round(segProc), costo: costoProc });
-        }
-
-        // Re-validación de existencias: si falta algo, no se escribe nada más.
-        const { error: errReq, filas } = await calcularRequerimientosProduccion(productoId, cantidadProducida);
-        if (errReq) throw new Error(errReq);
-        const faltantes = filas.filter(f => !f.suficiente);
-        if (faltantes.length > 0) {
-            throw new Error(`Existencias insuficientes. La orden sigue en proceso:\n${faltantes.map(fmtFaltante).join('\n')}`);
-        }
-
-        // Dos documentos para que el movimiento se lea claro en Documentos/Kardex:
-        // uno de SALIDA (la materia prima que se consume) y uno de ENTRADA (el
-        // producto terminado que resulta). Contablemente siguen siendo una sola
-        // transformación de inventario -una sola póliza-, así que al póliza que
-        // genera contabilizar_produccion() se le liga también el documento de
-        // salida (ver más abajo) en vez de duplicar el asiento.
-        const folioBase = await siguienteFolio('PROD');   // consecutivo: PROD-000001, PROD-000002...
-        const { data: docSalida, error: errDocSalida } = await supabaseClient
-            .from('documentos')
-            .insert([{
-                tipo_movimiento: 'salida_produccion',
-                folio: `${folioBase}-MP`,
-                fecha_emision: new Date().toISOString(),
-                descripcion: `Consumo de materia prima — orden de producción, lote ${numeroLote}`,
-                estado: 'completado'
-            }])
-            .select('id')
-            .single();
-        if (errDocSalida) throw errDocSalida;
-        const documentoSalidaId = docSalida.id;
-
-        const { data: docInsertado, error: errDoc } = await supabaseClient
-            .from('documentos')
-            .insert([{
-                tipo_movimiento: 'entrada_produccion',
-                folio: folioBase,
-                fecha_emision: new Date().toISOString(),
-                descripcion: `Cierre de orden de producción — lote ${numeroLote} (consumo de materia prima: documento ${folioBase}-MP)`,
-                estado: 'completado'
-            }])
-            .select('id')
-            .single();
-
-        if (errDoc) throw errDoc;
-        const documentoId = docInsertado.id;
-
-        let costoTotalMateriales = 0;
-        for (const f of filas) {
-            const { data: lotesConsumidos, error: errFifo } = await supabaseClient.rpc('registrar_salida_fifo', {
-                p_producto_id: f.componenteId,
-                p_cantidad_salida: Number(f.requerido),
-                p_tipo_movimiento: 'salida_produccion',
-                p_documento_id: documentoSalidaId,
-                p_costo_unitario_fijo: null
-            });
-
-            if (errFifo) throw new Error(`Error al descontar ${f.nombre} (FIFO): ${errFifo.message}`);
-
-            if (Array.isArray(lotesConsumidos) && lotesConsumidos.length > 0) {
-                lotesConsumidos.forEach(l => {
-                    costoTotalMateriales += Number(l.cantidad || 0) * Number(l.costo_unitario ?? f.costoUnitarioCatalogo);
-                });
-            } else {
-                costoTotalMateriales += (f.requerido * f.costoUnitarioCatalogo);
-            }
-        }
-
-        const costoUnitarioFinal = cantidadObtenida > 0 ? (costoTotalMateriales + costoTotalManoObra) / cantidadObtenida : 0;
-
-        const { error: errEnt } = await supabaseClient.rpc('registrar_movimiento_inventario_fifo', {
-            p_producto_id: productoId,
-            p_cantidad: cantidadObtenida,
-            p_tipo_movimiento: 'entrada_produccion',
-            p_documento_id: documentoId,
-            p_costo_unitario: costoUnitarioFinal,
-            p_numero_lote: numeroLote
+        const { data, error } = await supabaseClient.rpc('cerrar_orden_produccion', {
+            p_orden_id: Number(ordenId),
+            p_cantidad_real: Number(cantidadReal) > 0 ? Number(cantidadReal) : null
         });
-
-        if (errEnt) throw new Error(`Error al registrar entrada de producto terminado: ${errEnt.message}`);
-
-        const { data: loteCreado } = await supabaseClient
-            .from('lotes_inventario')
-            .select('id')
-            .eq('producto_id', productoId)
-            .eq('numero_lote', numeroLote)
-            .eq('documento_id', documentoId)
-            .maybeSingle();
-
-        await supabaseClient.from('documento_detalles').insert([{
-            documento_id: documentoId,
-            producto_id: productoId,
-            lote_id: loteCreado?.id || null,
-            cantidad: cantidadObtenida,
-            costo_unitario: costoUnitarioFinal,
-            subtotal: costoUnitarioFinal * cantidadObtenida
-        }]);
-
-        await supabaseClient.from('productos').update({ costo_unitario: costoUnitarioFinal }).eq('id', productoId);
-
-        for (const a of actualizacionesProceso) {
-            await supabaseClient.from('orden_produccion_procesos')
-                .update({ segundos_transcurridos: a.segundos, costo_calculado: a.costo })
-                .eq('id', a.id);
-        }
-
-        // cantidad_producida pasa a ser lo REAL (contabilizar_produccion y el prorrateo de CIF dividen el
-        // costo entre ella) y lo planeado se guarda en cantidad_planeada
-        // (sql/2026-09-23d_rendimiento_real_orden.sql; sin la migración se cierra igual, sin guardar lo planeado).
-        const datosCierre = {
-            estado: 'cerrada',
-            cerrada_at: new Date().toISOString(),
-            costo_unitario_final: costoUnitarioFinal,
-            costo_total_materiales: costoTotalMateriales,
-            costo_total_mano_obra: costoTotalManoObra,
-            empleados_involucrados: empleadosSet.size,
-            cantidad_producida: cantidadObtenida,
-        };
-        let { error: errUpd } = await supabaseClient.from('ordenes_produccion')
-            .update({ ...datosCierre, cantidad_planeada: cantidadProducida }).eq('id', ordenId);
-        if (errUpd && /cantidad_planeada/.test(errUpd.message || '')) {
-            ({ error: errUpd } = await supabaseClient.from('ordenes_produccion').update(datosCierre).eq('id', ordenId));
-        }
-
-        if (errUpd) throw errUpd;
-
-        // Contabilizar el cierre (Cargo 115.04 PT / Abono 115.01 MP + 601.01 mano de obra).
-        // No bloquea el cierre si el modulo contable no esta instalado o falla.
-        let msgContab = '';
-        try {
-            const { data: cc, error: errCC } = await supabaseClient.rpc('contabilizar_produccion', {
-                p_documento_id: documentoId,
-                p_datos: {
-                    costo_materiales: costoTotalMateriales,
-                    costo_mano_obra: costoTotalManoObra,
-                    orden_produccion_id: ordenId,
-                    documento_salida_id: documentoSalidaId
-                }
-            });
-            if (errCC) throw errCC;
-            msgContab = ` Póliza de producción #${cc.poliza_id} generada.`;
-            // La póliza queda ligada al documento de entrada (como ya hacía
-            // contabilizar_produccion); se replica el mismo poliza_id en el
-            // documento de salida para que ambos lados del movimiento se vean
-            // contabilizados en Documentos, sin generar un segundo asiento.
-            if (cc?.poliza_id) {
-                await supabaseClient.from('documentos').update({ poliza_id: cc.poliza_id }).eq('id', documentoSalidaId);
+        if (error) {
+            if (/could not find the function|schema cache|does not exist/i.test(error.message || '')) {
+                throw new Error('Falta correr sql/2026-11-07_cerrar_orden_produccion.sql en Supabase (función cerrar_orden_produccion).');
             }
-        } catch (e) {
-            const m = e?.message || String(e);
-            if (!/does not exist|could not find|schema cache/i.test(m)) {
-                msgContab = ` (Cierre OK, pero no se contabilizó: ${m})`;
-            }
+            throw new Error(error.message);
         }
-
-        const msgRend = Math.abs(cantidadObtenida - cantidadProducida) > 1e-9
-            ? ` Planeado ${formatoCantidad(cantidadProducida)}, obtenido ${formatoCantidad(cantidadObtenida)} (${cantidadObtenida < cantidadProducida ? 'merma' : 'excedente'} ${formatoCantidad(Math.abs(cantidadProducida - cantidadObtenida) / cantidadProducida * 100)}%).`
+        const r = data || {};
+        const plan = Number(r.cantidad_planeada) || 0;
+        const obt = Number(r.cantidad_obtenida) || 0;
+        const msgRend = plan > 0 && Math.abs(obt - plan) > 1e-9
+            ? ` Planeado ${formatoCantidad(plan)}, obtenido ${formatoCantidad(obt)} (${obt < plan ? 'merma' : 'excedente'} ${formatoCantidad(Math.abs(plan - obt) / plan * 100)}%).`
             : '';
-        return { success: true, mensaje: `Orden cerrada. Costo unitario: $${costoUnitarioFinal.toFixed(2)}.${msgRend}${msgContab}` };
+        const msgContab = r.poliza_id ? ` Póliza de producción #${r.poliza_id} generada.`
+            : (r.aviso_contable ? ` (Cierre OK, pero no se contabilizó: ${r.aviso_contable})` : '');
+        return { success: true, mensaje: `Orden cerrada. Costo unitario: $${Number(r.costo_unitario || 0).toFixed(2)}.${msgRend}${msgContab}` };
     } catch (error) {
         console.error("Error al cerrar la orden:", error.message);
         return { success: false, error: error.message };
