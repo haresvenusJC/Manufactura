@@ -2,12 +2,10 @@ import { supabaseClient } from './supabase.js';
 import { siguienteFolio } from './folios.js';
 import { cargarInventarioCompleto } from './inventario.js';
 import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
-import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { convertirEnBuscador } from './buscador-select.js';
 import { ordenarCentrosProduccion } from './centros-costo.js';
 import { factorConversion } from './conversion-unidades.js';
 
-const histProdOrden = crearOrdenTabla('fecha', 'desc');
 
 // Tarjetas de "Centro de costo" (Procesos y equipo de trabajo): ícono + color por código.
 // Cualquier centro fuera de estos 4 (ej. PROD) usa el ícono/color genérico — no se oculta.
@@ -590,12 +588,16 @@ export async function cargarModuloProduccion() {
                             </div>
                         </div>
                         <div>
-                            <div class="flex justify-between items-center mb-2">
-                                <label class="block text-xs font-medium text-slate-400">PROCESOS Y EQUIPO DE TRABAJO ASIGNADO</label>
+                            <div class="flex items-center gap-3 mb-2">
                                 <button type="button" id="btnAgregarProceso" class="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 px-2 py-1 rounded-lg border border-slate-700">+ Agregar Proceso</button>
+                                <label class="block text-xs font-medium text-slate-400">PROCESOS Y EQUIPO DE TRABAJO ASIGNADO</label>
                             </div>
                             <div id="listaProcesosOrden" class="space-y-3"></div>
                             <p id="avisoSinProcesos" class="text-slate-500 text-xs italic mt-1">Agrega al menos un proceso (ej. Pesaje, Mezclado, Envasado) y asígnale su equipo. Solo el equipo asignado podrá registrar tiempo en el celular.</p>
+                            <div id="resumenProcesosOrden" class="hidden mt-3 space-y-1 rounded-lg border border-slate-800 bg-slate-900 p-2.5">
+                                <p class="text-[10px] font-semibold text-slate-500 mb-1">RESUMEN DE PROCESOS</p>
+                                <div id="filasResumenProcesos" class="flex flex-wrap gap-2"></div>
+                            </div>
                         </div>
                         <button type="submit" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-semibold py-2 px-4 rounded-lg transition-all text-sm shadow-lg">
                             ✅ Generar Orden (en proceso)
@@ -622,7 +624,7 @@ export async function cargarModuloProduccion() {
 
                 <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-xl">
                     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-                        <h3 class="text-lg font-semibold text-amber-400 flex items-center gap-2">📊 Historial de Órdenes Cerradas</h3>
+                        <h3 class="text-lg font-semibold text-amber-400 flex items-center gap-2">📊 Resumen de última producción</h3>
                         <div class="flex items-center gap-2 w-full md:w-auto">
                             <select id="selectOrdenId" class="w-full md:w-72 bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-amber-300 font-mono">
                                 <option value="">Seleccione orden por ID...</option>
@@ -634,7 +636,6 @@ export async function cargarModuloProduccion() {
                     <div id="detalleResumenOrden" class="bg-slate-950 border border-slate-800/60 p-4 rounded-lg text-sm text-slate-300 mb-6">
                         <p class="text-slate-500 italic text-center">Seleccione una orden cerrada para ver su desglose ejecutivo.</p>
                     </div>
-                    <div id="contenedorHistorialProduccion"></div>
                 </div>
             </div>
         `;
@@ -841,12 +842,56 @@ export async function cargarModuloProduccion() {
 
         const listaEmpleados = empleadosCatalogo || [];
         const listaProcesos = procesosCatalogo || [];
-        const centroPorProceso = new Map(
-            listaProcesos
-                .filter(p => p.centro_costo_id != null)
-                .map(p => [p.nombre, Number(p.centro_costo_id)])
-        );
         let procesoContador = 0;
+
+        function construirMiniTarjeta(d) {
+            const color = d.codigo ? (COLOR_CENTRO[d.codigo] || COLOR_CENTRO_DEFAULT) : COLOR_CENTRO_DEFAULT;
+            const wrap = document.createElement('div');
+            wrap.className = 'flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 min-w-0';
+            wrap.innerHTML = `<span class="w-7 h-7 rounded-lg grid place-items-center shrink-0 ${color.fondo} ${color.ico}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d.codigo ? (ICONO_CENTRO[d.codigo] || ICONO_CENTRO_DEFAULT) : ICONO_CENTRO_DEFAULT}</svg></span>`;
+            const texto = document.createElement('div');
+            texto.className = 'min-w-0';
+            const titulo = document.createElement('p');
+            titulo.className = 'text-[11px] font-bold text-slate-200 truncate';
+            titulo.textContent = d.codigo ? `${d.codigo} · ${d.nombre}` : 'Sin centro';
+            const personas = document.createElement('div');
+            personas.className = 'flex items-center gap-1 mt-0.5';
+            if (!d.empleados.length) {
+                const p = document.createElement('span');
+                p.className = 'text-[10px] text-slate-500';
+                p.textContent = 'sin personas';
+                personas.appendChild(p);
+            } else {
+                d.empleados.slice(0, 5).forEach(e => {
+                    const av = document.createElement('span');
+                    av.className = `w-5 h-5 rounded-full grid place-items-center text-[8px] font-bold text-white ${e.color}`;
+                    av.textContent = e.iniciales;
+                    av.title = e.nombre;
+                    personas.appendChild(av);
+                });
+                if (d.empleados.length > 5) {
+                    const mas = document.createElement('span');
+                    mas.className = 'text-[10px] text-slate-400';
+                    mas.textContent = `+${d.empleados.length - 5}`;
+                    personas.appendChild(mas);
+                }
+            }
+            texto.append(titulo, personas);
+            wrap.appendChild(texto);
+            return wrap;
+        }
+
+        function nombreProcesoDeCentro(centro) {
+            return listaProcesos.find(p => p.centro_costo_id != null && Number(p.centro_costo_id) === Number(centro.id))?.nombre || centro.nombre;
+        }
+
+        function actualizarResumenGlobal() {
+            const filas = document.getElementById('filasResumenProcesos');
+            const tarjetas = Array.from(document.querySelectorAll('#listaProcesosOrden .proceso-item'));
+            const bloques = tarjetas.flatMap(t => (t.resumenData && t.resumenData.length ? t.resumenData : [{ codigo: '', nombre: '', empleados: [] }]));
+            filas.replaceChildren(...bloques.map(construirMiniTarjeta));
+            document.getElementById('resumenProcesosOrden').classList.toggle('hidden', !tarjetas.length);
+        }
 
         function crearTarjetaProceso() {
             if (!listaEmpleados.length) {
@@ -856,7 +901,6 @@ export async function cargarModuloProduccion() {
             procesoContador++;
             const uid = `proc-${procesoContador}`;
 
-            const opcionesProcesos = listaProcesos.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('');
             const tarjetasCentros = centrosCosto.map(c => {
                 const color = COLOR_CENTRO[c.codigo] || COLOR_CENTRO_DEFAULT;
                 const icono = ICONO_CENTRO[c.codigo] || ICONO_CENTRO_DEFAULT;
@@ -869,7 +913,7 @@ export async function cargarModuloProduccion() {
                 </button>`;
             }).join('');
             const avataresEmpleados = listaEmpleados.map((e, i) => `
-                <label class="flex flex-col items-center gap-1 w-14 cursor-pointer select-none" title="${(e.nombre || '').replace(/"/g, '&quot;')} ($${Number(e.costo_hora).toFixed(2)}/hr)">
+                <label class="avatarEmpleado flex flex-col items-center gap-1 w-14 cursor-pointer select-none" title="${(e.nombre || '').replace(/"/g, '&quot;')} ($${Number(e.costo_hora).toFixed(2)}/hr)">
                     <input type="checkbox" class="chkEmpleado hidden peer" value="${e.id}" data-costo-hora="${e.costo_hora}" data-nombre="${(e.nombre || '').replace(/"/g, '&quot;')}">
                     <span class="relative w-9 h-9 rounded-full grid place-items-center text-[11px] font-bold text-white opacity-50 peer-checked:opacity-100 peer-checked:ring-2 peer-checked:ring-offset-2 peer-checked:ring-offset-slate-950 peer-checked:ring-emerald-400 ${COLOR_AVATAR[i % COLOR_AVATAR.length]}">
                         ${inicialesDe(e.nombre)}
@@ -884,74 +928,102 @@ export async function cargarModuloProduccion() {
             div.className = 'proceso-item bg-slate-950 border border-slate-800 rounded-lg p-3 space-y-2';
             div.dataset.uid = uid;
             div.innerHTML = `
-                <div class="flex gap-2 items-center">
-                    <select class="selectProcesoNombre flex-1 bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100">
-                        ${opcionesProcesos}
-                        <option value="__otro__">+ Otro proceso...</option>
-                    </select>
-                    <input type="text" class="inputProcesoNuevoNombre hidden flex-1 bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100" placeholder="Nombre del proceso nuevo">
-                    <button type="button" class="btnQuitarProceso text-rose-400 hover:text-rose-300 text-xs px-1" title="Quitar proceso">✕</button>
+                <div class="flex items-center justify-end gap-3">
+                    <button type="button" class="btnTogglePicker text-[10px] text-sky-400 hover:text-sky-300"></button>
+                    <button type="button" class="btnQuitarProceso text-[10px] text-rose-400 hover:text-rose-300">✕ Quitar</button>
                 </div>
-                <div class="${centrosCosto.length ? '' : 'hidden'}">
-                    <label class="text-[10px] text-slate-500 block mb-1">CENTRO DE COSTO (dónde se acumula la mano de obra y el CIF de este proceso) — toca para elegir, toca de nuevo para quitar</label>
-                    <input type="hidden" class="selectProcesoCentro" value="">
-                    <div class="gridTarjetasCentro grid grid-cols-4 gap-1.5">${tarjetasCentros}</div>
-                    <p class="centroCostoNombre text-[10px] text-slate-500 mt-1">Sin asignar (usa el de producción por defecto)</p>
-                </div>
-                <div>
-                    <label class="text-[10px] text-slate-500 block mb-1">EQUIPO DE TRABAJO (toca a quienes participan)</label>
-                    <div class="equipoEmpleados flex flex-wrap gap-2.5 bg-slate-900 border border-slate-800 rounded-lg p-2">
-                        ${avataresEmpleados}
+                <div class="pickerProceso space-y-2">
+                    <div class="${centrosCosto.length ? '' : 'hidden'}">
+                        <label class="text-[10px] text-slate-500 block mb-1">PROCESO — elige dónde se hace (toca de nuevo para quitar)</label>
+                        <input type="hidden" class="selectProcesoCentro" value="">
+                        <input type="hidden" class="inputProcesoNombre" value="">
+                        <div class="gridTarjetasCentro grid grid-cols-4 gap-1.5">${tarjetasCentros}</div>
                     </div>
-                    <p class="text-[10px] text-slate-500 mt-1"><span class="equipoCount text-amber-400 font-semibold">0</span> empleado(s) asignado(s)</p>
+                    <div>
+                        <label class="text-[10px] text-slate-500 block mb-1">EQUIPO DE TRABAJO (toca a quienes participan)</label>
+                        <div class="equipoEmpleados flex flex-wrap gap-2.5 bg-slate-900 border border-slate-800 rounded-lg p-2">
+                            ${avataresEmpleados}
+                        </div>
+                    </div>
                 </div>
             `;
 
-            const selectProcesoNombre = div.querySelector('.selectProcesoNombre');
-            const inputNuevoNombre = div.querySelector('.inputProcesoNuevoNombre');
             const selectProcesoCentro = div.querySelector('.selectProcesoCentro');
-            const centroCostoNombre = div.querySelector('.centroCostoNombre');
+            const inputProcesoNombre = div.querySelector('.inputProcesoNombre');
+            const pickerProceso = div.querySelector('.pickerProceso');
+            const btnTogglePicker = div.querySelector('.btnTogglePicker');
+            const chksEmpleado = Array.from(div.querySelectorAll('.chkEmpleado'));
+            const seleccion = { centro: '', empleados: new Set() };
+            // Bloques ya cerrados: cada cambio de centro guarda el centro y sus personas como una partida.
+            const bloques = [];
+            const bloqueDe = (centroId, empleados) => ({ centroId, empleados: new Set(empleados) });
 
-            function pintarTarjetasCentro() {
-                const seleccionado = selectProcesoCentro.value;
+            function pintarProceso() {
+                const centro = centrosCosto.find(c => String(c.id) === seleccion.centro);
+                selectProcesoCentro.value = seleccion.centro;
+                inputProcesoNombre.value = centro ? nombreProcesoDeCentro(centro) : '';
                 div.querySelectorAll('.tarjetaCentro').forEach(btn => {
-                    const activo = seleccionado && btn.dataset.id === seleccionado;
+                    const activo = btn.dataset.id === seleccion.centro;
+                    const color = COLOR_CENTRO[centrosCosto.find(c => String(c.id) === btn.dataset.id)?.codigo] || COLOR_CENTRO_DEFAULT;
                     btn.classList.toggle('bg-slate-900', !activo);
                     btn.classList.toggle('border-slate-800', !activo);
-                    const color = COLOR_CENTRO[centrosCosto.find(c => String(c.id) === btn.dataset.id)?.codigo] || COLOR_CENTRO_DEFAULT;
                     btn.classList.toggle(color.borde, activo);
                     btn.querySelector('.iconoTarjetaCentro').classList.toggle(color.fondo.replace('/10', '/20'), activo);
                     btn.querySelector('.textoTarjetaCentro').classList.toggle('text-slate-400', !activo);
                     btn.querySelector('.textoTarjetaCentro').classList.toggle(color.ico, activo);
                 });
-                const centro = centrosCosto.find(c => String(c.id) === seleccionado);
-                centroCostoNombre.textContent = centro ? `${centro.nombre} — dónde se acumula la mano de obra y el CIF.` : 'Sin asignar (usa el de producción por defecto)';
+                chksEmpleado.forEach(chk => { chk.checked = seleccion.empleados.has(Number(chk.value)); });
+                const todos = [...bloques, ...((seleccion.centro || seleccion.empleados.size) ? [bloqueDe(seleccion.centro, seleccion.empleados)] : [])];
+                div.resumenData = todos.map(b => {
+                    const c = centrosCosto.find(x => String(x.id) === b.centroId);
+                    return {
+                        centroId: b.centroId,
+                        codigo: c ? c.codigo : '',
+                        nombre: c ? nombreProcesoDeCentro(c) : '',
+                        empleados: listaEmpleados
+                            .map((e, i) => ({ e, i }))
+                            .filter(({ e }) => b.empleados.has(Number(e.id)))
+                            .map(({ e, i }) => ({ id: Number(e.id), costoHora: Number(e.costo_hora || 0), nombre: e.nombre, iniciales: inicialesDe(e.nombre), color: COLOR_AVATAR[i % COLOR_AVATAR.length] })),
+                    };
+                });
+                actualizarResumenGlobal();
             }
+
             div.querySelectorAll('.tarjetaCentro').forEach(btn => {
                 btn.onclick = () => {
-                    selectProcesoCentro.value = selectProcesoCentro.value === btn.dataset.id ? '' : btn.dataset.id;
-                    pintarTarjetasCentro();
+                    const id = btn.dataset.id;
+                    if (seleccion.centro === id) {
+                        seleccion.centro = '';
+                    } else {
+                        // Si ya había un centro con personas, se guarda como partida antes de cambiar.
+                        if (seleccion.centro && seleccion.empleados.size) bloques.push(bloqueDe(seleccion.centro, seleccion.empleados));
+                        // Un centro nuevo empieza sin personas; volver a uno ya guardado lo reabre con las suyas.
+                        const idx = bloques.findIndex(b => b.centroId === id);
+                        seleccion.empleados = idx >= 0 ? new Set(bloques[idx].empleados) : new Set();
+                        if (idx >= 0) bloques.splice(idx, 1);
+                        seleccion.centro = id;
+                    }
+                    pintarProceso();
                 };
             });
-
-            selectProcesoNombre.onchange = () => {
-                inputNuevoNombre.classList.toggle('hidden', selectProcesoNombre.value !== '__otro__');
-                if (selectProcesoCentro && selectProcesoNombre.value !== '__otro__' && centroPorProceso.has(selectProcesoNombre.value)) {
-                    selectProcesoCentro.value = String(centroPorProceso.get(selectProcesoNombre.value));
-                    pintarTarjetasCentro();
-                }
-            };
-            selectProcesoNombre.onchange();
-
-            const contadorEquipo = div.querySelector('.equipoCount');
-            div.querySelectorAll('.chkEmpleado').forEach(chk => {
-                chk.addEventListener('change', () => {
-                    contadorEquipo.textContent = div.querySelectorAll('.chkEmpleado:checked').length;
+            div.querySelectorAll('.avatarEmpleado').forEach(label => {
+                label.addEventListener('click', (ev) => {
+                    ev.preventDefault();
+                    const id = Number(label.querySelector('.chkEmpleado').value);
+                    if (seleccion.empleados.has(id)) seleccion.empleados.delete(id); else seleccion.empleados.add(id);
+                    pintarProceso();
                 });
             });
+            btnTogglePicker.onclick = () => {
+                const oculto = pickerProceso.classList.toggle('hidden');
+                btnTogglePicker.textContent = oculto ? '✏️ Editar' : '▴ Listo';
+            };
+            btnTogglePicker.textContent = '▴ Listo';
+            pintarProceso();
 
             div.querySelector('.btnQuitarProceso').onclick = () => {
                 div.remove();
+                actualizarResumenGlobal();
                 if (!document.querySelectorAll('.proceso-item').length) {
                     document.getElementById('avisoSinProcesos').classList.remove('hidden');
                 }
@@ -959,6 +1031,7 @@ export async function cargarModuloProduccion() {
 
             document.getElementById('listaProcesosOrden').appendChild(div);
             document.getElementById('avisoSinProcesos').classList.add('hidden');
+            actualizarResumenGlobal();
         }
 
         document.getElementById('btnAgregarProceso').onclick = crearTarjetaProceso;
@@ -966,17 +1039,18 @@ export async function cargarModuloProduccion() {
         function recolectarProcesosDefinidos() {
             const procesos = [];
             document.querySelectorAll('#listaProcesosOrden .proceso-item').forEach(div => {
-                let nombre = div.querySelector('.selectProcesoNombre').value;
-                if (nombre === '__otro__') {
-                    nombre = div.querySelector('.inputProcesoNuevoNombre').value.trim() || 'Proceso sin nombre';
+                const bloques = div.resumenData || [];
+                if (!bloques.length) {
+                    procesos.push({ nombre: 'Proceso sin centro', empleados: [], centroCostoId: null });
+                    return;
                 }
-                const empleados = Array.from(div.querySelectorAll('.chkEmpleado:checked')).map(chk => ({
-                    id: Number(chk.value),
-                    costoHora: Number(chk.dataset.costoHora || 0)
-                }));
-                const centroSel = div.querySelector('.selectProcesoCentro');
-                const centroCostoId = centroSel && centroSel.value ? Number(centroSel.value) : null;
-                procesos.push({ nombre, empleados, centroCostoId });
+                bloques.forEach(b => {
+                    procesos.push({
+                        nombre: b.nombre || 'Proceso sin centro',
+                        empleados: b.empleados.map(e => ({ id: e.id, costoHora: e.costoHora })),
+                        centroCostoId: b.centroId ? Number(b.centroId) : null,
+                    });
+                });
             });
             return procesos;
         }
@@ -1009,7 +1083,7 @@ export async function cargarModuloProduccion() {
                         alert(`📋 Orden ${resultado.folio} guardada como PENDIENTE por insumos (procesos y equipo ya quedaron capturados):\n${resultado.faltantes.map(fmtFaltante).join('\n')}\n\nPodrás continuarla desde "Consulta de órdenes de producción" en cuanto haya existencias.`);
                         formOrden.reset();
                         document.getElementById('numeroLoteResultante').value = generarLoteSugerido();
-                        document.getElementById('listaProcesosOrden').innerHTML = '';
+                        document.getElementById('listaProcesosOrden').innerHTML = ''; actualizarResumenGlobal();
                         document.getElementById('avisoSinProcesos').classList.remove('hidden');
                         panelExistencias.classList.add('hidden');
                         cargarOrdenesPendientesInsumos();
@@ -1018,7 +1092,7 @@ export async function cargarModuloProduccion() {
                         alert(`✅ Orden ${resultado.folio} generada y en proceso.\nLos operarios ya pueden registrar tiempos desde la Orden de Trabajo en el celular.`);
                         formOrden.reset();
                         document.getElementById('numeroLoteResultante').value = generarLoteSugerido();
-                        document.getElementById('listaProcesosOrden').innerHTML = '';
+                        document.getElementById('listaProcesosOrden').innerHTML = ''; actualizarResumenGlobal();
                         document.getElementById('avisoSinProcesos').classList.remove('hidden');
                         panelExistencias.classList.add('hidden');
                         await cargarOrdenesEnProceso();
@@ -1817,14 +1891,12 @@ function tickEnProceso() {
 }
 
 async function cargarHistorialProduccion(idSeleccionarReciente = null) {
-    const contenedorHistorial = document.getElementById('contenedorHistorialProduccion');
     const selectOrdenId = document.getElementById('selectOrdenId');
     const detalleResumenOrden = document.getElementById('detalleResumenOrden');
     const btnImprimirOrden = document.getElementById('btnImprimirOrden');
 
     try {
-        if (!contenedorHistorial) return;
-        contenedorHistorial.innerHTML = `<p class="text-slate-400 text-sm">Cargando historial...</p>`;
+        if (!selectOrdenId) return;
 
         const { data: ordenes, error } = await supabaseClient
             .from('ordenes_produccion')
@@ -1835,8 +1907,7 @@ async function cargarHistorialProduccion(idSeleccionarReciente = null) {
         if (error) throw error;
 
         if (!ordenes || ordenes.length === 0) {
-            contenedorHistorial.innerHTML = `<p class="text-slate-400 text-sm">Todavía no hay órdenes cerradas.</p>`;
-            if (selectOrdenId) selectOrdenId.innerHTML = '<option value="">No hay órdenes disponibles</option>';
+            selectOrdenId.innerHTML = '<option value="">No hay órdenes disponibles</option>';
             if (btnImprimirOrden) btnImprimirOrden.disabled = true;
             return;
         }
@@ -1875,42 +1946,6 @@ async function cargarHistorialProduccion(idSeleccionarReciente = null) {
             };
         }
 
-        aplicarOrden(histProdOrden, ordenes, (o, campo) => {
-            switch (campo) {
-                case 'folio': return (o.folio || String(o.id)).toLowerCase();
-                case 'fecha': return o.created_at || '';
-                case 'lote': return (o.numero_lote || '').toLowerCase();
-                case 'producto': return (o.productos?.nombre || '').toLowerCase();
-                case 'cantidad': return Number(o.cantidad_producida || 0);
-                case 'costo': return Number(o.costo_unitario_final || 0);
-                default: return o.id;
-            }
-        });
-
-        let html = `
-            <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 mt-6">Historial General de Órdenes</h4>
-            <div class="overflow-x-auto"><table class="w-full text-left text-sm text-slate-300">
-                <thead><tr class="border-b border-slate-800 text-amber-400">
-                    ${thOrden(histProdOrden, 'folio', 'Folio')}${thOrden(histProdOrden, 'fecha', 'Fecha')}${thOrden(histProdOrden, 'lote', 'Lote PT')}${thOrden(histProdOrden, 'producto', 'Producto')}${thOrden(histProdOrden, 'cantidad', 'Cantidad')}${thOrden(histProdOrden, 'costo', 'Costo Unit. Final')}
-                </tr></thead><tbody>
-        `;
-
-        ordenes.forEach(o => {
-            html += `
-                <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition-colors cursor-pointer" onclick="document.getElementById('selectOrdenId').value='${o.id}'; document.getElementById('selectOrdenId').dispatchEvent(new Event('change'));">
-                    <td class="p-2 font-mono text-xs text-amber-300">${o.folio || ('#' + o.id)}</td>
-                    <td class="p-2 text-xs text-slate-400">${new Date(o.created_at).toLocaleDateString()}</td>
-                    <td class="p-2 font-mono text-xs text-slate-200">${o.numero_lote || 'N/D'}</td>
-                    <td class="p-2 font-medium text-slate-100">${o.productos?.nombre || 'Desconocido'}</td>
-                    <td class="p-2 font-mono">${o.cantidad_producida}</td>
-                    <td class="p-2 font-mono text-emerald-400 font-semibold">$${Number(o.costo_unitario_final || 0).toFixed(2)}</td>
-                </tr>
-            `;
-        });
-
-        html += `</tbody></table></div>`;
-        contenedorHistorial.innerHTML = html;
-        wireOrdenTabla(contenedorHistorial, histProdOrden, () => cargarHistorialProduccion(Number(selectOrdenId?.value) || null));
 
         const targetId = idSeleccionarReciente || ordenes[0].id;
         if (selectOrdenId) {

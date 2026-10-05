@@ -4,6 +4,53 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/produccion.js`, `version.json`. A petición del usuario: se quitó la tabla
+  "Historial General de Órdenes" de Producción → Historial (`contenedorHistorialProduccion`, `histProdOrden` y sus
+  imports de `orden-tabla.js`). Se conservan el selector por folio, el detalle, 🖨️ Imprimir y "📄 Reporte completo"
+  para abrir una orden cerrada. La lista de órdenes sigue en Órdenes de producción. Sin migración SQL.
+- Archivos tocados (lo último): `js/produccion.js`, `version.json`. A petición del usuario: **cada cambio de centro
+  dentro de un proceso cierra una partida** — el centro y sus personas se guardan en `bloques` (estado del proceso),
+  y el centro nuevo arranca SIN personas (el usuario pidió no arrastrar la selección anterior). Volver a un centro
+  ya guardado lo reabre con sus personas.
+  Cada partida es una mini-tarjeta en el RESUMEN DE PROCESOS y se envía como un proceso separado con su
+  `centroCostoId` (`recolectarProcesosDefinidos` lee `div.resumenData`). Personas sin centro quedan como
+  "Proceso sin centro". Antes, el bloque de resumen: el resumen de PROCESOS (arriba de Generar Orden) ya no es texto sino **mini-tarjetas** por proceso — ícono y color del centro,
+  código · nombre y avatares con iniciales de las personas — que se llenan al elegir centro/personas (la data
+  viaja en `div.resumenData`, `construirMiniTarjeta()` las arma con DOM, sin HTML de datos del usuario). Antes:
+  el resumen de cada proceso ya NO va arriba de la tarjeta — ahora hay un bloque **"RESUMEN DE PROCESOS"** justo arriba de "Generar
+  Orden", con una línea por proceso (`ENV · Envasado — Jose, Juan +2`). Cada tarjeta guarda su línea en
+  `dataset.resumen` y `actualizarResumenGlobal()` reconstruye el bloque (se llama al pintar, al quitar un
+  proceso, al agregar y al limpiar tras guardar). Cada tarjeta conserva solo "✏️ Editar / ▴ Listo" y "✕ Quitar".
+  Sin migración SQL. Pendiente: probar en el navegador.
+- Archivos tocados (lo último): `js/produccion.js`, `version.json`. A petición del usuario (captura: al cambiar
+  de centro se perdían las personas marcadas, y el resumen ocupaba mucho espacio): cada proceso ahora guarda su
+  selección en un **estado explícito** (`seleccion = {centro, empleados:Set}`) y se pinta desde ahí
+  (`pintarProceso`), así cambiar de centro nunca toca a las personas. Los avatares se marcan con un handler
+  propio (`preventDefault` sobre el `<label class="avatarEmpleado">`), y los checkboxes ocultos se sincronizan
+  desde el estado (siguen siendo lo que lee `recolectarProcesosDefinidos`). Resumen de UNA línea siempre visible
+  arriba de cada proceso ("ENV · Envasado — Jose, Juan +2"), con "✏️ Editar" / "▴ Listo" para mostrar u ocultar
+  el selector y "✕" para quitar el proceso. Sin migración SQL. Pendiente: probar en el navegador (marcar personas,
+  cambiar de centro varias veces, confirmar que las personas se conservan y que la orden guarda bien).
+- Archivos tocados (lo último): `js/produccion.js`, `version.json`. A petición del usuario (con captura: el
+  desplegable de proceso + el ✕ junto a él, más las tarjetas de centro, eran redundantes): **las 4 tarjetas de
+  centro son ahora el ÚNICO selector** de cada proceso. Se quitó el `<select>` de proceso del catálogo, su
+  "+ Otro proceso" y su ✕ de la fila. Al tocar una tarjeta el nombre del proceso se toma del catálogo
+  `procesos_produccion` ligado a ese centro (`centro_costo_id`), o del nombre del centro si ninguno está
+  ligado (p. ej. Acondicionamiento). "✕ Quitar proceso" pasó al pie del bloque, junto a "▾ minimizar". Si no
+  se elige centro, el proceso se guarda como "Proceso sin centro". Sin migración SQL. Pendiente: probar en el
+  navegador que la orden guarda el nombre correcto (Surtido de MP / Mezclado / Envasado) y el centro.
+- Archivos tocados (lo último): `js/produccion.js`, `version.json`. Bug/queja reportada con captura (dos
+  procesos "Envasado" en la misma orden, cada uno mostrando el grid completo de 4 tarjetas de centro + los
+  avatares de equipo): se hacía repetitivo y ocupaba mucho espacio verticalmente con varios procesos. Nuevo
+  botón **"▾ Ya elegí — minimizar"** al final del bloque Centro de costo + Equipo de trabajo de cada proceso:
+  lo colapsa a una sola línea de resumen ("ENV · Envasado — Jose, Juan, Michelle +2 más") con botón
+  "✏️ Editar" para volver a abrirlo. Es manual, no automático (elegido a propósito — auto-colapsar al marcar
+  el primer empleado habría estorbado para seguir marcando a los demás). Los checkboxes de empleados y el
+  input oculto del centro siguen existiendo tal cual mientras está colapsado (solo `display:none` vía
+  `hidden`), así que `recolectarProcesosDefinidos()` no se tocó — sigue leyendo lo mismo sin importar si el
+  bloque está minimizado o no. Sin migración SQL. Pendiente: probar en el navegador — minimizar/editar un
+  proceso, confirmar que el resumen muestra bien el centro y los nombres, y que "Generar Orden" sigue
+  guardando igual con un proceso minimizado.
 - Archivos tocados (lo último): `js/ordenes-produccion.js`, `js/produccion.js`, `version.json`. **Cierre automático de órdenes de producción, ENTREGA 1 de 3** (reportado: OP-000011 seguía "en_proceso" aunque los 3
   operadores ya habían pulsado "🏁 Finalizar tarea"; verificado con SQL: los 6 renglones con `finalizado_at` y 0 cronómetros abiertos — por diseño `ot_finalizar` solo cierra el cronómetro y marca la tarea del operador; la orden se cierra
   aparte con `cerrarOrdenDeProduccion`, que descuenta MP PEPS, costea, da entrada al terminado y genera póliza). El botón "🔒 Cerrar orden" SOLO existía en Producción → "⏱️ Órdenes en Proceso". Ahora también: en Órdenes de producción

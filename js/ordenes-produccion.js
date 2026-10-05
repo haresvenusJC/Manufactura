@@ -76,10 +76,10 @@ export async function cargarModuloOrdenesProduccion() {
 
 async function cargarOrdenes() {
     const tbody = document.getElementById('opTbody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="p-3 text-slate-500 text-xs italic">Cargando...</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="p-3 text-slate-500 text-xs italic">Cargando...</td></tr>';
 
     const columnas = `
-        id, folio, numero_lote, cantidad_producida, estado, abierta_at, created_at, faltantes_insumos,
+        id, folio, numero_lote, cantidad_producida, costo_unitario_final, estado, abierta_at, created_at, faltantes_insumos,
         producto_id, productos ( nombre, sku ),
         orden_produccion_procesos (
             id, proceso_nombre,
@@ -92,7 +92,7 @@ async function cargarOrdenes() {
             .order('created_at', { ascending: false }).limit(500));
     }
     if (error) {
-        if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="p-3 text-rose-400 text-xs">Error: ${error.message}</td></tr>`;
+        if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="p-3 text-rose-400 text-xs">Error: ${error.message}</td></tr>`;
         return;
     }
     ordenesCache = data || [];
@@ -136,6 +136,7 @@ function pintarTabla() {
         thOrden(ordenTabla, 'folio', 'Folio'),
         thOrden(ordenTabla, 'producto', 'Producto'),
         thOrden(ordenTabla, 'cantidad_producida', 'Cantidad', 'text-right justify-end'),
+        thOrden(ordenTabla, 'costo_unitario_final', 'Costo / pieza', 'text-right justify-end'),
         thOrden(ordenTabla, 'numero_lote', 'Lote'),
         thOrden(ordenTabla, 'estado', 'Estado'),
         thOrden(ordenTabla, 'created_at', 'Creada'),
@@ -176,6 +177,7 @@ function pintarTabla() {
                 <td class="p-3 font-mono text-amber-400">${folio}</td>
                 <td class="p-3 text-slate-200">${o.productos?.nombre || 'Producto'}</td>
                 <td class="p-3 text-right font-mono text-slate-300">${formatoCantidad(o.cantidad_producida)}</td>
+                <td class="p-3 text-right font-mono text-emerald-400">${Number(o.costo_unitario_final) > 0 ? '$' + Number(o.costo_unitario_final).toFixed(2) : '<span class="text-slate-600">—</span>'}</td>
                 <td class="p-3 text-slate-400">${o.numero_lote || 'S/L'}</td>
                 <td class="p-3">${badgeEstado(o.estado)}${o.estado === 'en_proceso' && todasLasTareasFinalizadas(o) ? '<div class="text-[10px] text-emerald-400 mt-1">✅ Todas las tareas finalizadas, falta cerrar la orden</div>' : ''}</td>
                 <td class="p-3 text-slate-500 text-xs">${creada}</td>
