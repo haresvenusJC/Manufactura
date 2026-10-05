@@ -4,6 +4,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/produccion.js`, `version.json`. A petición del usuario: el formulario "Generar
+  Orden de Producción" se compactó — producto, cantidad, tandas y lote con `px-2 py-1 text-xs` (antes `p-2 text-sm`),
+  espacios verticales y de tarjeta reducidos. El buscador de producto hereda la clase del select (`buscador-select.js`).
+  Sin migración SQL. Pendiente: revisar en el navegador.
 - Archivos tocados (lo último): `js/produccion.js`, `version.json`. A petición del usuario: se quitó la tabla
   "Historial General de Órdenes" de Producción → Historial (`contenedorHistorialProduccion`, `histProdOrden` y sus
   imports de `orden-tabla.js`). Se conservan el selector por folio, el detalle, 🖨️ Imprimir y "📄 Reporte completo"

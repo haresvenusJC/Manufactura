@@ -35,7 +35,7 @@ body[data-theme] {
 }
 /* ui-moderno define --ok-s en :root con el --ok base; aquí se recalcula con el del tema */
 body[data-theme] {
-    --ok-s: color-mix(in srgb, var(--ok) 62%, #04100b);
+    --ok-s: color-mix(in srgb, var(--ok) 80%, #04100b);
 }
 
 /* tema-base fuerza el color del texto con !important; cada guía dice cuál es el suyo con --doc-color */

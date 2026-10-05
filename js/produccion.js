@@ -540,36 +540,36 @@ export async function cargarModuloProduccion() {
 
         contenedorProd.innerHTML = `
             <div class="space-y-6 max-w-4xl mx-auto">
-                <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-xl">
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-xl">
                     <h3 class="text-lg font-semibold mb-1 text-amber-400 flex items-center gap-2">🧾 Generar Orden de Producción</h3>
                     <p class="text-xs text-slate-400 mb-4">Valida existencias y abre la orden en estado <b>"en proceso"</b>. Los tiempos de trabajo se registran desde la <b>Orden de Trabajo</b> en el celular; el inventario se descuenta (FIFO) al <b>cerrar</b> la orden.</p>
                     <div id="avisoPreseleccionProd" class="hidden mb-4 text-xs text-amber-200 bg-amber-950/30 border border-amber-800/60 rounded-lg px-3 py-2"></div>
-                    <form id="formOrdenProduccion" class="space-y-4">
+                    <form id="formOrdenProduccion" class="space-y-2.5">
+                        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_10rem_13rem] gap-3 items-start">
                         <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">PRODUCTO A PRODUCIR</label>
-                            <select id="productoProducirId" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
+                            <label class="flex items-end h-8 text-xs font-medium text-slate-400 mb-1">PRODUCTO A PRODUCIR</label>
+                            <select id="productoProducirId" class="w-full bg-slate-950 border border-slate-800 rounded-md px-2 py-1.5 text-sm text-slate-100" required>
                                 <option value="">Seleccione un producto...</option>
                             </select>
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <!-- Solo para productos con "Rendimiento del lote" (graneles): se pide en tandas y
                                      CANTIDAD A PRODUCIR se llena sola (tandas × rendimiento), y al revés. -->
                                 <div id="bloqueTandas" class="hidden mb-3">
                                     <label class="block text-xs font-medium text-amber-400 mb-1" title="Cuántas veces vas a preparar la fórmula del BOM. Una tanda rinde lo capturado en Catálogo → Más detalles → Rendimiento del lote.">TANDAS A PREPARAR <span class="text-slate-500 cursor-help">ⓘ</span></label>
-                                    <input type="number" id="tandasProducir" min="0" step="any" class="w-full bg-slate-950 border border-amber-800/60 rounded-lg p-2 text-sm text-slate-100">
+                                    <input type="number" id="tandasProducir" min="0" step="any" class="w-full bg-slate-950 border border-amber-800/60 rounded-md px-2 py-1.5 text-sm text-slate-100">
                                     <p id="notaTandas" class="text-[10px] text-slate-500 mt-0.5"></p>
                                 </div>
-                                <label class="block text-xs font-medium text-slate-400 mb-1" title="En la Unidad de Medida del producto (Catálogo). En un granel con Rendimiento del lote se llena sola al escribir las tandas.">CANTIDAD A PRODUCIR <span id="unidadCantidadProd" class="text-amber-400 font-semibold"></span> <span class="text-slate-500 cursor-help">ⓘ</span></label>
-                                <input type="number" id="cantidadProducida" min="0.0001" step="any" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
+                                <label class="flex items-end h-8 leading-tight text-xs font-medium text-slate-400 mb-1" title="En la Unidad de Medida del producto (Catálogo). En un granel con Rendimiento del lote se llena sola al escribir las tandas.">CANTIDAD A PRODUCIR <span id="unidadCantidadProd" class="text-amber-400 font-semibold"></span> <span class="text-slate-500 cursor-help">ⓘ</span></label>
+                                <input type="number" id="cantidadProducida" min="0.0001" step="any" class="w-20 bg-slate-950 border border-slate-800 rounded-md px-2 py-1.5 text-sm text-slate-100" required>
                                 <p id="notaCantidadProd" class="text-[10px] text-slate-500 mt-0.5">En la unidad del producto (pieza, litro, kilo…).</p>
                             </div>
                             <div>
-                                <div class="flex justify-between items-center mb-1">
-                                    <label class="block text-xs font-medium text-slate-400">NÚMERO DE LOTE RESULTANTE</label>
+                                <div class="flex justify-between items-end h-8 mb-1">
+                                    <label class="block text-xs font-medium text-slate-400">LOTE RESULTANTE</label>
                                     <button type="button" id="btnSugerirLote" title="Generar de nuevo a partir de hoy: LotDDD (día juliano) + CadMMAA (caducidad a 2 años)" class="text-[10px] text-amber-400 hover:text-amber-300 cursor-pointer">🎲 Sugerir</button>
                                 </div>
-                                <input type="text" id="numeroLoteResultante" placeholder="Ej: Lot264Cad0928" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
+                                <input type="text" id="numeroLoteResultante" placeholder="Ej: Lot264Cad0928" class="w-full bg-slate-950 border border-slate-800 rounded-md px-2 py-1.5 text-sm text-slate-100" required>
                             </div>
                         </div>
                         <div id="panelExistenciasBOM" class="hidden bg-slate-950 border border-slate-800 rounded-lg p-3">
@@ -905,17 +905,17 @@ export async function cargarModuloProduccion() {
                 const color = COLOR_CENTRO[c.codigo] || COLOR_CENTRO_DEFAULT;
                 const icono = ICONO_CENTRO[c.codigo] || ICONO_CENTRO_DEFAULT;
                 return `
-                <button type="button" class="tarjetaCentro flex flex-col items-center gap-1 p-2 rounded-xl border border-slate-800 bg-slate-900 hover:border-slate-700 transition" data-id="${c.id}" title="${(c.nombre || '').replace(/"/g, '&quot;')}">
-                    <span class="iconoTarjetaCentro w-8 h-8 rounded-lg grid place-items-center ${color.fondo} ${color.ico}">
+                <button type="button" class="group tarjetaCentro flex flex-col items-center gap-1 p-2 rounded-xl border border-slate-800 bg-slate-900 hover:border-slate-500 hover:bg-slate-800 hover:-translate-y-0.5 hover:shadow-lg transition-all duration-200" data-id="${c.id}" title="${(c.nombre || '').replace(/"/g, '&quot;')}">
+                    <span class="iconoTarjetaCentro w-8 h-8 rounded-lg grid place-items-center ${color.fondo} ${color.ico} group-hover:scale-150 transition-transform duration-200">
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icono}</svg>
                     </span>
                     <span class="textoTarjetaCentro text-[10px] font-bold text-slate-400">${c.codigo}</span>
                 </button>`;
             }).join('');
             const avataresEmpleados = listaEmpleados.map((e, i) => `
-                <label class="avatarEmpleado flex flex-col items-center gap-1 w-14 cursor-pointer select-none" title="${(e.nombre || '').replace(/"/g, '&quot;')} ($${Number(e.costo_hora).toFixed(2)}/hr)">
+                <label class="avatarEmpleado group flex flex-col items-center gap-1 w-14 cursor-pointer select-none hover:-translate-y-0.5 transition-transform duration-200" title="${(e.nombre || '').replace(/"/g, '&quot;')} ($${Number(e.costo_hora).toFixed(2)}/hr)">
                     <input type="checkbox" class="chkEmpleado hidden peer" value="${e.id}" data-costo-hora="${e.costo_hora}" data-nombre="${(e.nombre || '').replace(/"/g, '&quot;')}">
-                    <span class="relative w-9 h-9 rounded-full grid place-items-center text-[11px] font-bold text-white opacity-50 peer-checked:opacity-100 peer-checked:ring-2 peer-checked:ring-offset-2 peer-checked:ring-offset-slate-950 peer-checked:ring-emerald-400 ${COLOR_AVATAR[i % COLOR_AVATAR.length]}">
+                    <span class="relative w-9 h-9 rounded-full grid place-items-center text-[11px] font-bold text-white opacity-50 peer-checked:opacity-100 peer-checked:ring-2 peer-checked:ring-offset-2 peer-checked:ring-offset-slate-950 peer-checked:ring-emerald-400 group-hover:scale-150 group-hover:opacity-100 transition-all duration-200 ${COLOR_AVATAR[i % COLOR_AVATAR.length]}">
                         ${inicialesDe(e.nombre)}
                         <span class="hidden peer-checked:grid absolute -right-0.5 -bottom-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-slate-950 place-items-center">
                             <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
