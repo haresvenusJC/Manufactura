@@ -21,7 +21,7 @@ const cachePol = new Map();
 let pendiente = null;
 function rotular(el) {
     const p = cachePol.get(Number(el.dataset.polId));
-    el.textContent = p ? `${p.tipo} #${p.numero}` : 'ver póliza';
+    el.textContent = p ? (p.serie_folio || `${p.tipo} #${p.numero}`) : 'ver póliza';
     el.dataset.polLbl = '1';
 }
 // Texto "Egreso #34" de una póliza para mensajes y avisos (nunca el id interno). Si no se encuentra: "(sin número)".
@@ -31,12 +31,13 @@ export async function etiquetaPoliza(id) {
     if (!cachePol.has(id)) {
         try {
             const { supabaseClient } = await import('./supabase.js');
-            const { data } = await supabaseClient.from('polizas').select('id, tipo, numero').eq('id', id).maybeSingle();
-            if (data) cachePol.set(data.id, data);
+            let r = await supabaseClient.from('polizas').select('id, tipo, numero, serie_folio').eq('id', id).maybeSingle();
+            if (r.error) r = await supabaseClient.from('polizas').select('id, tipo, numero').eq('id', id).maybeSingle();   // sin sql/2026-11-08
+            if (r.data) cachePol.set(r.data.id, r.data);
         } catch (_) { /* sin etiqueta */ }
     }
     const p = cachePol.get(id);
-    return p ? `${p.tipo} #${p.numero}` : "(sin número)";
+    return p ? (p.serie_folio || `${p.tipo} #${p.numero}`) : "(sin número)";
 }
 async function rotularPolizas() {
     pendiente = null;
@@ -46,8 +47,9 @@ async function rotularPolizas() {
     if (faltan.length) {
         try {
             const { supabaseClient } = await import('./supabase.js');
-            const { data } = await supabaseClient.from('polizas').select('id, tipo, numero').in('id', faltan);
-            (data || []).forEach((p) => cachePol.set(p.id, p));
+            let r = await supabaseClient.from('polizas').select('id, tipo, numero, serie_folio').in('id', faltan);
+            if (r.error) r = await supabaseClient.from('polizas').select('id, tipo, numero').in('id', faltan);   // sin sql/2026-11-08
+            (r.data || []).forEach((p) => cachePol.set(p.id, p));
         } catch (_) { /* si falla se queda el #id */ }
     }
     els.forEach(rotular);

@@ -659,7 +659,7 @@ function renderFilaPoliza(p) {
     let html = `
         <tr class="pol-row border-b border-slate-900 hover:bg-slate-900/40 cursor-pointer ${p.estatus === 'cancelada' ? 'opacity-50' : ''}" data-id="${p.id}">
             <td class="p-2 whitespace-nowrap">${p.fecha}</td>
-            <td class="p-2 font-mono">${p.tipo} #${p.numero}</td>
+            <td class="p-2 font-mono">${p.serie_folio || `${p.tipo} #${p.numero}`}</td>
             <td class="p-2">${p.concepto || ''}</td>
             <td class="p-2 text-right font-mono">${money(total)}</td>
             <td class="p-2 ${estColor}">${p.estatus}</td>
@@ -2524,7 +2524,7 @@ window.rcVerPoliza = async function (polId) {
         cont.innerHTML = `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div class="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-center">
-                <h3 class="text-sm font-bold text-slate-200">Póliza ${pol.tipo} #${pol.numero} · ${pol.fecha}</h3>
+                <h3 class="text-sm font-bold text-slate-200">Póliza ${pol.serie_folio ? pol.serie_folio + " · " + pol.tipo : `${pol.tipo} #${pol.numero}`} · ${pol.fecha}</h3>
                 <button onclick="window.rcCerrarModalPoliza('${idModal}')" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2">&times;</button>
             </div>
             <div class="rc-pol-cuerpo p-5 space-y-3 overflow-y-auto text-sm">
@@ -2567,7 +2567,7 @@ window.rcVerPoliza = async function (polId) {
             </div>
         </div>`;
         cont.querySelector('.rc-pol-imprimir').onclick = () =>
-            imprimirConPlantilla('poliza', `Póliza ${pol.tipo} #${pol.numero} · ${pol.fecha}`, cont.querySelector('.rc-pol-cuerpo'), marcaDeEstatus(pol.estatus));
+            imprimirConPlantilla('poliza', `Póliza ${pol.serie_folio ? pol.serie_folio + " · " + pol.tipo : `${pol.tipo} #${pol.numero}`} · ${pol.fecha}`, cont.querySelector('.rc-pol-cuerpo'), marcaDeEstatus(pol.estatus));
     } catch (err) {
         cont.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 text-sm">
             <p class="text-rose-400">No se pudo cargar la póliza.<br>${err.message || err}</p>
