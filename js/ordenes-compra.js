@@ -89,6 +89,9 @@ export async function cargarModuloOrdenesCompra() {
             <input type="date" id="ocFechaEsp" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
           <div class="lg:w-28"><label class="block text-xs text-slate-400 mb-1">Moneda</label>
             <select id="ocMoneda" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optMon}</select></div>
+          <div id="ocBloqueTC" class="hidden lg:w-40"><label class="block text-xs text-slate-400 mb-1">Tipo de cambio</label>
+            <input type="number" step="0.0001" min="0" id="ocTipoCambio" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm font-mono text-slate-100">
+            <p id="ocTCFuente" class="text-[10px] text-slate-500 mt-0.5"></p></div>
           <div class="md:col-span-4 lg:basis-full lg:min-w-[240px]"><label class="block text-xs text-slate-400 mb-1">Notas</label>
             <input type="text" id="ocNotas" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
         </div>
@@ -134,6 +137,8 @@ export async function cargarModuloOrdenesCompra() {
     document.getElementById('ocFecha').value = hoyISO();
     const mxn = ocMonedas.find(m => m.codigo === 'MXN');
     if (mxn) document.getElementById('ocMoneda').value = mxn.id;
+    document.getElementById('ocMoneda').onchange = ocActualizarTipoCambio;
+    ocActualizarTipoCambio();
 
     ocWireFormulario();
     await ocRenderLista();
@@ -277,6 +282,32 @@ function ocRenderPartidas() {
 }
 window.ocQuitarPartida = (i) => { ocPartidasTemp.splice(i, 1); ocRenderPartidas(); };
 
+function ocEsMonedaExtranjera() {
+    const sel = document.getElementById('ocMoneda');
+    const texto = sel?.selectedOptions?.[0]?.textContent?.trim() || '';
+    return !!sel?.value && texto.toUpperCase() !== 'MXN';
+}
+
+// Trae el tipo de cambio del DOF al elegir una moneda distinta de MXN. Queda editable.
+async function ocActualizarTipoCambio() {
+    const bloque = document.getElementById('ocBloqueTC');
+    const input = document.getElementById('ocTipoCambio');
+    const fuente = document.getElementById('ocTCFuente');
+    const extranjera = ocEsMonedaExtranjera();
+    bloque.classList.toggle('hidden', !extranjera);
+    if (!extranjera || input.value) return;
+    fuente.textContent = 'Consultando el DOF...';
+    const { data, error } = await supabaseClient.functions.invoke('tipo-cambio-dof');
+    if (error || !data?.valor) {
+        fuente.textContent = 'No se pudo traer del DOF. Captúralo a mano.';
+        return;
+    }
+    input.value = data.valor;
+    input.dataset.valorDof = String(data.valor);
+    input.dataset.fecha = data.fecha;
+    fuente.textContent = `DOF · fecha ${data.fecha} · consultado ${new Date(data.consultado_at).toLocaleTimeString('es-MX')} · puedes cambiarlo`;
+}
+
 async function ocGuardarOrden() {
     const msg = document.getElementById('ocMsg');
     msg.textContent = ''; msg.className = 'text-xs mt-2 min-h-[1rem]';
@@ -292,6 +323,15 @@ async function ocGuardarOrden() {
             fecha: document.getElementById('ocFecha').value || hoyISO(),
             fecha_esperada: document.getElementById('ocFechaEsp').value || null,
             moneda_id: document.getElementById('ocMoneda').value ? parseInt(document.getElementById('ocMoneda').value) : null,
+            ...(ocEsMonedaExtranjera() && document.getElementById('ocTipoCambio').value ? (() => {
+                const input = document.getElementById('ocTipoCambio');
+                const cambiado = input.dataset.valorDof !== input.value;
+                return {
+                    tipo_cambio: Number(input.value),
+                    tipo_cambio_fuente: input.dataset.valorDof ? (cambiado ? 'captura manual (DOF de referencia distinto)' : 'DOF') : 'captura manual',
+                    tipo_cambio_fecha: input.dataset.fecha || hoyISO(),
+                };
+            })() : {}),
             estatus: 'abierta',
             notas: document.getElementById('ocNotas').value.trim() || null,
         }]).select('id, folio').single();

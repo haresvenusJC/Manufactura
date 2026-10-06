@@ -4,6 +4,14 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/ordenes-compra.js`, `supabase/functions/tipo-cambio-dof/index.ts` (nuevo),
+  `sql/2026-10-06_oc_tipo_cambio.sql` (nuevo), `version.json`. **Tipo de cambio en la OC**: al elegir una moneda
+  distinta de MXN, `tipo-cambio-dof` (Edge Function) lee la caja de Indicadores de https://www.dof.gob.mx y llena
+  `ocTipoCambio`, que es editable; se guarda en `ordenes_compra.tipo_cambio` con `tipo_cambio_fuente` ("DOF" o
+  "captura manual") y `tipo_cambio_fecha`. Si el DOF no responde, el campo queda para captura manual. Pendiente:
+  correr `sql/2026-10-06_oc_tipo_cambio.sql`, desplegar la función (`supabase functions deploy tipo-cambio-dof`) y
+  probar una OC en USD. Regla de fecha (FIX del día anterior vs del día) pendiente de confirmar con contador.
+
 - Archivos tocados (lo último): `js/pagos-proveedor.js`, `js/ordenes-compra.js`, `js/produccion.js`, `version.json`,
   `sql/2026-10-05_series_3_letras.sql` (nuevo), `sql/2026-10-05_acuerdo_pago_parcial.sql` (nuevo). **Fecha de corte
   2026-10-05.** Series de documentos nuevas: OC→**ODC**, PROD→**ODP** (cierre de producción), DEVCLI→**DCL**,
