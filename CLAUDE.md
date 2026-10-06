@@ -4,6 +4,14 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/requisiciones-compra.js`, `version.json`. **MOQ en la requisición** (a petición del usuario: no pedir solo lo
+  que necesita la orden). Aplica a toda requisición precargada (desde orden de producción, pedido o Tareas): `reqCargarCatalogos` trae
+  `productos.cantidad_minima_compra`; si el faltante es menor al MOQ, la partida se precarga con el MOQ y guarda `necesario` (lo que pidió la orden).
+  Cada partida con producto muestra su aviso (`reqHtmlMoq`): sin MOQ → "⚠ Sin MOQ capturado" + campo y "Guardar MOQ" (escribe en `productos`, sube las
+  partidas del mismo producto al MOQ y sigue en la misma requisición, `window.reqGuardarMoq`); cantidad < MOQ → botón "Pedir X" (`reqPedirMoq`);
+  ≥ MOQ → "✓ MOQ" con el sobrante. Solo MOQ (sin múltiplos), editable. La cantidad se sigue pudiendo bajar a mano. Sin migración SQL. El MOQ está en la
+  unidad de inventario del producto (misma que la partida). Pendiente: probar en el navegador con una orden cuyo faltante sea menor al MOQ y con un
+  insumo sin MOQ (capturarlo ahí mismo).
 - Archivos tocados (lo último): `js/ordenes-compra.js`, `supabase/functions/tipo-cambio-dof/index.ts` (nuevo),
   `sql/2026-10-06_oc_tipo_cambio.sql` (nuevo), `version.json`. **Tipo de cambio en la OC**: al elegir una moneda
   distinta de MXN, `tipo-cambio-dof` (Edge Function) lee la caja de Indicadores de https://www.dof.gob.mx y llena

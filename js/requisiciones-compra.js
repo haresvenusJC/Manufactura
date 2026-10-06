@@ -70,9 +70,66 @@ async function reqCargarCatalogos() {
     reqMonedas = mo.data || [];
 
     const pr = await supabaseClient.from('productos')
-        .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id').order('nombre');
+        .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id, cantidad_minima_compra').order('nombre');
     reqProductos = pr.data || [];
 }
+
+// MOQ (cantidad mínima de compra) vigente del producto, 0 si no está capturado.
+function reqMoqDe(productoId) {
+    const p = productoId ? reqProductos.find((x) => x.id === Number(productoId)) : null;
+    const m = Number(p && p.cantidad_minima_compra);
+    return m > 0 ? m : 0;
+}
+
+// Aviso de MOQ de una partida (se repinta solo en .req-moq, sin tocar los demás campos).
+function reqHtmlMoq(p, i) {
+    if (!p.productoId) return '';
+    const moq = reqMoqDe(p.productoId);
+    const u = esc(p.unidadNombre || '');
+    const cant = Number(p.cantidad || 0);
+    if (!moq) {
+        return `<div class="mt-1 text-[10px] text-amber-300">⚠ Sin MOQ capturado — el proveedor tal vez no venda solo lo que pide la orden.
+            <span class="block mt-1"><input type="number" step="any" min="0" placeholder="MOQ (${u})" class="req-part-moq w-24 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-right font-mono text-slate-100">
+            <button type="button" onclick="window.reqGuardarMoq(${i})" class="ml-1 bg-sky-800 hover:bg-sky-700 text-white rounded px-2 py-0.5 cursor-pointer">Guardar MOQ</button></span></div>`;
+    }
+    const necesita = p.necesario != null && p.necesario < moq ? ` La orden necesita ${formatoNum(p.necesario)} ${u}.` : '';
+    if (cant < moq) {
+        return `<div class="mt-1 text-[10px] text-amber-300">⚠ MOQ ${formatoNum(moq)} ${u}: pides ${formatoNum(cant)}.${necesita}
+            <button type="button" onclick="window.reqPedirMoq(${i})" class="ml-1 bg-amber-800 hover:bg-amber-700 text-white rounded px-2 py-0.5 cursor-pointer">Pedir ${formatoNum(moq)}</button></div>`;
+    }
+    const sobra = Number((cant - (p.necesario != null ? p.necesario : cant)).toFixed(4));
+    return `<div class="mt-1 text-[10px] text-emerald-400">✓ MOQ ${formatoNum(moq)} ${u}${necesita && sobra > 0 ? ` —${necesita} Sobran ${formatoNum(sobra)} ${u} (quedan en stock).` : ''}</div>`;
+}
+const formatoNum = (n) => Number(Number(n).toFixed(4)).toLocaleString('es-MX', { maximumFractionDigits: 4 });
+
+window.reqPedirMoq = (i) => {
+    const p = reqPartidasTemp[i];
+    if (!p) return;
+    if (p.necesario == null) p.necesario = p.cantidad;
+    p.cantidad = reqMoqDe(p.productoId);
+    reqRenderPartidas();
+};
+
+// Captura el MOQ ahí mismo (productos.cantidad_minima_compra) y sigue con la requisición.
+window.reqGuardarMoq = async (i) => {
+    const p = reqPartidasTemp[i];
+    const tr = document.querySelector(`#reqPartidasBody tr[data-idx="${i}"]`);
+    const inp = tr && tr.querySelector('.req-part-moq');
+    const moq = inp ? parseFloat(inp.value) : NaN;
+    if (!p || !p.productoId || !(moq > 0)) { alert('Escribe un MOQ mayor a 0.'); return; }
+    const { error } = await supabaseClient.from('productos').update({ cantidad_minima_compra: moq }).eq('id', p.productoId);
+    if (error) { alert('No se pudo guardar el MOQ: ' + error.message); return; }
+    const prod = reqProductos.find((x) => x.id === Number(p.productoId));
+    if (prod) prod.cantidad_minima_compra = moq;
+    // Otras partidas del mismo producto quedan cubiertas por el mismo MOQ.
+    reqPartidasTemp.forEach((q) => {
+        if (q.productoId === p.productoId && Number(q.cantidad || 0) < moq) {
+            if (q.necesario == null) q.necesario = q.cantidad;
+            q.cantidad = moq;
+        }
+    });
+    reqRenderPartidas();
+};
 
 export async function cargarModuloRequisicionesCompra() {
     const cont = document.getElementById('contenedorRequisicionesCompra');
@@ -179,7 +236,11 @@ async function reqAplicarPreseleccion() {
         for (const item of preMulti) {
             const p = reqProductos.find((x) => x.id === Number(item.id));
             if (!p || !(item.cantidad > 0)) continue;
-            await reqAgregarPartida({ productoId: p.id, nombre: p.nombre, cantidad: item.cantidad, unidadId: p.unidad_medida_id || null, proveedorId: p.proveedor_id || null, tareaId: item.tareaId || null });
+            // Con MOQ capturado, lo que pide la orden se sube al MOQ (no se compra menos de lo que el proveedor vende);
+            // `necesario` conserva lo que pidió la orden para el aviso y el sobrante.
+            const moq = reqMoqDe(p.id);
+            const sube = moq > 0 && item.cantidad < moq;
+            await reqAgregarPartida({ productoId: p.id, nombre: p.nombre, cantidad: sube ? moq : item.cantidad, unidadId: p.unidad_medida_id || null, proveedorId: p.proveedor_id || null, tareaId: item.tareaId || null, necesario: item.cantidad });
         }
         reqRenderPartidas();
         document.getElementById('reqNotas').value = notasPre || 'Generada desde Tareas: inventario bajo mínimo (agrupada por proveedor).';
@@ -300,7 +361,7 @@ function reqWireFormulario() {
 // Agrega una partida a reqPartidasTemp (no repinta ni limpia el formulario —
 // eso lo hace quien la llama). Compartida entre el botón "Agregar partida" y
 // la preselección masiva desde Tareas (reqAplicarPreseleccion).
-async function reqAgregarPartida({ productoId, nombre, cantidad, unidadId, proveedorId, tareaId = null }) {
+async function reqAgregarPartida({ productoId, nombre, cantidad, unidadId, proveedorId, tareaId = null, necesario = null }) {
     const prod = productoId ? reqProductos.find((x) => x.id === Number(productoId)) : null;
     const uNom = reqUnidades.find((u) => u.id === unidadId)?.nombre || '';
     const provNom = reqProveedores.find((p) => p.id === proveedorId)?.nombre || '';
@@ -329,6 +390,7 @@ async function reqAgregarPartida({ productoId, nombre, cantidad, unidadId, prove
         skuInterno: prod ? (prod.sku || '') : '',
         nombre,
         cantidad,
+        necesario,
         costo: prod ? Number(prod.costo_unitario || 0) : 0,
         unidadId,
         unidadNombre: uNom,
@@ -382,6 +444,7 @@ function reqRenderPartidas() {
             <td class="p-2 text-slate-100">
                 ${esc(p.nombre)}${p.productoId ? '' : ' <span class="text-[10px] text-amber-400">(nuevo)</span>'}
                 ${p.skuInterno ? `<span class="block text-[10px] text-slate-500 font-mono">SKU ${esc(p.skuInterno)}</span>` : ''}
+                <div class="req-moq">${reqHtmlMoq(p, i)}</div>
             </td>
             <td class="p-2 text-right">
                 <input type="number" step="any" min="0" class="req-part-cant w-20 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-right font-mono text-slate-100" value="${p.cantidad}">
@@ -412,7 +475,11 @@ function reqRenderPartidas() {
         };
         cantInp.addEventListener('input', actualizarImporte);
         costoInp.addEventListener('input', actualizarImporte);
-        cantInp.addEventListener('change', () => { reqPartidasTemp[i].cantidad = parseFloat(cantInp.value) || 0; });
+        cantInp.addEventListener('change', () => {
+            reqPartidasTemp[i].cantidad = parseFloat(cantInp.value) || 0;
+            const caja = tr.querySelector('.req-moq');
+            if (caja) caja.innerHTML = reqHtmlMoq(reqPartidasTemp[i], i);
+        });
         costoInp.addEventListener('change', () => { reqPartidasTemp[i].costo = parseFloat(costoInp.value) || 0; });
     });
 }
