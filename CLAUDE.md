@@ -4,6 +4,19 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `js/ordenes-compra.js`, `js/produccion.js`, `version.json`,
+  `sql/2026-10-05_series_3_letras.sql` (nuevo), `sql/2026-10-05_acuerdo_pago_parcial.sql` (nuevo). **Fecha de corte
+  2026-10-05.** Series de documentos nuevas: OC→**ODC**, PROD→**ODP** (cierre de producción), DEVCLI→**DCL**,
+  DEVPROV→**DPV** (contadores nuevos desde 000001; los folios anteriores no se renombran). Las órdenes de
+  producción siguen en OP y las demás series ya eran de 3 letras. **Pagos a proveedores (maqueta v2):** un pago =
+  un proveedor (la selección bloquea a los demás); "Pagar selección" abre una ventana con Pago total (saldo, no
+  editable) o Pago parcial (un solo documento, monto editable, acuerdo obligatorio); el acuerdo se guarda en
+  `pagos_proveedor.acuerdo_proveedor` vía `pago_proveedor_set_acuerdo`. Quitada la columna de monto por fila y el
+  bloque superior de cuenta/forma/referencia (ahora están en la ventana). **Pendiente de decisión:** el caso
+  anticipo (OC sin recibir) sigue por el botón "💰 Pagar anticipo a una OC" y NO se detecta solo; la "deuda por
+  recepción" sigue por revisar. Pendiente: correr ambos SQL en Supabase (en este orden: series, luego acuerdo);
+  probar la ventana de pago total y parcial; confirmar que `ODC-000001` sale como primer folio nuevo.
+
 - Archivos tocados (lo último): `js/produccion.js`, `version.json`. A petición del usuario: el formulario "Generar
   Orden de Producción" se compactó — producto, cantidad, tandas y lote con `px-2 py-1 text-xs` (antes `p-2 text-sm`),
   espacios verticales y de tarjeta reducidos. El buscador de producto hereda la clase del select (`buscador-select.js`).

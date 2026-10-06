@@ -1473,7 +1473,7 @@ export async function cerrarOrdenDeProduccion(ordenId, cantidadReal = null) {
         // transformación de inventario -una sola póliza-, así que al póliza que
         // genera contabilizar_produccion() se le liga también el documento de
         // salida (ver más abajo) en vez de duplicar el asiento.
-        const folioBase = await siguienteFolio('PROD');   // consecutivo: PROD-000001, PROD-000002...
+        const folioBase = await siguienteFolio('ODP');   // consecutivo desde 2026-10-05: ODP-000001, ODP-000002...
         const { data: docSalida, error: errDocSalida } = await supabaseClient
             .from('documentos')
             .insert([{

@@ -285,7 +285,7 @@ async function ocGuardarOrden() {
     const btn = document.getElementById('ocGuardar');
     btn.disabled = true;
     try {
-        const folio = await siguienteFolio('OC');   // consecutivo: OC-000001, OC-000002...
+        const folio = await siguienteFolio('ODC');   // consecutivo desde 2026-10-05: ODC-000001, ODC-000002...
         const { data: oc, error: e1 } = await supabaseClient.from('ordenes_compra').insert([{
             folio,
             proveedor_id: document.getElementById('ocProveedor').value ? parseInt(document.getElementById('ocProveedor').value) : null,
