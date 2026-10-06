@@ -953,9 +953,9 @@ window.reqAutorizar = async (id) => {
             btn.disabled = false;
             return;
         }
-        const ocFolio = Array.isArray(data) ? data[0]?.oc_folio : data?.oc_folio;
+        const ocId = Array.isArray(data) ? data[0]?.oc_id : data?.oc_id;
         cerrar();
-        alert(`Requisición autorizada. Se creó la Orden de compra ${ocFolio || ''}.`);
-        await reqRenderLista();
+        window.__ocAbrirTras = ocId;
+        window.loadView('ordenes-compra');
     };
 };

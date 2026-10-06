@@ -137,11 +137,18 @@ export async function cargarModuloOrdenesCompra() {
     document.getElementById('ocFecha').value = hoyISO();
     const mxn = ocMonedas.find(m => m.codigo === 'MXN');
     if (mxn) document.getElementById('ocMoneda').value = mxn.id;
-    document.getElementById('ocMoneda').onchange = ocActualizarTipoCambio;
-    ocActualizarTipoCambio();
+    document.getElementById('ocMoneda').onchange = () => ocActualizarTipoCambio(OC_TC_IDS);
+    ocActualizarTipoCambio(OC_TC_IDS);
 
     ocWireFormulario();
     await ocRenderLista();
+
+    // Viene de "Autorizar y crear Orden de compra" en Requisiciones: abre esa OC directo.
+    if (window.__ocAbrirTras) {
+        const id = window.__ocAbrirTras;
+        window.__ocAbrirTras = null;
+        abrirDetalleOC(Number(id));
+    }
 }
 
 function ocWireFormulario() {
@@ -282,18 +289,21 @@ function ocRenderPartidas() {
 }
 window.ocQuitarPartida = (i) => { ocPartidasTemp.splice(i, 1); ocRenderPartidas(); };
 
-function ocEsMonedaExtranjera() {
-    const sel = document.getElementById('ocMoneda');
+const OC_TC_IDS = { sel: 'ocMoneda', bloque: 'ocBloqueTC', input: 'ocTipoCambio', fuente: 'ocTCFuente' };
+const OCE_TC_IDS = { sel: 'oceMoneda', bloque: 'oceBloqueTC', input: 'oceTipoCambio', fuente: 'oceTCFuente' };
+
+function ocEsMonedaExtranjera(ids = OC_TC_IDS) {
+    const sel = document.getElementById(ids.sel);
     const texto = sel?.selectedOptions?.[0]?.textContent?.trim() || '';
     return !!sel?.value && texto.toUpperCase() !== 'MXN';
 }
 
 // Trae el tipo de cambio del DOF al elegir una moneda distinta de MXN. Queda editable.
-async function ocActualizarTipoCambio() {
-    const bloque = document.getElementById('ocBloqueTC');
-    const input = document.getElementById('ocTipoCambio');
-    const fuente = document.getElementById('ocTCFuente');
-    const extranjera = ocEsMonedaExtranjera();
+async function ocActualizarTipoCambio(ids = OC_TC_IDS) {
+    const bloque = document.getElementById(ids.bloque);
+    const input = document.getElementById(ids.input);
+    const fuente = document.getElementById(ids.fuente);
+    const extranjera = ocEsMonedaExtranjera(ids);
     bloque.classList.toggle('hidden', !extranjera);
     if (!extranjera || input.value) return;
     fuente.textContent = 'Consultando el DOF...';
@@ -523,14 +533,14 @@ async function abrirDetalleOC(id) {
 
     let { data: o, error } = await supabaseClient
         .from('ordenes_compra')
-        .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, created_at, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, productos ( nombre, sku ) )')
+        .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, tipo_cambio, tipo_cambio_fuente, tipo_cambio_fecha, created_at, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, productos ( nombre, sku ) )')
         .eq('id', id)
         .single();
     if (error && /does not exist|schema cache|could not find/i.test(error.message || '')) {
         // columnas de datos del proveedor aún no existen: cae al select sin ellas.
         ({ data: o, error } = await supabaseClient
             .from('ordenes_compra')
-            .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, created_at, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, productos ( nombre, sku ) )')
+            .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, tipo_cambio, tipo_cambio_fuente, tipo_cambio_fecha, created_at, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, productos ( nombre, sku ) )')
             .eq('id', id)
             .single());
     }
@@ -651,6 +661,9 @@ function renderEdicionOC(o, cuerpo) {
                 <select id="oceProveedor" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optProv}</select></div>
             <div class="lg:w-28"><label class="block text-xs text-slate-400 mb-1">Moneda</label>
                 <select id="oceMoneda" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optMon}</select></div>
+            <div id="oceBloqueTC" class="${(ocMonedas.find(m => m.id === o.moneda_id)?.codigo || 'MXN') !== 'MXN' ? '' : 'hidden'} lg:w-40"><label class="block text-xs text-slate-400 mb-1">Tipo de cambio</label>
+                <input type="number" step="0.0001" min="0" id="oceTipoCambio" value="${o.tipo_cambio ?? ''}" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm font-mono text-slate-100">
+                <p id="oceTCFuente" class="text-[10px] text-slate-500 mt-0.5">${o.tipo_cambio_fuente ? esc(o.tipo_cambio_fuente) : ''}</p></div>
             <div class="lg:w-40"><label class="block text-xs text-slate-400 mb-1">Fecha</label>
                 <input type="date" id="oceFecha" value="${o.fecha || ''}" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
             <div class="lg:w-40"><label class="block text-xs text-slate-400 mb-1">Fecha esperada</label>
@@ -794,6 +807,8 @@ function renderEdicionOC(o, cuerpo) {
         renderVistaOC(o, cuerpo);
     };
 
+    cuerpo.querySelector('#oceMoneda').onchange = () => ocActualizarTipoCambio(OCE_TC_IDS);
+
     cuerpo.querySelector('#oceGuardar').onclick = async () => {
         const msg = cuerpo.querySelector('#oceMsg');
         if (!partidas.length) { msg.textContent = 'La orden debe tener al menos una partida.'; msg.className = 'text-xs mb-2 text-rose-400'; return; }
@@ -806,6 +821,15 @@ function renderEdicionOC(o, cuerpo) {
                 fecha_esperada: cuerpo.querySelector('#oceFechaEsp').value || null,
                 moneda_id: cuerpo.querySelector('#oceMoneda').value ? parseInt(cuerpo.querySelector('#oceMoneda').value) : null,
                 notas: cuerpo.querySelector('#oceNotas').value.trim() || null,
+                ...(ocEsMonedaExtranjera(OCE_TC_IDS) && cuerpo.querySelector('#oceTipoCambio').value ? (() => {
+                    const input = cuerpo.querySelector('#oceTipoCambio');
+                    const cambiado = input.dataset.valorDof !== input.value;
+                    return {
+                        tipo_cambio: Number(input.value),
+                        tipo_cambio_fuente: input.dataset.valorDof ? (cambiado ? 'captura manual (DOF de referencia distinto)' : 'DOF') : (o.tipo_cambio_fuente || 'captura manual'),
+                        tipo_cambio_fecha: input.dataset.fecha || o.tipo_cambio_fecha || hoyISO(),
+                    };
+                })() : { tipo_cambio: null, tipo_cambio_fuente: null, tipo_cambio_fecha: null }),
             }).eq('id', o.id);
             if (eUpd) throw eUpd;
 

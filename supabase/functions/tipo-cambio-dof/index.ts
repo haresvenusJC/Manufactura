@@ -13,9 +13,20 @@ const json = (body: unknown, status = 200) =>
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
     try {
-        const res = await fetch('https://www.dof.gob.mx/', { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        if (!res.ok) return json({ error: `El DOF respondió ${res.status}` }, 502);
-        const html = await res.text();
+        const urls = ['https://dof.gob.mx/', 'https://www.dof.gob.mx/'];
+        let html = '';
+        let ultimoError = '';
+        for (const url of urls) {
+            try {
+                const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+                if (!res.ok) { ultimoError = `${url} respondió ${res.status}`; continue; }
+                html = await res.text();
+                break;
+            } catch (e) {
+                ultimoError = `${url}: ${String(e)}`;
+            }
+        }
+        if (!html) return json({ error: `No se pudo leer el DOF (${ultimoError})` }, 502);
         const texto = html
             .replace(/<script[\s\S]*?<\/script>/gi, ' ')
             .replace(/<style[\s\S]*?<\/style>/gi, ' ')
