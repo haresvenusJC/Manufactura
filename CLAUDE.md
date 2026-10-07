@@ -1219,3 +1219,12 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - Evaluar si extender el buscador de selects a otras pantallas (Salidas, Órdenes de compra, alta de BOM).
 - Subventanas: ya movibles y con fondo semitransparente todas las detectadas; una nueva queda cubierta sola si usa
   `fixed inset-0` (fondo + panel) o `fixed rounded-2xl` (flotante) y su barra de título es el primer hijo del panel.
+- **Compras y pagos — pendiente de aprobar (plan en la conversación del 2026-10-06, NO ejecutado):**
+  1. Quitar "Recibo de mercancía" del menú Compras (`index.html:253`, `js/indice.js`, `js/bienvenida.js:27`); se conserva la lista de Pre-recibos (`rmPreRecibos`). Quitar Condición, Forma de pago, Método de pago, Uso CFDI y Cuenta de pago de `rmConfirmar` / `rmContabilizarDoc`.
+  2. La póliza se genera al VALIDAR el pre-recibo contra la ODC (no al capturar la recepción). `contabilizar_compra` siempre pasa por 201.01 y aplica el anticipo por FIFO: Cargo 115.01 + IVA / Abono 109.01 (anticipo aplicado) / Abono 201.01 (resto). Pendiente: regla de IVA 118.01 vs 119.01 con el contador.
+  3. Notas de crédito/cargo ligadas a la recepción, folios `NDC` (crédito: Cargo 201.01 / Abono 115.01 + IVA) y `NDP` (cargo: Cargo 115.01 / Abono 201.01 + IVA). Se registran al validar. Tablas `notas_compra` y `notas_compra_detalle`, RPC `registrar_nota_compra` / `cancelar_nota_compra`, trigger que no permite NDC mayor a lo recibido.
+  4. Rechazo de mercancía por partida: Aceptada / Rechazada / Aceptada con merma. Motivos: dañada en transporte, caducada, fuera de especificación, empaque roto, excedente, producto distinto, Otro (texto obligatorio). Rechazada no entra a inventario ni se paga (NDC si la factura la trae); merma dañada se da de baja a gasto (cuenta a definir con el contador), no al costo pactado.
+  5. Pago solo desde Cuentas por pagar (Finanzas), y solo de documentos validados por Compras. Quitar 102.02 (USD) de las cuentas de pago: la empresa no tiene cuenta en USD. `v_cuentas_por_pagar` debe restar las NDC activas.
+  Pendiente de decisión: cuenta de merma (contador), regla IVA del anticipo, folios NDC/NDP.
+  Corrección pendiente de diagnóstico: Egreso #69 (OC-000001) abona 102.02 por $1,866.99; revisar con el banco si salió en MXN y reclasificar a 102.01.
+  Pendiente de diagnóstico: AJU-000001 "Ajuste de saldos" por $27,553.24 (Diario #33); Egreso #67 "Pago compra F-2407" por $16,946 (confirmar con estado de cuenta si salió realmente).
