@@ -1,5 +1,7 @@
 # Hares de México — guía para trabajar en este repo
 
+> **Al iniciar sesión:** antes de cualquier otra cosa, muestra al usuario los pendientes de la sección Pendiente de este archivo (en viñetas cortas, sin detalle técnico) y pregunta por cuál quiere empezar. No ejecutes ninguno sin su confirmación.
+
 Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwind CDN.
 
 ## Última sesión
