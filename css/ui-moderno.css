@@ -561,3 +561,131 @@ span.rounded-full[class*="bg-"] { box-shadow: inset 0 0 0 1px color-mix(in srgb,
 }
 [data-theme="macos-dark"] .bv-tile:hover { transform: translateY(-2px); border-color: var(--bd-2); }
 [data-theme="macos-dark"] .bv-tile .ico { background-image: none; background-color: color-mix(in srgb, currentColor 16%, transparent); box-shadow: none; }
+
+/* =====================================================================
+   Tema "Claro Ice" (data-theme="claro-ice") — paleta y tipografía de la
+   maqueta de Cuentas por pagar v2 (https://claude.ai/artifact/PeKAi5Wsp4VdokSwZzMDoi):
+   fondo azul marino casi negro, tarjetas azul-grisáceo, acento azul hielo,
+   tipografía IBM Plex Sans/Mono (link en index.html). Mismas reglas de
+   forma que macos/macos-dark (sin degradados, sin botones 3D, esquinas
+   suaves 9-12px) — solo cambia paleta y tipografía. Todo cuelga de
+   [data-theme="claro-ice"].
+   ===================================================================== */
+[data-theme="claro-ice"] {
+    color-scheme: dark;
+    --bg-0:#0a0f1f; --bg-1:#111933; --bg-2:#172245; --bg-3:#1f2b52; --soft:#0d1428;
+    --bd-0:#1b2650; --bd-1:#25325f; --bd-2:#324173;
+    --tx-0:#e9edfa; --tx-1:#d7ddf0; --tx-2:#c3cbe6; --tx-3:#95a1c6; --tx-4:#6b779f; --tx-5:#4f5c86;
+    --acc:#5ea8ff; --acc-2:#8fc4ff; --ind:#8fb7ff; --acc-3:#8fb7ff;
+    --ok:#4fd6a4; --bad:#ff8294; --warn:#f2bb4d; --err:#ff8294; --chip:#16203f;
+    --acc-s:#5ea8ff; --ok-s:#4fd6a4; --ind-s:#8fb7ff; --bad-s:#ff8294; --wrn-s:#f2bb4d;
+    --acc-h:#8fc4ff; --ok-h:#6fe0b8; --ind-h:#a9c9ff; --bad-h:#ff9fae; --wrn-h:#f6cb73;
+    --r-sm: 8px; --r-md: 12px; --r-lg: 14px;
+    --sh-1: 0 0 0 .5px rgba(0, 0, 0, .5), 0 1px 3px rgba(0, 0, 0, .4), 0 6px 20px -8px rgba(0, 0, 0, .5);
+    --sh-2: 0 0 0 .5px rgba(0, 0, 0, .6), 0 24px 60px -16px rgba(0, 0, 0, .7);
+    --in-sh: none;
+    --btn-drop: rgba(0, 0, 0, .5);
+}
+[data-theme="claro-ice"] body {
+    font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background-image: none;
+    letter-spacing: -0.003em;
+}
+[data-theme="claro-ice"] .font-mono, [data-theme="claro-ice"] input.font-mono,
+[data-theme="claro-ice"] td.font-mono, [data-theme="claro-ice"] span.font-mono,
+[data-theme="claro-ice"] [class*="font-mono"] { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace; }
+[data-theme="claro-ice"] ::selection { background: rgba(94, 168, 255, .3); }
+[data-theme="claro-ice"] h2.text-xl {
+    background-image: none; -webkit-text-fill-color: var(--tx-0); color: var(--tx-0) !important;
+    font-weight: 700; letter-spacing: -0.015em;
+}
+
+/* Tarjetas: azul marino, línea finísima y sombra oscura (sin borde degradado). */
+[data-theme="claro-ice"] .bg-slate-900.border:not(input):not(select):not(textarea):not(button):not(span) {
+    background-image: none;
+    background-color: var(--bg-1) !important;
+    border-color: var(--bd-1) !important;
+    box-shadow: var(--sh-1);
+}
+[data-theme="claro-ice"] .fixed > .bg-slate-900.border, [data-theme="claro-ice"] .fixed.bg-slate-900.border { box-shadow: var(--sh-2); }
+
+/* Botones: esquina suave (no píldora), planos. */
+[data-theme="claro-ice"] button:not(.text-left):not(.w-full):not([class*="border-b-2"]):not(.th-orden) { border-radius: 9px !important; }
+[data-theme="claro-ice"] button.w-full:not(.text-left) { border-radius: 10px !important; }
+[data-theme="claro-ice"] button.text-left { border-radius: 10px !important; }
+[data-theme="claro-ice"] button:focus-visible, [data-theme="claro-ice"] a:focus-visible { outline: 3px solid rgba(94, 168, 255, .45); outline-offset: 1px; }
+
+[data-theme="claro-ice"] button[class*="bg-emerald-"], [data-theme="claro-ice"] button[class*="bg-sky-"],
+[data-theme="claro-ice"] button[class*="bg-indigo-"], [data-theme="claro-ice"] button[class*="bg-rose-"],
+[data-theme="claro-ice"] button[class*="bg-red-"], [data-theme="claro-ice"] button[class*="bg-amber-"] {
+    background-image: none !important;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, .4) !important;
+    text-shadow: none !important;
+    color: #fff;
+    font-weight: 500;
+}
+[data-theme="claro-ice"] button:not([disabled])[class*="bg-emerald-"]:hover, [data-theme="claro-ice"] button:not([disabled])[class*="bg-sky-"]:hover,
+[data-theme="claro-ice"] button:not([disabled])[class*="bg-indigo-"]:hover, [data-theme="claro-ice"] button:not([disabled])[class*="bg-rose-"]:hover,
+[data-theme="claro-ice"] button:not([disabled])[class*="bg-red-"]:hover, [data-theme="claro-ice"] button:not([disabled])[class*="bg-amber-"]:hover {
+    transform: none; filter: brightness(1.12);
+}
+[data-theme="claro-ice"] button:not([disabled])[class*="bg-emerald-"]:active, [data-theme="claro-ice"] button:not([disabled])[class*="bg-sky-"]:active,
+[data-theme="claro-ice"] button:not([disabled])[class*="bg-indigo-"]:active, [data-theme="claro-ice"] button:not([disabled])[class*="bg-rose-"]:active,
+[data-theme="claro-ice"] button:not([disabled])[class*="bg-red-"]:active, [data-theme="claro-ice"] button:not([disabled])[class*="bg-amber-"]:active {
+    transform: none; filter: brightness(.86); box-shadow: none !important;
+}
+/* Botones secundarios: azul-gris suave, sin volumen. */
+[data-theme="claro-ice"] button:is(.bg-slate-800, .bg-slate-700) {
+    background-image: none; box-shadow: none; background-color: var(--bg-2) !important;
+    border-color: transparent !important; color: var(--tx-1);
+}
+[data-theme="claro-ice"] button:not([disabled]):is(.bg-slate-800, .bg-slate-700):hover { transform: none; background-color: var(--bg-3) !important; border-color: transparent !important; }
+[data-theme="claro-ice"] button:not([disabled]):is(.bg-slate-800, .bg-slate-700):active { transform: none; box-shadow: none; filter: brightness(1.12); }
+[data-theme="claro-ice"] button.text-sky-300, [data-theme="claro-ice"] button.text-sky-400 { color: var(--acc) !important; }
+
+/* Campos: planos, azul marino, halo azul hielo al enfocar. */
+[data-theme="claro-ice"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+[data-theme="claro-ice"] select, [data-theme="claro-ice"] textarea { box-shadow: none; background-color: var(--bg-2); }
+[data-theme="claro-ice"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):focus,
+[data-theme="claro-ice"] select:focus, [data-theme="claro-ice"] textarea:focus {
+    border-color: var(--acc) !important;
+    box-shadow: 0 0 0 4px rgba(94, 168, 255, .25) !important;
+}
+[data-theme="claro-ice"] input[type="checkbox"], [data-theme="claro-ice"] input[type="radio"] { accent-color: #5ea8ff !important; }
+
+/* Tablas: encabezado limpio, filas con línea fina — igual que la maqueta. */
+[data-theme="claro-ice"] table thead { background-image: none; background-color: var(--bg-2) !important; }
+[data-theme="claro-ice"] table thead th { letter-spacing: .07em; font-weight: 600; font-size: .7rem; }
+[data-theme="claro-ice"] table tbody tr:not([class*="bg-"]):hover { background-color: color-mix(in srgb, var(--acc) 6%, transparent); }
+[data-theme="claro-ice"] table tbody tr:not([class*="bg-"]):hover > td:first-child { box-shadow: none; }
+
+/* Chips de estatus: píldora plana, sin brillo ni sombra — igual que ".chip" de la maqueta. */
+[data-theme="claro-ice"] span.rounded-full[class*="bg-"] { box-shadow: none; font-weight: 600; }
+
+/* Tarjetas de tema / zoom (Configuración). */
+[data-theme="claro-ice"] .tema-card, [data-theme="claro-ice"] .zoom-card { background-image: none; box-shadow: var(--sh-1); }
+[data-theme="claro-ice"] .tema-card:hover, [data-theme="claro-ice"] .zoom-card:hover { transform: none; }
+[data-theme="claro-ice"] .tema-card:active, [data-theme="claro-ice"] .zoom-card:active { transform: none; box-shadow: none; }
+
+/* Menú lateral: panel translúcido con desenfoque, tono azul marino. */
+[data-theme="claro-ice"] #sidebar {
+    background-image: none;
+    background-color: rgba(10, 15, 31, .78) !important;
+    -webkit-backdrop-filter: saturate(160%) blur(22px); backdrop-filter: saturate(160%) blur(22px);
+    box-shadow: 0 0 0 .5px rgba(255, 255, 255, .06);
+}
+[data-theme="claro-ice"] #sidebar.nav-abierto { box-shadow: 0 0 0 .5px rgba(255, 255, 255, .06), 16px 0 40px -20px rgba(0, 0, 0, .6); }
+[data-theme="claro-ice"] #sidebar button { border-radius: 8px !important; }
+[data-theme="claro-ice"] #sidebar li > button:hover { background-image: none; background-color: rgba(255, 255, 255, .05); box-shadow: none; transform: none; }
+[data-theme="claro-ice"] #sidebar ul[id^="submenu-"] { border-left-color: var(--bd-1) !important; }
+[data-theme="claro-ice"] #statusConexion { box-shadow: none; }
+[data-theme="claro-ice"] #btnAbrirMenu { background-image: none; box-shadow: var(--sh-1); }
+
+/* Inicio (bienvenida): sin orbes de color ni degradados. */
+[data-theme="claro-ice"] .bv-orbe { display: none; }
+[data-theme="claro-ice"] .bv-nombre { background-image: none; -webkit-text-fill-color: var(--acc); color: var(--acc); }
+[data-theme="claro-ice"] .bv-tile {
+    background-image: none; background-color: var(--bg-1); border-color: var(--bd-1); box-shadow: var(--sh-1);
+}
+[data-theme="claro-ice"] .bv-tile:hover { transform: translateY(-2px); border-color: var(--bd-2); }
+[data-theme="claro-ice"] .bv-tile .ico { background-image: none; background-color: color-mix(in srgb, currentColor 16%, transparent); box-shadow: none; }

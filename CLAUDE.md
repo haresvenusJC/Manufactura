@@ -6,6 +6,24 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`. A petición del usuario: nuevo tema global **"Claro Ice"**
+  (`data-theme="claro-ice"`, tarjeta en Configuración → Temas de usuario, junto a "Mac (oscuro)") con la paleta y tipografía de
+  la maqueta de Cuentas por pagar v2 — fondo azul marino casi negro (`#0a0f1f`), tarjetas azul-grisáceo (`#111933`/`#172245`),
+  acento azul hielo (`#5ea8ff`), tipografía **IBM Plex Sans/Mono** (Google Fonts agregado en `index.html`, solo para este
+  tema — los demás se quedan con Inter). Mismo patrón que "Mac (oscuro)" (`[data-theme="macos-dark"]`, copiado como plantilla):
+  variables `--bg-0..3`/`--bd-0..2`/`--tx-0..5`/`--acc`/`--ok`/`--bad`/`--warn`/`--chip` propias (no toca `tema-base.css`) +
+  reglas de forma (botones planos sin degradado, esquinas 9-12px, campos planos, menú lateral translúcido). Como el remapeo de
+  clases Tailwind (`bg-slate-900`→`var(--bg-1)`, `text-amber-300`→`var(--warn)`, etc.) ya es genérico desde `tema-base.css`,
+  SOLO con las variables ya se recolorea toda la app sola (KPIs, chips, tablas) — la plantilla de "forma" (sin 3D) es el
+  plus para que se vea plano como la maqueta, no solo con los colores correctos. Revisado functionalmente: todo lo que la
+  maqueta hace (filtros de encabezado, chips, KPIs, ventana de pago, pop-up de autorización) ya estaba portado al código real
+  en sesiones anteriores — lo único que faltaba era la piel visual. Lo que la maqueta tiene mas NO se portó, a propósito (ya
+  explicado antes): el interruptor Subventana/Pantalla completa (el usuario ya eligió solo subventana) y el interruptor de
+  "Caso: anticipo/deuda" (no aplica, anticipo es un flujo aparte en el código real) — ni "Observar y devolver" / "Pedir
+  confirmación" de la maqueta, que ahí tampoco hacen nada real (solo un mensaje de aviso), para no meter botones sin función
+  real detrás. El CSS no se versiona en `version.json` (confirmado en sesiones previas) — no hace falta tocarlo aquí, pero el
+  navegador puede necesitar Ctrl+Shift+R por caché de CSS. Pendiente: probar el tema nuevo en el navegador, sobre todo en
+  Cuentas por pagar (las tarjetas KPI, los chips de estatus, la ventana de pago) y el menú lateral translúcido.
 - Archivos tocados (lo último): `sql/2026-10-08_fix_dias_credito_legacy.sql` (nuevo), `js/pagos-proveedor.js`, `version.json`.
   A petición del usuario, dos correcciones sobre lo de ayer, comparando contra la maqueta otra vez. **1) Bug real encontrado
   comparando contra la maqueta**: todas las OC existentes (de antes de "Días de crédito") salían "Vencida" — el backfill de
