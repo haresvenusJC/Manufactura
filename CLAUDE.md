@@ -6,6 +6,16 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`. Ronda 2 del mismo PDF "Revisión de documentos"
+  (el usuario marcó "del recuadro rojo hacia abajo" en la imagen APROBADO): puro texto, sin tocar columnas (esas ya
+  quedaron en la ronda anterior) ni colores. Se quitó el encabezado **"Proveedor y documento"** (tachado en rojo en la
+  imagen); **"Fecha de la OC" → "Fecha de la ODC"** y **"Ver OC" → "Ver ODC"** (consistente con el folio real, que ya es
+  ODC-000002, no OC-000002); **"Ver recibo" → "Ver recepción"** (así lo pidió explícito: "en lugar de ver factura ver
+  recepción" — nunca hubo "Ver factura" en el código real, ya se llamaba "Ver recibo", solo cambió la palabra). La duda
+  del usuario sobre "la factura, es el folio del documento o el folio digital" queda resuelta sola: no hay un link de
+  factura aparte — el UUID del CFDI ya vive dentro del detalle de "Ver recepción" (`documentos.uuid_cfdi`). Pendiente:
+  probar en el navegador que el bloque de proveedor/documento se vea bien sin el encabezado y que los 3 renombres
+  aparezcan.
 - Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`. A petición del usuario (PDF "Revisión de documentos"):
   dos ajustes de texto a la ventana de pago, sin tocar colores. **1) Tabla "Qué ampara este pago"** gana las columnas que
   faltaban — **Cta.** (cuenta de inventario del producto, `productos.cuenta_inventario_id`, con el mismo fallback 115.01 que

@@ -465,16 +465,15 @@ function cxpPintarVentanaPago(docs, provId, detalle, proveedorInfo) {
 
     const bloqueProveedorDoc = `
       <div class="space-y-2">
-        <h4 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Proveedor y documento</h4>
         <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
           <div><span class="text-slate-500 block">Proveedor</span><span class="text-slate-200">${esc(provNombre)}</span></div>
           <div><span class="text-slate-500 block">RFC</span><span class="text-slate-200 font-mono">${esc(proveedorInfo?.rfc || '—')}</span></div>
           ${unico ? `
-          <div><span class="text-slate-500 block">Fecha de la OC</span><span class="text-slate-200 font-mono">${esc(detalle?.oc?.fecha || '—')}</span></div>
+          <div><span class="text-slate-500 block">Fecha de la ODC</span><span class="text-slate-200 font-mono">${esc(detalle?.oc?.fecha || '—')}</span></div>
           <div><span class="text-slate-500 block">Días de crédito</span><span class="text-slate-200">${detalle?.oc?.dias_credito != null ? detalle.oc.dias_credito + ' días' : '— (sin capturar)'}</span></div>
-          <div class="col-span-2"><span class="text-slate-500 block">Documento</span>
-            ${docs[0].ocId ? `<button type="button" onclick="window.verDetalleOC(${docs[0].ocId})" class="text-sky-400 hover:underline">Ver OC ${esc(detalle?.oc?.folio || '')}</button> · ` : ''}
-            ${linkDoc(docs[0].id, 'Ver recibo', 'text-sky-400 hover:underline')}
+          <div class="col-span-2"><span class="text-slate-500 block">Documentos</span>
+            ${docs[0].ocId ? `<button type="button" onclick="window.verDetalleOC(${docs[0].ocId})" class="text-sky-400 hover:underline">Ver ODC ${esc(detalle?.oc?.folio || '')}</button> · ` : ''}
+            ${linkDoc(docs[0].id, 'Ver recepción', 'text-sky-400 hover:underline')}
             ${(detalle?.notas || []).filter((n) => n.estatus === 'activa').map((n) => ` · <span class="text-amber-300 font-mono">${esc(n.folio)}</span>`).join('')}
           </div>` : `<div class="col-span-2"><span class="text-slate-500 block">Documentos</span><span class="text-slate-200">${docs.length} seleccionados (ver tabla abajo)</span></div>`}
         </div>
