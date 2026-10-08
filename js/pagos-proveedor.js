@@ -249,7 +249,7 @@ function cxpPintarDocumentos() {
 
     panel.innerHTML = `
       ${kpis}
-      <div class="flex items-end justify-between mb-2 flex-wrap gap-2">
+      <div class="flex items-end mb-2 flex-wrap gap-4">
         <h3 class="text-md font-semibold text-slate-300">Documentos por pagar</h3>
         <div class="flex flex-wrap items-end gap-2">
           <div><label class="block text-[10px] text-slate-400 mb-1">Desde</label>

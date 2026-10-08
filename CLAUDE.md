@@ -6,6 +6,13 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`, `CLAUDE.md`. Bug de layout reportado con captura
+  (mockup del usuario vs. estado real): el renglón "Documentos por pagar" + Desde/Hasta/Limpiar usaba `justify-between`
+  (título a la izquierda, filtros pegados al extremo derecho) — al no caber los dos extremos en una sola línea, el grupo
+  de filtros se brincaba a su propio renglón, empezando en el extremo IZQUIERDO del contenedor (lo que el usuario vio y
+  reportó como "lo traes en el extremo izquierdo"). Se quitó `justify-between` (ahora `gap-4`, sin separar a los extremos)
+  para que Desde/Hasta/Limpiar queden pegados al título, como en su mockup. Pendiente: confirmar en el navegador (con
+  Ctrl+Shift+R) que ya quedan juntos en vez de brincar a su propio renglón.
 - Archivos tocados (lo último): `index.html`, `CLAUDE.md`. **Hallazgo real, probable causa de varias rondas de "no vi el
   cambio":** el CSS (`tema-base.css`/`ui-moderno.css`/`bienvenida.css`) se cargaba SIN `?v=`, a diferencia de los `.js`
   (que sí tienen cache-busting vía `cargador.js`/`version.json`) — el navegador podía estar sirviendo una copia vieja del
