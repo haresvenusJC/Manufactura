@@ -6,6 +6,26 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-10-09_recepcion_serie_rec.sql` (nuevo), `js/contabilidad.js`, `version.json`,
+  `CLAUDE.md`. A petición del usuario (dos capturas: "Diario #36" sin ninguna serie en la lista, y el modal de "Póliza
+  Egreso #71" sin la serie BAN que sí se veía en la lista de Cuentas por pagar). **Revisados los asientos de la captura
+  contra lo acordado: cuadran** — recepción (Diario #36) carga Inventario + IVA 119.01 "pendiente" contra Proveedores
+  (crédito sin anticipo); pago (Egreso #71) cancela Proveedores, reclasifica 119.01→118.01 "pagado" (correcto por LIVA,
+  el IVA solo es acreditable hasta que se paga) y abona Bancos — nada pendiente ahí, ningún cambio de código por eso.
+  **Dos correcciones reales:** 1) El modal "Ver póliza" (`rcVerPoliza`, `js/contabilidad.js`) ya traía `folio_poliza` de
+  la base pero el título y el nombre al imprimir lo ignoraban (`Póliza ${pol.tipo} #${pol.numero}`, fijo) — ahora muestra
+  `Póliza BAN-2026-00001 · Egreso #71 · fecha` cuando la póliza tiene serie, igual que ya se veía en los enlaces de
+  reportes (`linkPoliza`/`etiquetaPoliza`); sin serie, sigue como siempre. 2) La póliza de `contabilizar_compra()`
+  (recepción de mercancía) era la única de las 6 que sí llevan serie (BAN/VAE/ING/DIA/CMP) que se había quedado sin la
+  suya — nueva serie **REC**, mismo patrón de parche de texto sobre `pg_get_functiondef` ya usado para CMP (producción):
+  busca `'tipo', 'Diario'` dentro del llamado a `registrar_poliza` de `contabilizar_compra()` (la versión vigente es
+  `sql/2026-10-07_compras_notas_ajuste.sql`, la recepción siempre es Diario desde esa reescritura) y agrega
+  `'serie', 'REC'` ahí mismo. Requiere `sql/2026-10-07d_polizas_series_y_visto_bueno.sql` corrida antes (crea
+  `contadores_folios_poliza`/`_siguiente_folio_poliza`/`polizas.folio_poliza`) — confirmado al usuario que esa migración
+  parece no estar corrida todavía (por eso no se veía ninguna serie BAN/VAE/etc. en ningún lado, ni siquiera en los pagos).
+  Pendiente: correr `sql/2026-10-07d_polizas_series_y_visto_bueno.sql` (si no se ha corrido) y luego
+  `sql/2026-10-09_recepcion_serie_rec.sql`; probar en el navegador que una recepción nueva salga como
+  "REC-2026-00001 · Diario #N" en la lista de pólizas y en el modal.
 - Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`, `CLAUDE.md`. Ajuste sobre la ronda anterior: el
   label "Desde"/"Hasta" iba arriba del campo (`block`, apilado) — el usuario lo quería al lado (en línea, como en su
   referencia). Ahora cada campo es `<div class="flex items-center gap-1.5">` con label + input en la misma línea.

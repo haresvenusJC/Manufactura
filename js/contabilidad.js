@@ -2524,7 +2524,7 @@ window.rcVerPoliza = async function (polId) {
         cont.innerHTML = `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div class="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-center">
-                <h3 class="text-sm font-bold text-slate-200">Póliza ${pol.tipo} #${pol.numero} · ${pol.fecha}</h3>
+                <h3 class="text-sm font-bold text-slate-200">Póliza ${pol.folio_poliza ? pol.folio_poliza + ' · ' : ''}${pol.tipo} #${pol.numero} · ${pol.fecha}</h3>
                 <button onclick="window.rcCerrarModalPoliza('${idModal}')" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2">&times;</button>
             </div>
             <div class="rc-pol-cuerpo p-5 space-y-3 overflow-y-auto text-sm">
@@ -2567,7 +2567,7 @@ window.rcVerPoliza = async function (polId) {
             </div>
         </div>`;
         cont.querySelector('.rc-pol-imprimir').onclick = () =>
-            imprimirConPlantilla('poliza', `Póliza ${pol.tipo} #${pol.numero} · ${pol.fecha}`, cont.querySelector('.rc-pol-cuerpo'), marcaDeEstatus(pol.estatus));
+            imprimirConPlantilla('poliza', `Póliza ${pol.folio_poliza ? pol.folio_poliza + ' · ' : ''}${pol.tipo} #${pol.numero} · ${pol.fecha}`, cont.querySelector('.rc-pol-cuerpo'), marcaDeEstatus(pol.estatus));
     } catch (err) {
         cont.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 text-sm">
             <p class="text-rose-400">No se pudo cargar la póliza.<br>${err.message || err}</p>
