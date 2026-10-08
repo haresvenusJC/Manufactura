@@ -6,6 +6,13 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `index.html`, `CLAUDE.md`. **Hallazgo real, probable causa de varias rondas de "no vi el
+  cambio":** el CSS (`tema-base.css`/`ui-moderno.css`/`bienvenida.css`) se cargaba SIN `?v=`, a diferencia de los `.js`
+  (que sí tienen cache-busting vía `cargador.js`/`version.json`) — el navegador podía estar sirviendo una copia vieja del
+  CSS aunque ya estuviera actualizado en GitHub, sin importar Ctrl+Shift+R. Se agregó `?v=20261008234500` a los 3 `<link>`
+  de CSS en `index.html` (mismo valor que `version.json`) y se documentó la convención para actualizarlo a mano en cada
+  commit que toque `css/`. Pendiente: que el usuario recargue y confirme si AHORA sí se ven los cambios de Claro Ice
+  (título subido, tabla compacta, chips con color propio) que llevaban varias rondas sin aparecer.
 - Archivos tocados (lo último): `css/ui-moderno.css`, `version.json`. Corrección sobre la ronda 6: el "título duplicado" NO
   era un artefacto — el usuario literalmente puso una copia del texto en la posición que quería como referencia visual
   (con flecha "muévelo aquí"), no eran dos títulos reales. `margin-top` de Claro Ice en Cuentas por pagar subió de
@@ -1346,6 +1353,11 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - **Versión de los .js**: en cada commit que toque `js/` correr `python3 actualizar-version.py` (regenera `version.json`,
   que usa `cargador.js`); si no, los navegadores pueden seguir con los archivos viejos en caché. Un módulo nuevo en
   `js/` entra solo a la lista al regenerar.
+- **Versión del CSS (hallazgo 2026-10-08)**: `css/tema-base.css`, `css/ui-moderno.css` y `css/bienvenida.css` se cargan
+  en `index.html` con `?v=<version>` igual que los `.js` — SIN esto, el navegador puede quedarse sirviendo el CSS viejo
+  indefinidamente aunque el archivo ya esté actualizado en GitHub (causó varias rondas de "no vi el cambio" en la sesión
+  del tema Claro Ice, donde el culpable real era caché, no el código). En cada commit que toque algo de `css/`, actualizar
+  a mano el `?v=` de esos 3 `<link>` en `index.html` al mismo valor que `version.json`.
 - **Subventanas (modales)** — aplica a TODAS las que se generen en cualquier proceso (nuevas y existentes), para que
   el usuario pueda analizar la información de la pantalla que la originó:
   - **Nunca ocultar el contenido que originó la subventana**: la pantalla de atrás sigue visible detrás (overlay
