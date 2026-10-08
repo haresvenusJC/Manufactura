@@ -251,10 +251,10 @@ function cxpPintarDocumentos() {
       ${kpis}
       <div class="flex items-end mb-2 flex-wrap gap-4">
         <h3 class="text-md font-semibold text-slate-300">Documentos por pagar</h3>
-        <div class="flex flex-wrap items-end gap-2">
-          <div><label class="block text-[10px] text-slate-400 mb-1">Desde</label>
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="flex items-center gap-1.5"><label class="text-[10px] text-slate-400">Desde</label>
             <input type="date" id="cxpDesde" value="${cxpDesde}" placeholder="mm/dd/aaaa" class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></div>
-          <div><label class="block text-[10px] text-slate-400 mb-1">Hasta</label>
+          <div class="flex items-center gap-1.5"><label class="text-[10px] text-slate-400">Hasta</label>
             <input type="date" id="cxpHasta" value="${cxpHasta}" placeholder="mm/dd/aaaa" class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></div>
           <button type="button" id="cxpLimpiarFiltros" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg">Limpiar</button>
         </div>

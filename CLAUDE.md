@@ -6,6 +6,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`, `CLAUDE.md`. Ajuste sobre la ronda anterior: el
+  label "Desde"/"Hasta" iba arriba del campo (`block`, apilado) — el usuario lo quería al lado (en línea, como en su
+  referencia). Ahora cada campo es `<div class="flex items-center gap-1.5">` con label + input en la misma línea.
+  Pendiente: confirmar en el navegador.
 - Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`, `CLAUDE.md`. Bug de layout reportado con captura
   (mockup del usuario vs. estado real): el renglón "Documentos por pagar" + Desde/Hasta/Limpiar usaba `justify-between`
   (título a la izquierda, filtros pegados al extremo derecho) — al no caber los dos extremos en una sola línea, el grupo
