@@ -6,6 +6,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `css/ui-moderno.css`, `version.json`. Corrección sobre la ronda 6: el "título duplicado" NO
+  era un artefacto — el usuario literalmente puso una copia del texto en la posición que quería como referencia visual
+  (con flecha "muévelo aquí"), no eran dos títulos reales. `margin-top` de Claro Ice en Cuentas por pagar subió de
+  `-1.5rem` a `-2.5rem` (más agresivo). Pendiente: confirmar si con esto ya queda donde lo pidió, o si hace falta más.
 - Archivos tocados (lo último): `js/pagos-proveedor.js`, `css/ui-moderno.css`, `version.json`. Ronda 6: el título duplicado
   que el usuario vio en una captura parece un artefacto de scroll/captura (la segunda captura, limpia, ya sale una sola vez
   bien colocado) — se le explicó, sin cambio de código por eso. Sí se reforzó lo que pedía de verdad: **"Claro Ice"** sube

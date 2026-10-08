@@ -708,7 +708,7 @@ span.rounded-full[class*="bg-"] { box-shadow: inset 0 0 0 1px color-mix(in srgb,
    proveedor es el padre común del <h2> y de #contenedorPagosProveedor (su
    <div> hijo, donde se prepende .asist-panel), así que position:relative ahí
    + position:absolute en .asist-panel lo saca de flujo sin tocar el HTML/JS. */
-[data-theme="claro-ice"] #view-pagos-proveedor { position: relative; margin-top: -1.5rem; }
+[data-theme="claro-ice"] #view-pagos-proveedor { position: relative; margin-top: -2.5rem; }
 /* La tabla de "Documentos por pagar" se ve con mucho aire: encabezado más compacto (sin tocar
    thOrden(), que es compartido por otras pantallas — solo aquí, con más especificidad). */
 [data-theme="claro-ice"] #contenedorPagosProveedor table thead th { padding-top: .5rem !important; padding-bottom: .5rem !important; }
