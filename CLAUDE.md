@@ -6,6 +6,26 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-10-08_fix_dias_credito_legacy.sql` (nuevo), `js/pagos-proveedor.js`, `version.json`.
+  A petición del usuario, dos correcciones sobre lo de ayer, comparando contra la maqueta otra vez. **1) Bug real encontrado
+  comparando contra la maqueta**: todas las OC existentes (de antes de "Días de crédito") salían "Vencida" — el backfill de
+  ayer les puso `dias_credito = 0`, y como son de septiembre, Vence (fecha + 0) ya quedaba en el pasado; antes de ese campo
+  no existía ningún concepto de "vencida" para ellas. `dias_credito` vuelve a ser NULLABLE (sin default); las que tenían 0 por
+  el backfill regresan a NULL (Vence sale "—", nunca Vencida); las OC NUEVAS lo siguen exigiendo, pero eso es validación de
+  pantalla (`ordenes-compra.js`), no columna NOT NULL. **Ojo**: ese SQL solo es seguro correrlo el mismo día — si ya se
+  capturó una OC real con "Inmediato" (0) a propósito, también se le borraría; avisar antes de recorrerlo si pasó tiempo.
+  **2) Ventana "Registrar pago" reconstruida en dos columnas, igual que la maqueta** (antes era una sola columna con los
+  campos apilados, divergía bastante): izquierda = Proveedor y documento (RFC, fecha de la OC, días de crédito, enlaces Ver
+  OC/Ver recibo), Qué ampara este pago (tabla de líneas con código/descripción/cantidad/importe + subtotal/IVA/total — SOLO
+  cuando se paga UN documento, trae `documento_detalles` fresco al abrir; con varios documentos seleccionados se queda la
+  tabla resumen folio+saldo de siempre) y Aprobaciones (el selector de Visto bueno, que antes vivía del lado derecho);
+  derecha = Datos del pago (+ nuevo campo "Notas internas", el RPC ya lo soportaba y no se estaba usando), Resumen (Total/
+  Pagado anteriormente/Este pago/Saldo restante, en vivo) y una vista previa de la póliza (cuenta cargo/abono, serie BAN o
+  VAE según la cuenta elegida). La ventana YA era subventana movible/redimensionable/maximizable desde que se creó —
+  `subventanas-movibles.js` la detecta sola por su estructura (`fixed inset-0`, panel = primer hijo) — lo que faltaba era
+  el contenido, no el mecanismo. `cxpAbrirPago` pasó a `async` (trae el detalle antes de pintar, con un "Cargando…" breve).
+  Pendiente: correr `sql/2026-10-08_fix_dias_credito_legacy.sql` y probar — que las OC viejas ya no salgan Vencida, y abrir
+  "Pagar" en un documento único vs. varios para ver las dos variantes de "Qué ampara este pago".
 - Archivos tocados (lo último): `sql/2026-10-07b_cxp_v2.sql`, `sql/2026-10-07c_diagnostico_migraciones_pendientes3.sql` (solo
   lectura), `sql/2026-10-07d_polizas_series_y_visto_bueno.sql` (nuevos), `js/pagos-proveedor.js`, `js/ordenes-compra.js`,
   `js/enlaces-reporte.js`, `version.json`. **Cuentas por pagar v2 implementada en código real** (hasta hoy solo vivía en la

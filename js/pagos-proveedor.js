@@ -270,7 +270,7 @@ function cxpPintarDocumentos() {
                     : '';
                 const vencida = esVencida(x);
                 return `
-                <tr class="border-b border-slate-900 ${x.estatus_cxp === 'cancelado' ? 'opacity-60' : ''}" data-tipo="${x.tipo}" data-id="${x.id}" data-saldo="${x.saldo}" data-prov="${x.proveedor_id || ''}" data-prov-nombre="${esc(x.proveedor_nombre || '—')}" data-folio="${esc(x.folio || '#' + x.id)}">
+                <tr class="border-b border-slate-900 ${x.estatus_cxp === 'cancelado' ? 'opacity-60' : ''}" data-tipo="${x.tipo}" data-id="${x.id}" data-saldo="${x.saldo}" data-total="${x.total || 0}" data-oc-id="${x.orden_compra_id || ''}" data-prov="${x.proveedor_id || ''}" data-prov-nombre="${esc(x.proveedor_nombre || '—')}" data-folio="${esc(x.folio || '#' + x.id)}">
                   <td class="p-2 text-center">${esAbierto ? `<input type="checkbox" class="cxp-chk accent-emerald-500 w-4 h-4" ${pre ? 'checked' : ''}>` : ''}</td>
                   <td class="p-2">${x.tipo}</td>
                   <td class="p-2">${x.tipo === 'compra' ? linkDoc(x.id, x.folio || '#' + x.id, 'font-mono text-slate-200') : `<span class="font-mono text-slate-200">${esc(x.folio || '#' + x.id)}</span>`}</td>
@@ -421,28 +421,97 @@ function cxpAbrirAutorizacion(filas) {
     };
 }
 
-// Ventana de pago: total (saldo completo, no editable) o parcial (un solo documento,
-// monto editable y acuerdo con el proveedor obligatorio).
-function cxpAbrirPago(filas) {
+// Ventana de pago: dos columnas, igual que la maqueta (https://claude.ai/artifact/PeKAi5Wsp4VdokSwZzMDoi) —
+// izquierda: proveedor/documento, qué ampara el pago (detalle real solo si es UN documento), aprobaciones;
+// derecha: datos del pago, resumen y vista previa de la póliza. Pago total (saldo completo, no editable) o
+// parcial (un solo documento, monto editable y acuerdo con el proveedor obligatorio).
+async function cxpAbrirPago(filas) {
     if (!filas.length) return;
-    const docs = filas.map((tr) => ({ tipo: tr.dataset.tipo, id: Number(tr.dataset.id), saldo: parseFloat(tr.dataset.saldo) || 0, folio: tr.dataset.folio, prov: tr.dataset.provNombre }));
+    const docs = filas.map((tr) => ({
+        tipo: tr.dataset.tipo, id: Number(tr.dataset.id), saldo: parseFloat(tr.dataset.saldo) || 0,
+        totalDoc: parseFloat(tr.dataset.total) || 0, ocId: tr.dataset.ocId ? Number(tr.dataset.ocId) : null,
+        folio: tr.dataset.folio, prov: tr.dataset.provNombre,
+    }));
+    const provId = filas[0].dataset.prov ? Number(filas[0].dataset.prov) : null;
+
+    cxpMostrarModal(`<div class="bg-slate-950 border border-slate-700 rounded-xl w-full max-w-sm p-5 text-sm text-slate-400 shadow-2xl">Cargando…</div>`);
+
+    // El detalle "rico" (línea por línea, subtotal/IVA, datos de la OC) solo aplica cuando se paga UN
+    // documento a la vez — con varios documentos seleccionados se queda la tabla resumen folio+saldo.
+    let detalle = null, proveedorInfo = null;
+    if (docs.length === 1 && docs[0].tipo === 'compra') {
+        try {
+            const [{ data: doc }, { data: lineas }, { data: prov }, { data: oc }] = await Promise.all([
+                supabaseClient.from('documentos').select('subtotal, iva, total').eq('id', docs[0].id).maybeSingle(),
+                supabaseClient.from('documento_detalles').select('cantidad, costo_unitario, subtotal, productos ( nombre, sku )').eq('documento_id', docs[0].id),
+                provId ? supabaseClient.from('proveedores').select('nombre, rfc').eq('id', provId).maybeSingle() : Promise.resolve({ data: null }),
+                docs[0].ocId ? supabaseClient.from('ordenes_compra').select('folio, fecha, dias_credito').eq('id', docs[0].ocId).maybeSingle() : Promise.resolve({ data: null }),
+            ]);
+            detalle = { doc: doc || {}, lineas: lineas || [], oc: oc || null };
+            proveedorInfo = prov || null;
+        } catch (_) { detalle = null; }
+    }
+
+    cxpPintarVentanaPago(docs, provId, detalle, proveedorInfo);
+}
+
+function cxpPintarVentanaPago(docs, provId, detalle, proveedorInfo) {
     const total = docs.reduce((a, d) => a + d.saldo, 0);
+    const pagadoAntes = docs.reduce((a, d) => a + (d.totalDoc - d.saldo), 0);
     const provNombre = docs[0].prov;
-    const filasHtml = docs.map((d) => `<tr><td class="p-2 font-mono">${esc(d.folio)}</td><td class="p-2 text-right font-mono">${money(d.saldo)}</td></tr>`).join('');
     const opcionesCuenta = cxpCuentasPago.map((c) => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
     const opcionesEmpleado = cxpEmpleados.map((e) => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('');
+    const unico = docs.length === 1;
 
-    cxpMostrarModal(`
-      <div class="bg-slate-950 border border-slate-700 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 space-y-4 shadow-2xl">
-        <div class="flex items-start justify-between gap-3">
-          <div>
-            <h3 class="text-md font-semibold text-emerald-400">Registrar pago a ${esc(provNombre)}</h3>
-            <p class="text-xs text-slate-400">${docs.length} documento(s) · saldo ${money(total)}</p>
-          </div>
-          <button type="button" class="text-slate-400 hover:text-slate-100 text-xl leading-none" onclick="window.cxpAntCerrar()">&times;</button>
+    const bloqueProveedorDoc = `
+      <div class="space-y-2">
+        <h4 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Proveedor y documento</h4>
+        <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+          <div><span class="text-slate-500 block">Proveedor</span><span class="text-slate-200">${esc(provNombre)}</span></div>
+          <div><span class="text-slate-500 block">RFC</span><span class="text-slate-200 font-mono">${esc(proveedorInfo?.rfc || '—')}</span></div>
+          ${unico ? `
+          <div><span class="text-slate-500 block">Fecha de la OC</span><span class="text-slate-200 font-mono">${esc(detalle?.oc?.fecha || '—')}</span></div>
+          <div><span class="text-slate-500 block">Días de crédito</span><span class="text-slate-200">${detalle?.oc?.dias_credito != null ? detalle.oc.dias_credito + ' días' : '— (sin capturar)'}</span></div>
+          <div class="col-span-2"><span class="text-slate-500 block">Documento</span>
+            ${docs[0].ocId ? `<button type="button" onclick="window.verDetalleOC(${docs[0].ocId})" class="text-sky-400 hover:underline">Ver OC ${esc(detalle?.oc?.folio || '')}</button> · ` : ''}
+            ${linkDoc(docs[0].id, 'Ver recibo', 'text-sky-400 hover:underline')}
+          </div>` : `<div class="col-span-2"><span class="text-slate-500 block">Documentos</span><span class="text-slate-200">${docs.length} seleccionados (ver tabla abajo)</span></div>`}
         </div>
-        <table class="w-full text-xs text-slate-300"><tbody>${filasHtml}</tbody></table>
+      </div>`;
 
+    const bloqueAmpara = `
+      <div class="space-y-2">
+        <h4 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Qué ampara este pago</h4>
+        ${unico && detalle?.lineas?.length ? `
+        <div class="overflow-x-auto border border-slate-800 rounded-lg">
+          <table class="w-full text-left text-[11px] text-slate-300">
+            <thead class="bg-slate-900 text-slate-500 uppercase"><tr><th class="p-1.5">Código</th><th class="p-1.5">Descripción</th><th class="p-1.5 text-right">Cant.</th><th class="p-1.5 text-right">Importe</th></tr></thead>
+            <tbody>${detalle.lineas.map((l) => `<tr class="border-t border-slate-900"><td class="p-1.5 font-mono">${esc(l.productos?.sku || '—')}</td><td class="p-1.5">${esc(l.productos?.nombre || '—')}</td><td class="p-1.5 text-right font-mono">${l.cantidad}</td><td class="p-1.5 text-right font-mono">${money(l.subtotal)}</td></tr>`).join('')}</tbody>
+          </table>
+        </div>
+        <div class="text-xs text-slate-400 space-y-0.5 text-right pr-1">
+          <p>Subtotal <span class="font-mono text-slate-200">${money(detalle.doc.subtotal)}</span></p>
+          <p>IVA <span class="font-mono text-slate-200">${money(detalle.doc.iva)}</span></p>
+          <p class="font-semibold">Total <span class="font-mono text-amber-300">${money(detalle.doc.total)}</span></p>
+        </div>` : `
+        <div class="overflow-x-auto border border-slate-800 rounded-lg">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-slate-900 text-slate-500 uppercase"><tr><th class="p-1.5">Documento</th><th class="p-1.5 text-right">Saldo</th></tr></thead>
+            <tbody>${docs.map((d) => `<tr class="border-t border-slate-900"><td class="p-1.5 font-mono">${esc(d.folio)}</td><td class="p-1.5 text-right font-mono">${money(d.saldo)}</td></tr>`).join('')}</tbody>
+          </table>
+        </div>`}
+      </div>`;
+
+    const bloqueAprobaciones = `
+      <div class="space-y-1">
+        <h4 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Aprobaciones</h4>
+        <label class="block text-xs text-slate-400 mb-1">Visto bueno de quien solicitó <span class="text-slate-500">· informativo, opcional</span></label>
+        <select id="cxpVistoBueno" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">— sin confirmar —</option>${opcionesEmpleado}</select>
+      </div>`;
+
+    const bloqueDatosPago = `
+      <div class="space-y-2">
+        <h4 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Datos del pago</h4>
         <div class="flex gap-2">
           <button type="button" id="cxpTipoTotal" aria-pressed="true" class="text-xs px-3 py-1.5 rounded-lg border bg-sky-600 border-sky-500 text-white">Pago total</button>
           <button type="button" id="cxpTipoParcial" aria-pressed="false" class="text-xs px-3 py-1.5 rounded-lg border bg-slate-900 border-slate-800 text-slate-300">Pago parcial</button>
@@ -467,18 +536,56 @@ function cxpAbrirPago(filas) {
             <input type="text" id="cxpRefPago" placeholder="No. de transferencia / cheque" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
         </div>
         <p id="cxpAlertaEfectivo" class="hidden text-xs text-amber-300 bg-amber-950/40 border border-amber-900 rounded-lg px-2.5 py-2">Pagos en efectivo mayores a $2,000 no son deducibles y su IVA no es acreditable. Confírmalo con tu contador.</p>
-        <div><label class="block text-xs text-slate-400 mb-1">Visto bueno de quien solicitó <span class="text-slate-500">· informativo, opcional</span></label>
-          <select id="cxpVistoBueno" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">— sin confirmar —</option>${opcionesEmpleado}</select></div>
-        <p id="cxpPagoErr" class="text-xs text-rose-400 min-h-[1rem]"></p>
-        <div class="flex justify-end gap-2">
-          <button type="button" class="text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-4 py-2 rounded-lg" onclick="window.cxpAntCerrar()">Cancelar</button>
-          <button type="button" id="cxpConfirmarPago" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-5 py-2 rounded-lg text-sm">Confirmar pago</button>
+        <div><label class="block text-xs text-slate-400 mb-1">Notas internas</label>
+          <input type="text" id="cxpNotasPago" placeholder="Opcional" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+      </div>`;
+
+    const bloqueResumen = `
+      <div class="space-y-1 text-xs border-t border-slate-800 pt-3">
+        <h4 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Resumen</h4>
+        <p class="flex justify-between"><span class="text-slate-500">Total</span><span class="font-mono text-slate-200">${money(total + pagadoAntes)}</span></p>
+        <p class="flex justify-between"><span class="text-slate-500">Pagado anteriormente</span><span class="font-mono text-slate-200">${money(pagadoAntes)}</span></p>
+        <p class="flex justify-between font-semibold"><span>Este pago</span><span id="cxpResumenEste" class="font-mono text-emerald-400">${money(total)}</span></p>
+        <p class="flex justify-between"><span class="text-slate-500">Saldo restante</span><span id="cxpResumenSaldo" class="font-mono text-amber-300">$0.00</span></p>
+      </div>
+      <div id="cxpPolizaPreview" class="border border-dashed border-slate-700 rounded-lg p-3 text-xs text-slate-400">Elige la cuenta de pago para ver la póliza.</div>`;
+
+    cxpMostrarModal(`
+      <div class="bg-slate-950 border border-slate-700 rounded-xl w-full max-w-4xl max-h-[92vh] overflow-y-auto shadow-2xl">
+        <div class="flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-800">
+          <div>
+            <h3 class="text-md font-semibold text-slate-100">Registrar pago · <span class="font-mono text-emerald-400">${unico ? esc(docs[0].folio) : esc(provNombre)}</span></h3>
+            <p class="text-xs text-slate-400">${docs.length} documento(s) · ${esc(provNombre)} · saldo ${money(total)}</p>
+          </div>
+          <button type="button" class="text-slate-400 hover:text-slate-100 text-xl leading-none" onclick="window.cxpAntCerrar()">&times;</button>
+        </div>
+        <div class="p-5 grid md:grid-cols-2 gap-5">
+          <div class="space-y-4">${bloqueProveedorDoc}${bloqueAmpara}${bloqueAprobaciones}</div>
+          <div class="space-y-4">
+            ${bloqueDatosPago}
+            ${bloqueResumen}
+            <p id="cxpPagoErr" class="text-xs text-rose-400 min-h-[1rem]"></p>
+            <div class="flex justify-end gap-2">
+              <button type="button" class="text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-4 py-2 rounded-lg" onclick="window.cxpAntCerrar()">Cancelar</button>
+              <button type="button" id="cxpConfirmarPago" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-5 py-2 rounded-lg text-sm">Confirmar pago</button>
+            </div>
+          </div>
         </div>
       </div>`);
 
     let parcial = false;
     const monto = document.getElementById('cxpMonto');
     const err = document.getElementById('cxpPagoErr');
+    const actualizarPolizaPreview = () => {
+        const ctaId = document.getElementById('cxpCuentaPago').value;
+        const cta = cxpCuentasPago.find((c) => String(c.id) === ctaId);
+        const prev = document.getElementById('cxpPolizaPreview');
+        if (!cta) { prev.textContent = 'Elige la cuenta de pago para ver la póliza.'; return; }
+        const serie = cta.codigo.startsWith('101') ? 'VAE' : 'BAN';
+        prev.innerHTML = `<p class="text-slate-300 font-semibold mb-1.5">Póliza ${serie}-… · Egreso (se genera al confirmar)</p>
+          <div class="flex justify-between"><span>201.01 Proveedores</span><span class="font-mono">Cargo</span></div>
+          <div class="flex justify-between"><span>${esc(cta.codigo)} ${esc(cta.nombre)}</span><span class="font-mono">Abono</span></div>`;
+    };
     const validar = () => {
         const m = parseFloat(monto.value) || 0;
         let e = '';
@@ -492,6 +599,8 @@ function cxpAbrirPago(filas) {
         document.getElementById('cxpConfirmarPago').disabled = !!e;
         const forma = document.getElementById('cxpFormaPago').value;
         document.getElementById('cxpAlertaEfectivo').classList.toggle('hidden', !(forma === 'efectivo' && m > 2000));
+        document.getElementById('cxpResumenEste').textContent = money(m);
+        document.getElementById('cxpResumenSaldo').textContent = money(Math.max(0, total - m));
     };
     const fijarTipo = (esParcial) => {
         parcial = esParcial;
@@ -510,8 +619,10 @@ function cxpAbrirPago(filas) {
     monto.oninput = validar;
     document.getElementById('cxpAcuerdo').oninput = validar;
     document.getElementById('cxpFormaPago').onchange = validar;
+    document.getElementById('cxpCuentaPago').onchange = actualizarPolizaPreview;
     document.getElementById('cxpConfirmarPago').onclick = () => registrarPago(docs, parcial);
     validar();
+    actualizarPolizaPreview();
 }
 
 async function registrarPago(docs, parcial) {
@@ -532,6 +643,7 @@ async function registrarPago(docs, parcial) {
                 cuenta_pago_id: Number(cuenta),
                 forma_pago: document.getElementById('cxpFormaPago').value || null,
                 referencia: document.getElementById('cxpRefPago').value.trim() || null,
+                notas: document.getElementById('cxpNotasPago').value.trim() || null,
                 visto_bueno_empleado_id: document.getElementById('cxpVistoBueno').value ? Number(document.getElementById('cxpVistoBueno').value) : null,
                 aplicaciones,
             },
