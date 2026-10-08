@@ -6,6 +6,22 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`. Ronda 4 (captura marcando las tarjetas KPI): se
+  quitó el texto de ayuda bajo "Anticipos disponibles" ("Se usan solos al pagar una OC sin recibir — sin botón aparte") y
+  se recortó el padding de las 4 tarjetas (`p-3`→`p-2`, el contenedor `mb-4`→`mb-3`) — la tarjeta "Saldo total pendiente"
+  sobraba espacio en blanco abajo comparada con las demás.
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`. Ronda 3 (3 capturas marcadas por el usuario después de
+  probar un pago real). **1) "Ver ODC ODC-000002" repetía la palabra ODC** — ahora solo "Ver ODC-000002" (el folio ya trae
+  el prefijo, no hace falta repetirlo). **2) Subtítulo redundante** en el encabezado de "Registrar pago" ("1 documento(s) ·
+  Proveedor · saldo $X") — se quita cuando es un solo documento (la misma info ya está en Proveedor/RFC y en Resumen); se
+  queda solo cuando son varios documentos, ahí sí es información nueva. **3) Hallazgo real, no era bug:** tras pagar
+  ODC-000002 (quedó "Pagada", saldo $0.00), la columna Póliza seguía mostrando "Diario #34" — el usuario preguntó "¿dónde
+  está el documento BANK?" (el de pago). Confirmado: así es por diseño — `v_cuentas_por_pagar.poliza_id` siempre es la del
+  RECIBO (`contabilizar_compra`), nunca se actualiza con la del pago, son dos eventos contables distintos a propósito.
+  Mejora real agregada: nueva consulta a `pagos_proveedor_aplicaciones` (join a `pagos_proveedor`, solo pagos
+  `estatus='registrado'`) arma un mapa documento→póliza(s) de pago; la columna Póliza ahora muestra AMBAS, etiquetadas
+  "recibo" (azul) y "pago" (verde) — antes solo se veía en el historial "Pagos registrados" más abajo, ahora también en la
+  fila misma. Pendiente: probar en el navegador — pagar un documento y confirmar que su fila muestra las dos pólizas.
 - Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`. Ronda 2 del mismo PDF "Revisión de documentos"
   (el usuario marcó "del recuadro rojo hacia abajo" en la imagen APROBADO): puro texto, sin tocar columnas (esas ya
   quedaron en la ronda anterior) ni colores. Se quitó el encabezado **"Proveedor y documento"** (tachado en rojo en la

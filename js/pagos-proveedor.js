@@ -22,6 +22,7 @@ let cxpCache = [];
 let cxpCuentasPago = []; // cuentas de banco/caja, para el modal de Anticipo (reusa lo ya cargado por el módulo)
 let cxpEmpleados = []; // para "Visto bueno" (ligado a un empleado real, no texto libre)
 let cxpAnticiposDisp = 0; // suma de v_anticipos_oc.disponible, para la tarjeta KPI
+let cxpPagoPolizaPorDoc = new Map(); // documento_id (recibo) -> [poliza_id del/los pago(s) que lo liquidaron]
 let cxpPreOcCache = null;
 let cxpFiltro = 'pendiente';
 let cxpDesde = primerDiaMesISO();
@@ -70,6 +71,22 @@ export async function cargarModuloPagosProveedor() {
         const { data } = await supabaseClient.from('v_anticipos_oc').select('disponible');
         cxpAnticiposDisp = (data || []).reduce((a, r) => a + Number(r.disponible || 0), 0);
     } catch (_) { cxpAnticiposDisp = 0; }
+
+    // Para las filas ya "Pagada": la póliza de la columna es la del RECIBO (contabilizar_compra),
+    // nunca se actualiza con la del pago — es por diseño, son dos eventos distintos. Esto trae
+    // aparte la póliza del/los pago(s) que la liquidaron, para mostrar las dos.
+    cxpPagoPolizaPorDoc = new Map();
+    try {
+        const { data } = await supabaseClient.from('pagos_proveedor_aplicaciones')
+            .select('documento_id, pagos_proveedor!inner ( poliza_id, estatus )')
+            .eq('tipo', 'compra').eq('pagos_proveedor.estatus', 'registrado').not('documento_id', 'is', null);
+        (data || []).forEach((a) => {
+            if (!a.pagos_proveedor?.poliza_id) return;
+            const arr = cxpPagoPolizaPorDoc.get(a.documento_id) || [];
+            arr.push(a.pagos_proveedor.poliza_id);
+            cxpPagoPolizaPorDoc.set(a.documento_id, arr);
+        });
+    } catch (_) { /* degrada sin esto */ }
 
     let cxp = [];
     try {
@@ -212,23 +229,22 @@ function cxpPintarDocumentos() {
     const hoy7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
     const sumSi = (f) => pendientesTodas.filter(f).reduce((a, x) => a + Number(x.saldo || 0), 0);
     const kpis = `
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-2">
           <p class="text-[10px] uppercase text-slate-500">Saldo total pendiente</p>
           <p class="font-mono text-lg text-slate-100">${money(sumSi(() => true))}</p>
         </div>
-        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-2">
           <p class="text-[10px] uppercase text-slate-500">Vencido</p>
           <p class="font-mono text-lg text-rose-400">${money(sumSi((x) => x.vence && x.vence < hoyISO()))}</p>
         </div>
-        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-2">
           <p class="text-[10px] uppercase text-slate-500">Vence en 7 días</p>
           <p class="font-mono text-lg text-amber-300">${money(sumSi((x) => x.vence && x.vence >= hoyISO() && x.vence <= hoy7))}</p>
         </div>
-        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-2">
           <p class="text-[10px] uppercase text-slate-500">Anticipos disponibles</p>
           <p class="font-mono text-lg text-sky-300">${money(cxpAnticiposDisp)}</p>
-          <p class="text-[10px] text-slate-500 mt-0.5">Se usan solos al pagar una OC sin recibir — sin botón aparte</p>
         </div>
       </div>`;
 
@@ -262,6 +278,7 @@ function cxpPintarDocumentos() {
             ${filtrados.length ? filtrados.map((x) => {
                 const pre = esAbierto && cxpPreOcCache && x.tipo === 'compra' && Number(x.orden_compra_id) === Number(cxpPreOcCache);
                 const vencida = esVencida(x);
+                const polizasPago = x.estatus_cxp === 'pagado' ? (cxpPagoPolizaPorDoc.get(x.id) || []) : [];
                 return `
                 <tr class="border-b border-slate-900 ${x.estatus_cxp === 'cancelado' ? 'opacity-60' : ''}" data-tipo="${x.tipo}" data-id="${x.id}" data-saldo="${x.saldo}" data-total="${x.total || 0}" data-oc-id="${x.orden_compra_id || ''}" data-prov="${x.proveedor_id || ''}" data-prov-nombre="${esc(x.proveedor_nombre || '—')}" data-folio="${esc(x.folio || '#' + x.id)}">
                   <td class="p-2 text-center">${esAbierto ? `<input type="checkbox" class="cxp-chk accent-emerald-500 w-4 h-4" ${pre ? 'checked' : ''}>` : ''}</td>
@@ -272,7 +289,10 @@ function cxpPintarDocumentos() {
                   <td class="p-2 text-right text-xs font-mono">${money(x.total)}</td>
                   <td class="p-2 text-right text-xs font-mono text-amber-300">${money(x.saldo)}</td>
                   <td class="p-2">${chipEstatus(x)}</td>
-                  <td class="p-2 text-xs">${linkPoliza(x.poliza_id, 'text-xs font-mono text-sky-400 hover:underline')}</td>
+                  <td class="p-2 text-xs"><div class="flex flex-col gap-0.5">
+                    <span>${linkPoliza(x.poliza_id, 'text-xs font-mono text-sky-400 hover:underline')} <span class="text-slate-600">recibo</span></span>
+                    ${polizasPago.map((pid) => `<span>${linkPoliza(pid, 'text-xs font-mono text-emerald-400 hover:underline')} <span class="text-slate-600">pago</span></span>`).join('')}
+                  </div></td>
                   <td class="p-2 text-right">${esAbierto ? `<button type="button" class="cxp-pagar-fila text-xs bg-sky-600 hover:bg-sky-500 text-white font-medium px-3 py-1.5 rounded-lg">Pagar</button>` : ''}</td>
                 </tr>`;
             }).join('') : `<tr><td colspan="10" class="p-4 text-center text-slate-500">No hay documentos en "${cxpEstLabel(cxpFiltro).toLowerCase()}" con los filtros elegidos.</td></tr>`}
@@ -472,7 +492,7 @@ function cxpPintarVentanaPago(docs, provId, detalle, proveedorInfo) {
           <div><span class="text-slate-500 block">Fecha de la ODC</span><span class="text-slate-200 font-mono">${esc(detalle?.oc?.fecha || '—')}</span></div>
           <div><span class="text-slate-500 block">Días de crédito</span><span class="text-slate-200">${detalle?.oc?.dias_credito != null ? detalle.oc.dias_credito + ' días' : '— (sin capturar)'}</span></div>
           <div class="col-span-2"><span class="text-slate-500 block">Documentos</span>
-            ${docs[0].ocId ? `<button type="button" onclick="window.verDetalleOC(${docs[0].ocId})" class="text-sky-400 hover:underline">Ver ODC ${esc(detalle?.oc?.folio || '')}</button> · ` : ''}
+            ${docs[0].ocId ? `<button type="button" onclick="window.verDetalleOC(${docs[0].ocId})" class="text-sky-400 hover:underline">Ver ${esc(detalle?.oc?.folio || 'ODC')}</button> · ` : ''}
             ${linkDoc(docs[0].id, 'Ver recepción', 'text-sky-400 hover:underline')}
             ${(detalle?.notas || []).filter((n) => n.estatus === 'activa').map((n) => ` · <span class="text-amber-300 font-mono">${esc(n.folio)}</span>`).join('')}
           </div>` : `<div class="col-span-2"><span class="text-slate-500 block">Documentos</span><span class="text-slate-200">${docs.length} seleccionados (ver tabla abajo)</span></div>`}
@@ -561,7 +581,7 @@ function cxpPintarVentanaPago(docs, provId, detalle, proveedorInfo) {
         <div class="flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-800">
           <div>
             <h3 class="text-md font-semibold text-slate-100">Registrar pago · <span class="font-mono text-emerald-400">${unico ? esc(docs[0].folio) : esc(provNombre)}</span></h3>
-            <p class="text-xs text-slate-400">${docs.length} documento(s) · ${esc(provNombre)} · saldo ${money(total)}</p>
+            ${unico ? '' : `<p class="text-xs text-slate-400">${docs.length} documentos · ${esc(provNombre)} · saldo ${money(total)}</p>`}
           </div>
           <button type="button" class="text-slate-400 hover:text-slate-100 text-xl leading-none" onclick="window.cxpAntCerrar()">&times;</button>
         </div>
