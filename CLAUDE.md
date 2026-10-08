@@ -6,6 +6,27 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`. A petición del usuario (comparativo PDF "ACTUAL vs
+  FORMATO APROBADO" con capturas marcadas): tabla de Cuentas por pagar ajustada al formato acordado. Quitada la columna
+  **Tipo** (siempre decía "compra", sin valor — el formato aprobado no la tiene). Columna **Póliza** simplificada a un solo
+  link de texto (`linkPoliza()`, ya se auto-rotula "Egreso #N" o "BAN-2027-00001 · Egreso #N" si ya corrió `…07d`) — se quitó
+  el botón grande "🧾 Póliza #N" y el botón "Ver recibo" (**era 100% redundante**: hacía el mismo `abrirDetalleDocumentoGlobal`
+  que ya dispara el link de la columna Documento — verificado antes de quitarlo, no se perdió nada). Nuevo **botón "Pagar"
+  individual por fila** (azul, solo visible en vistas "abiertas" — Pendiente/Vencida/Parcial, igual que el checkbox): paga
+  ESE documento directo, sin marcar su casilla primero — antes solo existía "Pagar selección" con checkbox. Confirmado al
+  usuario: el botón se deja de ver solo cuando el documento sale de esas vistas (saldo llega a 0 → pasa a "Pagada" → ya no
+  tiene checkbox ni botón Pagar, por diseño de `esAbierto`). **Trazabilidad real agregada** a "Aprobaciones" en la ventana de
+  pago (antes solo tenía el selector de Visto bueno): si la OC viene de una requisición, muestra folio + quién/cuándo la
+  autorizó (`requisiciones_compra.revisada_por/revisada_en`); si el documento tiene una nota de crédito/cargo activa
+  (`notas_compra`, del candado de diferencia física vs. factura), la muestra con monto y motivo. Ambas solo cuando se paga
+  UN documento (con selección múltiple no hay detalle rico, igual que "Qué ampara este pago"). A propósito NO se agregó lo
+  demás que trae la maqueta ahí ("Recepción validada en almacén", "1 concepto fuera de lo habitual") — no hay dato real
+  detrás, se habría tenido que inventar. Pendiente: probar en el navegador — que el botón Pagar de fila abra la ventana
+  correcta, que Póliza muestre el link bien, y revisar una OC con requisición ligada y otra con nota de ajuste para ver la
+  trazabilidad nueva. **Corrección de la misma ronda:** se quitó el "Saldo total: $X" junto a "Documentos por pagar" en las
+  vistas abiertas (Pendiente/Vencida/Parcial) — duplicaba exactamente la tarjeta KPI "Saldo total pendiente" de arriba
+  (el usuario lo marcó con flecha). En Pagadas/Canceladas/Todas se queda "Suma: $X" (ahí sí es un dato distinto, la KPI no
+  lo cubre).
 - Archivos tocados (lo último): `css/ui-moderno.css`. A petición del usuario (con captura marcando dónde): en **Cuentas por
   pagar, SOLO con el tema Claro Ice activo**, el bloque "Asistente — Cuentas por pagar" (lo monta `montarGuia()`, compartido
   por ~19 pantallas — NO se tocó ese archivo) se compacta a una píldora "Ayuda" arriba a la derecha, junto al `<h2>` del

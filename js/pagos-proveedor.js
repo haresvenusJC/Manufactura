@@ -152,7 +152,6 @@ function cxpPintarDocumentos() {
 
     aplicarOrden(cxpOrden, filtrados, (x, campo) => {
         switch (campo) {
-            case 'tipo': return x.tipo || '';
             case 'folio': return (x.folio || String(x.id)).toLowerCase();
             case 'proveedor': return (x.proveedor_nombre || '').toLowerCase();
             case 'fecha': return x.fecha || '';
@@ -237,7 +236,7 @@ function cxpPintarDocumentos() {
       ${kpis}
       <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
         <h3 class="text-md font-semibold text-slate-300">Documentos por pagar</h3>
-        <span class="text-xs text-slate-400">${esAbierto ? 'Saldo total' : 'Suma'}: <span class="font-mono text-amber-300">${money(totalGeneral)}</span></span>
+        ${esAbierto ? '' : `<span class="text-xs text-slate-400">Suma: <span class="font-mono text-amber-300">${money(totalGeneral)}</span></span>`}
       </div>
       <div class="flex flex-wrap items-end gap-2 mb-3">
         <div><label class="block text-[10px] text-slate-400 mb-1">Desde</label>
@@ -251,36 +250,30 @@ function cxpPintarDocumentos() {
         <table class="w-full text-left text-xs text-slate-300">
           <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
             <th class="p-2">${esAbierto ? '<input type="checkbox" id="cxpAll" class="accent-emerald-500">' : ''}</th>
-            ${thOrden(cxpOrden, 'tipo', 'Tipo')}
             ${thDoc}
             ${thProv}
             ${thOrden(cxpOrden, 'fecha', 'Fecha')}
             ${thOrden(cxpOrden, 'vence', 'Vence')}${thOrden(cxpOrden, 'total', 'Total', 'text-right justify-end')}${thOrden(cxpOrden, 'saldo', 'Saldo', 'text-right justify-end')}
             ${thEst}
             <th class="p-2">Póliza</th>
+            <th class="p-2"></th>
           </tr></thead>
           <tbody id="cxpBody">
             ${filtrados.length ? filtrados.map((x) => {
                 const pre = esAbierto && cxpPreOcCache && x.tipo === 'compra' && Number(x.orden_compra_id) === Number(cxpPreOcCache);
-                const verPoliza = x.poliza_id
-                    ? `<button type="button" onclick="window.verPolizaDeDocumento(${x.poliza_id}, '${x.fecha || ''}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer">🧾 Póliza #${x.poliza_id}</button>`
-                    : '';
-                const verDoc = x.tipo === 'compra'
-                    ? `<button type="button" onclick="window.abrirDetalleDocumentoGlobal(${x.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded cursor-pointer">Ver recibo</button>`
-                    : '';
                 const vencida = esVencida(x);
                 return `
                 <tr class="border-b border-slate-900 ${x.estatus_cxp === 'cancelado' ? 'opacity-60' : ''}" data-tipo="${x.tipo}" data-id="${x.id}" data-saldo="${x.saldo}" data-total="${x.total || 0}" data-oc-id="${x.orden_compra_id || ''}" data-prov="${x.proveedor_id || ''}" data-prov-nombre="${esc(x.proveedor_nombre || '—')}" data-folio="${esc(x.folio || '#' + x.id)}">
                   <td class="p-2 text-center">${esAbierto ? `<input type="checkbox" class="cxp-chk accent-emerald-500 w-4 h-4" ${pre ? 'checked' : ''}>` : ''}</td>
-                  <td class="p-2">${x.tipo}</td>
-                  <td class="p-2">${x.tipo === 'compra' ? linkDoc(x.id, x.folio || '#' + x.id, 'font-mono text-slate-200') : `<span class="font-mono text-slate-200">${esc(x.folio || '#' + x.id)}</span>`}</td>
-                  <td class="p-2">${esc(x.proveedor_nombre || '—')}</td>
-                  <td class="p-2 whitespace-nowrap text-slate-400">${x.fecha || ''}</td>
-                  <td class="p-2 whitespace-nowrap ${vencida ? 'text-rose-400 font-semibold' : 'text-slate-400'}">${x.vence || '—'}</td>
-                  <td class="p-2 text-right font-mono">${money(x.total)}</td>
-                  <td class="p-2 text-right font-mono text-amber-300">${money(x.saldo)}</td>
+                  <td class="p-2">${x.tipo === 'compra' ? linkDoc(x.id, x.folio || '#' + x.id, 'text-xs font-mono text-slate-200') : `<span class="text-xs font-mono text-slate-200">${esc(x.folio || '#' + x.id)}</span>`}</td>
+                  <td class="p-2 text-xs">${esc(x.proveedor_nombre || '—')}</td>
+                  <td class="p-2 text-xs whitespace-nowrap text-slate-400">${x.fecha || ''}</td>
+                  <td class="p-2 text-xs whitespace-nowrap ${vencida ? 'text-rose-400 font-semibold' : 'text-slate-400'}">${x.vence || '—'}</td>
+                  <td class="p-2 text-right text-xs font-mono">${money(x.total)}</td>
+                  <td class="p-2 text-right text-xs font-mono text-amber-300">${money(x.saldo)}</td>
                   <td class="p-2">${chipEstatus(x)}</td>
-                  <td class="p-2"><div class="flex flex-col gap-1">${verPoliza}${verDoc}${!verPoliza && !verDoc ? '<span class="text-slate-500">—</span>' : ''}</div></td>
+                  <td class="p-2 text-xs">${linkPoliza(x.poliza_id, 'text-xs font-mono text-sky-400 hover:underline')}</td>
+                  <td class="p-2 text-right">${esAbierto ? `<button type="button" class="cxp-pagar-fila text-xs bg-sky-600 hover:bg-sky-500 text-white font-medium px-3 py-1.5 rounded-lg">Pagar</button>` : ''}</td>
                 </tr>`;
             }).join('') : `<tr><td colspan="10" class="p-4 text-center text-slate-500">No hay documentos en "${cxpEstLabel(cxpFiltro).toLowerCase()}" con los filtros elegidos.</td></tr>`}
           </tbody>
@@ -338,6 +331,10 @@ function cxpPintarDocumentos() {
         const filas = seleccionadas();
         if (filas.length > 1) cxpAbrirAutorizacion(filas); else cxpAbrirPago(filas);
     };
+    // "Pagar" por fila: paga solo ESE documento, sin tener que marcar su casilla primero.
+    document.querySelectorAll('#cxpBody .cxp-pagar-fila').forEach((b) => {
+        b.onclick = () => cxpAbrirPago([b.closest('tr')]);
+    });
     actualizarSeleccion();
 }
 
@@ -436,18 +433,21 @@ async function cxpAbrirPago(filas) {
 
     cxpMostrarModal(`<div class="bg-slate-950 border border-slate-700 rounded-xl w-full max-w-sm p-5 text-sm text-slate-400 shadow-2xl">Cargando…</div>`);
 
-    // El detalle "rico" (línea por línea, subtotal/IVA, datos de la OC) solo aplica cuando se paga UN
-    // documento a la vez — con varios documentos seleccionados se queda la tabla resumen folio+saldo.
+    // El detalle "rico" (línea por línea, subtotal/IVA, datos de la OC, trazabilidad real: requisición
+    // que autorizó la OC y nota de crédito/cargo si la hubo) solo aplica cuando se paga UN documento a
+    // la vez — con varios documentos seleccionados se queda la tabla resumen folio+saldo.
     let detalle = null, proveedorInfo = null;
     if (docs.length === 1 && docs[0].tipo === 'compra') {
         try {
-            const [{ data: doc }, { data: lineas }, { data: prov }, { data: oc }] = await Promise.all([
+            const [{ data: doc }, { data: lineas }, { data: prov }, { data: oc }, { data: req }, { data: notas }] = await Promise.all([
                 supabaseClient.from('documentos').select('subtotal, iva, total').eq('id', docs[0].id).maybeSingle(),
                 supabaseClient.from('documento_detalles').select('cantidad, costo_unitario, subtotal, productos ( nombre, sku )').eq('documento_id', docs[0].id),
                 provId ? supabaseClient.from('proveedores').select('nombre, rfc').eq('id', provId).maybeSingle() : Promise.resolve({ data: null }),
                 docs[0].ocId ? supabaseClient.from('ordenes_compra').select('folio, fecha, dias_credito').eq('id', docs[0].ocId).maybeSingle() : Promise.resolve({ data: null }),
+                docs[0].ocId ? supabaseClient.from('requisiciones_compra').select('folio, solicitada_por, revisada_por, revisada_en').eq('orden_compra_id', docs[0].ocId).maybeSingle() : Promise.resolve({ data: null }),
+                supabaseClient.from('notas_compra').select('folio, tipo, monto, motivo, motivo_detalle, estatus').eq('documento_id', docs[0].id),
             ]);
-            detalle = { doc: doc || {}, lineas: lineas || [], oc: oc || null };
+            detalle = { doc: doc || {}, lineas: lineas || [], oc: oc || null, requisicion: req || null, notas: notas || [] };
             proveedorInfo = prov || null;
         } catch (_) { detalle = null; }
     }
@@ -502,10 +502,16 @@ function cxpPintarVentanaPago(docs, provId, detalle, proveedorInfo) {
         </div>`}
       </div>`;
 
+    const req = detalle?.requisicion;
+    const notasActivas = (detalle?.notas || []).filter((n) => n.estatus === 'activa');
+    const filaTraza = (txt) => `<p class="flex items-start gap-1.5 text-xs text-slate-300"><span class="text-emerald-400 shrink-0">✓</span><span>${txt}</span></p>`;
     const bloqueAprobaciones = `
-      <div class="space-y-1">
-        <h4 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Aprobaciones</h4>
-        <label class="block text-xs text-slate-400 mb-1">Visto bueno de quien solicitó <span class="text-slate-500">· informativo, opcional</span></label>
+      <div class="space-y-1.5">
+        <h4 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Aprobaciones y trazabilidad</h4>
+        ${unico && req ? filaTraza(`Requisición <b class="font-mono">${esc(req.folio)}</b> autorizada${req.revisada_por ? ' por ' + esc(req.revisada_por) : ''}${req.revisada_en ? ' · ' + esc(String(req.revisada_en).slice(0, 10)) : ''}`) : ''}
+        ${unico && notasActivas.length ? notasActivas.map((n) => `<p class="flex items-start gap-1.5 text-xs text-amber-300 bg-amber-950/40 border border-amber-900 rounded-lg px-2.5 py-1.5"><span class="shrink-0">⚠</span><span>Nota ${n.tipo === 'credito' ? 'de crédito' : 'de cargo'} <b class="font-mono">${esc(n.folio)}</b> por ${money(n.monto)} — ${esc(n.motivo)}${n.motivo_detalle ? ': ' + esc(n.motivo_detalle) : ''}</span></p>`).join('') : ''}
+        ${!unico ? `<p class="text-xs text-slate-500">Trazabilidad detallada solo cuando se paga un documento a la vez.</p>` : (!req && !notasActivas.length ? `<p class="text-xs text-slate-500">Sin requisición ligada ni notas de ajuste para este documento.</p>` : '')}
+        <label class="block text-xs text-slate-400 mb-1 mt-1.5">Visto bueno de quien solicitó <span class="text-slate-500">· informativo, opcional</span></label>
         <select id="cxpVistoBueno" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">— sin confirmar —</option>${opcionesEmpleado}</select>
       </div>`;
 
