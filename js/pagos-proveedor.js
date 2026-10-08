@@ -13,7 +13,6 @@ import { imprimirHtml, marcaDeEstatus } from './impresion.js';
 
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const hoyISO = () => new Date().toISOString().slice(0, 10);
-const primerDiaMesISO = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // Estado del filtro de visibilidad (Pendientes / Pagadas / Canceladas / Todas)
@@ -25,8 +24,10 @@ let cxpAnticiposDisp = 0; // suma de v_anticipos_oc.disponible, para la tarjeta 
 let cxpPagoPolizaPorDoc = new Map(); // documento_id (recibo) -> [poliza_id del/los pago(s) que lo liquidaron]
 let cxpPreOcCache = null;
 let cxpFiltro = 'pendiente';
-let cxpDesde = primerDiaMesISO();
-let cxpHasta = hoyISO();
+// Vacíos siempre al entrar (nunca prellenados): si se llenan, filtran por fecha SIN importar el
+// estatus — "Desde/Hasta" ya no es exclusivo de Pagadas/Canceladas/Todas, aplica a cualquier vista.
+let cxpDesde = '';
+let cxpHasta = '';
 let cxpProveedorId = '';
 let cxpDocQ = '';
 // Estatus como menú desplegable en el encabezado de la columna (no pestañas), igual que la
@@ -105,7 +106,7 @@ export async function cargarModuloPagosProveedor() {
     cxpPreOcCache = window.__cxpOcPreseleccion || null;
     window.__cxpOcPreseleccion = null;
     cxpFiltro = 'pendiente';
-    cxpDesde = primerDiaMesISO(); cxpHasta = hoyISO(); cxpProveedorId = '';
+    cxpDesde = ''; cxpHasta = ''; cxpProveedorId = '';
 
     cont.innerHTML = `
     <div class="space-y-4">
@@ -135,19 +136,17 @@ function cxpPintarDocumentos() {
     const panel = document.getElementById('cxpPanelDocumentos');
     if (!panel) return;
 
-    // "Pendientes de pago" nunca se oculta por fecha (es lo que debes, no
-    // caduca por ser de un mes anterior) — a petición del usuario, antes
-    // se escondía fuera del rango "inicio de mes a hoy" y avisaba con un
-    // banner aparte; ahora simplemente siempre se ve todo. "Pagadas" /
-    // "Canceladas" / "Todas" sí respetan el rango elegido (ahí sí es un
-    // historial, tiene sentido acotarlo).
+    // "Desde/Hasta" aplica a cualquier estatus por igual (antes "Pendiente" lo ignoraba siempre) —
+    // vacíos (default) no excluyen nada. Las tarjetas KPI SÍ siguen siendo el total real sin
+    // importar el rango de fecha elegido (son "cuánto debo de verdad", no la vista filtrada).
     const porProveedor = (x) => !cxpProveedorId || String(x.proveedor_id || '') === cxpProveedorId;
     const porDoc = (x) => !cxpDocQ || (x.folio || '').toLowerCase().includes(cxpDocQ.toLowerCase());
     const porFecha = (x) => (!cxpDesde || (x.fecha || '') >= cxpDesde) && (!cxpHasta || (x.fecha || '') <= cxpHasta);
     const esVencida = (x) => x.estatus_cxp === 'pendiente' && !!x.vence && x.vence < hoyISO();
     const esParcial = (x) => x.estatus_cxp === 'pendiente' && Number(x.pagado || 0) > 0;
 
-    const pendientesTodas = cxpCache.filter((x) => x.estatus_cxp === 'pendiente' && porProveedor(x) && porDoc(x));
+    const pendientesKPI = cxpCache.filter((x) => x.estatus_cxp === 'pendiente' && porProveedor(x) && porDoc(x));
+    const pendientesTodas = pendientesKPI.filter(porFecha);
     const noPendientesConFecha = cxpCache.filter((x) => x.estatus_cxp !== 'pendiente' && porProveedor(x) && porDoc(x) && porFecha(x));
     const todasVista = [...pendientesTodas, ...noPendientesConFecha];
 
@@ -165,7 +164,6 @@ function cxpPintarDocumentos() {
         : cxpFiltro === 'parcial' ? pendientesTodas.filter(esParcial)
         : cxpFiltro === 'todas' ? todasVista
         : noPendientesConFecha.filter((x) => x.estatus_cxp === cxpFiltro);
-    const totalGeneral = filtrados.reduce((a, x) => a + Number(x.saldo || 0), 0);
 
     aplicarOrden(cxpOrden, filtrados, (x, campo) => {
         switch (campo) {
@@ -195,12 +193,13 @@ function cxpPintarDocumentos() {
     // Encabezado de columna como menú desplegable (triángulo grande + valor elegido DEBAJO del
     // botón, en letra chica, para que elegir un filtro nunca ensanche la columna): mismo patrón
     // en los 3 — Documento (busca folio de OC), Proveedor (lista), Estatus (lista con conteo).
+    // La etiqueta del valor elegido va con position:absolute (no en flujo) para que TODOS los
+    // encabezados queden en el mismo renglón, tengan o no un filtro activo — mismo tamaño de
+    // letra y padding que thOrden() (orden-tabla.js: p-3, hereda text-xs de la tabla).
     const thFiltro = (id, titulo, etiqueta, menuHtml) => `
-      <th class="p-2 relative align-top">
-        <div class="inline-flex flex-col items-start gap-0.5">
-          <button type="button" id="cxpTh${id}" class="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 font-semibold text-[11px] normal-case tracking-normal">${titulo}<span class="text-sm leading-none">▼</span></button>
-          <span class="text-[10px] font-semibold text-sky-400 normal-case">${etiqueta}</span>
-        </div>
+      <th class="p-3 relative align-top">
+        <button type="button" id="cxpTh${id}" class="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 font-semibold normal-case tracking-normal">${titulo}<span class="text-base leading-none">▼</span></button>
+        ${etiqueta ? `<span class="absolute left-3 top-full mt-0.5 text-[10px] font-semibold text-sky-400 normal-case whitespace-nowrap">${etiqueta}</span>` : ''}
         <div id="cxp${id}Menu" class="hidden absolute top-full left-0 mt-1 z-30 bg-slate-800 border border-slate-600 rounded-lg p-2 shadow-2xl normal-case font-normal">${menuHtml}</div>
       </th>`;
 
@@ -227,7 +226,7 @@ function cxpPintarDocumentos() {
       </div>`);
 
     const hoy7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-    const sumSi = (f) => pendientesTodas.filter(f).reduce((a, x) => a + Number(x.saldo || 0), 0);
+    const sumSi = (f) => pendientesKPI.filter(f).reduce((a, x) => a + Number(x.saldo || 0), 0);
     const kpis = `
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
         <div class="bg-slate-950 border border-slate-800 rounded-xl p-2">
@@ -250,29 +249,27 @@ function cxpPintarDocumentos() {
 
     panel.innerHTML = `
       ${kpis}
-      <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+      <div class="flex items-end justify-between mb-3 flex-wrap gap-2">
         <h3 class="text-md font-semibold text-slate-300">Documentos por pagar</h3>
-        ${esAbierto ? '' : `<span class="text-xs text-slate-400">Suma: <span class="font-mono text-amber-300">${money(totalGeneral)}</span></span>`}
+        <div class="flex flex-wrap items-end gap-2">
+          <div><label class="block text-[10px] text-slate-400 mb-1">Desde</label>
+            <input type="date" id="cxpDesde" value="${cxpDesde}" placeholder="mm/dd/aaaa" class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></div>
+          <div><label class="block text-[10px] text-slate-400 mb-1">Hasta</label>
+            <input type="date" id="cxpHasta" value="${cxpHasta}" placeholder="mm/dd/aaaa" class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></div>
+          <button type="button" id="cxpLimpiarFiltros" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg">Limpiar</button>
+        </div>
       </div>
-      <div class="flex flex-wrap items-end gap-2 mb-3">
-        <div><label class="block text-[10px] text-slate-400 mb-1">Desde</label>
-          <input type="date" id="cxpDesde" value="${cxpDesde}" ${esAbierto ? 'disabled' : ''} class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 disabled:opacity-40"></div>
-        <div><label class="block text-[10px] text-slate-400 mb-1">Hasta</label>
-          <input type="date" id="cxpHasta" value="${cxpHasta}" ${esAbierto ? 'disabled' : ''} class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 disabled:opacity-40"></div>
-        <button type="button" id="cxpLimpiarFiltros" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg">Limpiar</button>
-      </div>
-      ${esAbierto ? '<p class="text-[10px] text-slate-500 mb-3">"Desde/Hasta" no aplica aquí — pendientes de pago siempre se ven todos, sin importar la fecha.</p>' : ''}
       <div class="overflow-x-auto border border-slate-800 rounded-lg" style="overflow-y:visible">
         <table class="w-full text-left text-xs text-slate-300">
           <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-            <th class="p-2">${esAbierto ? '<input type="checkbox" id="cxpAll" class="accent-emerald-500">' : ''}</th>
+            <th class="p-3">${esAbierto ? '<input type="checkbox" id="cxpAll" class="accent-emerald-500">' : ''}</th>
             ${thDoc}
             ${thProv}
             ${thOrden(cxpOrden, 'fecha', 'Fecha')}
             ${thOrden(cxpOrden, 'vence', 'Vence')}${thOrden(cxpOrden, 'total', 'Total', 'text-right justify-end')}${thOrden(cxpOrden, 'saldo', 'Saldo', 'text-right justify-end')}
             ${thEst}
-            <th class="p-2">Póliza</th>
-            <th class="p-2"></th>
+            <th class="p-3">Póliza</th>
+            <th class="p-3"></th>
           </tr></thead>
           <tbody id="cxpBody">
             ${filtrados.length ? filtrados.map((x) => {

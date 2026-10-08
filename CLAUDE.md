@@ -6,6 +6,24 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `css/ui-moderno.css`, `version.json`. Ronda 5 (5 capturas).
+  **1) Desde/Hasta/Limpiar** se movió a la MISMA línea que "Documentos por pagar" (antes su propio renglón). **2) Se quitó
+  "Suma: $X"** por completo (antes solo se ocultaba en vistas abiertas). **3) Cambio de comportamiento real, a petición
+  explícita** (revierte una decisión de sesiones anteriores): Desde/Hasta ya NO se deshabilita ni se ignora en
+  Pendiente/Vencida/Parcial — ahora filtra por fecha SIN importar el estatus, en cualquier vista; empieza siempre VACÍO
+  (nunca prellenado con "inicio de mes/hoy", así no hay fecha que confundir) — se quitó el aviso "Desde/Hasta no aplica
+  aquí". Las tarjetas KPI seguen siendo el total real sin filtrar por fecha (se separó `pendientesKPI` de
+  `pendientesTodas`, que ahora sí respeta el rango). **4) Encabezados de columna ya no se desalinean**: el valor elegido
+  (ej. "· Alkem Industrias" bajo Proveedor) ahora es `position:absolute` en vez de empujar el renglón — todos los `<th>`
+  quedan en la misma línea tengan o no un filtro activo; de paso se igualó el tamaño de letra y el padding (`p-3`) con
+  `thOrden()` (antes `text-[11px]`/`p-2`, inconsistente). El triángulo ▾ se cambió a ▼ más grande. **5) "Claro Ice":** el
+  `<h2>` del título y el botón "Ayuda" (ya viven en el mismo renglón, ronda anterior) suben un poco más
+  (`#view-pagos-proveedor { margin-top: -0.75rem }`, solo este tema/pantalla) para ganar espacio vertical. **Aclaración al
+  usuario** sobre "¿dónde quedó el BAN-0000X?" en una póliza de pago: no es un bug de código — falta correr
+  `sql/2026-10-07d_polizas_series_y_visto_bueno.sql` en Supabase; sin esa migración, `registrar_pago_proveedor()` sigue sin
+  asignar serie y la póliza se muestra como "Egreso #N" genérico (comportamiento de respaldo ya previsto). Pendiente:
+  correr esa migración si no se ha corrido, y probar en el navegador — Desde/Hasta en la vista Pendiente, alineación de
+  encabezados, y el título subido en Claro Ice.
 - Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`. Ronda 4 (captura marcando las tarjetas KPI): se
   quitó el texto de ayuda bajo "Anticipos disponibles" ("Se usan solos al pagar una OC sin recibir — sin botón aparte") y
   se recortó el padding de las 4 tarjetas (`p-3`→`p-2`, el contenedor `mb-4`→`mb-3`) — la tarjeta "Saldo total pendiente"
