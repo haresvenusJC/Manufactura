@@ -6,6 +6,16 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `css/ui-moderno.css`. A petición del usuario (con captura marcando dónde): en **Cuentas por
+  pagar, SOLO con el tema Claro Ice activo**, el bloque "Asistente — Cuentas por pagar" (lo monta `montarGuia()`, compartido
+  por ~19 pantallas — NO se tocó ese archivo) se compacta a una píldora "Ayuda" arriba a la derecha, junto al `<h2>` del
+  título, en vez de ocupar su propio renglón completo abajo. Al abrirlo se vuelve un popover flotante (420px) con el
+  contenido completo + el botón "📖 Manual" (ambos ocultos mientras está colapsado). Es 100% CSS, scoped a
+  `#contenedorPagosProveedor > .asist-panel` bajo `[data-theme="claro-ice"]` — usa `position:absolute` relativo a
+  `#view-pagos-proveedor` (padre común del `<h2>` y del contenedor) y `:has()` para cambiar de píldora a popover según si
+  `.asist-body` está `.hidden` o no. Con cualquier otro tema, o en cualquier otra pantalla, no cambia nada. Pendiente:
+  probar en el navegador — que la píldora quede alineada con el título, que abrir/cerrar funcione igual que siempre, y que
+  no se monte encima de las tarjetas KPI de forma rara.
 - Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`. A petición del usuario: nuevo tema global **"Claro Ice"**
   (`data-theme="claro-ice"`, tarjeta en Configuración → Temas de usuario, junto a "Mac (oscuro)") con la paleta y tipografía de
   la maqueta de Cuentas por pagar v2 — **modo CLARO** de la maqueta (`:root[data-theme="light"]` de su HTML, no el oscuro que
