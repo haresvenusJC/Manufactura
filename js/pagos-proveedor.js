@@ -26,7 +26,7 @@ let cxpDesde = primerDiaMesISO();
 let cxpHasta = hoyISO();
 let cxpProveedorId = '';
 const CXP_FILTROS = [
-    { v: 'pendiente', t: 'Pendientes de pago' },
+    { v: 'pendiente', t: 'Pendiente' },
     { v: 'pagado', t: 'Pagadas' },
     { v: 'cancelado', t: 'Canceladas' },
     { v: 'todas', t: 'Todas' },
@@ -44,7 +44,10 @@ export async function cargarModuloPagosProveedor() {
         const { data, error } = await supabaseClient.from('cuentas_contables')
             .select('id, codigo, nombre').eq('afectable', true).eq('activa', true).order('codigo');
         if (error) throw error;
-        ctasPago = (data || []).filter(c => /^(101|102)/.test(c.codigo));
+        // 102.02 (Bancos extranjeros USD) se excluye a propósito: la empresa no tiene cuenta en
+        // USD, siempre paga en MXN aunque la OC esté en USD. Se deja en el catálogo para cuando
+        // haya expansión a compras/ventas en el extranjero — solo se oculta de este selector.
+        ctasPago = (data || []).filter(c => /^(101|102)/.test(c.codigo) && c.codigo !== '102.02');
         cxpCuentasPago = ctasPago;
     } catch (_) {
         cont.innerHTML = '<p class="text-amber-400 text-xs">El módulo de contabilidad no está instalado (faltan las cuentas contables).</p>';
@@ -72,11 +75,12 @@ export async function cargarModuloPagosProveedor() {
 
     cont.innerHTML = `
     <div class="space-y-4">
-      <div class="flex justify-end">
-        <button type="button" id="cxpBtnAnticipo" class="text-xs bg-amber-700 hover:bg-amber-600 text-white px-3 py-2 rounded-lg whitespace-nowrap">💰 Pagar anticipo a una OC</button>
-      </div>
-
       <div id="cxpPanelDocumentos" class="bg-slate-950 border border-slate-800 rounded-xl p-4"></div>
+
+      <p class="text-xs text-slate-500">
+        ¿Vas a pagar antes de recibir la mercancía? Eso no es una deuda todavía, por eso no aparece en la lista de arriba:
+        <button type="button" id="cxpBtnAnticipo" class="text-sky-400 hover:text-sky-300 underline">💰 pagar anticipo a una OC sin recibir</button>.
+      </p>
 
       <div>
         <h3 class="text-md font-semibold text-slate-300 mb-2">Pagos registrados</h3>
@@ -128,7 +132,7 @@ function cxpPintarDocumentos() {
             case 'proveedor': return (x.proveedor_nombre || '').toLowerCase();
             case 'fecha': return x.fecha || '';
             case 'total': return Number(x.total || 0);
-            case 'pagado': return Number(x.pagado || 0);
+            case 'vence': return x.vence || '';
             case 'saldo': return Number(x.saldo || 0);
             default: return x.id;
         }
@@ -175,8 +179,8 @@ function cxpPintarDocumentos() {
           <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
             ${esPendiente ? '<th class="p-2"><input type="checkbox" id="cxpAll" class="accent-emerald-500"></th>' : '<th class="p-2">Estatus</th>'}
             ${thOrden(cxpOrden, 'tipo', 'Tipo')}${thOrden(cxpOrden, 'folio', 'Folio')}${thOrden(cxpOrden, 'proveedor', 'Proveedor')}${thOrden(cxpOrden, 'fecha', 'Fecha')}
-            ${thOrden(cxpOrden, 'total', 'Total', 'text-right justify-end')}${thOrden(cxpOrden, 'pagado', 'Pagado', 'text-right justify-end')}${thOrden(cxpOrden, 'saldo', 'Saldo', 'text-right justify-end')}
-            <th class="p-2">Póliza / Recibo</th>
+            ${thOrden(cxpOrden, 'vence', 'Vence')}${thOrden(cxpOrden, 'total', 'Total', 'text-right justify-end')}${thOrden(cxpOrden, 'saldo', 'Saldo', 'text-right justify-end')}
+            <th class="p-2">Póliza</th>
           </tr></thead>
           <tbody id="cxpBody">
             ${filtrados.map((x) => {
@@ -187,6 +191,7 @@ function cxpPintarDocumentos() {
                 const verDoc = x.tipo === 'compra'
                     ? `<button type="button" onclick="window.abrirDetalleDocumentoGlobal(${x.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded cursor-pointer">Ver recibo</button>`
                     : '';
+                const vencida = x.vence && x.estatus_cxp === 'pendiente' && x.vence < hoyISO();
                 return `
                 <tr class="border-b border-slate-900 ${x.estatus_cxp === 'cancelado' ? 'opacity-60' : ''}" data-tipo="${x.tipo}" data-id="${x.id}" data-saldo="${x.saldo}" data-prov="${x.proveedor_id || ''}" data-prov-nombre="${esc(x.proveedor_nombre || '—')}" data-folio="${esc(x.folio || '#' + x.id)}">
                   ${esPendiente
@@ -196,8 +201,8 @@ function cxpPintarDocumentos() {
                   <td class="p-2">${x.tipo === 'compra' ? linkDoc(x.id, x.folio || '#' + x.id, 'font-mono text-slate-200') : `<span class="font-mono text-slate-200">${esc(x.folio || '#' + x.id)}</span>`}</td>
                   <td class="p-2">${esc(x.proveedor_nombre || '—')}</td>
                   <td class="p-2 whitespace-nowrap text-slate-400">${x.fecha || ''}</td>
+                  <td class="p-2 whitespace-nowrap ${vencida ? 'text-rose-400 font-semibold' : 'text-slate-400'}">${x.vence || '—'}</td>
                   <td class="p-2 text-right font-mono">${money(x.total)}</td>
-                  <td class="p-2 text-right font-mono text-slate-500">${money(x.pagado)}</td>
                   <td class="p-2 text-right font-mono text-amber-300">${money(x.saldo)}</td>
                   <td class="p-2"><div class="flex flex-col gap-1">${verPoliza}${verDoc}${!verPoliza && !verDoc ? '<span class="text-slate-500">—</span>' : ''}</div></td>
                 </tr>`;
@@ -257,8 +262,40 @@ function cxpPintarDocumentos() {
         document.getElementById('cxpAll').checked = false;
         actualizarSeleccion();
     };
-    document.getElementById('cxpRegistrar').onclick = () => cxpAbrirPago(seleccionadas());
+    document.getElementById('cxpRegistrar').onclick = () => {
+        const filas = seleccionadas();
+        if (filas.length > 1) cxpAbrirAutorizacion(filas); else cxpAbrirPago(filas);
+    };
     actualizarSeleccion();
+}
+
+// Pagar varias OC del mismo proveedor en una sola transferencia sigue
+// permitido, pero pide autorización del responsable de Finanzas antes de
+// abrir el pago (por ahora un campo de texto — más adelante se ligaría al
+// usuario que inició sesión con ese rol, sin tener que escribirlo).
+function cxpAbrirAutorizacion(filas) {
+    const total = filas.reduce((a, tr) => a + (parseFloat(tr.dataset.saldo) || 0), 0);
+    cxpMostrarModal(`
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-md w-full">
+        <div class="flex items-start justify-between gap-3 mb-2">
+          <h3 class="text-base font-bold text-slate-100">Autorización requerida</h3>
+          <button type="button" class="text-slate-400 hover:text-slate-100 text-xl leading-none" onclick="window.cxpAntCerrar()">&times;</button>
+        </div>
+        <p class="text-xs text-slate-400 mb-3">Vas a pagar ${filas.length} documentos de <b class="text-slate-200">${esc(filas[0].dataset.provNombre)}</b> en una sola transferencia (${money(total)}). Por política, esto necesita el visto bueno del responsable de Finanzas.</p>
+        <div><label class="block text-[10px] text-slate-400 mb-1">Autoriza (nombre)</label>
+          <input type="text" id="cxpAutNombre" placeholder="Nombre de quien autoriza" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
+        <p class="text-[10px] text-sky-400 bg-sky-950/40 border border-sky-900 rounded-lg px-2.5 py-2 mt-2">Por ahora es un campo de texto libre — más adelante se ligaría al usuario que inició sesión con ese rol.</p>
+        <p id="cxpAutErr" class="text-xs text-rose-400 min-h-[1rem] mt-1"></p>
+        <div class="flex justify-end gap-2 mt-2">
+          <button type="button" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-2 rounded-lg" onclick="window.cxpAntCerrar()">Cancelar</button>
+          <button type="button" id="cxpAutOk" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg">Autorizar y continuar</button>
+        </div>
+      </div>`);
+    document.getElementById('cxpAutOk').onclick = () => {
+        const nombre = document.getElementById('cxpAutNombre').value.trim();
+        if (!nombre) { document.getElementById('cxpAutErr').textContent = 'Escribe quién autoriza.'; return; }
+        cxpAbrirPago(filas);
+    };
 }
 
 // Ventana de pago: total (saldo completo, no editable) o parcial (un solo documento,
@@ -301,10 +338,11 @@ function cxpAbrirPago(filas) {
           <div><label class="block text-xs text-slate-400 mb-1">Cuenta (banco / caja)</label>
             <select id="cxpCuentaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">— elige —</option>${opcionesCuenta}</select></div>
           <div><label class="block text-xs text-slate-400 mb-1">Forma de pago</label>
-            <select id="cxpFormaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option>transferencia</option><option>cheque</option><option>tarjeta</option><option>efectivo</option></select></div>
+            <select id="cxpFormaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="" selected>— elegir —</option><option value="transferencia">transferencia</option><option value="cheque">cheque</option><option value="tarjeta">tarjeta</option><option value="efectivo">efectivo</option></select></div>
           <div><label class="block text-xs text-slate-400 mb-1">Referencia</label>
             <input type="text" id="cxpRefPago" placeholder="No. de transferencia / cheque" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
         </div>
+        <p id="cxpAlertaEfectivo" class="hidden text-xs text-amber-300 bg-amber-950/40 border border-amber-900 rounded-lg px-2.5 py-2">Pagos en efectivo mayores a $2,000 no son deducibles y su IVA no es acreditable. Confírmalo con tu contador.</p>
         <p id="cxpPagoErr" class="text-xs text-rose-400 min-h-[1rem]"></p>
         <div class="flex justify-end gap-2">
           <button type="button" class="text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-4 py-2 rounded-lg" onclick="window.cxpAntCerrar()">Cancelar</button>
@@ -326,6 +364,8 @@ function cxpAbrirPago(filas) {
         }
         err.textContent = e;
         document.getElementById('cxpConfirmarPago').disabled = !!e;
+        const forma = document.getElementById('cxpFormaPago').value;
+        document.getElementById('cxpAlertaEfectivo').classList.toggle('hidden', !(forma === 'efectivo' && m > 2000));
     };
     const fijarTipo = (esParcial) => {
         parcial = esParcial;
@@ -343,6 +383,7 @@ function cxpAbrirPago(filas) {
     document.getElementById('cxpTipoParcial').onclick = () => fijarTipo(true);
     monto.oninput = validar;
     document.getElementById('cxpAcuerdo').oninput = validar;
+    document.getElementById('cxpFormaPago').onchange = validar;
     document.getElementById('cxpConfirmarPago').onclick = () => registrarPago(docs, parcial);
     validar();
 }

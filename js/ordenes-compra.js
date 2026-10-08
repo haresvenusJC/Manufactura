@@ -87,6 +87,15 @@ export async function cargarModuloOrdenesCompra() {
             <input type="date" id="ocFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
           <div class="lg:w-40"><label class="block text-xs text-slate-400 mb-1">Fecha esperada</label>
             <input type="date" id="ocFechaEsp" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+          <div class="lg:w-36"><label class="block text-xs text-slate-400 mb-1">Días de crédito</label>
+            <select id="ocDiasCredito" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+              <option value="" selected disabled>— elegir —</option>
+              <option value="0">Inmediato</option>
+              <option value="7">7 días</option>
+              <option value="15">15 días</option>
+              <option value="30">30 días</option>
+              <option value="60">60 días</option>
+            </select></div>
           <div class="lg:w-28"><label class="block text-xs text-slate-400 mb-1">Moneda</label>
             <select id="ocMoneda" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optMon}</select></div>
           <div id="ocBloqueTC" class="hidden lg:w-40"><label class="block text-xs text-slate-400 mb-1">Tipo de cambio</label>
@@ -322,16 +331,19 @@ async function ocGuardarOrden() {
     const msg = document.getElementById('ocMsg');
     msg.textContent = ''; msg.className = 'text-xs mt-2 min-h-[1rem]';
     if (!ocPartidasTemp.length) { msg.textContent = 'Agrega al menos una partida.'; msg.className = 'text-xs mt-2 text-rose-400'; return; }
+    const diasCreditoVal = document.getElementById('ocDiasCredito').value;
+    if (diasCreditoVal === '') { msg.textContent = 'Elige los días de crédito.'; msg.className = 'text-xs mt-2 text-rose-400'; return; }
 
     const btn = document.getElementById('ocGuardar');
     btn.disabled = true;
     try {
         const folio = await siguienteFolio('ODC');   // consecutivo desde 2026-10-05: ODC-000001, ODC-000002...
-        const { data: oc, error: e1 } = await supabaseClient.from('ordenes_compra').insert([{
+        const datosOC = {
             folio,
             proveedor_id: document.getElementById('ocProveedor').value ? parseInt(document.getElementById('ocProveedor').value) : null,
             fecha: document.getElementById('ocFecha').value || hoyISO(),
             fecha_esperada: document.getElementById('ocFechaEsp').value || null,
+            dias_credito: parseInt(diasCreditoVal),
             moneda_id: document.getElementById('ocMoneda').value ? parseInt(document.getElementById('ocMoneda').value) : null,
             ...(ocEsMonedaExtranjera() && document.getElementById('ocTipoCambio').value ? (() => {
                 const input = document.getElementById('ocTipoCambio');
@@ -344,7 +356,13 @@ async function ocGuardarOrden() {
             })() : {}),
             estatus: 'abierta',
             notas: document.getElementById('ocNotas').value.trim() || null,
-        }]).select('id, folio').single();
+        };
+        let { data: oc, error: e1 } = await supabaseClient.from('ordenes_compra').insert([datosOC]).select('id, folio').single();
+        if (e1 && /does not exist|schema cache|could not find/i.test(e1.message || '')) {
+            // dias_credito aún no existe (falta correr sql/2026-10-07b_cxp_v2.sql): reintenta sin ella.
+            const { dias_credito, ...sinDiasCredito } = datosOC;
+            ({ data: oc, error: e1 } = await supabaseClient.from('ordenes_compra').insert([sinDiasCredito]).select('id, folio').single());
+        }
         if (e1) throw e1;
 
         const filas = ocPartidasTemp.map(p => ({
@@ -1092,7 +1110,7 @@ export async function cargarModuloReciboMercancia() {
       </div>` : `
       <div id="rmBloqueFiscal" class="bg-slate-950 border border-slate-800 rounded-xl p-4 mt-4">
         <label class="flex items-center gap-2 text-sm font-semibold text-slate-200 mb-3">
-          <input type="checkbox" id="rmContabilizar" checked class="accent-emerald-500"> Generar póliza contable
+          <input type="checkbox" id="rmContabilizar" checked class="accent-emerald-500"> Registrar Entrada a Almacén
         </label>
         <div id="rmCamposFiscales" class="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div><label class="block text-xs text-slate-400 mb-1">Subtotal</label>
@@ -1107,9 +1125,6 @@ export async function cargarModuloReciboMercancia() {
             <input type="number" step="0.01" min="0" id="rmRetIva" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
           <div><label class="block text-xs text-slate-400 mb-1">Ret. ISR</label>
             <input type="number" step="0.01" min="0" id="rmRetIsr" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Condición</label>
-            <select id="rmCondicion" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-              <option value="credito">Crédito (por pagar)</option><option value="contado">Contado</option></select></div>
           <div><label class="block text-xs text-slate-400 mb-1">Forma de pago (SAT)</label>
             <select id="rmFormaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optForma}</select></div>
           <div><label class="block text-xs text-slate-400 mb-1">Método de pago</label>
@@ -1120,9 +1135,7 @@ export async function cargarModuloReciboMercancia() {
             <input type="number" step="0.0001" min="0" id="rmTipoCambio" value="1" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
           <div class="md:col-span-2"><label class="block text-xs text-slate-400 mb-1">Uso CFDI</label>
             <select id="rmUsoCfdi" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optUso}</select></div>
-          <div id="rmPagoWrap" class="hidden md:col-span-2"><label class="block text-xs text-slate-400 mb-1">Pagado desde (caja / banco)</label>
-            <select id="rmCuentaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-              <option value="">— caja / banco —</option>${rmCuentasPago.map(c => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('')}</select></div>
+          <p class="md:col-span-2 text-[10px] text-slate-500 self-end mb-1">Cómo y cuándo se paga esta compra ya no se captura aquí — lo decide Finanzas en Cuentas por pagar, sobre lo que quede pendiente en 201.01 después del anticipo (si lo hubo).</p>
           <div class="md:col-span-2"><label class="block text-xs text-slate-400 mb-1">UUID CFDI</label>
             <input type="text" id="rmUuid" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono"></div>
           <div class="md:col-span-2"><label class="block text-xs text-slate-400 mb-1">RFC emisor</label>
@@ -1254,9 +1267,6 @@ export async function cargarModuloReciboMercancia() {
         };
         document.getElementById('rmContabilizar').onchange = (e) => {
             document.getElementById('rmCamposFiscales').style.display = e.target.checked ? '' : 'none';
-        };
-        document.getElementById('rmCondicion').onchange = (e) => {
-            document.getElementById('rmPagoWrap').classList.toggle('hidden', e.target.value !== 'contado');
         };
     }
 
@@ -2493,36 +2503,103 @@ async function rmContabilizarDoc(documentoId, subtotalFallback, extras) {
     // Con cargos adicionales: el subtotal enviado es SOLO material (los extras van aparte),
     // para no contarlos dos veces si el CFDI ya los traía como partida.
     if (Array.isArray(extras) && extras.length) subtotal = subtotalFallback;
-    const condicion = document.getElementById('rmCondicion').value;
-    try {
-        const { data: cc, error: eCc } = await supabaseClient.rpc('contabilizar_compra', {
-            p_documento_id: documentoId,
-            p_datos: {
-                subtotal,
-                iva: nf('rmIva') * tc, ieps: nf('rmIeps') * tc, ret_iva: nf('rmRetIva') * tc, ret_isr: nf('rmRetIsr') * tc,
-                condicion,
-                costos_adicionales: (extras || []).map(e => ({
-                    concepto: e.concepto, monto: e.monto, capitaliza: e.capitaliza, cuenta_gasto_id: e.cuenta_gasto_id || null,
-                })),
-                tipo_cambio: tc,
-                forma_pago: document.getElementById('rmFormaPago')?.value || null,
-                metodo_pago: document.getElementById('rmMetodoPago')?.value || null,
-                uso_cfdi: document.getElementById('rmUsoCfdi')?.value || null,
-                moneda,
-                cuenta_pago_id: condicion === 'contado' && document.getElementById('rmCuentaPago')?.value
-                    ? parseInt(document.getElementById('rmCuentaPago').value) : null,
-                uuid_cfdi: document.getElementById('rmUuid').value.trim() || null,
-                rfc_emisor: document.getElementById('rmRfc').value.trim() || null,
-            },
-        });
-        if (eCc) throw eCc;
-        const tipoPol = cc?.tipo_poliza || 'Egreso'; // respaldo si la migración de tipo_poliza aún no corrió
-        return cc && cc.total != null
-            ? ` Póliza de ${tipoPol} generada (total ${money(cc.total)}).`
-            : ` Póliza de ${tipoPol} generada.`;
-    } catch (e) {
-        return ` (Entrada OK, pero no se contabilizó: ${e.message || e})`;
+    const datosBase = {
+        subtotal,
+        iva: nf('rmIva') * tc, ieps: nf('rmIeps') * tc, ret_iva: nf('rmRetIva') * tc, ret_isr: nf('rmRetIsr') * tc,
+        costos_adicionales: (extras || []).map(e => ({
+            concepto: e.concepto, monto: e.monto, capitaliza: e.capitaliza, cuenta_gasto_id: e.cuenta_gasto_id || null,
+        })),
+        tipo_cambio: tc,
+        forma_pago: document.getElementById('rmFormaPago')?.value || null,
+        metodo_pago: document.getElementById('rmMetodoPago')?.value || null,
+        uso_cfdi: document.getElementById('rmUsoCfdi')?.value || null,
+        moneda,
+        uuid_cfdi: document.getElementById('rmUuid').value.trim() || null,
+        rfc_emisor: document.getElementById('rmRfc').value.trim() || null,
+    };
+    // Compras ya no decide cómo se paga (eso es de Finanzas, en Cuentas por pagar) — la
+    // recepción siempre contabiliza a crédito y, si la OC tiene anticipo, se aplica solo.
+    let notaAjuste = null;
+    for (let intento = 0; intento < 2; intento++) {
+        try {
+            const { data: cc, error: eCc } = await supabaseClient.rpc('contabilizar_compra', {
+                p_documento_id: documentoId,
+                p_datos: { ...datosBase, ...(notaAjuste ? { nota_ajuste: notaAjuste } : {}) },
+            });
+            if (eCc) throw eCc;
+            const notaMsg = cc?.nota_folio ? ` Se registró ${cc.nota_folio} por la diferencia.` : '';
+            return cc && cc.total != null
+                ? ` Póliza Diario generada (total ${money(cc.total)}).${notaMsg}`
+                : ` Póliza Diario generada.${notaMsg}`;
+        } catch (e) {
+            let detalle = null;
+            try { detalle = JSON.parse(e.details || e.detail || ''); } catch (_) { /* no era json */ }
+            if (intento === 0 && detalle && detalle.necesita_nota) {
+                notaAjuste = await rmPedirNotaAjuste(detalle.tipo, detalle.monto);
+                if (notaAjuste) continue;   // reintenta con la nota ya capturada
+            }
+            return ` (Entrada OK, pero no se contabilizó: ${e.message || e})`;
+        }
     }
+}
+
+// Lo que llegó físicamente no coincide en valor con la factura (diferencia mayor a la
+// tolerancia de redondeo) — contabilizar_compra lo detecta y pide resolverlo aquí mismo,
+// sin salir de la recepción. tipoSugerido/montoSugerido vienen de su mensaje de error.
+function rmPedirNotaAjuste(tipoSugerido, montoSugerido) {
+    const motivos = [
+        'dañada en transporte', 'caducada o próxima a caducar', 'fuera de especificación de calidad',
+        'empaque roto', 'excedente (llegó más de lo ordenado)', 'producto distinto al de la OC', 'otro',
+    ];
+    return new Promise((resolve) => {
+        rmMostrarModal(`
+          <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-md w-full">
+            <h3 class="text-base font-bold text-slate-100 mb-1">Diferencia entre lo recibido y la factura</h3>
+            <p class="text-xs text-slate-400 mb-3">Lo que entró a inventario no coincide con el subtotal facturado. Regístralo como una nota para seguir — el inventario se queda en lo que de verdad llegó.</p>
+            <div class="space-y-2">
+              <div>
+                <label class="block text-xs text-slate-400 mb-1">Tipo</label>
+                <select id="rmNotaTipo" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                  <option value="credito" ${tipoSugerido === 'credito' ? 'selected' : ''}>Nota de crédito (NDC) — llegó menos, nos deben</option>
+                  <option value="cargo" ${tipoSugerido === 'cargo' ? 'selected' : ''}>Nota de cargo (NDP) — llegó más, nos cobran</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs text-slate-400 mb-1">Monto</label>
+                <input type="number" step="0.01" min="0.01" id="rmNotaMonto" value="${Number(montoSugerido || 0).toFixed(2)}" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono">
+              </div>
+              <div>
+                <label class="block text-xs text-slate-400 mb-1">Motivo</label>
+                <select id="rmNotaMotivo" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                  ${motivos.map(m => `<option value="${esc(m)}">${esc(m[0].toUpperCase() + m.slice(1))}</option>`).join('')}
+                </select>
+              </div>
+              <div id="rmNotaDetalleWrap" class="hidden">
+                <label class="block text-xs text-slate-400 mb-1">Especifica</label>
+                <input type="text" id="rmNotaDetalle" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+              </div>
+            </div>
+            <p id="rmNotaMsg" class="text-xs text-rose-400 min-h-[1rem] mt-2"></p>
+            <div class="flex gap-2 mt-3">
+              <button type="button" id="rmNotaCancelar" class="flex-1 bg-slate-800 border border-slate-700 text-slate-300 py-2.5 rounded-lg text-sm">Cancelar</button>
+              <button type="button" id="rmNotaGuardar" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-lg text-sm">Registrar nota</button>
+            </div>
+          </div>`);
+        const selMotivo = document.getElementById('rmNotaMotivo');
+        const wrapDet = document.getElementById('rmNotaDetalleWrap');
+        selMotivo.onchange = () => wrapDet.classList.toggle('hidden', selMotivo.value !== 'otro');
+        document.getElementById('rmNotaCancelar').onclick = () => { rmOcultarModal(); resolve(null); };
+        document.getElementById('rmNotaGuardar').onclick = () => {
+            const tipo = document.getElementById('rmNotaTipo').value;
+            const monto = parseFloat(document.getElementById('rmNotaMonto').value) || 0;
+            const motivo = selMotivo.value;
+            const motivo_detalle = document.getElementById('rmNotaDetalle').value.trim() || null;
+            if (monto <= 0) { document.getElementById('rmNotaMsg').textContent = 'El monto debe ser mayor a 0.'; return; }
+            if (motivo === 'otro' && !motivo_detalle) { document.getElementById('rmNotaMsg').textContent = 'Motivo "Otro": especifica el detalle.'; return; }
+            rmOcultarModal();
+            resolve({ tipo, monto, motivo, motivo_detalle });
+        };
+    });
 }
 
 async function rmConfirmar(ocs) {

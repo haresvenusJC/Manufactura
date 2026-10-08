@@ -6,6 +6,35 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-10-07_compras_notas_ajuste.sql` (nuevo), `sql/2026-10-07_diagnostico_aju_egresos.sql`
+  (nuevo, solo lectura), `js/ordenes-compra.js`, `js/pagos-proveedor.js`, `version.json`. **Compras ya no decide el pago + Notas
+  de crédito/cargo (NDC/NDP).** Corrección sobre el plan de ayer: "Recibo de mercancía" y "Pre-recibos" ya eran la MISMA pantalla
+  (el pre-recibo se valida ahí mismo, con el mismo botón que contabiliza) — no se quitó ningún menú, solo el bloque de pago de
+  esa pantalla. `contabilizar_compra()` reescrita: ya no recibe Condición ni Cuenta de pago (se quitaron del formulario de
+  recepción); la recepción SIEMPRE contabiliza a crédito, aplica el anticipo de la OC si lo hay (ya existía) y la póliza es
+  SIEMPRE Diario — el banco solo se mueve en `pagar_anticipo_oc` (antes) o el pago desde Cuentas por pagar (después), que ya
+  generaban Egreso bien. El IVA (118.01 pagado / 119.01 pendiente) ahora depende de si el anticipo cubrió TODO (resto = 0), no
+  de un combo Contado/Crédito que ya no existe. **NDC/NDP:** cuando lo recibido no coincide en valor con la factura (el candado
+  de 2026-10-07 que antes solo tronaba), ahora se puede resolver sin salir de la recepción — `contabilizar_compra` devuelve la
+  diferencia con detalle estructurado, `js/ordenes-compra.js` (`rmPedirNotaAjuste`) pregunta tipo (NDC si llegó menos / NDP si
+  llegó más, precargado), motivo (dañada en transporte / caducada / fuera de especificación / empaque roto / excedente /
+  producto distinto / Otro, con detalle obligatorio) y monto, y reintenta. La nota vive en tabla nueva `notas_compra` (folio
+  NDC-/NDP- vía `siguiente_folio`) SIN póliza propia — su efecto contable es un ajuste al 201.01 reconocido en la MISMA póliza
+  de la recepción, así que cancelar la recepción (`cancelar_recibo_inventario`, que ahora también marca la nota 'cancelada')
+  revierte todo junto. El inventario siempre entra a lo que de verdad llegó (nunca al valor de la factura). Rechazo por mercancía
+  dañada/consumida: el usuario decidió NO usar una nota aparte sobre algo ya consumido — se resuelve aquí, en el momento de
+  validar. **Pagos a proveedor:** se quitó 102.02 (Bancos extranjeros USD) del selector de cuenta de pago (`js/pagos-proveedor.js`,
+  un solo punto: el fetch que alimenta todos los selectores de esa pantalla) — la empresa nunca paga en USD (no tiene cuenta),
+  aunque la OC esté en USD; la cuenta se queda en el catálogo para cuando haya expansión real a compras/ventas en el extranjero.
+  **Sin hacer a propósito, por tiempo/riesgo (pendiente, más chico):** motivo de rechazo por partida (por qué no se recibió
+  completa una línea) — iba a tocar dos flujos de captura (OC normal y XML directo); se dejó fuera para no meterlo a medias.
+  **Diagnóstico de los 3 documentos que no cuadran** (AJU-000001 $27,553.24, Egreso #67 $16,946 F-2407, Egreso #69 pago OC-000001
+  en 102.02): NO se canceló/archivó nada todavía — no hay función para deshacer una salida de ajuste de inventario (solo
+  recepciones, devoluciones y pólizas sueltas tienen "cancelar"), y antes de inventar una reversa a mano hace falta saber si ese
+  inventario ya se consumió en producción (si sí, es más delicado). El SQL de diagnóstico (solo lectura) ya está listo — falta
+  correrlo y revisar el resultado antes de decidir cómo cerrar cada uno. Pendiente: correr ambos SQL (el de compras/notas primero,
+  es el que de verdad cambia comportamiento; el diagnóstico es independiente y no tiene prisa) y probar una recepción con
+  diferencia real para ver aparecer el cuadro de NDC/NDP.
 - Archivos tocados (lo último): `js/requisiciones-compra.js`, `version.json`. **MOQ en la requisición** (a petición del usuario: no pedir solo lo
   que necesita la orden). Aplica a toda requisición precargada (desde orden de producción, pedido o Tareas): `reqCargarCatalogos` trae
   `productos.cantidad_minima_compra`; si el faltante es menor al MOQ, la partida se precarga con el MOQ y guarda `necesario` (lo que pidió la orden).
@@ -96,18 +125,44 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   un operador reabra su tarea); si algo falta (alguien asignado sin finalizar) NO se cierra sola; si faltan existencias se queda abierta con nota "no pudo cerrarse: faltan X" + Tarea; el trabajo programado no afecta nunca a `ot_finalizar` ni al
   operador. Cierra con lo planeado (como el botón). Pendiente: que el usuario pruebe la entrega 1 (cerrar OP-000011 desde Órdenes de producción) antes de seguir con la 2.
 - **EN DISCUSIÓN (solo propuestas, sin código):** dos temas abiertos para retomar. Maquetas privadas (no son pantallas reales): lista y pago de Cuentas por pagar v2 https://claude.ai/artifact/PeKAi5Wsp4VdokSwZzMDoi (la v1 y su revisión contable: https://claude.ai/artifact/Y76kgS8aiL775ifwQPmT1c).
+  **A) Cuentas por pagar (Finanzas) — ronda de feedback 2026-10-07 (sobre la pantalla real, incorporada a la maqueta v2):**
+  documento de la fila = OC, nunca folio de recepción como subtítulo; Saldo ya neta el anticipo (sin "diste $2,000" aparte);
+  sin botón "💰 Pagar anticipo a una OC" ni selector de proveedor repetido — un solo "Pagar" por fila decide sola si es
+  anticipo o deuda; filtro de Estatus en el encabezado de columna, no en pestañas. Maqueta v2 actualizada con estos puntos.
   **A) Cuentas por pagar (Finanzas) — ya acordado en la maqueta:** documento = OC autorizada (sin folio de recepción en la lista); columnas Total y Saldo (sin "pagado"); botón siempre "Pagar"; filtros en los encabezados
   (Documento ▾ busca folio de OC, Proveedor ▾, Estatus ▾ con Pendientes/Pendiente/Vencida/Parcial/Pagada/Cancelada/Todas) + solo "desde"/"hasta" arriba; sin columna de alertas; columna "Póliza"; sin enlace de anticipo en la tarjeta de anticipos;
   un pago = un proveedor = un evento; Pago total NO editable (refleja el saldo de la OC), Pago parcial editable y EXIGE escribir el acuerdo con el proveedor (+ evidencia opcional; idealmente la condición se declara en la OC, queda en el tintero);
   visto bueno de quien solicitó solo informativo (después obligatorio, como interruptor en Configuración). Subventana movible vs pantalla completa: la maqueta muestra ambas, falta que el usuario elija. Contabilidad (ya existe, verificado en
   `pagar_anticipo_oc` y `contabilizar_compra`): prepago 100% contra la cotización anexa a la OC = anticipo (Cargo 109.01 / Abono banco, Egreso); al validar el pre-recibo, UNA póliza Diario reconoce Inventario + IVA 118.01 contra 201.01 y cancela
   201.01 contra 109.01 (queda inventario, IVA y banco; Proveedores en cero). La deuda por recepción solo vive en compras a crédito y gastos. La pantalla de pago debe decidir sola entre anticipo (OC sin recibir) y pago de deuda (OC recibida).
-  **Nomenclatura de pólizas (propuesta):** serie por origen con 3 letras, además del tipo SAT (Ingreso/Egreso/Diario, que se sigue reportando): BAN = pago por banco (antes "póliza de cheque"), VAE = pago en efectivo a una persona (el usuario renombró VAL→VAE),
-  ING = ingresos por depósitos, DIA = cancelaciones/diario, y una serie para consumos de producción (el usuario dijo ODP). La serie saldría de la cuenta de pago (banco→BAN, caja→VAE). Hoy: "Tipo #número" con consecutivo por (tipo, año) y la cancelación
-  crea contra-asiento del MISMO tipo (`cancelar_poliza`); no renumerar pólizas viejas. Estandarizar series de documentos a 3 letras (OC→ODC, PROD→ODP, DEVCLI/DEVPROV→3 letras) es solo propuesta. PREGUNTAS ABIERTAS: contado + transferencia como valores por defecto;
-  varias OC del mismo proveedor en una sola transferencia; consecutivo de series de póliza por año o continuo; choque de nombre ODP (orden de producción vs póliza de consumos); serie OC vs ODC; "Vence/Vencida" se dejó como en su imagen (sin días de crédito = fecha de la OC).
-  Datos que faltarían en la base (propuesta): fecha de vencimiento / días de crédito del proveedor, banco/CLABE/beneficiario del proveedor (con bitácora), UUID del complemento de pago (REP) en compras PPD, estado "observado", visto bueno. Alerta propuesta: pago en
-  efectivo > $2,000 no deducible ni IVA acreditable (LISR 27 fr. III / LIVA 5 fr. III; confirmar con contador). DIOT sigue vigente (formato nuevo 2025), se basa en lo pagado por proveedor.
+  **Nomenclatura de pólizas — DECIDIDO 2026-10-07 (sigue sin código, pero ya no son preguntas abiertas):** serie por origen con 3 letras,
+  además del tipo SAT (Ingreso/Egreso/Diario, que se sigue reportando): BAN = pago por banco, VAE = pago en efectivo a una persona,
+  ING = ingresos por depósitos, DIA = cancelaciones/diario, **CMP = la póliza Diario que genera `contabilizar_produccion()` al cerrar una
+  orden de producción** (Consumo de Materia Prima — se eligió CMP y no ODP para no chocar: ODP es el folio del DOCUMENTO que nace al
+  cerrar la orden — entrada ODP-000123 + salida ODP-000123-MP —, no el de la póliza; hoy esa póliza es un "Diario #N" genérico sin serie
+  propia, y solo el documento de entrada carga con `poliza_id`, el de salida es puro Kardex). La serie de pago sale de la cuenta
+  (banco→BAN, caja→VAE). **Consecutivo por año** (ej. `BAN-2027-00001`, se reinicia cada enero). Hoy sigue siendo "Tipo #número" con
+  consecutivo por (tipo, año) y la cancelación crea contra-asiento del MISMO tipo (`cancelar_poliza`); no renumerar pólizas viejas.
+  Confirmado: ninguna póliza/documento de este ERP espera a un evento posterior para volverse contable (ni pagos: el Egreso nace al dar
+  "Confirmar pago", no al aparecer en el banco) — no hay equivalente a "cheque en tránsito" o "vale por comprobar".
+  **Resueltas las demás preguntas abiertas:**
+  - Varias OC del mismo proveedor en un solo pago/transferencia: **sí se permite**, pero pide un pop-up de autorización del responsable
+    de finanzas (por ahora solo el pop-up/placeholder, sin ligar a roles reales todavía).
+  - "Vence/Vencida": nuevo campo **obligatorio** en la OC, "Días de crédito" (desplegable: Inmediato/7/15/30/60 días) — Vence = fecha de
+    la OC + esos días. No se puede dejar en blanco. (Reemplaza la idea de capturarlo en el catálogo de Proveedores.)
+  - Visto bueno de quien solicitó: sigue **informativo** por ahora, pero la base debe quedar lista para ligarlo a un usuario real (no
+    texto libre) y que después aparezca en el menú de Tareas de ese usuario (encaja con el sistema de `tareas.js` ya existente).
+  - Alerta de pago en efectivo > $2,000: **confirmado implementar**, con el asiento reflejando no deducible / IVA no acreditable
+    (LISR 27 fr. III / LIVA 5 fr. III) — la alerta en pantalla es sencilla; las cuentas exactas para el IVA no acreditable quedan
+    pendientes de validar con el contador antes de tocar código contable.
+  - Forma de pago: el campo empieza **vacío** (sin preseleccionar Transferencia ni nada).
+  - Serie OC vs ODC: sin cambio, ODC ya es la serie vigente del documento de la orden de compra (no de una póliza).
+  Pendiente (sin resolver aún, menor prioridad): datos que faltarían en la base — banco/CLABE/beneficiario del proveedor (con
+  bitácora), UUID del complemento de pago (REP) en compras PPD, estado "observado". DIOT sigue vigente (formato nuevo 2025), se basa en
+  lo pagado por proveedor. Maqueta v2 (https://claude.ai/artifact/PeKAi5Wsp4VdokSwZzMDoi) actualizada con filtros en encabezado,
+  Documento=OC, Saldo neto, sin botón de anticipo aparte — **falta reflejar ahí** CMP, días de crédito, pop-up de varias OC y forma de
+  pago vacía. **Nada de esto tiene código real todavía** — falta el plan de implementación (SQL de series de póliza + campo
+  `dias_credito` en OC + reescribir `js/pagos-proveedor.js` y partes de `js/ordenes-compra.js`) antes de tocar ninguna función.
   **B) Producción por pedido (reservas):** analizar un plan de necesidades en cascada en vez de pasos sueltos: Pedido → ODP del terminado (redondeo al lote mínimo, ya hecho) → ODP del granel en tandas ENTERAS → requisiciones de MP/insumos con MOQ y múltiplos,
   agrupadas por proveedor, todo con vista previa que el usuario aprueba. Hallazgos: el MOQ (`productos.cantidad_minima_compra`) solo se usa en Tareas de almacén (`max(MOQ, faltante)`), NO en requisiciones que salen de un pedido o de una orden; hoy "Pregunta de tanda"
   permite medias tandas y "solo lo necesario" (el usuario quiere granel NO fraccionado); el pedido no tiene fecha prometida ni la orden fecha programada; no hay tiempo de fabricación por producto; el disparo por pedido y el disparo por stock mínimo son independientes
@@ -1221,12 +1276,16 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - Evaluar si extender el buscador de selects a otras pantallas (Salidas, Órdenes de compra, alta de BOM).
 - Subventanas: ya movibles y con fondo semitransparente todas las detectadas; una nueva queda cubierta sola si usa
   `fixed inset-0` (fondo + panel) o `fixed rounded-2xl` (flotante) y su barra de título es el primer hijo del panel.
-- **Compras y pagos — pendiente de aprobar (plan en la conversación del 2026-10-06, NO ejecutado):**
-  1. Quitar "Recibo de mercancía" del menú Compras (`index.html:253`, `js/indice.js`, `js/bienvenida.js:27`); se conserva la lista de Pre-recibos (`rmPreRecibos`). Quitar Condición, Forma de pago, Método de pago, Uso CFDI y Cuenta de pago de `rmConfirmar` / `rmContabilizarDoc`.
-  2. La póliza se genera al VALIDAR el pre-recibo contra la ODC (no al capturar la recepción). `contabilizar_compra` siempre pasa por 201.01 y aplica el anticipo por FIFO: Cargo 115.01 + IVA / Abono 109.01 (anticipo aplicado) / Abono 201.01 (resto). Pendiente: regla de IVA 118.01 vs 119.01 con el contador.
-  3. Notas de crédito/cargo ligadas a la recepción, folios `NDC` (crédito: Cargo 201.01 / Abono 115.01 + IVA) y `NDP` (cargo: Cargo 115.01 / Abono 201.01 + IVA). Se registran al validar. Tablas `notas_compra` y `notas_compra_detalle`, RPC `registrar_nota_compra` / `cancelar_nota_compra`, trigger que no permite NDC mayor a lo recibido.
-  4. Rechazo de mercancía por partida: Aceptada / Rechazada / Aceptada con merma. Motivos: dañada en transporte, caducada, fuera de especificación, empaque roto, excedente, producto distinto, Otro (texto obligatorio). Rechazada no entra a inventario ni se paga (NDC si la factura la trae); merma dañada se da de baja a gasto (cuenta a definir con el contador), no al costo pactado.
-  5. Pago solo desde Cuentas por pagar (Finanzas), y solo de documentos validados por Compras. Quitar 102.02 (USD) de las cuentas de pago: la empresa no tiene cuenta en USD. `v_cuentas_por_pagar` debe restar las NDC activas.
-  Pendiente de decisión: cuenta de merma (contador), regla IVA del anticipo, folios NDC/NDP.
-  Corrección pendiente de diagnóstico: Egreso #69 (OC-000001) abona 102.02 por $1,866.99; revisar con el banco si salió en MXN y reclasificar a 102.01.
-  Pendiente de diagnóstico: AJU-000001 "Ajuste de saldos" por $27,553.24 (Diario #33); Egreso #67 "Pago compra F-2407" por $16,946 (confirmar con estado de cuenta si salió realmente).
+- **Compras y pagos — EJECUTADO 2026-10-07, falta correr el SQL:** puntos 1, 2 y 5 del plan quedaron en código (ver "Última
+  sesión" arriba) — con una corrección: el punto 1 no quitó ningún menú (Recibo de mercancía y Pre-recibos ya eran la misma
+  pantalla), solo el bloque de pago. El punto 3 (NDC/NDP) se implementó distinto a lo planeado: no son documentos aparte con su
+  propia póliza — se capturan en el momento de validar la recepción y ajustan el 201.01 en la MISMA póliza (a petición del
+  usuario, que aclaró que así es como se van a usar). El punto 4 (rechazo con merma dañada que se da de baja a gasto) NO se
+  hizo — el usuario decidió que no hace falta: la diferencia se resuelve con NDC/NDP en la validación, no con una merma aparte.
+  Queda pendiente, más chico: motivo de rechazo por partida (por qué no se recibió completa una línea) — informativo, no toca
+  dinero. Correr `sql/2026-10-07_compras_notas_ajuste.sql` en Supabase antes de usar la recepción.
+  Pendiente de decisión con el contador: si el IVA de la nota de ajuste debe prorratearse (hoy se ajusta solo el neto).
+  Diagnóstico de los 3 documentos que no cuadran (AJU-000001 $27,553.24, Egreso #67 $16,946 F-2407, Egreso #69 pago OC-000001 en
+  102.02 USD): SQL de solo lectura listo en `sql/2026-10-07_diagnostico_aju_egresos.sql` — correrlo y revisar antes de decidir
+  cómo cerrar cada uno (no hay función para deshacer una salida de ajuste de inventario; hay que saber primero si ese inventario
+  ya se consumió en producción).
