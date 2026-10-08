@@ -228,7 +228,7 @@ function cxpPintarDocumentos() {
     const hoy7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
     const sumSi = (f) => pendientesKPI.filter(f).reduce((a, x) => a + Number(x.saldo || 0), 0);
     const kpis = `
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-2">
         <div class="bg-slate-950 border border-slate-800 rounded-xl p-2">
           <p class="text-[10px] uppercase text-slate-500">Saldo total pendiente</p>
           <p class="font-mono text-lg text-slate-100">${money(sumSi(() => true))}</p>
@@ -249,7 +249,7 @@ function cxpPintarDocumentos() {
 
     panel.innerHTML = `
       ${kpis}
-      <div class="flex items-end justify-between mb-3 flex-wrap gap-2">
+      <div class="flex items-end justify-between mb-2 flex-wrap gap-2">
         <h3 class="text-md font-semibold text-slate-300">Documentos por pagar</h3>
         <div class="flex flex-wrap items-end gap-2">
           <div><label class="block text-[10px] text-slate-400 mb-1">Desde</label>

@@ -6,6 +6,14 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `css/ui-moderno.css`, `version.json`. Ronda 6: el título duplicado
+  que el usuario vio en una captura parece un artefacto de scroll/captura (la segunda captura, limpia, ya sale una sola vez
+  bien colocado) — se le explicó, sin cambio de código por eso. Sí se reforzó lo que pedía de verdad: **"Claro Ice"** sube
+  más el título (`margin-top` de `-0.75rem` a `-1.5rem`) y el encabezado de la tabla de "Documentos por pagar" se hizo más
+  compacto (`padding` vertical de los `<th>` a `.5rem`, con más especificidad que no toca `thOrden()` — eso es compartido
+  por otras pantallas). De paso, para TODOS los temas (es simple espaciado, no color): el espacio entre las tarjetas KPI y
+  "Documentos por pagar", y entre ese renglón y la tabla, bajó de `mb-3` a `mb-2`. Pendiente: probar en el navegador con
+  Claro Ice activo y confirmar que ya no se ve el título duplicado (si persiste, no es CSS — sería otra cosa, avisar).
 - Archivos tocados (lo último): `js/pagos-proveedor.js`, `css/ui-moderno.css`, `version.json`. Ronda 5 (5 capturas).
   **1) Desde/Hasta/Limpiar** se movió a la MISMA línea que "Documentos por pagar" (antes su propio renglón). **2) Se quitó
   "Suma: $X"** por completo (antes solo se ocultaba en vistas abiertas). **3) Cambio de comportamiento real, a petición
