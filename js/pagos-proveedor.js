@@ -20,17 +20,25 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 // y el último dataset traído, para poder refiltrar sin volver a consultar.
 let cxpCache = [];
 let cxpCuentasPago = []; // cuentas de banco/caja, para el modal de Anticipo (reusa lo ya cargado por el módulo)
+let cxpEmpleados = []; // para "Visto bueno" (ligado a un empleado real, no texto libre)
+let cxpAnticiposDisp = 0; // suma de v_anticipos_oc.disponible, para la tarjeta KPI
 let cxpPreOcCache = null;
 let cxpFiltro = 'pendiente';
 let cxpDesde = primerDiaMesISO();
 let cxpHasta = hoyISO();
 let cxpProveedorId = '';
-const CXP_FILTROS = [
-    { v: 'pendiente', t: 'Pendiente' },
-    { v: 'pagado', t: 'Pagadas' },
-    { v: 'cancelado', t: 'Canceladas' },
-    { v: 'todas', t: 'Todas' },
+let cxpDocQ = '';
+// Estatus como menú desplegable en el encabezado de la columna (no pestañas), igual que la
+// maqueta https://claude.ai/artifact/PeKAi5Wsp4VdokSwZzMDoi: "Pendiente" es la unión de
+// vencida + parcial + sin ningún pago (vencida/parcial se calculan aquí, el backend solo
+// conoce pendiente/pagado/cancelado — v_cuentas_por_pagar.estatus_cxp).
+const CXP_ESTATUS_MENU = [
+    ['pendiente', 'Pendiente'], ['vencida', 'Vencida'], ['parcial', 'Parcial'], '-',
+    ['pagado', 'Pagada'], ['cancelado', 'Cancelada'], '-',
+    ['todas', 'Todas'],
 ];
+const CXP_ABIERTOS = ['pendiente', 'vencida', 'parcial'];
+const cxpEstLabel = (v) => CXP_ESTATUS_MENU.find((m) => Array.isArray(m) && m[0] === v)?.[1] || v;
 const cxpOrden = crearOrdenTabla();
 const cxpHistOrden = crearOrdenTabla('id', 'desc');
 
@@ -53,6 +61,15 @@ export async function cargarModuloPagosProveedor() {
         cont.innerHTML = '<p class="text-amber-400 text-xs">El módulo de contabilidad no está instalado (faltan las cuentas contables).</p>';
         return;
     }
+
+    try {
+        const { data } = await supabaseClient.from('empleados').select('id, nombre').eq('activo', true).order('nombre');
+        cxpEmpleados = data || [];
+    } catch (_) { cxpEmpleados = []; }
+    try {
+        const { data } = await supabaseClient.from('v_anticipos_oc').select('disponible');
+        cxpAnticiposDisp = (data || []).reduce((a, r) => a + Number(r.disponible || 0), 0);
+    } catch (_) { cxpAnticiposDisp = 0; }
 
     let cxp = [];
     try {
@@ -108,19 +125,27 @@ function cxpPintarDocumentos() {
     // "Canceladas" / "Todas" sí respetan el rango elegido (ahí sí es un
     // historial, tiene sentido acotarlo).
     const porProveedor = (x) => !cxpProveedorId || String(x.proveedor_id || '') === cxpProveedorId;
+    const porDoc = (x) => !cxpDocQ || (x.folio || '').toLowerCase().includes(cxpDocQ.toLowerCase());
     const porFecha = (x) => (!cxpDesde || (x.fecha || '') >= cxpDesde) && (!cxpHasta || (x.fecha || '') <= cxpHasta);
-    const pendientesTodas = cxpCache.filter((x) => x.estatus_cxp === 'pendiente' && porProveedor(x));
-    const noPendientesConFecha = cxpCache.filter((x) => x.estatus_cxp !== 'pendiente' && porProveedor(x) && porFecha(x));
+    const esVencida = (x) => x.estatus_cxp === 'pendiente' && !!x.vence && x.vence < hoyISO();
+    const esParcial = (x) => x.estatus_cxp === 'pendiente' && Number(x.pagado || 0) > 0;
+
+    const pendientesTodas = cxpCache.filter((x) => x.estatus_cxp === 'pendiente' && porProveedor(x) && porDoc(x));
+    const noPendientesConFecha = cxpCache.filter((x) => x.estatus_cxp !== 'pendiente' && porProveedor(x) && porDoc(x) && porFecha(x));
     const todasVista = [...pendientesTodas, ...noPendientesConFecha];
 
     const conteos = {
         pendiente: pendientesTodas.length,
+        vencida: pendientesTodas.filter(esVencida).length,
+        parcial: pendientesTodas.filter(esParcial).length,
         pagado: noPendientesConFecha.filter((x) => x.estatus_cxp === 'pagado').length,
         cancelado: noPendientesConFecha.filter((x) => x.estatus_cxp === 'cancelado').length,
     };
 
-    const esPendiente = cxpFiltro === 'pendiente';
-    const filtrados = esPendiente ? pendientesTodas
+    const esAbierto = CXP_ABIERTOS.includes(cxpFiltro);
+    const filtrados = cxpFiltro === 'pendiente' ? pendientesTodas
+        : cxpFiltro === 'vencida' ? pendientesTodas.filter(esVencida)
+        : cxpFiltro === 'parcial' ? pendientesTodas.filter(esParcial)
         : cxpFiltro === 'todas' ? todasVista
         : noPendientesConFecha.filter((x) => x.estatus_cxp === cxpFiltro);
     const totalGeneral = filtrados.reduce((a, x) => a + Number(x.saldo || 0), 0);
@@ -138,65 +163,115 @@ function cxpPintarDocumentos() {
         }
     });
 
-    const pills = CXP_FILTROS.map((f) => {
-        const n = f.v === 'todas' ? todasVista.length : (conteos[f.v] || 0);
-        const on = f.v === cxpFiltro;
-        return `<button type="button" class="cxp-filtro-btn text-xs px-3 py-1.5 rounded-lg border transition ${on ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'}" data-filtro="${f.v}">${f.t} <span class="opacity-70">(${n})</span></button>`;
-    }).join('');
-
     const proveedoresUnicos = new Map();
     cxpCache.forEach((x) => { if (x.proveedor_id && !proveedoresUnicos.has(x.proveedor_id)) proveedoresUnicos.set(x.proveedor_id, x.proveedor_nombre || `#${x.proveedor_id}`); });
-    const optProveedor = '<option value="">— todos los proveedores —</option>' +
-        [...proveedoresUnicos.entries()]
-            .sort((a, b) => a[1].localeCompare(b[1], 'es'))
-            .map(([id, nombre]) => `<option value="${id}" ${cxpProveedorId === String(id) ? 'selected' : ''}>${esc(nombre)}</option>`).join('');
+    const listaProveedores = [...proveedoresUnicos.entries()].sort((a, b) => a[1].localeCompare(b[1], 'es'));
 
-    const estatusBadge = (x) => x.estatus_cxp === 'cancelado'
-        ? '<span class="text-[10px] text-rose-400 font-semibold">CANCELADO</span>'
-        : x.estatus_cxp === 'pagado'
-            ? '<span class="text-[10px] text-emerald-400 font-semibold">PAGADO</span>'
-            : '';
+    // Chip de estatus por fila (Pendiente/Vencida/Parcial/Pagada/Cancelada) — igual que la maqueta.
+    const chipEstatus = (x) => {
+        if (x.estatus_cxp === 'cancelado') return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-950 text-rose-300">Cancelada</span>';
+        if (x.estatus_cxp === 'pagado') return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300">Pagada</span>';
+        if (esVencida(x)) return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-950 text-rose-300">Vencida</span>';
+        if (esParcial(x)) return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-950 text-sky-300">Parcial</span>';
+        return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-950 text-amber-300">Pendiente</span>';
+    };
+
+    // Encabezado de columna como menú desplegable (triángulo grande + valor elegido DEBAJO del
+    // botón, en letra chica, para que elegir un filtro nunca ensanche la columna): mismo patrón
+    // en los 3 — Documento (busca folio de OC), Proveedor (lista), Estatus (lista con conteo).
+    const thFiltro = (id, titulo, etiqueta, menuHtml) => `
+      <th class="p-2 relative align-top">
+        <div class="inline-flex flex-col items-start gap-0.5">
+          <button type="button" id="cxpTh${id}" class="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 font-semibold text-[11px] normal-case tracking-normal">${titulo}<span class="text-sm leading-none">▼</span></button>
+          <span class="text-[10px] font-semibold text-sky-400 normal-case">${etiqueta}</span>
+        </div>
+        <div id="cxp${id}Menu" class="hidden absolute top-full left-0 mt-1 z-30 bg-slate-800 border border-slate-600 rounded-lg p-2 shadow-2xl normal-case font-normal">${menuHtml}</div>
+      </th>`;
+
+    const thDoc = thFiltro('Doc', 'Documento', cxpDocQ ? `· ${esc(cxpDocQ)}` : '', `
+      <div class="w-52">
+        <input type="search" id="cxpDocQInput" value="${esc(cxpDocQ)}" placeholder="Buscar folio de OC" autocomplete="off" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-slate-100 mb-1.5">
+        <button type="button" id="cxpDocClear" class="text-[11px] text-slate-400 hover:text-slate-200">Quitar búsqueda</button>
+      </div>`);
+
+    const thProv = thFiltro('Prov', 'Proveedor', cxpProveedorId ? `· ${esc(proveedoresUnicos.get(Number(cxpProveedorId)) || '')}` : '', `
+      <div class="w-56">
+        <input type="search" id="cxpProvQInput" placeholder="Buscar proveedor" autocomplete="off" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-slate-100 mb-1.5">
+        <div id="cxpProvLista" class="max-h-56 overflow-y-auto">
+          <button type="button" data-prov="" class="cxp-prov-opt block w-full text-left text-xs px-2 py-1.5 rounded ${!cxpProveedorId ? 'text-sky-400 font-semibold' : 'text-slate-200 hover:bg-slate-700'}">Todos los proveedores</button>
+          ${listaProveedores.map(([id, nombre]) => `<button type="button" data-prov="${id}" data-nombre="${esc(nombre.toLowerCase())}" class="cxp-prov-opt block w-full text-left text-xs px-2 py-1.5 rounded ${cxpProveedorId === String(id) ? 'text-sky-400 font-semibold' : 'text-slate-200 hover:bg-slate-700'}">${esc(nombre)}</button>`).join('')}
+        </div>
+      </div>`);
+
+    const thEst = thFiltro('Est', 'Estatus', cxpFiltro === 'pendiente' ? '' : `· ${cxpEstLabel(cxpFiltro)}`, `
+      <div class="w-48">
+        ${CXP_ESTATUS_MENU.map((m) => m === '-' ? '<hr class="border-slate-700 my-1">' :
+            `<button type="button" data-est="${m[0]}" class="cxp-est-opt flex items-center justify-between gap-3 w-full text-left text-xs px-2 py-1.5 rounded ${cxpFiltro === m[0] ? 'text-sky-400 font-semibold' : 'text-slate-200 hover:bg-slate-700'}"><span>${m[1]}</span><span class="text-slate-500">${m[0] === 'todas' ? todasVista.length : (conteos[m[0]] || 0)}</span></button>`
+        ).join('')}
+      </div>`);
+
+    const hoy7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    const sumSi = (f) => pendientesTodas.filter(f).reduce((a, x) => a + Number(x.saldo || 0), 0);
+    const kpis = `
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+          <p class="text-[10px] uppercase text-slate-500">Saldo total pendiente</p>
+          <p class="font-mono text-lg text-slate-100">${money(sumSi(() => true))}</p>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+          <p class="text-[10px] uppercase text-slate-500">Vencido</p>
+          <p class="font-mono text-lg text-rose-400">${money(sumSi((x) => x.vence && x.vence < hoyISO()))}</p>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+          <p class="text-[10px] uppercase text-slate-500">Vence en 7 días</p>
+          <p class="font-mono text-lg text-amber-300">${money(sumSi((x) => x.vence && x.vence >= hoyISO() && x.vence <= hoy7))}</p>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
+          <p class="text-[10px] uppercase text-slate-500">Anticipos disponibles</p>
+          <p class="font-mono text-lg text-sky-300">${money(cxpAnticiposDisp)}</p>
+          <p class="text-[10px] text-slate-500 mt-0.5">Se usan solos al pagar una OC sin recibir — sin botón aparte</p>
+        </div>
+      </div>`;
 
     panel.innerHTML = `
+      ${kpis}
       <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
         <h3 class="text-md font-semibold text-slate-300">Documentos por pagar</h3>
-        <span class="text-xs text-slate-400">${esPendiente ? 'Saldo total' : 'Suma'}: <span class="font-mono text-amber-300">${money(totalGeneral)}</span></span>
+        <span class="text-xs text-slate-400">${esAbierto ? 'Saldo total' : 'Suma'}: <span class="font-mono text-amber-300">${money(totalGeneral)}</span></span>
       </div>
       <div class="flex flex-wrap items-end gap-2 mb-3">
         <div><label class="block text-[10px] text-slate-400 mb-1">Desde</label>
-          <input type="date" id="cxpDesde" value="${cxpDesde}" ${esPendiente ? 'disabled' : ''} class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 disabled:opacity-40"></div>
+          <input type="date" id="cxpDesde" value="${cxpDesde}" ${esAbierto ? 'disabled' : ''} class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 disabled:opacity-40"></div>
         <div><label class="block text-[10px] text-slate-400 mb-1">Hasta</label>
-          <input type="date" id="cxpHasta" value="${cxpHasta}" ${esPendiente ? 'disabled' : ''} class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 disabled:opacity-40"></div>
-        <div class="min-w-[200px]"><label class="block text-[10px] text-slate-400 mb-1">Proveedor</label>
-          <select id="cxpFiltroProveedor" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100">${optProveedor}</select></div>
+          <input type="date" id="cxpHasta" value="${cxpHasta}" ${esAbierto ? 'disabled' : ''} class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 disabled:opacity-40"></div>
         <button type="button" id="cxpLimpiarFiltros" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg">Limpiar</button>
       </div>
-      ${esPendiente ? '<p class="text-[10px] text-slate-500 mb-3">"Desde/Hasta" no aplica aquí — pendientes de pago siempre se ven todos, sin importar la fecha.</p>' : ''}
-      <div class="flex flex-wrap gap-2 mb-3">${pills}</div>
-      ${filtrados.length ? `
-      <div class="overflow-x-auto border border-slate-800 rounded-lg">
+      ${esAbierto ? '<p class="text-[10px] text-slate-500 mb-3">"Desde/Hasta" no aplica aquí — pendientes de pago siempre se ven todos, sin importar la fecha.</p>' : ''}
+      <div class="overflow-x-auto border border-slate-800 rounded-lg" style="overflow-y:visible">
         <table class="w-full text-left text-xs text-slate-300">
           <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-            ${esPendiente ? '<th class="p-2"><input type="checkbox" id="cxpAll" class="accent-emerald-500"></th>' : '<th class="p-2">Estatus</th>'}
-            ${thOrden(cxpOrden, 'tipo', 'Tipo')}${thOrden(cxpOrden, 'folio', 'Folio')}${thOrden(cxpOrden, 'proveedor', 'Proveedor')}${thOrden(cxpOrden, 'fecha', 'Fecha')}
+            <th class="p-2">${esAbierto ? '<input type="checkbox" id="cxpAll" class="accent-emerald-500">' : ''}</th>
+            ${thOrden(cxpOrden, 'tipo', 'Tipo')}
+            ${thDoc}
+            ${thProv}
+            ${thOrden(cxpOrden, 'fecha', 'Fecha')}
             ${thOrden(cxpOrden, 'vence', 'Vence')}${thOrden(cxpOrden, 'total', 'Total', 'text-right justify-end')}${thOrden(cxpOrden, 'saldo', 'Saldo', 'text-right justify-end')}
+            ${thEst}
             <th class="p-2">Póliza</th>
           </tr></thead>
           <tbody id="cxpBody">
-            ${filtrados.map((x) => {
-                const pre = esPendiente && cxpPreOcCache && x.tipo === 'compra' && Number(x.orden_compra_id) === Number(cxpPreOcCache);
+            ${filtrados.length ? filtrados.map((x) => {
+                const pre = esAbierto && cxpPreOcCache && x.tipo === 'compra' && Number(x.orden_compra_id) === Number(cxpPreOcCache);
                 const verPoliza = x.poliza_id
                     ? `<button type="button" onclick="window.verPolizaDeDocumento(${x.poliza_id}, '${x.fecha || ''}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer">🧾 Póliza #${x.poliza_id}</button>`
                     : '';
                 const verDoc = x.tipo === 'compra'
                     ? `<button type="button" onclick="window.abrirDetalleDocumentoGlobal(${x.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded cursor-pointer">Ver recibo</button>`
                     : '';
-                const vencida = x.vence && x.estatus_cxp === 'pendiente' && x.vence < hoyISO();
+                const vencida = esVencida(x);
                 return `
                 <tr class="border-b border-slate-900 ${x.estatus_cxp === 'cancelado' ? 'opacity-60' : ''}" data-tipo="${x.tipo}" data-id="${x.id}" data-saldo="${x.saldo}" data-prov="${x.proveedor_id || ''}" data-prov-nombre="${esc(x.proveedor_nombre || '—')}" data-folio="${esc(x.folio || '#' + x.id)}">
-                  ${esPendiente
-                      ? `<td class="p-2 text-center"><input type="checkbox" class="cxp-chk accent-emerald-500 w-4 h-4" ${pre ? 'checked' : ''}></td>`
-                      : `<td class="p-2">${estatusBadge(x)}</td>`}
+                  <td class="p-2 text-center">${esAbierto ? `<input type="checkbox" class="cxp-chk accent-emerald-500 w-4 h-4" ${pre ? 'checked' : ''}>` : ''}</td>
                   <td class="p-2">${x.tipo}</td>
                   <td class="p-2">${x.tipo === 'compra' ? linkDoc(x.id, x.folio || '#' + x.id, 'font-mono text-slate-200') : `<span class="font-mono text-slate-200">${esc(x.folio || '#' + x.id)}</span>`}</td>
                   <td class="p-2">${esc(x.proveedor_nombre || '—')}</td>
@@ -204,13 +279,14 @@ function cxpPintarDocumentos() {
                   <td class="p-2 whitespace-nowrap ${vencida ? 'text-rose-400 font-semibold' : 'text-slate-400'}">${x.vence || '—'}</td>
                   <td class="p-2 text-right font-mono">${money(x.total)}</td>
                   <td class="p-2 text-right font-mono text-amber-300">${money(x.saldo)}</td>
+                  <td class="p-2">${chipEstatus(x)}</td>
                   <td class="p-2"><div class="flex flex-col gap-1">${verPoliza}${verDoc}${!verPoliza && !verDoc ? '<span class="text-slate-500">—</span>' : ''}</div></td>
                 </tr>`;
-            }).join('')}
+            }).join('') : `<tr><td colspan="10" class="p-4 text-center text-slate-500">No hay documentos en "${cxpEstLabel(cxpFiltro).toLowerCase()}" con los filtros elegidos.</td></tr>`}
           </tbody>
         </table>
       </div>
-      ${esPendiente ? `
+      ${esAbierto ? `
       <div id="cxpBarraSel" class="hidden items-center justify-between gap-3 flex-wrap mt-3 border border-emerald-700 rounded-lg p-3 bg-slate-900">
         <span class="text-sm text-slate-300"><span id="cxpSelTxt"></span></span>
         <div class="flex gap-2">
@@ -218,20 +294,16 @@ function cxpPintarDocumentos() {
           <button type="button" id="cxpRegistrar" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-5 py-2 rounded-lg text-sm">Pagar selección</button>
         </div>
       </div>` : ''}
-      ` : `<p class="text-slate-500 text-sm">No hay documentos en "${CXP_FILTROS.find((f) => f.v === cxpFiltro)?.t.toLowerCase()}" con los filtros de fecha/proveedor elegidos.</p>`}
       <p id="cxpMsg" class="text-xs mt-2 min-h-[1rem]"></p>
     `;
 
-    panel.querySelectorAll('.cxp-filtro-btn').forEach((b) => {
-        b.onclick = () => { cxpFiltro = b.dataset.filtro; cxpPintarDocumentos(); };
-    });
     document.getElementById('cxpDesde').onchange = (e) => { cxpDesde = e.target.value; cxpPintarDocumentos(); };
     document.getElementById('cxpHasta').onchange = (e) => { cxpHasta = e.target.value; cxpPintarDocumentos(); };
-    document.getElementById('cxpFiltroProveedor').onchange = (e) => { cxpProveedorId = e.target.value; cxpPintarDocumentos(); };
-    document.getElementById('cxpLimpiarFiltros').onclick = () => { cxpDesde = ''; cxpHasta = ''; cxpProveedorId = ''; cxpPintarDocumentos(); };
+    document.getElementById('cxpLimpiarFiltros').onclick = () => { cxpDesde = ''; cxpHasta = ''; cxpProveedorId = ''; cxpDocQ = ''; cxpPintarDocumentos(); };
     wireOrdenTabla(panel, cxpOrden, cxpPintarDocumentos);
+    cxpWireFiltrosEncabezado(panel);
 
-    if (!esPendiente || !filtrados.length) return;
+    if (!esAbierto) return;
 
     // Un pago = un proveedor: al marcar uno, los demás proveedores se deshabilitan.
     const seleccionadas = () => Array.from(document.querySelectorAll('#cxpBody tr')).filter((tr) => tr.querySelector('.cxp-chk')?.checked);
@@ -267,6 +339,57 @@ function cxpPintarDocumentos() {
         if (filas.length > 1) cxpAbrirAutorizacion(filas); else cxpAbrirPago(filas);
     };
     actualizarSeleccion();
+}
+
+function cxpCerrarMenusFiltro() {
+    ['cxpDocMenu', 'cxpProvMenu', 'cxpEstMenu'].forEach((id) => { document.getElementById(id)?.classList.add('hidden'); });
+}
+// Un solo listener global (como subventanas-movibles.js): cierra cualquier menú de encabezado
+// abierto al tocar fuera, sin importar cuántas veces se repinte la tabla.
+if (typeof document !== 'undefined' && !window.__cxpMenuListener) {
+    window.__cxpMenuListener = true;
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#cxpDocMenu, #cxpProvMenu, #cxpEstMenu, #cxpThDoc, #cxpThProv, #cxpThEst')) cxpCerrarMenusFiltro();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cxpCerrarMenusFiltro(); });
+}
+
+function cxpWireFiltrosEncabezado(panel) {
+    const toggle = (btnId, menuId) => {
+        const btn = document.getElementById(btnId);
+        const menu = document.getElementById(menuId);
+        if (!btn || !menu) return;
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            const abrir = menu.classList.contains('hidden');
+            cxpCerrarMenusFiltro();
+            if (abrir) { menu.classList.remove('hidden'); const i = menu.querySelector('input'); if (i) setTimeout(() => i.focus(), 0); }
+        };
+    };
+    toggle('cxpThDoc', 'cxpDocMenu');
+    toggle('cxpThProv', 'cxpProvMenu');
+    toggle('cxpThEst', 'cxpEstMenu');
+
+    // El buscador de Documento sí repinta todo el panel (necesita refiltrar la tabla), así que
+    // sin esto perdería el foco y la posición del cursor en cada tecla.
+    const docInput = document.getElementById('cxpDocQInput');
+    if (docInput) docInput.oninput = (e) => {
+        const pos = e.target.selectionStart;
+        cxpDocQ = e.target.value;
+        cxpPintarDocumentos();
+        const nuevo = document.getElementById('cxpDocQInput');
+        if (nuevo) { document.getElementById('cxpDocMenu')?.classList.remove('hidden'); nuevo.focus(); nuevo.setSelectionRange(pos, pos); }
+    };
+    document.getElementById('cxpDocClear')?.addEventListener('click', () => { cxpDocQ = ''; cxpPintarDocumentos(); });
+
+    // El buscador de Proveedor solo filtra la lista ya pintada (no repinta nada), por eso no
+    // necesita el mismo cuidado de foco.
+    document.getElementById('cxpProvQInput')?.addEventListener('input', (e) => {
+        const q = e.target.value.trim().toLowerCase();
+        panel.querySelectorAll('.cxp-prov-opt[data-nombre]').forEach((b) => { b.classList.toggle('hidden', !!q && !b.dataset.nombre.includes(q)); });
+    });
+    panel.querySelectorAll('.cxp-prov-opt').forEach((b) => { b.onclick = () => { cxpProveedorId = b.dataset.prov || ''; cxpPintarDocumentos(); }; });
+    panel.querySelectorAll('.cxp-est-opt').forEach((b) => { b.onclick = () => { cxpFiltro = b.dataset.est; cxpPintarDocumentos(); }; });
 }
 
 // Pagar varias OC del mismo proveedor en una sola transferencia sigue
@@ -307,6 +430,7 @@ function cxpAbrirPago(filas) {
     const provNombre = docs[0].prov;
     const filasHtml = docs.map((d) => `<tr><td class="p-2 font-mono">${esc(d.folio)}</td><td class="p-2 text-right font-mono">${money(d.saldo)}</td></tr>`).join('');
     const opcionesCuenta = cxpCuentasPago.map((c) => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
+    const opcionesEmpleado = cxpEmpleados.map((e) => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('');
 
     cxpMostrarModal(`
       <div class="bg-slate-950 border border-slate-700 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 space-y-4 shadow-2xl">
@@ -343,6 +467,8 @@ function cxpAbrirPago(filas) {
             <input type="text" id="cxpRefPago" placeholder="No. de transferencia / cheque" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
         </div>
         <p id="cxpAlertaEfectivo" class="hidden text-xs text-amber-300 bg-amber-950/40 border border-amber-900 rounded-lg px-2.5 py-2">Pagos en efectivo mayores a $2,000 no son deducibles y su IVA no es acreditable. Confírmalo con tu contador.</p>
+        <div><label class="block text-xs text-slate-400 mb-1">Visto bueno de quien solicitó <span class="text-slate-500">· informativo, opcional</span></label>
+          <select id="cxpVistoBueno" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">— sin confirmar —</option>${opcionesEmpleado}</select></div>
         <p id="cxpPagoErr" class="text-xs text-rose-400 min-h-[1rem]"></p>
         <div class="flex justify-end gap-2">
           <button type="button" class="text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-4 py-2 rounded-lg" onclick="window.cxpAntCerrar()">Cancelar</button>
@@ -406,6 +532,7 @@ async function registrarPago(docs, parcial) {
                 cuenta_pago_id: Number(cuenta),
                 forma_pago: document.getElementById('cxpFormaPago').value || null,
                 referencia: document.getElementById('cxpRefPago').value.trim() || null,
+                visto_bueno_empleado_id: document.getElementById('cxpVistoBueno').value ? Number(document.getElementById('cxpVistoBueno').value) : null,
                 aplicaciones,
             },
         });
@@ -457,9 +584,12 @@ async function cxpImprimirComprobante(id) {
 async function cxpHistorial() {
     const cont = document.getElementById('cxpHist');
     try {
-        const { data, error } = await supabaseClient.from('pagos_proveedor')
-            .select('id, fecha, total, referencia, forma_pago, estatus, poliza_id, proveedores ( nombre ), pagos_proveedor_aplicaciones ( tipo, monto )')
-            .order('id', { ascending: false }).limit(100);
+        const selCompleto = 'id, fecha, total, referencia, forma_pago, estatus, poliza_id, visto_bueno_at, proveedores ( nombre ), empleados!visto_bueno_empleado_id ( nombre ), pagos_proveedor_aplicaciones ( tipo, monto )';
+        const selBase = 'id, fecha, total, referencia, forma_pago, estatus, poliza_id, proveedores ( nombre ), pagos_proveedor_aplicaciones ( tipo, monto )';
+        let { data, error } = await supabaseClient.from('pagos_proveedor').select(selCompleto).order('id', { ascending: false }).limit(100);
+        if (error && /does not exist|schema cache|could not find/i.test(error.message || '')) {
+            ({ data, error } = await supabaseClient.from('pagos_proveedor').select(selBase).order('id', { ascending: false }).limit(100));
+        }
         if (error) throw error;
         if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin pagos registrados.</p>'; return; }
 
@@ -480,7 +610,7 @@ async function cxpHistorial() {
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
               <th class="p-2 text-left">Acción</th>${thOrden(cxpHistOrden, 'fecha', 'Fecha')}${thOrden(cxpHistOrden, 'proveedor', 'Proveedor')}${thOrden(cxpHistOrden, 'ref', 'Ref.')}
-              ${thOrden(cxpHistOrden, 'total', 'Total', 'text-right justify-end')}${thOrden(cxpHistOrden, 'docs', '# Docs', 'text-center justify-center')}<th class="p-2">Póliza</th>${thOrden(cxpHistOrden, 'estatus', 'Estatus')}
+              ${thOrden(cxpHistOrden, 'total', 'Total', 'text-right justify-end')}${thOrden(cxpHistOrden, 'docs', '# Docs', 'text-center justify-center')}<th class="p-2">Póliza</th><th class="p-2">Visto bueno</th>${thOrden(cxpHistOrden, 'estatus', 'Estatus')}
             </tr></thead>
             <tbody>
               ${data.map(p => `
@@ -492,6 +622,7 @@ async function cxpHistorial() {
                   <td class="p-2 text-right font-mono">${money(p.total)}</td>
                   <td class="p-2 text-center font-mono text-slate-400">${(p.pagos_proveedor_aplicaciones || []).length}</td>
                   <td class="p-2">${p.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${p.poliza_id}, '${p.fecha || ''}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer">🧾 Póliza #${p.poliza_id}</button>` : '<span class="text-slate-500">—</span>'}</td>
+                  <td class="p-2 text-slate-400">${p.empleados?.nombre ? `✓ ${esc(p.empleados.nombre)}` : '<span class="text-slate-600">—</span>'}</td>
                   <td class="p-2 ${p.estatus === 'registrado' ? 'text-emerald-400' : 'text-rose-400'}">${esc(p.estatus)}</td>
                 </tr>`).join('')}
             </tbody>

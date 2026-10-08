@@ -19,24 +19,35 @@ export const linkPoliza = (id, clase = 'font-mono text-sky-300') => id
 // guardan en caché; mientras llega la respuesta se ve "póliza…" (si no se encuentra, "ver póliza").
 const cachePol = new Map();
 let pendiente = null;
+// "BAN-2027-00001 · Egreso #34" si la póliza tiene serie propia (folio_poliza — requiere
+// sql/2026-10-07d_polizas_series_y_visto_bueno.sql), si no, solo "Egreso #34" como siempre.
+const etiquetaDe = (p) => p ? (p.folio_poliza ? `${p.folio_poliza} · ${p.tipo} #${p.numero}` : `${p.tipo} #${p.numero}`) : null;
 function rotular(el) {
     const p = cachePol.get(Number(el.dataset.polId));
-    el.textContent = p ? `${p.tipo} #${p.numero}` : 'ver póliza';
+    el.textContent = etiquetaDe(p) || 'ver póliza';
     el.dataset.polLbl = '1';
 }
-// Texto "Egreso #34" de una póliza para mensajes y avisos (nunca el id interno). Si no se encuentra: "(sin número)".
+async function consultarPolizas(filtro) {
+    const { supabaseClient } = await import('./supabase.js');
+    let r = await filtro(supabaseClient.from('polizas').select('id, tipo, numero, folio_poliza'));
+    if (r.error && /does not exist|schema cache|could not find/i.test(r.error.message || '')) {
+        r = await filtro(supabaseClient.from('polizas').select('id, tipo, numero'));
+    }
+    return r;
+}
+// Texto "Egreso #34" (o "BAN-2027-00001 · Egreso #34") de una póliza para mensajes y avisos
+// (nunca el id interno). Si no se encuentra: "(sin número)".
 export async function etiquetaPoliza(id) {
     id = Number(id);
     if (!id) return '';
     if (!cachePol.has(id)) {
         try {
-            const { supabaseClient } = await import('./supabase.js');
-            const { data } = await supabaseClient.from('polizas').select('id, tipo, numero').eq('id', id).maybeSingle();
+            const { data } = await consultarPolizas((q) => q.eq('id', id).maybeSingle());
             if (data) cachePol.set(data.id, data);
         } catch (_) { /* sin etiqueta */ }
     }
     const p = cachePol.get(id);
-    return p ? `${p.tipo} #${p.numero}` : "(sin número)";
+    return etiquetaDe(p) || "(sin número)";
 }
 async function rotularPolizas() {
     pendiente = null;
@@ -45,8 +56,7 @@ async function rotularPolizas() {
     const faltan = [...new Set(els.map((e) => Number(e.dataset.polId)).filter((id) => id && !cachePol.has(id)))];
     if (faltan.length) {
         try {
-            const { supabaseClient } = await import('./supabase.js');
-            const { data } = await supabaseClient.from('polizas').select('id, tipo, numero').in('id', faltan);
+            const { data } = await consultarPolizas((q) => q.in('id', faltan));
             (data || []).forEach((p) => cachePol.set(p.id, p));
         } catch (_) { /* si falla se queda el #id */ }
     }

@@ -6,6 +6,46 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-10-07b_cxp_v2.sql`, `sql/2026-10-07c_diagnostico_migraciones_pendientes3.sql` (solo
+  lectura), `sql/2026-10-07d_polizas_series_y_visto_bueno.sql` (nuevos), `js/pagos-proveedor.js`, `js/ordenes-compra.js`,
+  `js/enlaces-reporte.js`, `version.json`. **Cuentas por pagar v2 implementada en código real** (hasta hoy solo vivía en la
+  maqueta https://claude.ai/artifact/PeKAi5Wsp4VdokSwZzMDoi) + **nomenclatura de pólizas por serie** + **visto bueno ligado a
+  empleado real**. Pagos a proveedores: "Pendientes de pago" → "Pendiente"; Folio de cada fila = el de la OC, nunca el del recibo
+  (`v_cuentas_por_pagar` ahora hace `coalesce(oc.folio, d.folio)`, vista recreada con `DROP VIEW` porque `CREATE OR REPLACE` no
+  deja cambiar el tipo de una columna); columna "Pagado" quitada, columna "Vence" agregada (= fecha de la OC + `dias_credito`,
+  en rojo si ya venció); columna "Póliza / Recibo" → "Póliza"; botón "💰 Pagar anticipo a una OC" bajó de botón prominente a link
+  discreto aparte (a propósito: un anticipo sobre una OC sin recibir no es una deuda todavía, meterlo en la lista de saldo
+  pendiente habría sido contablemente engañoso — es la ÚNICA diferencia a propósito contra lo acordado en la maqueta); pagar
+  varias OC del mismo proveedor en un solo pago sigue permitido pero ahora pide autorización (pop-up con nombre de quien
+  autoriza, texto libre por ahora); "Forma de pago" ya no viene preseleccionado; alerta visual de efectivo > $2,000 (el asiento
+  contable de IVA no acreditable queda pendiente de validar con el contador, a propósito); 4 tarjetas KPI (Saldo total
+  pendiente/Vencido/Vence en 7 días/Anticipos disponibles). Órdenes de compra: nuevo campo obligatorio **"Días de crédito"**
+  (Inmediato/7/15/30/60, select con fallback si la migración no se ha corrido) y nuevo campo opcional **"Solicitado por"**
+  (empleado real, no texto libre). **Nomenclatura de pólizas**: nueva tabla `contadores_folios_poliza` (consecutivo POR AÑO,
+  ej. `BAN-2027-00001` — distinto a `contadores_folios`, que es continuo) + función `_siguiente_folio_poliza(serie, fecha)` +
+  columna `polizas.folio_poliza`; `registrar_poliza()` gana `p_datos->>'serie'` opcional (si no viene, sigue igual que
+  siempre); solo 5 flujos la usan: `pagar_anticipo_oc`/`registrar_pago_proveedor` (BAN si la cuenta es banco 102.x, VAE si es
+  caja 101.x), `registrar_cobro_cliente` (siempre ING), `cancelar_poliza` (siempre DIA, en TODA cancelación sin importar la
+  serie original), `contabilizar_produccion` (siempre CMP — parche de texto sobre `pg_get_functiondef`, mismo patrón ya usado en
+  `2026-10-05_series_3_letras.sql`, se eligió CMP y no ODP para no chocar con el folio del documento de cierre). Compras,
+  gastos, nómina, activos fijos, devoluciones y prorrateo NO llevan serie, se quedan como "Diario #N"/"Egreso #N". `etiquetaPoliza()`
+  (`js/enlaces-reporte.js`) ya muestra `"BAN-2027-00001 · Egreso #34"` cuando hay serie, con fallback si la columna no existe
+  aún. **Visto bueno**: `ordenes_compra.solicitante_empleado_id` + `pagos_proveedor.visto_bueno_empleado_id`/`_at` (FK a
+  `empleados`, no texto libre) — sigue siendo informativo, no bloquea nada; se marca a mano desde un select en la ventana de
+  pago (columna nueva "Visto bueno" en el historial). Pendiente a propósito, no es de hoy: que aparezca en el menú de Tareas del
+  empleado en vez de marcarse a mano aquí. Probado visualmente en el navegador (capturas del usuario) tras cada push — faltan
+  push de ESTA ronda (pólizas/visto bueno/KPIs) y correr `…07d` en Supabase. **Corrección a petición explícita del usuario:**
+  el filtro de Estatus había quedado como pestañas (simplificación propia, no se lo mostré claro) — se deshizo: ahora Documento,
+  Proveedor y Estatus son menú desplegable EN EL ENCABEZADO de columna (triángulo ▼, valor elegido debajo del botón en letra
+  chica para no ensanchar la columna), igual que la maqueta. Nuevo: columna Estatus con chip por fila (Pendiente/Vencida/
+  Parcial/Pagada/Cancelada — Vencida/Parcial se calculan en el cliente, `v_cuentas_por_pagar.estatus_cxp` solo conoce pendiente/
+  pagado/cancelado); columna checkbox siempre presente (antes se sustituía por "Estatus" en las vistas no-pendientes). Corregido
+  de paso: si un filtro no encontraba nada, la tabla entera desaparecía (con los 3 menús adentro) dejando al usuario sin forma
+  de cambiar el filtro — ahora el `<thead>` siempre se queda, solo cambia la fila del `<tbody>`. Un solo listener global
+  (`window.__cxpMenuListener`, mismo patrón que `subventanas-movibles.js`) cierra los menús al tocar fuera o con Escape.
+  **Deploy**: esta sesión no tenía git local
+  conectado — se subió con script temporal vía API de GitHub (token del usuario, nunca guardado, script borrado después,
+  verificado antes de pushear que nadie más hubiera tocado los mismos archivos en GitHub — ver `feedback-sync-verificar-antes-de-pushear`).
 - Archivos tocados (lo último): `sql/2026-10-07_compras_notas_ajuste.sql` (nuevo), `sql/2026-10-07_diagnostico_aju_egresos.sql`
   (nuevo, solo lectura), `js/ordenes-compra.js`, `js/pagos-proveedor.js`, `version.json`. **Compras ya no decide el pago + Notas
   de crédito/cargo (NDC/NDP).** Corrección sobre el plan de ayer: "Recibo de mercancía" y "Pre-recibos" ya eran la MISMA pantalla
@@ -1260,6 +1300,15 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Pendiente
 
+- **Cuentas por pagar v2 + series de pólizas + visto bueno — EJECUTADO 2026-10-07, falta correr el SQL y probar.** Pendiente:
+  correr en orden `sql/2026-10-07b_cxp_v2.sql` (si no se corrió ya), `sql/2026-10-07d_polizas_series_y_visto_bueno.sql`; probar
+  en el navegador — Pagos a proveedores (KPIs, Vence, pop-up de varias OC, selector de Visto bueno), Órdenes de compra (Días de
+  crédito obligatorio, Solicitado por), y confirmar que una póliza de pago sale como "BAN-2027-00001 · Egreso #N" (o VAE si la
+  cuenta es caja). Correr `sql/2026-10-07c_diagnostico_migraciones_pendientes3.sql` (solo lectura) para confirmar qué más falta
+  de rondas anteriores (series ODC/DCL/DPV, acuerdo de pago parcial, tipo de cambio en la OC, reservas de pedidos...).
+  Sin hacer a propósito: el tratamiento contable del IVA no acreditable en efectivo > $2,000 (solo queda el aviso visual,
+  falta que el contador confirme la cuenta); que el Visto bueno aparezca en el menú de Tareas del empleado (hoy se marca a
+  mano desde un select en Pagos a proveedores).
 - Semiterminado como tipo: TERMINADO (verificado 2026-09-23): migración 1, código en `main`, `…24b` (columna `es_semiterminado`
   borrada) y `…23f` (graneles de aceite en 14.64 L, 115.02) corridos. Ids 232 y 254 (Aceite Sey Piña Colada/Chocolate)
   corregidos a semiterminado (verificado). Pendiente: Granel Love Oil Fresa Kiwi (id 227) quedó en 7.99 L: su fórmula tiene solo 3 componentes, completarla. Al crear graneles

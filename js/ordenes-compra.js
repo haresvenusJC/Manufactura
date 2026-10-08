@@ -30,6 +30,7 @@ const normTxt = (s) => String(s || '').normalize('NFD').replace(/\p{Diacritic}/g
 const pendienteSeguro = (cantidad, recibida) => Math.max(0, Math.round((Number(cantidad || 0) - Number(recibida || 0)) * 10000) / 10000);
 
 let ocProveedores = [];
+let ocEmpleados = [];
 let ocUnidades = [];
 const ocListaOrden = crearOrdenTabla('id', 'desc');
 const rmRecepOrden = crearOrdenTabla();
@@ -40,12 +41,14 @@ let ocProdSel = null;          // producto elegido en el autocompletar de la OC
 let ocRecibirId = null;        // OC preseleccionada al entrar a "Recibo de mercancía"
 
 async function ocCargarCatalogos() {
-    const [pv, um, mo] = await Promise.all([
+    const [pv, em, um, mo] = await Promise.all([
         supabaseClient.from('proveedores').select('id, nombre').order('nombre'),
+        supabaseClient.from('empleados').select('id, nombre').eq('activo', true).order('nombre'),
         supabaseClient.from('unidades_medida').select('id, nombre').order('nombre'),
         supabaseClient.from('monedas').select('id, codigo').order('id'),
     ]);
     ocProveedores = pv.data || [];
+    ocEmpleados = em.data || [];
     ocUnidades = um.data || [];
     ocMonedas = mo.data || [];
 
@@ -73,6 +76,7 @@ export async function cargarModuloOrdenesCompra() {
     ocProdSel = null;
 
     const optProv = '<option value="">Seleccione proveedor...</option>' + ocProveedores.map(p => `<option value="${p.id}">${esc(p.nombre)}</option>`).join('');
+    const optEmp = '<option value="">— sin especificar —</option>' + ocEmpleados.map(e => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('');
     const optUni = '<option value="">Unidad...</option>' + ocUnidades.map(u => `<option value="${u.id}">${esc(u.nombre)}</option>`).join('');
     const optMon = ocMonedas.map(m => `<option value="${m.id}">${esc(m.codigo)}</option>`).join('');
 
@@ -101,6 +105,8 @@ export async function cargarModuloOrdenesCompra() {
           <div id="ocBloqueTC" class="hidden lg:w-40"><label class="block text-xs text-slate-400 mb-1">Tipo de cambio</label>
             <input type="number" step="0.0001" min="0" id="ocTipoCambio" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm font-mono text-slate-100">
             <p id="ocTCFuente" class="text-[10px] text-slate-500 mt-0.5"></p></div>
+          <div class="lg:w-56"><label class="block text-xs text-slate-400 mb-1">Solicitado por <span class="text-slate-500">· informativo</span></label>
+            <select id="ocSolicitante" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optEmp}</select></div>
           <div class="md:col-span-4 lg:basis-full lg:min-w-[240px]"><label class="block text-xs text-slate-400 mb-1">Notas</label>
             <input type="text" id="ocNotas" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
         </div>
@@ -344,6 +350,7 @@ async function ocGuardarOrden() {
             fecha: document.getElementById('ocFecha').value || hoyISO(),
             fecha_esperada: document.getElementById('ocFechaEsp').value || null,
             dias_credito: parseInt(diasCreditoVal),
+            solicitante_empleado_id: document.getElementById('ocSolicitante').value ? parseInt(document.getElementById('ocSolicitante').value) : null,
             moneda_id: document.getElementById('ocMoneda').value ? parseInt(document.getElementById('ocMoneda').value) : null,
             ...(ocEsMonedaExtranjera() && document.getElementById('ocTipoCambio').value ? (() => {
                 const input = document.getElementById('ocTipoCambio');
@@ -357,11 +364,18 @@ async function ocGuardarOrden() {
             estatus: 'abierta',
             notas: document.getElementById('ocNotas').value.trim() || null,
         };
-        let { data: oc, error: e1 } = await supabaseClient.from('ordenes_compra').insert([datosOC]).select('id, folio').single();
-        if (e1 && /does not exist|schema cache|could not find/i.test(e1.message || '')) {
-            // dias_credito aún no existe (falta correr sql/2026-10-07b_cxp_v2.sql): reintenta sin ella.
-            const { dias_credito, ...sinDiasCredito } = datosOC;
-            ({ data: oc, error: e1 } = await supabaseClient.from('ordenes_compra').insert([sinDiasCredito]).select('id, folio').single());
+        // dias_credito / solicitante_empleado_id son columnas nuevas (sql/2026-10-07b_cxp_v2.sql y
+        // sql/2026-10-07d_polizas_series_y_visto_bueno.sql); si alguna migración no se ha corrido,
+        // reintenta quitando esa columna en vez de tronar.
+        let datosIntento = { ...datosOC };
+        let oc, e1;
+        for (let intentos = 0; intentos < 3; intentos++) {
+            ({ data: oc, error: e1 } = await supabaseClient.from('ordenes_compra').insert([datosIntento]).select('id, folio').single());
+            if (!e1 || !/does not exist|schema cache|could not find/i.test(e1.message || '')) break;
+            const col = /column "?(\w+)"?/i.exec(e1.message || '')?.[1];
+            if (!col || !(col in datosIntento)) break;
+            const { [col]: _quitado, ...resto } = datosIntento;
+            datosIntento = resto;
         }
         if (e1) throw e1;
 
