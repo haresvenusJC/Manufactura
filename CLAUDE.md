@@ -6,6 +6,18 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`. A petición del usuario (PDF "Revisión de documentos"):
+  dos ajustes de texto a la ventana de pago, sin tocar colores. **1) Tabla "Qué ampara este pago"** gana las columnas que
+  faltaban — **Cta.** (cuenta de inventario del producto, `productos.cuenta_inventario_id`, con el mismo fallback 115.01 que
+  usa `contabilizar_compra()`) y **P. Unit.** (`documento_detalles.costo_unitario`, ya se traía de la base pero no se
+  pintaba) — ahora son 6 columnas: Código/Descripción/Cta./Cant./P. Unit./Importe, igual que la maqueta. **2) "Documentos"**
+  (dentro de Proveedor y documento) ahora también lista las notas de crédito/cargo activas de este recibo (`notas_compra`,
+  folio NDC-/NDP-) junto a "Ver OC · Ver recibo" — antes esas notas solo se veían más abajo, en Aprobaciones y trazabilidad.
+  **Aclaración al usuario sobre ODC-000002** (no era un bug): su póliza Diario es SOLO la del recibo de mercancía — reconoce
+  115.01/119.01 contra 201.01 Proveedores, nunca toca banco — por eso el botón "Pagar" sigue activo con saldo real pendiente;
+  es exactamente la regla "Compras ya no decide el pago" de la sesión del 2026-10-07, funcionando como se diseñó. Pendiente:
+  probar en el navegador con un documento que tenga nota de ajuste activa, para ver las dos columnas nuevas y el folio NDC/NDP
+  junto a Ver OC/Ver recibo.
 - Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`. A petición del usuario (comparativo PDF "ACTUAL vs
   FORMATO APROBADO" con capturas marcadas): tabla de Cuentas por pagar ajustada al formato acordado. Quitada la columna
   **Tipo** (siempre decía "compra", sin valor — el formato aprobado no la tiene). Columna **Póliza** simplificada a un solo

@@ -441,7 +441,7 @@ async function cxpAbrirPago(filas) {
         try {
             const [{ data: doc }, { data: lineas }, { data: prov }, { data: oc }, { data: req }, { data: notas }] = await Promise.all([
                 supabaseClient.from('documentos').select('subtotal, iva, total').eq('id', docs[0].id).maybeSingle(),
-                supabaseClient.from('documento_detalles').select('cantidad, costo_unitario, subtotal, productos ( nombre, sku )').eq('documento_id', docs[0].id),
+                supabaseClient.from('documento_detalles').select('cantidad, costo_unitario, subtotal, productos ( nombre, sku, cuentas_contables!cuenta_inventario_id ( codigo ) )').eq('documento_id', docs[0].id),
                 provId ? supabaseClient.from('proveedores').select('nombre, rfc').eq('id', provId).maybeSingle() : Promise.resolve({ data: null }),
                 docs[0].ocId ? supabaseClient.from('ordenes_compra').select('folio, fecha, dias_credito').eq('id', docs[0].ocId).maybeSingle() : Promise.resolve({ data: null }),
                 docs[0].ocId ? supabaseClient.from('requisiciones_compra').select('folio, solicitada_por, revisada_por, revisada_en').eq('orden_compra_id', docs[0].ocId).maybeSingle() : Promise.resolve({ data: null }),
@@ -475,6 +475,7 @@ function cxpPintarVentanaPago(docs, provId, detalle, proveedorInfo) {
           <div class="col-span-2"><span class="text-slate-500 block">Documento</span>
             ${docs[0].ocId ? `<button type="button" onclick="window.verDetalleOC(${docs[0].ocId})" class="text-sky-400 hover:underline">Ver OC ${esc(detalle?.oc?.folio || '')}</button> · ` : ''}
             ${linkDoc(docs[0].id, 'Ver recibo', 'text-sky-400 hover:underline')}
+            ${(detalle?.notas || []).filter((n) => n.estatus === 'activa').map((n) => ` · <span class="text-amber-300 font-mono">${esc(n.folio)}</span>`).join('')}
           </div>` : `<div class="col-span-2"><span class="text-slate-500 block">Documentos</span><span class="text-slate-200">${docs.length} seleccionados (ver tabla abajo)</span></div>`}
         </div>
       </div>`;
@@ -485,8 +486,8 @@ function cxpPintarVentanaPago(docs, provId, detalle, proveedorInfo) {
         ${unico && detalle?.lineas?.length ? `
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-[11px] text-slate-300">
-            <thead class="bg-slate-900 text-slate-500 uppercase"><tr><th class="p-1.5">Código</th><th class="p-1.5">Descripción</th><th class="p-1.5 text-right">Cant.</th><th class="p-1.5 text-right">Importe</th></tr></thead>
-            <tbody>${detalle.lineas.map((l) => `<tr class="border-t border-slate-900"><td class="p-1.5 font-mono">${esc(l.productos?.sku || '—')}</td><td class="p-1.5">${esc(l.productos?.nombre || '—')}</td><td class="p-1.5 text-right font-mono">${l.cantidad}</td><td class="p-1.5 text-right font-mono">${money(l.subtotal)}</td></tr>`).join('')}</tbody>
+            <thead class="bg-slate-900 text-slate-500 uppercase"><tr><th class="p-1.5">Código</th><th class="p-1.5">Descripción</th><th class="p-1.5">Cta.</th><th class="p-1.5 text-right">Cant.</th><th class="p-1.5 text-right">P. Unit.</th><th class="p-1.5 text-right">Importe</th></tr></thead>
+            <tbody>${detalle.lineas.map((l) => `<tr class="border-t border-slate-900"><td class="p-1.5 font-mono">${esc(l.productos?.sku || '—')}</td><td class="p-1.5">${esc(l.productos?.nombre || '—')}</td><td class="p-1.5 font-mono">${esc(l.productos?.cuentas_contables?.codigo || '115.01')}</td><td class="p-1.5 text-right font-mono">${l.cantidad}</td><td class="p-1.5 text-right font-mono">${money(l.costo_unitario)}</td><td class="p-1.5 text-right font-mono">${money(l.subtotal)}</td></tr>`).join('')}</tbody>
           </table>
         </div>
         <div class="text-xs text-slate-400 space-y-0.5 text-right pr-1">
