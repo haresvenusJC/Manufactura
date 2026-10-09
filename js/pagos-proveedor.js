@@ -841,6 +841,18 @@ async function cxpAbrirAnticipo() {
             const { data } = await supabaseClient.from('v_anticipos_oc').select('disponible').eq('orden_compra_id', Number(id)).maybeSingle();
             info.textContent = data && Number(data.disponible) > 0 ? `Ya tiene ${money(data.disponible)} de anticipo disponible sin aplicar.` : '';
         } catch (_) { info.textContent = ''; }
+        // Lo que Compras pactó en la ODC formal (sql/2026-10-09_odc_formal.sql): Finanzas solo lo ejecuta.
+        try {
+            const { data: pac, error: ePac } = await supabaseClient.from('ordenes_compra')
+                .select('condicion_pago, dias_credito, anticipo_pct, anticipo_monto').eq('id', Number(id)).single();
+            if (!ePac && pac && pac.condicion_pago) {
+                const cond = pac.condicion_pago === 'credito' ? `Crédito ${Number(pac.dias_credito || 0)} días` : 'Contado';
+                const ant = pac.anticipo_pct ? `anticipo pactado ${Number(pac.anticipo_pct)}% = ${money(pac.anticipo_monto)}` : 'sin anticipo pactado';
+                info.textContent = (info.textContent ? info.textContent + ' ' : '') + `Compras pactó: ${cond}, ${ant}.`;
+                const campo = document.getElementById('cxpAntMonto');
+                if (pac.anticipo_monto && campo && !campo.value) campo.value = Number(pac.anticipo_monto).toFixed(2);
+            }
+        } catch (_) { /* migración no corrida: se omite */ }
     };
 
     document.getElementById('cxpAntGuardar').onclick = async () => {

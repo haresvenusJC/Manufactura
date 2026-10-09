@@ -6,6 +6,22 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-10-09_odc_formal.sql` (nuevo), `js/requisiciones-compra.js`, `js/ordenes-compra.js`,
+  `js/pagos-proveedor.js`, `version.json`, `CLAUDE.md`. **ODC formal** (maqueta https://claude.ai/artifact/UHUmppsCjW93kPZ87LwQ5d):
+  `reqAutorizar` ya no es el mini-modal — ahora es la subventana "Generación de Orden de Compra" (requisición de origen, cotización
+  del proveedor con N.º/contacto/vigencia, condiciones, partidas con costo real y SKU proveedor, IVA 16% estimado, notas); al confirmar
+  llama al mismo RPC `requisicion_autorizar` y luego actualiza `ordenes_compra` (cotizacion_*, `condicion_pago` contado/crédito,
+  `dias_credito`, `forma_pago`, `anticipo_pct/_monto`) y el costo/SKU de cada partida. **Regla:** Compras solo PACTA; Finanzas ejecuta
+  (anticipo con `pagar_anticipo_oc`, pago total/parcial desde Cuentas por pagar). La ODC NO genera póliza. Contable (NIF): anticipo
+  antes de recibir = Cargo 109.01/Abono banco; al recibir `contabilizar_compra` reconoce SIEMPRE el pasivo completo en 201.01 y lo
+  cancela contra 109.01 (así Proveedores queda tocada aunque sea contado 100% prepagado). Detalle de la ODC muestra cotización,
+  condiciones, IVA/total y firmas al imprimir; el modal de anticipo en Cuentas por pagar muestra lo pactado y precarga el monto.
+  Sin migración corrida degrada (detalle sin bloques nuevos). Pendiente: correr `sql/2026-10-09_odc_formal.sql` y probar una
+  requisición → Autorizar; los 3 botones del encabezado del detalle (Antecedentes/Imprimir/Editar) NO se quitaron todavía; Editar
+  no edita cotización/condiciones; no se pudo validar sintaxis (sin node en esta máquina) — revisar en el navegador con Ctrl+Shift+R.
+  **Actualización:** se quitaron Antecedentes/Editar del encabezado del detalle (Imprimir pasó al pie). El formulario manual "Nueva orden
+  de compra" se reemplazó por el botón "＋ Nueva orden de compra" → `window.reqAutorizar(null)` (mismo documento formal, modo manual: captura
+  de partidas, solicitante, tipo de cambio DOF; inserta directo con folio ODC). Toda ODC nueva ya lleva cotización/condiciones/anticipo.
 - Archivos tocados (lo último): `sql/2026-10-09_recepcion_serie_rec.sql` (nuevo), `js/contabilidad.js`, `version.json`,
   `CLAUDE.md`. A petición del usuario (dos capturas: "Diario #36" sin ninguna serie en la lista, y el modal de "Póliza
   Egreso #71" sin la serie BAN que sí se veía en la lista de Cuentas por pagar). **Revisados los asientos de la captura
@@ -1348,6 +1364,13 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - **Selects** siempre desde la tabla real de Supabase, nunca hardcodeados.
 - **Migraciones SQL**: idempotentes (`if not exists`, `create or replace`), envueltas en `begin;`/`commit;`.
   Nunca se edita una ya corrida — se agrega una nueva. Se pegan a mano en Supabase → SQL Editor.
+- **Funciones: siempre `create or replace function` con el cuerpo COMPLETO, nunca parche de texto** (a petición
+  explícita del usuario 2026-10-09: "no quiero parches... cambios con trazabilidad más sólida, no adendums que con
+  el tiempo pierden sentido o se hacen tan frágiles que les metes más parches"). El truco de `pg_get_functiondef(oid)`
+  + `replace()` + `execute` (usado para la serie CMP de `contabilizar_produccion` y la serie REC de
+  `contabilizar_compra`, ambos ya corridos — no se deshacen, pero no se repite el patrón) queda descartado para
+  cualquier cambio nuevo: cada migración que toque una función debe poder leerse sola y mostrar qué hace la función
+  HOY, sin que alguien tenga que reconstruir una cadena de parches anteriores para entenderla.
 - **Push a GitHub** solo cuando el usuario dice "comitea" (cualquier forma), y siempre directo a `main` (así lo pidió el usuario). El repo local NO está
   conectado a git: se sube con un script temporal que usa la API de GitHub (blob→tree→commit→PATCH ref);
   el token nunca se guarda y el script se borra justo después de usarlo. GitHub Pages (URL principal) +
@@ -1482,6 +1505,12 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Pendiente
 
+- **Quitar el texto de ayuda debajo de las tarjetas KPI en Finanzas → Cuentas por pagar** (`js/pagos-proveedor.js`, ~línea 117),
+  incluido el enlace azul "💰 pagar anticipo a una OC sin recibir" (`cxpBtnAnticipo` → `cxpAbrirAnticipo`). A petición del usuario
+  (2026-10-09): el pago de anticipo se reubicará (probablemente con la ODC formal, ver maqueta "Orden de Compra formal") — NO borrar
+  `cxpAbrirAnticipo` hasta decidir dónde vive. Pendiente de aprobación aparte: reemplazar la ODC actual (`js/ordenes-compra.js`
+  `abrirDetalleOC`/`renderVistaOC`/`renderEdicionOC` + mini-modal `reqAutorizar`) por el documento formal de la maqueta
+  https://claude.ai/artifact/UHUmppsCjW93kPZ87LwQ5d (sin los 3 botones Antecedentes/Imprimir/Editar del encabezado).
 - **Cuentas por pagar v2 + series de pólizas + visto bueno — EJECUTADO 2026-10-07, falta correr el SQL y probar.** Pendiente:
   correr en orden `sql/2026-10-07b_cxp_v2.sql` (si no se corrió ya), `sql/2026-10-07d_polizas_series_y_visto_bueno.sql`; probar
   en el navegador — Pagos a proveedores (KPIs, Vence, pop-up de varias OC, selector de Visto bueno), Órdenes de compra (Días de

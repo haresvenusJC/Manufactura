@@ -82,65 +82,9 @@ export async function cargarModuloOrdenesCompra() {
 
     cont.innerHTML = `
     <div class="space-y-5">
-      <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
-        <h3 class="text-md font-semibold text-emerald-400 mb-3">Nueva orden de compra</h3>
-        <div class="grid grid-cols-1 md:grid-cols-4 lg:flex lg:flex-wrap lg:items-end gap-3 mb-3">
-          <div class="lg:flex-1 lg:min-w-[220px]"><label class="block text-xs text-slate-400 mb-1">Proveedor</label>
-            <select id="ocProveedor" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optProv}</select></div>
-          <div class="lg:w-40"><label class="block text-xs text-slate-400 mb-1">Fecha</label>
-            <input type="date" id="ocFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-          <div class="lg:w-40"><label class="block text-xs text-slate-400 mb-1">Fecha esperada</label>
-            <input type="date" id="ocFechaEsp" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-          <div class="lg:w-36"><label class="block text-xs text-slate-400 mb-1">Días de crédito</label>
-            <select id="ocDiasCredito" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-              <option value="" selected disabled>— elegir —</option>
-              <option value="0">Inmediato</option>
-              <option value="7">7 días</option>
-              <option value="15">15 días</option>
-              <option value="30">30 días</option>
-              <option value="60">60 días</option>
-            </select></div>
-          <div class="lg:w-28"><label class="block text-xs text-slate-400 mb-1">Moneda</label>
-            <select id="ocMoneda" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optMon}</select></div>
-          <div id="ocBloqueTC" class="hidden lg:w-40"><label class="block text-xs text-slate-400 mb-1">Tipo de cambio</label>
-            <input type="number" step="0.0001" min="0" id="ocTipoCambio" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm font-mono text-slate-100">
-            <p id="ocTCFuente" class="text-[10px] text-slate-500 mt-0.5"></p></div>
-          <div class="lg:w-56"><label class="block text-xs text-slate-400 mb-1">Solicitado por <span class="text-slate-500">· informativo</span></label>
-            <select id="ocSolicitante" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optEmp}</select></div>
-          <div class="md:col-span-4 lg:basis-full lg:min-w-[240px]"><label class="block text-xs text-slate-400 mb-1">Notas</label>
-            <input type="text" id="ocNotas" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-        </div>
-
-        <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-3 mb-3">
-          <div class="grid grid-cols-2 md:grid-cols-5 lg:flex lg:flex-wrap lg:items-end gap-2">
-            <div class="col-span-2 lg:flex-1 lg:min-w-[260px] relative">
-              <label class="block text-[11px] text-slate-400 mb-1">Producto</label>
-              <input type="text" id="ocProdInput" autocomplete="off" placeholder="Buscar o escribir uno nuevo..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
-              <div id="ocProdSug" class="hidden absolute left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-40 max-h-44 overflow-y-auto"></div>
-            </div>
-            <div class="lg:w-28"><label class="block text-[11px] text-slate-400 mb-1">Cantidad</label>
-              <input type="number" step="any" min="0" id="ocProdCant" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
-            <div class="lg:w-32"><label class="block text-[11px] text-slate-400 mb-1">Costo estimado</label>
-              <input type="number" step="any" min="0" id="ocProdCosto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
-            <div class="lg:w-44"><label class="block text-[11px] text-slate-400 mb-1">Unidad</label>
-              <select id="ocProdUnidad" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${optUni}</select></div>
-          </div>
-          <div id="ocInfoProveedor" class="hidden mt-2 text-[11px] text-slate-300 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2"></div>
-          <button type="button" id="ocAddPartida" class="mt-2 w-full lg:w-auto lg:px-6 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium py-1.5 rounded-lg text-xs">＋ Agregar partida</button>
-        </div>
-
-        <div class="overflow-x-auto border border-slate-800 rounded-lg mb-3">
-          <table class="w-full text-left text-xs text-slate-300">
-            <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-              <th class="p-2">Mi catálogo (interno)</th><th class="p-2 text-right">Cantidad</th>
-              <th class="p-2">Datos del proveedor (para comunicarle la orden)</th>
-              <th class="p-2 text-right">Costo est.</th><th class="p-2 text-right">Importe</th><th class="p-2"></th>
-            </tr></thead>
-            <tbody id="ocPartidasBody"><tr><td colspan="6" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr></tbody>
-          </table>
-        </div>
-        <button type="button" id="ocGuardar" class="w-full lg:w-auto lg:px-10 bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Guardar orden de compra</button>
-        <p id="ocMsg" class="text-xs mt-2 min-h-[1rem]"></p>
+      <div class="flex items-center justify-between gap-3 bg-slate-950 border border-slate-800 rounded-xl p-4">
+        <p class="text-xs text-slate-400">Las órdenes nacen de una requisición autorizada, o se capturan directo con el documento formal (cotización, condiciones de pago y anticipo para Finanzas).</p>
+        <button type="button" onclick="window.reqAutorizar(null)" class="shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-5 py-2.5 rounded-lg text-sm">＋ Nueva orden de compra</button>
       </div>
 
       <div>
@@ -149,13 +93,6 @@ export async function cargarModuloOrdenesCompra() {
       </div>
     </div>`;
 
-    document.getElementById('ocFecha').value = hoyISO();
-    const mxn = ocMonedas.find(m => m.codigo === 'MXN');
-    if (mxn) document.getElementById('ocMoneda').value = mxn.id;
-    document.getElementById('ocMoneda').onchange = () => ocActualizarTipoCambio(OC_TC_IDS);
-    ocActualizarTipoCambio(OC_TC_IDS);
-
-    ocWireFormulario();
     await ocRenderLista();
 
     // Viene de "Autorizar y crear Orden de compra" en Requisiciones: abre esa OC directo.
@@ -533,15 +470,13 @@ async function abrirDetalleOC(id) {
     modal.innerHTML = `
         <div class="flex justify-between items-center p-4 border-b border-slate-800">
             <h3 class="text-base font-semibold text-slate-100">Orden de compra <span id="tituloDetalleOCSub" class="text-emerald-300 font-mono"></span></h3>
-            <div class="flex items-center gap-2">
-                <button onclick="window.abrirAntecedentesOC(${id})" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg">🔗 Antecedentes</button>
-                <button id="btnImprimirOC" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg">🖨️ Imprimir</button>
-                <button id="btnEditarOC" class="hidden text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg">✏️ Editar</button>
-                <button id="cerrarDetalleOC" class="text-slate-400 hover:text-slate-200 text-xl leading-none">&times;</button>
-            </div>
+            <button id="cerrarDetalleOC" class="text-slate-400 hover:text-slate-200 text-xl leading-none">&times;</button>
         </div>
         <div id="cuerpoDetalleOC" class="p-4 overflow-y-auto flex-1">
             <p class="text-slate-500 text-sm text-center">Cargando...</p>
+        </div>
+        <div class="flex justify-end p-3 border-t border-slate-800">
+            <button id="btnImprimirOC" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg">🖨️ Imprimir</button>
         </div>`;
     document.body.appendChild(modal);
     // id único del cuerpo por instancia — imprimirConPlantilla busca por id global
@@ -565,9 +500,17 @@ async function abrirDetalleOC(id) {
 
     let { data: o, error } = await supabaseClient
         .from('ordenes_compra')
-        .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, tipo_cambio, tipo_cambio_fuente, tipo_cambio_fecha, created_at, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, productos ( nombre, sku ) )')
+        .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, tipo_cambio, tipo_cambio_fuente, tipo_cambio_fecha, created_at, dias_credito, cotizacion_folio, cotizacion_contacto, cotizacion_telefono, cotizacion_email, cotizacion_fecha, cotizacion_vigencia, condicion_pago, forma_pago, anticipo_pct, anticipo_monto, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, productos ( nombre, sku ) )')
         .eq('id', id)
         .single();
+    if (error && /does not exist|schema cache|could not find/i.test(error.message || '')) {
+        // sin la migración de la ODC formal (cotización/condiciones): select de antes.
+        ({ data: o, error } = await supabaseClient
+            .from('ordenes_compra')
+            .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, tipo_cambio, tipo_cambio_fuente, tipo_cambio_fecha, created_at, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, productos ( nombre, sku ) )')
+            .eq('id', id)
+            .single());
+    }
     if (error && /does not exist|schema cache|could not find/i.test(error.message || '')) {
         // columnas de datos del proveedor aún no existen: cae al select sin ellas.
         ({ data: o, error } = await supabaseClient
@@ -590,13 +533,6 @@ async function abrirDetalleOC(id) {
             await renderVistaOC(o, cuerpo);
             await imprimirConPlantilla('orden_compra', 'Orden de compra ' + (o.folio || ('#' + o.id)), idCuerpo, marcaDeEstatus(o.estatus));
         };
-    }
-
-    const btnEditar = modal.querySelector('#btnEditarOC');
-    const puedeEditar = o.estatus === 'abierta' || o.estatus === 'borrador';
-    if (btnEditar) {
-        btnEditar.classList.toggle('hidden', !puedeEditar);
-        btnEditar.onclick = () => renderEdicionOC(o, cuerpo);
     }
 
     await renderVistaOC(o, cuerpo);
@@ -631,6 +567,17 @@ async function renderVistaOC(o, cuerpo) {
             <div><span class="block text-[10px] text-slate-500">Moneda</span><span class="text-slate-300">${esc(o.monedas?.codigo || '—')}</span></div>
             <div><span class="block text-[10px] text-slate-500">Creada el</span><span class="text-slate-300">${fmtFecha(o.created_at)}</span></div>
         </div>
+        ${(o.cotizacion_folio || o.condicion_pago) ? `
+        <div class="grid grid-cols-2 gap-3 mb-4 text-sm border-t border-slate-800 pt-3">
+            ${o.cotizacion_folio ? `<div><span class="block text-[10px] text-slate-500">Cotización del proveedor</span>
+                <span class="text-slate-100 font-mono">${esc(o.cotizacion_folio)}</span>
+                <span class="block text-[11px] text-slate-400">${esc(o.cotizacion_fecha || '')}${o.cotizacion_vigencia ? ' · vigente hasta ' + esc(o.cotizacion_vigencia) : ''}</span>
+                <span class="block text-[11px] text-slate-400">Contacto: ${esc(o.cotizacion_contacto || '—')}${o.cotizacion_telefono ? ' · ' + esc(o.cotizacion_telefono) : ''}${o.cotizacion_email ? ' · ' + esc(o.cotizacion_email) : ''}</span></div>` : '<div></div>'}
+            ${o.condicion_pago ? `<div><span class="block text-[10px] text-slate-500">Condiciones pactadas</span>
+                <span class="text-slate-100">${o.condicion_pago === 'credito' ? `Crédito ${Number(o.dias_credito || 0)} días` : 'Contado'}</span>
+                ${o.forma_pago ? `<span class="block text-[11px] text-slate-400">Forma de pago: ${esc(o.forma_pago)}</span>` : ''}
+                ${o.anticipo_pct ? `<span class="block text-[11px] text-slate-400">Anticipo comprometido: ${Number(o.anticipo_pct)}% = ${money(o.anticipo_monto)} (lo paga Finanzas antes de recibir)</span>` : '<span class="block text-[11px] text-slate-400">Sin anticipo</span>'}</div>` : ''}
+        </div>` : ''}
         ${o.notas ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Notas de la orden</span><p class="text-xs text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5">${esc(o.notas)}</p></div>` : ''}
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-xs text-slate-300">
@@ -658,10 +605,14 @@ async function renderVistaOC(o, cuerpo) {
               }).join('') || '<tr><td colspan="6" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
             </tbody>
             <tfoot>
-              <tr><td colspan="4" class="p-2 text-right font-semibold text-slate-400">Total estimado</td><td class="p-2 text-right font-mono font-semibold text-emerald-300">${money(totalEst)}</td><td></td></tr>
+              <tr><td colspan="4" class="p-2 text-right font-semibold text-slate-400">Subtotal estimado</td><td class="p-2 text-right font-mono font-semibold text-emerald-300">${money(totalEst)}</td><td></td></tr>
+              ${o.condicion_pago ? `<tr><td colspan="4" class="p-2 text-right text-slate-400">IVA 16% (estimado)</td><td class="p-2 text-right font-mono text-slate-300">${money(totalEst * 0.16)}</td><td></td></tr>
+              <tr><td colspan="4" class="p-2 text-right font-semibold text-slate-300">Total estimado</td><td class="p-2 text-right font-mono font-bold text-emerald-300">${money(totalEst * 1.16)}</td><td></td></tr>` : ''}
             </tfoot>
           </table>
-        </div>`;
+        </div>
+        ${o.condicion_pago ? `<div class="hidden print:grid grid-cols-2 gap-10 mt-10 text-[10px] text-slate-500">
+            <div class="border-t border-slate-500 pt-1">Solicitó</div><div class="border-t border-slate-500 pt-1">Autorizó compra</div></div>` : ''}`;
 }
 
 // ---- Edición de una OC ya guardada (solo mientras nada se ha recibido) ----
