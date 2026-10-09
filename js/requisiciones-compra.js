@@ -1002,9 +1002,9 @@ window.reqAutorizar = async (id) => {
     const optMon = reqMonedas.map((m) => `<option value="${m.id}">${esc(m.codigo)}</option>`).join('');
     const optForma = '<option value="">— sin definir —</option>' + formas.map((f) => `<option value="${esc(f.clave)}">${esc(f.clave)} · ${esc(f.descripcion)}</option>`).join('');
     const optDias = DIAS_CREDITO_ODC.map((d) => `<option value="${d}">${d} días</option>`).join('');
-    const inp = 'w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-sm text-slate-100';
+    const inp = 'w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-sm text-slate-100';
     const lbl = 'block text-[11px] text-slate-400 mb-1';
-    const card = 'bg-slate-950/60 border border-slate-800 rounded-xl p-4';
+    const card = 'bg-slate-950 border border-slate-800 rounded-xl p-4';
     const h3 = 'text-xs font-bold uppercase tracking-wide text-slate-300 mb-1';
 
     const modal = document.createElement('div');
@@ -1057,7 +1057,7 @@ window.reqAutorizar = async (id) => {
             <p class="text-[11px] text-slate-500 mb-3">Lo que Compras pactó con el proveedor. Compras NO ejecuta el pago: Finanzas lo hace (anticipo, pago total o parcialidades) desde Cuentas por pagar.</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <div><label class="${lbl}">Condición de pago *</label>
-                <div class="flex bg-slate-950 border border-slate-800 rounded-lg p-0.5 gap-0.5">
+                <div class="flex bg-slate-900 border border-slate-800 rounded-lg p-0.5 gap-0.5">
                   <button type="button" data-cond="contado" class="flex-1 text-xs font-semibold py-2 rounded-md">Contado</button>
                   <button type="button" data-cond="credito" class="flex-1 text-xs font-semibold py-2 rounded-md">Crédito</button>
                 </div></div>
@@ -1078,7 +1078,7 @@ window.reqAutorizar = async (id) => {
             <div data-f="antBox" class="hidden mt-2 bg-emerald-950/40 border border-emerald-900/60 rounded-lg p-3">
               <div class="flex flex-wrap items-center gap-3 text-xs">
                 <span class="text-emerald-300 uppercase text-[10px]">% anticipo</span>
-                <input type="number" data-f="antPct" min="1" max="100" step="any" value="100" class="w-20 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-right font-mono text-slate-100">
+                <input type="number" data-f="antPct" min="1" max="100" step="any" value="100" class="w-20 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-right font-mono text-slate-100">
                 <span class="text-emerald-300 uppercase text-[10px]">Equivale a</span>
                 <span data-f="antMonto" class="font-mono font-bold text-slate-100">$0.00</span>
               </div>
@@ -1090,7 +1090,7 @@ window.reqAutorizar = async (id) => {
             <h4 class="${h3}">📦 Partidas cotizadas</h4>
             <p class="text-[11px] text-slate-500 mb-3">${manual ? 'Captura cada producto con el precio real que cotizó el proveedor.' : 'Precio real del proveedor — puede diferir del costo estimado de la requisición.'}</p>
             ${manual ? `
-            <div class="bg-slate-900/60 border border-slate-800 rounded-lg p-3 mb-3">
+            <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 mb-3">
               <div class="grid grid-cols-2 sm:grid-cols-6 gap-2 items-end">
                 <div class="col-span-2 sm:col-span-3 relative"><label class="${lbl}">Producto</label>
                   <input type="text" data-f="pInput" autocomplete="off" placeholder="Buscar o escribir uno nuevo..." class="${inp}">
@@ -1147,11 +1147,11 @@ window.reqAutorizar = async (id) => {
         f('partidas').innerHTML = lineas.map((l, i) => `
           <tr class="border-t border-slate-800 align-middle">
             <td class="p-2"><span class="text-slate-100 font-semibold">${esc(l.nombre)}</span><span class="block text-[10px] text-slate-500">${l.sku ? 'interno: ' + esc(l.sku) + ' · ' : ''}${esc(l.unidad)}</span></td>
-            <td class="p-2"><input type="text" data-sku="${i}" value="${esc(l.skuProveedor)}" class="w-28 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-100"></td>
+            <td class="p-2"><input type="text" data-sku="${i}" value="${esc(l.skuProveedor)}" class="w-28 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-100"></td>
             <td class="p-2 text-right font-mono">${manual
-                ? `<input type="number" data-cant="${i}" min="0" step="any" value="${l.cantidad}" class="w-20 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-right font-mono text-xs text-slate-100">`
+                ? `<input type="number" data-cant="${i}" min="0" step="any" value="${l.cantidad}" class="w-20 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-right font-mono text-xs text-slate-100">`
                 : formatoNum(l.cantidad)}</td>
-            <td class="p-2 text-right"><input type="number" data-costo="${i}" min="0" step="any" value="${l.costo}" class="w-24 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-right font-mono text-xs text-slate-100"></td>
+            <td class="p-2 text-right"><input type="number" data-costo="${i}" min="0" step="any" value="${l.costo}" class="w-24 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-right font-mono text-xs text-slate-100"></td>
             <td class="p-2 text-right font-mono" data-sub="${i}">${money(l.cantidad * l.costo)}</td>
             <td class="p-2 text-right">${manual ? `<button type="button" data-quitar="${i}" class="text-rose-400 hover:text-rose-300 text-xs px-2 py-1 bg-rose-950/40 rounded border border-rose-900/50">✕</button>` : ''}</td>
           </tr>`).join('') || '<tr><td colspan="6" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>';

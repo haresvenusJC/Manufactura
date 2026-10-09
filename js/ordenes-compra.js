@@ -82,9 +82,9 @@ export async function cargarModuloOrdenesCompra() {
 
     cont.innerHTML = `
     <div class="space-y-5">
-      <div class="flex items-center justify-between gap-3 bg-slate-950 border border-slate-800 rounded-xl p-4">
-        <p class="text-xs text-slate-400">Las órdenes nacen de una requisición autorizada, o se capturan directo con el documento formal (cotización, condiciones de pago y anticipo para Finanzas).</p>
-        <button type="button" onclick="window.reqAutorizar(null)" class="shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-5 py-2.5 rounded-lg text-sm">＋ Nueva orden de compra</button>
+      <div class="flex items-center gap-4 bg-slate-950 border border-slate-800 rounded-xl p-4">
+        <button type="button" onclick="window.reqAutorizar(null)" class="shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-2.5 rounded-lg text-sm">Crear</button>
+        <h3 class="text-xl font-bold text-slate-100">Nueva Orden de Compra sin Requisición</h3>
       </div>
 
       <div>
