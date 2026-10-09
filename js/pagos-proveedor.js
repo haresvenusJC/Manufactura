@@ -112,10 +112,7 @@ export async function cargarModuloPagosProveedor() {
     <div class="space-y-4">
       <div id="cxpPanelDocumentos" class="bg-slate-950 border border-slate-800 rounded-xl p-4"></div>
 
-      <p class="text-xs text-slate-500">
-        ¿Vas a pagar antes de recibir la mercancía? Eso no es una deuda todavía, por eso no aparece en la lista de arriba:
-        <button type="button" id="cxpBtnAnticipo" class="text-sky-400 hover:text-sky-300 underline">💰 pagar anticipo a una OC sin recibir</button>.
-      </p>
+      <div id="cxpPanelOcPactadas" class="bg-slate-950 border border-slate-800 rounded-xl p-4"></div>
 
       <div>
         <h3 class="text-md font-semibold text-slate-300 mb-2">Pagos registrados</h3>
@@ -123,11 +120,82 @@ export async function cargarModuloPagosProveedor() {
       </div>
     </div>`;
 
-    document.getElementById('cxpBtnAnticipo').onclick = cxpAbrirAnticipo;
-
+    await cxpPintarOcPactadas();
     cxpPintarDocumentos();
     await cxpHistorial();
     montarGuia(cont, 'pagos-proveedor');
+}
+
+// =====================================================================
+//  Órdenes de compra por pagar — lo que COMPRAS pactó en la ODC formal
+//  (sql/2026-10-09_odc_formal.sql) y FINANZAS ejecuta. Aún sin recibir la
+//  mercancía no es deuda (no está en 201.01): lo que se paga aquí es un
+//  anticipo (Cargo 109.01 / Abono banco), que al recibir se aplica contra
+//  el pasivo. Monto por pagar = anticipo pactado; si la ODC es de contado
+//  y no pactó anticipo, el total estimado con IVA (pago anticipado total);
+//  menos lo ya pagado. Crédito sin anticipo no aparece: se paga después de
+//  recibir, desde "Documentos por pagar".
+// =====================================================================
+async function cxpPintarOcPactadas() {
+    const panel = document.getElementById('cxpPanelOcPactadas');
+    if (!panel) return;
+    let filas = [];
+    let aviso = '';
+    try {
+        const { data, error } = await supabaseClient.from('ordenes_compra')
+            .select('id, folio, fecha, fecha_esperada, condicion_pago, dias_credito, anticipo_pct, anticipo_monto, proveedores ( nombre ), ordenes_compra_detalle ( cantidad, costo_unitario_estimado )')
+            .in('estatus', ['abierta', 'recibida_parcial'])
+            .not('condicion_pago', 'is', null)
+            .order('id', { ascending: false });
+        if (error) throw error;
+        let pagadoPorOc = new Map();
+        try {
+            const { data: ant } = await supabaseClient.from('v_anticipos_oc').select('orden_compra_id, pagado');
+            pagadoPorOc = new Map((ant || []).map((a) => [a.orden_compra_id, Number(a.pagado || 0)]));
+        } catch (_) { /* sin la vista de anticipos: se asume nada pagado */ }
+        filas = (data || []).map((o) => {
+            const sub = (o.ordenes_compra_detalle || []).reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0), 0);
+            const total = Math.round(sub * 1.16 * 100) / 100;
+            const objetivo = Number(o.anticipo_monto) > 0 ? Number(o.anticipo_monto) : (o.condicion_pago === 'contado' ? total : 0);
+            const pagado = pagadoPorOc.get(o.id) || 0;
+            return { ...o, total, objetivo, pagado, porPagar: Math.round((objetivo - pagado) * 100) / 100 };
+        }).filter((o) => o.porPagar > 0.01);
+    } catch (e) {
+        aviso = /does not exist|schema cache|could not find/i.test(e?.message || '')
+            ? 'Falta correr sql/2026-10-09_odc_formal.sql para ver lo pactado por Compras.' : 'No se pudieron cargar las órdenes de compra: ' + (e?.message || e);
+    }
+
+    panel.innerHTML = `
+      <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
+        <div><h3 class="text-md font-semibold text-slate-300">Órdenes de compra por pagar</h3>
+          <p class="text-[11px] text-slate-500">Lo que Compras pactó en cada orden — aún sin recibir la mercancía, se paga como anticipo y se aplica al recibir.</p></div>
+        <button type="button" id="cxpBtnAnticipo" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg">Pagar anticipo a otra OC</button>
+      </div>
+      ${aviso ? `<p class="text-amber-400 text-xs">${esc(aviso)}</p>` : !filas.length ? '<p class="text-xs text-slate-500">No hay órdenes pactadas con pago pendiente.</p>' : `
+      <div class="overflow-x-auto border border-slate-800 rounded-lg">
+        <table class="w-full text-left text-xs text-slate-300">
+          <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
+            <th class="p-3">Orden</th><th class="p-3">Proveedor</th><th class="p-3">Condición</th>
+            <th class="p-3 text-right">Total est.</th><th class="p-3 text-right">Pactado</th><th class="p-3 text-right">Pagado</th><th class="p-3 text-right">Por pagar</th><th class="p-3">Entrega</th><th class="p-3"></th>
+          </tr></thead>
+          <tbody>${filas.map((o) => `
+            <tr class="border-t border-slate-800">
+              <td class="p-3"><button type="button" onclick="window.verDetalleOC(${o.id})" class="font-mono text-emerald-300 hover:underline">${esc(o.folio || '#' + o.id)}</button></td>
+              <td class="p-3">${esc(o.proveedores?.nombre || '—')}</td>
+              <td class="p-3">${o.condicion_pago === 'credito' ? `Crédito ${Number(o.dias_credito || 0)} días` : 'Contado'}${Number(o.anticipo_pct) > 0 ? ` · anticipo ${Number(o.anticipo_pct)}%` : ''}</td>
+              <td class="p-3 text-right font-mono">${money(o.total)}</td>
+              <td class="p-3 text-right font-mono">${money(o.objetivo)}</td>
+              <td class="p-3 text-right font-mono text-slate-400">${money(o.pagado)}</td>
+              <td class="p-3 text-right font-mono font-semibold text-amber-300">${money(o.porPagar)}</td>
+              <td class="p-3 whitespace-nowrap text-slate-400">${esc(o.fecha_esperada || '—')}</td>
+              <td class="p-3 text-right"><button type="button" data-oc="${o.id}" data-monto="${o.porPagar}" class="cxp-pagar-oc text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-1.5 rounded-lg">Pagar</button></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`}`;
+
+    document.getElementById('cxpBtnAnticipo').onclick = () => cxpAbrirAnticipo();
+    panel.querySelectorAll('.cxp-pagar-oc').forEach((b) => { b.onclick = () => cxpAbrirAnticipo(Number(b.dataset.oc), Number(b.dataset.monto)); });
 }
 
 // Repinta solo el panel "Documentos por pagar" según cxpFiltro, sin
@@ -786,7 +854,7 @@ async function cxpHistorial() {
 //  vez de llegar con ella preseleccionada. Misma función del lado de la
 //  base (pagar_anticipo_oc, sql/2026-10-27_anticipo_proveedores.sql).
 // =====================================================================
-async function cxpAbrirAnticipo() {
+async function cxpAbrirAnticipo(ocPre = null, montoPre = null) {
     let ocs = [];
     try {
         const { data, error } = await supabaseClient.from('ordenes_compra')
@@ -854,6 +922,15 @@ async function cxpAbrirAnticipo() {
             }
         } catch (_) { /* migración no corrida: se omite */ }
     };
+
+    if (ocPre) {
+        const selOc = document.getElementById('cxpAntOc');
+        selOc.value = String(ocPre);
+        if (selOc.value) {
+            await selOc.onchange({ target: selOc });
+            if (montoPre > 0) document.getElementById('cxpAntMonto').value = Number(montoPre).toFixed(2);
+        }
+    }
 
     document.getElementById('cxpAntGuardar').onclick = async () => {
         const msg = document.getElementById('cxpAntMsg');

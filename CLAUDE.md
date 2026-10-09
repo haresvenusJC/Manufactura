@@ -1505,7 +1505,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Pendiente
 
-- **Quitar el texto de ayuda debajo de las tarjetas KPI en Finanzas → Cuentas por pagar** (`js/pagos-proveedor.js`, ~línea 117),
+- **[HECHO 2026-10-09: el texto/enlace se reemplazó por el panel "Órdenes de compra por pagar" — lista lo pactado por Compras en la ODC (anticipo pactado, o total si es contado sin anticipo, menos lo ya pagado) con botón Pagar → modal de anticipo precargado; `cxpAbrirAnticipo(ocPre, montoPre)`. Falta subir y probar.]** Quitar el texto de ayuda debajo de las tarjetas KPI en Finanzas → Cuentas por pagar (`js/pagos-proveedor.js`, ~línea 117),
   incluido el enlace azul "💰 pagar anticipo a una OC sin recibir" (`cxpBtnAnticipo` → `cxpAbrirAnticipo`). A petición del usuario
   (2026-10-09): el pago de anticipo se reubicará (probablemente con la ODC formal, ver maqueta "Orden de Compra formal") — NO borrar
   `cxpAbrirAnticipo` hasta decidir dónde vive. Pendiente de aprobación aparte: reemplazar la ODC actual (`js/ordenes-compra.js`
