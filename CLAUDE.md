@@ -1372,6 +1372,16 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Convenciones
 
+
+- **INSTRUCCIÓN PRIORITARIA — optimizar las cargas (pedido explícito del usuario 2026-10-12).** Toda pantalla o cambio nuevo debe
+  cargar lo mínimo necesario y pintar rápido; y SIEMPRE que, al tocar o revisar código, Claude detecte cargas excesivas o innecesarias
+  (catálogos completos que la pantalla ya no usa, consultas en serie que pueden ir en paralelo con `Promise.all`, `select('*')` o
+  `.limit(...)` enormes, joins/embeds que no se muestran, recargar todo para cambiar una fila, N+1 consultas dentro de un ciclo), debe
+  **avisar y sugerir la corrección** sin esperar a que el usuario note la lentitud — y corregirla si es seguro. Criterios: (1) pintar
+  la pantalla de inmediato y cargar en segundo plano lo secundario; (2) consultas independientes en paralelo; (3) pedir solo las
+  columnas y filas que se muestran (filtrar/paginar en el servidor); (4) catálogos grandes (productos, cuentas) solo donde se usen,
+  y cacheados si se reutilizan; (5) no repetir una consulta que ya se hizo en la misma pantalla. Ejemplo ya corregido: Órdenes de
+  compra tardaba en abrir por cargar todo el catálogo de productos y encadenar 5-6 consultas (2026-10-12).
 - **Selects** siempre desde la tabla real de Supabase, nunca hardcodeados.
 - **Migraciones SQL**: idempotentes (`if not exists`, `create or replace`), envueltas en `begin;`/`commit;`.
   Nunca se edita una ya corrida — se agrega una nueva. Se pegan a mano en Supabase → SQL Editor.
@@ -1555,7 +1565,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   mano desde un select en Pagos a proveedores).
 - Semiterminado como tipo: TERMINADO (verificado 2026-09-23): migración 1, código en `main`, `…24b` (columna `es_semiterminado`
   borrada) y `…23f` (graneles de aceite en 14.64 L, 115.02) corridos. Ids 232 y 254 (Aceite Sey Piña Colada/Chocolate)
-  corregidos a semiterminado (verificado). Pendiente: Granel Love Oil Fresa Kiwi (id 227) quedó en 7.99 L: su fórmula tiene solo 3 componentes, completarla. Al crear graneles
+  corregidos a semiterminado (verificado). **[DATO DEL USUARIO — no ofrecer; él lo sabe]** Pendiente: Granel Love Oil Fresa Kiwi (id 227) quedó en 7.99 L: su fórmula tiene solo 3 componentes, completarla. Al crear graneles
   nuevos, volver a correr revisión `…23e` + aplicar `…23f` (o usar "🧪 Revisión del granel").
 - Verificado 2026-09-23 en la base: corridas todas las migraciones de 2026-09-22 y 2026-09-23 (`…23d` no, es opcional).
   Documentos vacíos de los cierres fallidos (ids 22-25, PROD-000001/-MP y PROD-000002/-MP) marcados `cancelado` (no
@@ -1563,7 +1573,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - Graneles en Kilogramos: el usuario confirmó que sus terminados los consumen en GRAMOS → no hace falta la densidad del
   granel (solo la de los insumos que la receta pida en L/mL). Si algún terminado pidiera un granel en mL, capturar la
   densidad del granel (ya se calcula sola de la fórmula; botón "Usar X kg/L como Densidad").
-- Los demás graneles de Gel/Miel/Lubricante (Anal Xtasi, Bubblegum, Cherry, Chocolate, Essence, Mango, Mint, Prolongel
+- **[DATO DEL USUARIO — no ofrecer ni listar como pendiente de Claude; él lo sabe y lo hará cuando quiera]** Los demás graneles de Gel/Miel/Lubricante (Anal Xtasi, Bubblegum, Cherry, Chocolate, Essence, Mango, Mint, Prolongel
   Retardador, Vcream, Watermelon, Miel Bee Power, Lubricante Silicón) no salieron en la revisión: o no tienen BOM o su
   nombre no dice "granel". Cuando tengan receta, se configuran con la revisión ✅/⚠ o con los SQL `…e`/`…f`.
 - [HECHO 2026-10-12] Buscador de selects extendido a proveedores, clientes, cuentas contables, insumos de BOM y órdenes en toda la app (`js/buscador-auto.js`).

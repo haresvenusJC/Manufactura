@@ -29,6 +29,7 @@ const normTxt = (s) => String(s || '').normalize('NFD').replace(/\p{Diacritic}/g
 // miligramo). Redondea a 4 decimales, de sobra para las unidades que se manejan.
 const pendienteSeguro = (cantidad, recibida) => Math.max(0, Math.round((Number(cantidad || 0) - Number(recibida || 0)) * 10000) / 10000);
 
+let ocCatalogosListos = Promise.resolve(); // carga de catálogos en segundo plano (detalle/edición la esperan)
 let ocProveedores = [];
 let ocEmpleados = [];
 let ocUnidades = [];
@@ -69,16 +70,13 @@ export async function cargarModuloOrdenesCompra() {
     const cont = document.getElementById('contenedorOrdenesCompra');
     if (!cont) return;
     cont.innerHTML = '<p class="text-slate-500 text-sm">Cargando...</p>';
-    try { await ocCargarCatalogos(); }
-    catch (e) { cont.innerHTML = `<p class="text-rose-400 text-xs">Error al cargar catálogos: ${e.message || e}</p>`; return; }
+    // La lista ya no necesita los catálogos (el formulario manual vive ahora en el documento formal de
+    // requisiciones-compra.js): se cargan en segundo plano para el detalle/edición y la pantalla pinta de inmediato.
+    ocCatalogosListos = ocCargarCatalogos().catch((e) => { console.warn("Órdenes de compra: catálogos no cargados", e); });
 
     ocPartidasTemp = [];
     ocProdSel = null;
 
-    const optProv = '<option value="">Seleccione proveedor...</option>' + ocProveedores.map(p => `<option value="${p.id}">${esc(p.nombre)}</option>`).join('');
-    const optEmp = '<option value="">— sin especificar —</option>' + ocEmpleados.map(e => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('');
-    const optUni = '<option value="">Unidad...</option>' + ocUnidades.map(u => `<option value="${u.id}">${esc(u.nombre)}</option>`).join('');
-    const optMon = ocMonedas.map(m => `<option value="${m.id}">${esc(m.codigo)}</option>`).join('');
 
     cont.innerHTML = `
     <div class="space-y-5">
@@ -367,30 +365,18 @@ async function ocRenderLista() {
         if (error) throw error;
         if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin órdenes de compra.</p>'; return; }
 
-        // El botón "Pagar" solo debe verse si de verdad hay saldo pendiente
-        // (crédito, sin liquidar) — antes se mostraba con solo que la OC
-        // estuviera recibida, aunque ya estuviera pagada o fuera de contado.
-        let ocsConSaldo = new Set();
-        try {
-            const { data: cxp } = await supabaseClient
-                .from('v_cuentas_por_pagar')
-                .select('orden_compra_id')
-                .eq('estatus_cxp', 'pendiente')
-                .in('orden_compra_id', data.map(o => o.id));
-            ocsConSaldo = new Set((cxp || []).map(x => x.orden_compra_id));
-        } catch (_) { /* si la vista no existe, no se oculta el botón (mejor mostrarlo de más que de menos) */ }
-
-        // Anticipo disponible por OC (pagado antes de recibir) — requiere
-        // sql/2026-10-27_anticipo_proveedores.sql; sin la vista, simplemente
-        // no se muestra el badge (no bloquea el resto de la pantalla).
-        let anticiposPorOc = new Map();
-        try {
-            const { data: ant } = await supabaseClient
-                .from('v_anticipos_oc')
-                .select('orden_compra_id, disponible')
-                .in('orden_compra_id', data.map(o => o.id));
-            anticiposPorOc = new Map((ant || []).map(x => [x.orden_compra_id, Number(x.disponible) || 0]));
-        } catch (_) {}
+        // Las dos consultas son independientes: van en paralelo (antes una esperaba a la otra).
+        // - Saldo pendiente: el estatus PAGADO solo debe afirmarse si de verdad no hay saldo en
+        //   v_cuentas_por_pagar (si la vista no existe, no se oculta nada: mejor de más que de menos).
+        // - Anticipo disponible por OC (pagado antes de recibir): requiere sql/2026-10-27_anticipo_proveedores.sql;
+        //   sin la vista, simplemente no se muestra el badge.
+        const idsOc = data.map(o => o.id);
+        const [rCxp, rAnt] = await Promise.all([
+            supabaseClient.from('v_cuentas_por_pagar').select('orden_compra_id').eq('estatus_cxp', 'pendiente').in('orden_compra_id', idsOc).then((r) => r, () => ({ data: null })),
+            supabaseClient.from('v_anticipos_oc').select('orden_compra_id, disponible').in('orden_compra_id', idsOc).then((r) => r, () => ({ data: null })),
+        ]);
+        const ocsConSaldo = new Set((rCxp.data || []).map(x => x.orden_compra_id));
+        const anticiposPorOc = new Map((rAnt.data || []).map(x => [x.orden_compra_id, Number(x.disponible) || 0]));
 
         data.forEach(o => {
             const det = o.ordenes_compra_detalle || [];
@@ -458,6 +444,7 @@ async function ocRenderLista() {
 async function abrirDetalleOC(id) {
     const idModal = window.idSubventana('modalDetalleOC');
     if (idModal === 'modalDetalleOC') document.getElementById('modalDetalleOC')?.remove();
+    await ocCatalogosListos; // unidades de medida para pintar las partidas (se cargan en segundo plano al abrir la pantalla)
 
     const modal = document.createElement('div');
     modal.id = idModal;
@@ -636,7 +623,6 @@ function renderEdicionOC(o, cuerpo) {
 
     const optProv = '<option value="">Seleccione proveedor...</option>' + ocProveedores.map(p => `<option value="${p.id}" ${p.id === o.proveedor_id ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('');
     const optMon = ocMonedas.map(m => `<option value="${m.id}" ${m.id === o.moneda_id ? 'selected' : ''}>${esc(m.codigo)}</option>`).join('');
-    const optUni = '<option value="">Unidad...</option>' + ocUnidades.map(u => `<option value="${u.id}">${esc(u.nombre)}</option>`).join('');
 
     cuerpo.innerHTML = `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 items-end mb-3">
