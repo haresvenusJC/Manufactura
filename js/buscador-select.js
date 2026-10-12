@@ -23,7 +23,10 @@ export function convertirEnBuscador(select, { placeholder = 'Escribe para buscar
 
     // Envoltorio: el input y la lista van sobre el select, que queda oculto pero presente.
     const cont = document.createElement('div');
-    cont.className = 'relative';
+    // El envoltorio pasa a ser el elemento del grid/flex: hereda las clases de diseño del select
+    // (col-span, flex-1, basis, order…, con o sin prefijo responsivo) para no romper el renglón.
+    const clasesDiseno = [...select.classList].filter((c) => /^(?:[a-z]+:)?(?:col-span|col-start|row-span|flex-1|flex-auto|grow|basis|self|order|justify-self)/.test(c));
+    cont.className = ['relative', ...clasesDiseno].join(' ');
     select.parentNode.insertBefore(cont, select);
     cont.appendChild(select);
     Object.assign(select.style, { position: 'absolute', left: '0', bottom: '0', width: '100%', height: '1px', opacity: '0', pointerEvents: 'none' });
@@ -133,6 +136,21 @@ export function convertirEnBuscador(select, { placeholder = 'Escribe para buscar
     select.addEventListener('change', sincronizar);
 
     select.buscadorRefrescar = sincronizar;
+
+    // El código de cada pantalla llena el select o le asigna .value "por detrás" (sin evento
+    // change): se refresca solo, así no hay que llamar a buscadorRefrescar() en cada módulo.
+    const proto = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+    if (proto && proto.get && proto.set) {
+        Object.defineProperty(select, 'value', {
+            configurable: true,
+            get() { return proto.get.call(select); },
+            set(v) { proto.set.call(select, v); sincronizar(); },
+        });
+    }
+    new MutationObserver(sincronizar).observe(select, { childList: true, subtree: true });
+    const sincronizarDeshabilitado = () => { input.disabled = select.disabled; limpiar.classList.toggle('hidden', select.disabled || !select.value); };
+    new MutationObserver(sincronizarDeshabilitado).observe(select, { attributes: true, attributeFilter: ['disabled'] });
     sincronizar();
+    sincronizarDeshabilitado();
     return { refrescar: sincronizar };
 }

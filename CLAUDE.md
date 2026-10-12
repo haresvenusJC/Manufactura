@@ -6,6 +6,16 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/buscador-auto.js` (nuevo), `js/buscador-select.js`, `js/app.js`, `version.json`, `CLAUDE.md`. **Buscador en
+  selects de listas largas, en toda la app, sin tocar cada módulo**: `buscador-auto.js` (importado en `app.js`) detecta con un
+  MutationObserver los `<select>` de su lista (~45: proveedores, clientes, cuentas contables, insumos de BOM, OC/órdenes, y el
+  proveedor de la ODC formal por `data-f="proveedor"`) y los convierte con `convertirEnBuscador`; también los que nacen dentro de
+  subventanas. `buscador-select.js` ganó: se refresca solo si el código asigna `.value` o cambia las opciones (antes había que llamar
+  `buscadorRefrescar()`), copia al envoltorio las clases de diseño del select (col-span, flex-1…) y respeta `disabled`. No aplica a
+  listas fijas cortas (condición, forma de pago, estatus) ni a las 3 apps de operador. Excluir uno: `data-sin-buscador`. Probado el
+  componente en Edge headless (asignar value, opciones nuevas, disabled, clases de diseño); falta probar en pantallas reales (Compras,
+  Gastos, Pedidos de venta, Pólizas, ODC formal). Pendiente: subir con "comitea" y revisar que ningún select oculto por clase propia
+  deje su campo de texto visible (los que se ocultan desde un contenedor padre sí quedan bien).
 - Archivos tocados (lo último): `sql/2026-10-09_odc_formal.sql` (nuevo), `js/requisiciones-compra.js`, `js/ordenes-compra.js`,
   `js/pagos-proveedor.js`, `version.json`, `CLAUDE.md`. **ODC formal** (maqueta https://claude.ai/artifact/UHUmppsCjW93kPZ87LwQ5d):
   `reqAutorizar` ya no es el mini-modal — ahora es la subventana "Generación de Orden de Compra" (requisición de origen, cotización
@@ -1276,7 +1286,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `iconos-accesos.js` — galería de íconos de línea (por categoría) para los accesos rápidos de Inicio.
 - `bitacora-cambios.js` — consulta de la bitácora de movimientos (quién/cuándo/qué cambió) de todo el negocio.
 - `buscador-productos.js` — `montarBuscadorProductos()`: input con sugerencias de productos (SKU o nombre) mientras se escribe.
-- `buscador-select.js` — convierte un `<select>` largo en un buscador con teclado, sin cambiar su comportamiento.
+- `buscador-select.js` — convierte un `<select>` largo en un buscador con teclado, sin cambiar su comportamiento (se refresca solo si el código cambia su valor u opciones).
+- `buscador-auto.js` — aplica ese buscador solo a los selects de listas largas (proveedor, cliente, cuenta contable, insumo, orden) detectándolos al aparecer en pantalla; la lista está en `POR_ID`/`POR_SELECTOR`. Para sumar uno, agregarlo ahí.
 - `catalogo.js` — dos pantallas separadas: `cargarModuloAltaArticulo` ("Alta de artículo", solo el
   formulario: alta/edición por nombre, clasificación, BOM) y `cargarModuloCatalogoKardex` ("Catálogo y
   Kardex", el listado general con ☰ acciones, export Excel/CSV, y el panel de Kardex embebido al elegir un artículo).
@@ -1505,6 +1516,21 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Pendiente
 
+- **FRESH START (más adelante, el usuario aún NO lo autoriza — no ejecutar ni proponer fecha sin que él lo pida).** Decisión 2026-10-12:
+  todo lo capturado hasta hoy es fase de pruebas del ERP, así que NO se parchan documentos sueltos (cada cancelación con contra-asiento
+  deja otra póliza para siempre); se limpian todos juntos al hacer el Fresh start. Se resuelven ahí, sin trabajo previo, estos hallazgos
+  del diagnóstico `sql/2026-10-12_diagnostico_unico.sql` (ya corrido, todas las pólizas cuadran aritméticamente; el "no cuadra" es contra
+  la realidad, todo del 2026-10-06): **AJU-000001** (Diario #33, $27,553.24: ajuste de saldos que dejó en cero Miel de Abeja 103,
+  Granel Miel Bee Power 10, Fructosa 7.1 y Damiana 0.9 contra 601.99 Otros gastos generales — gasto probablemente falso en octubre);
+  **Egreso #67** ($16,946, pago de F-2407 desde Cuentas por pagar, referencia de relleno `X00000000X`; sin doble pago: #38 se canceló
+  con #41 y se reclasificó en Diario #8); **Egreso #69** ($1,866.99, recepción de ODC-000001 capturada "Contado" contra 102.02 Bancos
+  extranjeros USD, cuenta sin saldo real; su recepción no se puede cancelar porque lo recibido ya se consumió en producción).
+  Al llegar el momento: (1) respaldo de Supabase (Database → Backups) justo antes; (2) revisar y actualizar el SQL de Configuración →
+  Fresh start (`js/fresh-start.js`, solo muestra el SQL, nunca borra): faltan tablas de las últimas semanas — anticipos
+  (`anticipo_oc_resoluciones`, aplicaciones tipo anticipo), `notas_compra`, `contadores_folios_poliza`, reservas de pedidos, columnas de
+  la ODC formal, `pagos_proveedor.visto_bueno_*`; (3) conservar catálogos (productos, proveedores, clientes, empleados, plan de cuentas,
+  BOM, regímenes, plantillas); (4) recargar inventario inicial real con Entrada directa "Inventario Inicial" contra 304.01. Esto reemplaza
+  al pendiente anterior "Diagnóstico de 3 documentos que no cuadran" (ya diagnosticado; no hay que cerrarlos uno por uno).
 - **Unificar el criterio del botón "Pagar" en Finanzas → Cuentas por pagar** (pedido del usuario 2026-10-09, para la próxima sesión). Hoy
   hay dos "Pagar" distintos: el azul de cada fila de "Documentos por pagar" (deuda ya recibida → `cxpAbrirPago`, pago a 201.01) y el verde
   de "Órdenes de compra por pagar" (ODC sin recibir → `cxpAbrirAnticipo`, anticipo a 109.01). Distinto color, distinta ventana y distinto
@@ -1540,7 +1566,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - Los demás graneles de Gel/Miel/Lubricante (Anal Xtasi, Bubblegum, Cherry, Chocolate, Essence, Mango, Mint, Prolongel
   Retardador, Vcream, Watermelon, Miel Bee Power, Lubricante Silicón) no salieron en la revisión: o no tienen BOM o su
   nombre no dice "granel". Cuando tengan receta, se configuran con la revisión ✅/⚠ o con los SQL `…e`/`…f`.
-- Evaluar si extender el buscador de selects a otras pantallas (Salidas, Órdenes de compra, alta de BOM).
+- [HECHO 2026-10-12] Buscador de selects extendido a proveedores, clientes, cuentas contables, insumos de BOM y órdenes en toda la app (`js/buscador-auto.js`).
 - Subventanas: ya movibles y con fondo semitransparente todas las detectadas; una nueva queda cubierta sola si usa
   `fixed inset-0` (fondo + panel) o `fixed rounded-2xl` (flotante) y su barra de título es el primer hijo del panel.
 - **Compras y pagos — EJECUTADO 2026-10-07, falta correr el SQL:** puntos 1, 2 y 5 del plan quedaron en código (ver "Última
