@@ -110,9 +110,9 @@ export async function cargarModuloPagosProveedor() {
 
     cont.innerHTML = `
     <div class="space-y-4">
-      <div id="cxpPanelDocumentos" class="bg-slate-950 border border-slate-800 rounded-xl p-4"></div>
-
       <div id="cxpPanelOcPactadas" class="bg-slate-950 border border-slate-800 rounded-xl p-4"></div>
+
+      <div id="cxpPanelDocumentos" class="bg-slate-950 border border-slate-800 rounded-xl p-4"></div>
 
       <div>
         <h3 class="text-md font-semibold text-slate-300 mb-2">Pagos registrados</h3>

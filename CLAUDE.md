@@ -1505,6 +1505,13 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Pendiente
 
+- **Unificar el criterio del botón "Pagar" en Finanzas → Cuentas por pagar** (pedido del usuario 2026-10-09, para la próxima sesión). Hoy
+  hay dos "Pagar" distintos: el azul de cada fila de "Documentos por pagar" (deuda ya recibida → `cxpAbrirPago`, pago a 201.01) y el verde
+  de "Órdenes de compra por pagar" (ODC sin recibir → `cxpAbrirAnticipo`, anticipo a 109.01). Distinto color, distinta ventana y distinto
+  texto de ayuda, sin criterio común para el usuario. Decidir con él: un solo estilo/botón y una sola ventana de pago que decida sola
+  (anticipo vs. deuda, como ya se había acordado en la maqueta de Cuentas por pagar v2), o al menos mismo color/rótulo y una lista única.
+  Nota: el panel "Órdenes de compra por pagar" se movió ARRIBA de "Documentos por pagar" en el código local (`js/pagos-proveedor.js`,
+  `cxp-pagar-oc`) y NO está subido a GitHub todavía; la captura del usuario aún lo mostraba debajo.
 - **[HECHO 2026-10-09: el texto/enlace se reemplazó por el panel "Órdenes de compra por pagar" — lista lo pactado por Compras en la ODC (anticipo pactado, o total si es contado sin anticipo, menos lo ya pagado) con botón Pagar → modal de anticipo precargado; `cxpAbrirAnticipo(ocPre, montoPre)`. Falta subir y probar.]** Quitar el texto de ayuda debajo de las tarjetas KPI en Finanzas → Cuentas por pagar (`js/pagos-proveedor.js`, ~línea 117),
   incluido el enlace azul "💰 pagar anticipo a una OC sin recibir" (`cxpBtnAnticipo` → `cxpAbrirAnticipo`). A petición del usuario
   (2026-10-09): el pago de anticipo se reubicará (probablemente con la ODC formal, ver maqueta "Orden de Compra formal") — NO borrar
