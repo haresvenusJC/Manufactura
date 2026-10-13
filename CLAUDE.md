@@ -6,6 +6,12 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `css/ui-moderno.css`, `index.html` (solo el `?v=` del CSS), `version.json`. **Encabezado unificado de TODAS las pantallas** (pedido del usuario 2026-10-13; referencia = Cuentas por pagar):
+  las reglas que solo valían para `#view-pagos-proveedor` pasaron a `main section.vista-seccion:not(#view-bienvenida)` — (1) el título sube al renglón del ☰ (`margin-top:-2.5rem`, el mismo de CxP);
+  (2) el título (o la fila título+botón Manual de las pantallas que la traen) queda **fijo arriba** (`position:sticky`, fondo `--bg-0`); (3) el bloque "Asistente — … / 📖 Manual" (`.asist-panel`, de
+  `montarGuia`/`crearPanelAsistente`, incluido el de captura de Gastos) es en todas partes la píldora **"Ayuda"** arriba a la derecha, popover al abrir. Sin cambios de HTML/JS ni SQL. NO se pudo ver renderizado
+  (Tailwind CDN no carga en este entorno): pendiente probar con Ctrl+Shift+R en varias pantallas (Pedidos de venta, Proveedores, Gastos, Productos) — vigilar que el título no quede tapado por el ☰ ni
+  recortado arriba, que la píldora no choque con botones a la derecha del título, y que el título fijo no se vea raro en los temas oscuros. Si algo falla, el bloque está junto a "ENCABEZADO UNIFICADO" en `ui-moderno.css`.
 - Archivos tocados (lo último): `js/tablas.js`, `index.html`, `js/indice.js`, `version.json`. A petición del usuario: se QUITARON de Configuración → Tablas las pantallas **Series de pólizas** y
   **Series de documentos** (menú, tarjetas del Índice y entradas de `TABLAS`); el usuario las revisa aparte y las retomará con el "Catálogo de series" (serie · qué es · tipo) como referencia.
   Sin migración SQL (el `…13c_series_polizas_tipo.sql` que se había escrito se descartó, nunca se corrió).
