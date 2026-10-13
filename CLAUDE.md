@@ -6,11 +6,9 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
-- Archivos tocados (lo último): `js/tablas.js`, `index.html`, `js/indice.js`, `version.json`. A petición del usuario: Configuración → Tablas gana **Series de pólizas**
-  (`polizas_series_origen`, con columna `tipo` Ingreso/Egreso/Diario vía `sql/2026-10-13c_series_polizas_tipo.sql`, por correr), solo lectura. **Series de documentos se QUITÓ** (mostraba
-  los contadores crudos, con series viejas, sin tipo ni descripción; el usuario espera serie · qué es · tipo como en el "Catálogo de series" — pendiente de rehacer así), mismo visor genérico que las demás (menú, tarjeta
-  del Índice y entrada en `TABLAS`). El catálogo vivo es esa pantalla; el "Catálogo de series" de este archivo es la referencia escrita. Sin migración SQL. Pendiente: probar
-  en el navegador (si alguna sale con error de lectura es RLS de esa tabla). Aún sin pantalla: `contadores_folios_poliza` (último por serie y año).
+- Archivos tocados (lo último): `js/tablas.js`, `index.html`, `js/indice.js`, `version.json`. A petición del usuario: se QUITARON de Configuración → Tablas las pantallas **Series de pólizas** y
+  **Series de documentos** (menú, tarjetas del Índice y entradas de `TABLAS`); el usuario las revisa aparte y las retomará con el "Catálogo de series" (serie · qué es · tipo) como referencia.
+  Sin migración SQL (el `…13c_series_polizas_tipo.sql` que se había escrito se descartó, nunca se corrió).
 - Archivos tocados (lo último): `js/pagos-proveedor.js`, `js/pagos-compras.js` (nuevo), `js/app.js`, `js/indice.js`, `js/buscador-auto.js`, `index.html`, `version.json`, `CLAUDE.md`. **"Pagos registrados" sale de
   Cuentas por pagar y pasa a Compras → Pagos a proveedores** (pedido del usuario 2026-10-13): la lista histórica ya no está en Finanzas. En Finanzas, el botón **"Ver"** de una fila pagada (o de una ODC
   con anticipo cubierto, que ahora se queda como "Pagada") muestra sus pagos con 🖨️ Comprobante y **Cancelar pago** (`cancelar_pago_proveedor`, contra-asiento): ÚNICO lugar donde se cancelan pagos
@@ -1454,7 +1452,7 @@ Documento de almacén. Sin folio propio: pagos, cobros, nómina, auditoría.
 
 ## Convenciones
 
-- **Series de folios y pólizas**: toda función/módulo nuevo que emita un folio (`siguiente_folio`) o una póliza (`registrar_poliza`, serie en `polizas_series_origen`) debe agregar o actualizar su renglón en "Catálogo de series" de este archivo y, y si es una serie nueva de póliza, darla de alta en `polizas_series_origen` (con su `tipo`) para que aparezca en Configuración → Tablas → Series de pólizas, en el mismo cambio. Si cambia una serie, anotar el corte y que lo ya emitido no se renombra.
+- **Series de folios y pólizas**: toda función/módulo nuevo que emita un folio (`siguiente_folio`) o una póliza (`registrar_poliza`, serie en `polizas_series_origen`) debe agregar o actualizar su renglón en "Catálogo de series" de este archivo y, en el mismo cambio. (Ya no hay pantalla de series en Configuración → Tablas; la referencia es el "Catálogo de series".) Si cambia una serie, anotar el corte y que lo ya emitido no se renombra.
 
 - **INSTRUCCIÓN PRIORITARIA — optimizar las cargas (pedido explícito del usuario 2026-10-12).** Toda pantalla o cambio nuevo debe
   cargar lo mínimo necesario y pintar rápido; y SIEMPRE que, al tocar o revisar código, Claude detecte cargas excesivas o innecesarias
