@@ -6,6 +6,9 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `css/ui-moderno.css`, `index.html` (`?v=`), `version.json`. **Encabezado unificado, PASO 2** (el usuario pidió ir por pasos: paso 1 = altura + título fijo; paso 2 = píldora): el cuadro "Asistente — … / 📖 Manual"
+  (`.asist-panel`) pasa a ser en TODAS las pantallas y temas la píldora "Ayuda" arriba a la derecha (popover al abrir), con las reglas de `main section.vista-seccion:not(#view-bienvenida) .asist-panel`
+  (antes solo `#contenedorPagosProveedor`). Sin HTML/JS/SQL. Pendiente: probar con Ctrl+Shift+R en varias pantallas (Pedidos de venta, Gastos, Pólizas…); vigilar choques con el botón "📖 Cómo llenar esta pantalla" a la derecha del título.
 - Archivos tocados (lo último): `css/ui-moderno.css`, `index.html` (`?v=` del CSS), `version.json`. **Corrección del encabezado unificado** (el usuario aclaró con capturas que NO quería la píldora "Ayuda" en todas las pantallas): se conserva en TODAS las pantallas
   (menos Inicio) la altura de Cuentas por pagar (título + tarjetas suben, `margin-top:-2.5rem`) y el título fijo (sticky); la píldora "Ayuda" (asistente + manual) vuelve a ser SOLO de Cuentas por pagar
   (`#contenedorPagosProveedor > .asist-panel`); en las demás pantallas el cuadro "Asistente — … / 📖 Manual" queda como era. Sin HTML/JS/SQL. Pendiente: probar con Ctrl+Shift+R.
