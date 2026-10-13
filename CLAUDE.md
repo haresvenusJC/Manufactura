@@ -6,6 +6,16 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-10-12_odc_generar.sql` (nuevo), `js/requisiciones-compra.js`, `js/ordenes-compra.js`, `version.json`, `CLAUDE.md`.
+  **ODC en UNA sola operación en la base:** `odc_generar(p_datos)` crea la ODC completa (cotización, condiciones, anticipo, partidas con costo/SKU) y, si
+  viene de una requisición, la marca autorizada, todo en la misma transacción (antes eran 3 llamadas: `requisicion_autorizar` + update de la OC +
+  update de cada partida; un corte a la mitad dejaba una ODC sin cotización). Mismo camino para ODC manual (sin `requisicion_id`) y desde requisición
+  (partidas de la requisición, solo costo y SKU de la pantalla). El anticipo y el total (IVA 16% estimado) los calcula la base. `requisicion_autorizar`
+  queda sin uso (no se tocó). **Hallazgo grave corregido en la misma migración:** `pagar_anticipo_oc` de `…07d` (ya corrida) se copió de `…10-27` y
+  PERDIÓ el candado de `…09-30b` (anticipo acumulado ≤ total estimado × 1.30); la migración nueva la reescribe completa con el candado + serie BAN/VAE.
+  También: el concepto de la póliza de anticipo ya no dice "OC ODC-…" y se quitó el prefijo "OC " repetido antes del folio en Requisiciones y en el
+  pre-recibo (`ordenes-compra.js`); los documentos viejos con folio `OC-…` se dejan como están. Pendiente: correr `sql/2026-10-12_odc_generar.sql` en
+  Supabase y subir con "comitea" (sin la migración, "Generar ODC" avisa que falta correrla); probar una ODC manual y una desde requisición.
 - Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`, `CLAUDE.md`. **Cuentas por pagar: lista única + conciliación con lo pactado.**
   Pedido del usuario: un anticipo de una ODC es un compromiso de pago manifestado y va en "Documentos por pagar", no en un panel aparte.
   `cxpCargarOcPorPagar()` (nunca lanza; corre en paralelo con la vista de deuda) arma renglones `tipo:'oc'` (anticipo pactado, o total con IVA
@@ -1537,6 +1547,11 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Pendiente
 
+- **PARA MAÑANA (2026-10-13) — ODC en una sola operación: correr, subir y probar.** Código ya hecho en la carpeta local, NO subido a GitHub.
+  (1) Correr `sql/2026-10-12_odc_generar.sql` en Supabase → SQL Editor (crea `odc_generar` y reescribe `pagar_anticipo_oc` restituyendo el candado
+  ×1.30 que `…07d` había perdido). (2) Decir "comitea" para subir `js/requisiciones-compra.js`, `js/ordenes-compra.js`, el SQL, `version.json` y
+  `CLAUDE.md`. (3) Probar: una ODC manual ("Crear") y una desde requisición (Autorizar) — deben quedar con cotización, condiciones y precios; y un
+  anticipo desde Cuentas por pagar (ODC-000007) para confirmar el candado y que la póliza ya no diga "OC ODC-…". No subir antes de correr el SQL.
 - **FRESH START (más adelante, el usuario aún NO lo autoriza — no ejecutar ni proponer fecha sin que él lo pida).** Decisión 2026-10-12:
   todo lo capturado hasta hoy es fase de pruebas del ERP, así que NO se parchan documentos sueltos (cada cancelación con contra-asiento
   deja otra póliza para siempre); se limpian todos juntos al hacer el Fresh start. Se resuelven ahí, sin trabajo previo, estos hallazgos

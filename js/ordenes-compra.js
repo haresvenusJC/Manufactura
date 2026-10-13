@@ -1298,7 +1298,7 @@ function rmTarjetaPrerecibo(pr, { conBotones = true } = {}) {
     // originó) queda consultable con un clic — reutiliza la trazabilidad ya
     // construida (js/trazabilidad.js) en vez de duplicar la consulta aquí.
     const oc = pr.orden_compra_id
-        ? `<button type="button" onclick="window.abrirAntecedentesOC(${pr.orden_compra_id})" class="text-sm text-slate-200 font-semibold hover:text-sky-400 hover:underline text-left cursor-pointer">OC ${esc(pr.ordenes_compra?.folio || '#' + pr.orden_compra_id)} · ${esc(pr.ordenes_compra?.proveedores?.nombre || 's/proveedor')}</button>`
+        ? `<button type="button" onclick="window.abrirAntecedentesOC(${pr.orden_compra_id})" class="text-sm text-slate-200 font-semibold hover:text-sky-400 hover:underline text-left cursor-pointer">${esc(pr.ordenes_compra?.folio || 'OC #' + pr.orden_compra_id)} · ${esc(pr.ordenes_compra?.proveedores?.nombre || 's/proveedor')}</button>`
         : `<span class="text-sm text-slate-200 font-semibold">Sin OC · ref. ${esc(pr.referencia || '—')}</span>`;
     const lineas = Array.isArray(pr.lineas) ? pr.lineas : [];
     const discrepancias = lineas.filter(l => Number(l.cantidad_capturada || 0) !== Number(l.cantidad_pendiente || 0));
@@ -1544,7 +1544,7 @@ window.prereciboVer = async (id) => {
     const fotos = Array.isArray(pr.fotos) ? pr.fotos : [];
     const lineas = Array.isArray(pr.lineas) ? pr.lineas : [];
     const oc = pr.orden_compra_id
-        ? `OC ${esc(pr.ordenes_compra?.folio || '#' + pr.orden_compra_id)} · ${esc(pr.ordenes_compra?.proveedores?.nombre || 's/proveedor')}`
+        ? `${esc(pr.ordenes_compra?.folio || 'OC #' + pr.orden_compra_id)} · ${esc(pr.ordenes_compra?.proveedores?.nombre || 's/proveedor')}`
         : `Sin OC · ref. ${esc(pr.referencia || '—')}`;
     rmMostrarModal(`
       <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-lg w-full max-h-[85vh] overflow-y-auto space-y-3">

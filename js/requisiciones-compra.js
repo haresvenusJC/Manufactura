@@ -641,7 +641,7 @@ async function reqRenderLista() {
                             <button type="button" onclick="window.reqRechazar(${r.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded ml-1">Rechazar</button>
                             <button type="button" onclick="window.reqCancelar(${r.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-2 py-1 rounded ml-1">Cancelar</button>
                         ` : (r.orden_compra_id ? `
-                            <button type="button" onclick="window.verDetalleOC(${r.orden_compra_id})" class="text-[11px] font-mono text-emerald-300 hover:underline">OC ${esc(r.ordenes_compra?.folio || '#' + r.orden_compra_id)}</button>
+                            <button type="button" onclick="window.verDetalleOC(${r.orden_compra_id})" class="text-[11px] font-mono text-emerald-300 hover:underline">${esc(r.ordenes_compra?.folio || 'OC #' + r.orden_compra_id)}</button>
                             <button type="button" onclick="window.abrirAntecedentesOC(${r.orden_compra_id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded ml-1">🔗 Antecedentes</button>
                             ${r.estatus === 'autorizada' && r.ordenes_compra?.estatus === 'cancelada' ? `<button type="button" onclick="window.reqSincronizarCancelacion(${r.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-2 py-1 rounded ml-1" title="La orden de compra de esta requisición ya está cancelada">⚠ Marcar cancelada</button>` : ''}
                         ` : '')}
@@ -1331,98 +1331,46 @@ window.reqAutorizar = async (id) => {
         btn.disabled = true;
         msg.textContent = 'Generando la orden...'; msg.className = 'text-xs min-h-[1rem] text-slate-400';
         try {
-            let ocId;
-            let aviso = '';
-            const notaUsuario = f('notas').value.trim();
-            const camposTC = (esExtranjera() && f('tc').value) ? {
-                tipo_cambio: Number(f('tc').value),
-                tipo_cambio_fuente: f('tc').dataset.valorDof ? (f('tc').dataset.valorDof !== f('tc').value ? 'captura manual (DOF de referencia distinto)' : 'DOF') : 'captura manual',
-                tipo_cambio_fecha: f('tc').dataset.fecha || hoyISO(),
-            } : {};
-            const camposFormales = {
-                cotizacion_folio: f('cotFolio').value.trim(),
-                cotizacion_contacto: f('contacto').value.trim(),
-                cotizacion_telefono: f('telefono').value.trim() || null,
-                cotizacion_email: f('email').value.trim() || null,
-                cotizacion_fecha: f('cotFecha').value,
-                cotizacion_vigencia: f('cotVigencia').value,
-                condicion_pago: condicion,
-                dias_credito: condicion === 'credito' ? Number(f('dias').value) : 0,
-                forma_pago: f('forma').value || null,
-                anticipo_pct: conAnticipo ? pct : null,
-                anticipo_monto: conAnticipo ? Math.round(t.tot * pct) / 100 : null,
-            };
-
-            if (manual) {
-                // ODC sin requisición: se inserta directo, con folio ODC consecutivo.
-                const folio = await siguienteFolio('ODC');
-                const { data: oc, error: eIns } = await supabaseClient.from('ordenes_compra').insert([{
-                    folio,
+            // UNA sola llamada: la base crea la ODC completa (cotización, condiciones, anticipo, partidas) y, si
+            // viene de una requisición, la marca autorizada — todo o nada (sql/2026-10-12_odc_generar.sql).
+            const { data, error } = await supabaseClient.rpc('odc_generar', {
+                p_datos: {
+                    requisicion_id: manual ? null : id,
                     proveedor_id: proveedorId,
-                    fecha: hoyISO(),
                     fecha_esperada: f('fechaEsp').value || null,
                     moneda_id: f('moneda').value ? Number(f('moneda').value) : null,
-                    solicitante_empleado_id: f('solicitante').value ? Number(f('solicitante').value) : null,
-                    estatus: 'abierta',
-                    notas: notaUsuario || null,
-                    ...camposTC,
-                    ...camposFormales,
-                }]).select('id, folio').single();
-                if (eIns) {
-                    if (/does not exist|schema cache|could not find/i.test(eIns.message || '')) throw new Error('Falta correr sql/2026-10-09_odc_formal.sql en Supabase (' + eIns.message + ')');
-                    throw eIns;
-                }
-                ocId = oc.id;
-                const filas = lineas.map((l) => ({
-                    orden_compra_id: ocId, producto_id: l.productoId, descripcion: l.productoId ? null : l.nombre,
-                    cantidad: l.cantidad, cantidad_recibida: 0, costo_unitario_estimado: l.costo, unidad_medida_id: l.unidadId ?? null,
-                    sku_proveedor: l.skuProveedor.trim() || null, descripcion_proveedor: l.descripcionProveedor || null,
-                    unidad_proveedor: l.unidadProveedor || null, factor_conversion_proveedor: l.factorConversion ?? null,
-                }));
-                let { error: eDet } = await supabaseClient.from('ordenes_compra_detalle').insert(filas);
-                if (eDet && /does not exist|schema cache|could not find/i.test(eDet.message || '')) {
-                    ({ error: eDet } = await supabaseClient.from('ordenes_compra_detalle').insert(
-                        filas.map(({ sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, ...resto }) => resto)));
-                }
-                if (eDet) throw eDet;
-                cerrar();
-                window.__ocAbrirTras = ocId;
-                window.loadView('ordenes-compra');
-                return;
-            }
-
-            const { data, error } = await supabaseClient.rpc('requisicion_autorizar', {
-                p_requisicion_id: id,
-                p_proveedor_id: proveedorId,
-                p_fecha_esperada: f('fechaEsp').value || null,
-                p_moneda_id: f('moneda').value ? Number(f('moneda').value) : null,
-                p_revisada_por: null,
+                    solicitante_empleado_id: manual && f('solicitante').value ? Number(f('solicitante').value) : null,
+                    notas: f('notas').value.trim() || null,
+                    ...(esExtranjera() && f('tc').value ? {
+                        tipo_cambio: Number(f('tc').value),
+                        tipo_cambio_fuente: f('tc').dataset.valorDof ? (f('tc').dataset.valorDof !== f('tc').value ? 'captura manual (DOF de referencia distinto)' : 'DOF') : 'captura manual',
+                        tipo_cambio_fecha: f('tc').dataset.fecha || hoyISO(),
+                    } : {}),
+                    cotizacion_folio: f('cotFolio').value.trim(),
+                    cotizacion_contacto: f('contacto').value.trim(),
+                    cotizacion_telefono: f('telefono').value.trim() || null,
+                    cotizacion_email: f('email').value.trim() || null,
+                    cotizacion_fecha: f('cotFecha').value,
+                    cotizacion_vigencia: f('cotVigencia').value,
+                    condicion_pago: condicion,
+                    dias_credito: condicion === 'credito' ? Number(f('dias').value) : 0,
+                    forma_pago: f('forma').value || null,
+                    anticipo_pct: conAnticipo ? pct : null,
+                    partidas: lineas.map((l) => ({
+                        requisicion_detalle_id: l.reqDetId, producto_id: l.productoId, descripcion: l.productoId ? null : l.nombre,
+                        cantidad: l.cantidad, costo: l.costo, unidad_medida_id: l.unidadId ?? null,
+                        sku_proveedor: l.skuProveedor.trim() || null, descripcion_proveedor: l.descripcionProveedor || null,
+                        unidad_proveedor: l.unidadProveedor || null, factor_conversion_proveedor: l.factorConversion ?? null,
+                    })),
+                },
             });
-            if (error) throw error;
-            ocId = Array.isArray(data) ? data[0]?.oc_id : data?.oc_id;
-
-            const { error: eOc } = await supabaseClient.from('ordenes_compra').update({
-                ...camposTC,
-                ...camposFormales,
-                notas: `Generada desde requisición ${r.folio || '#' + r.id}` + (notaUsuario ? ' · ' + notaUsuario : ''),
-            }).eq('id', ocId);
-            if (eOc) aviso = 'La orden se creó, pero NO se guardaron cotización y condiciones (' + (eOc.message || eOc) + '). Falta correr sql/2026-10-09_odc_formal.sql.';
-
-            // Precio real y SKU del proveedor en cada partida (el RPC copió el costo estimado de la requisición).
-            const { data: det } = await supabaseClient.from('ordenes_compra_detalle')
-                .select('id, producto_id, descripcion, cantidad').eq('orden_compra_id', ocId).order('id');
-            const libres = lineas.slice();
-            for (const d of (det || [])) {
-                const k = libres.findIndex((l) => l.productoId === d.producto_id && (l.descripcion || null) === (d.descripcion || null) && Number(l.cantidad) === Number(d.cantidad));
-                if (k < 0) continue;
-                const l = libres.splice(k, 1)[0];
-                const { error: eD } = await supabaseClient.from('ordenes_compra_detalle')
-                    .update({ costo_unitario_estimado: l.costo, sku_proveedor: l.skuProveedor.trim() || null }).eq('id', d.id);
-                if (eD && !aviso) aviso = 'La orden se creó, pero no se pudo guardar el precio cotizado de una partida: ' + (eD.message || eD);
+            if (error) {
+                if (/odc_generar|schema cache|could not find the function/i.test(error.message || '')) throw new Error('Falta correr sql/2026-10-12_odc_generar.sql en Supabase.');
+                throw error;
             }
+            const ocId = data?.oc_id;
 
             cerrar();
-            if (aviso) alert('⚠ ' + aviso);
             window.__ocAbrirTras = ocId;
             window.loadView('ordenes-compra');
         } catch (e) {
