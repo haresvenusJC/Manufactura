@@ -14,29 +14,39 @@ export const linkPoliza = (id, clase = 'font-mono text-sky-300') => id
     ? `<button type="button" onclick="window.verPolizaDeDocumento(${Number(id)})" data-pol-id="${Number(id)}" class="${clase} hover:underline cursor-pointer" title="Abrir la póliza">póliza…</button>`
     : '—';
 
-// Etiqueta "Egreso #34" en vez del id interno: todo elemento con data-pol-id="<id>" se rotula solo
+// Etiqueta "Egreso No. 34" (o BAN-2027-00001) en vez del id interno: todo elemento con data-pol-id="<id>" se rotula solo
 // (tipo + número de la póliza), sin que cada pantalla tenga que consultarlo. Se consultan en lote y se
 // guardan en caché; mientras llega la respuesta se ve "póliza…" (si no se encuentra, "ver póliza").
 const cachePol = new Map();
 let pendiente = null;
+// Con serie propia (folio_poliza: BAN-2027-00001, requiere sql/2026-10-07d_polizas_series_y_visto_bueno.sql) se muestra SOLO ese folio; sin serie, "Egreso No. 34".
+const etiquetaDe = (p) => p ? (p.folio_poliza ? p.folio_poliza : `${p.tipo} No. ${p.numero}`) : null;
 function rotular(el) {
     const p = cachePol.get(Number(el.dataset.polId));
-    el.textContent = p ? `${p.tipo} #${p.numero}` : 'ver póliza';
+    el.textContent = etiquetaDe(p) || 'ver póliza';
     el.dataset.polLbl = '1';
 }
-// Texto "Egreso #34" de una póliza para mensajes y avisos (nunca el id interno). Si no se encuentra: "(sin número)".
+async function consultarPolizas(filtro) {
+    const { supabaseClient } = await import('./supabase.js');
+    let r = await filtro(supabaseClient.from('polizas').select('id, tipo, numero, folio_poliza'));
+    if (r.error && /does not exist|schema cache|could not find/i.test(r.error.message || '')) {
+        r = await filtro(supabaseClient.from('polizas').select('id, tipo, numero'));
+    }
+    return r;
+}
+// Texto "Egreso No. 34" (o "BAN-2027-00001") de una póliza para mensajes y avisos
+// (nunca el id interno). Si no se encuentra: "(sin número)".
 export async function etiquetaPoliza(id) {
     id = Number(id);
     if (!id) return '';
     if (!cachePol.has(id)) {
         try {
-            const { supabaseClient } = await import('./supabase.js');
-            const { data } = await supabaseClient.from('polizas').select('id, tipo, numero').eq('id', id).maybeSingle();
+            const { data } = await consultarPolizas((q) => q.eq('id', id).maybeSingle());
             if (data) cachePol.set(data.id, data);
         } catch (_) { /* sin etiqueta */ }
     }
     const p = cachePol.get(id);
-    return p ? `${p.tipo} #${p.numero}` : "(sin número)";
+    return etiquetaDe(p) || "(sin número)";
 }
 async function rotularPolizas() {
     pendiente = null;
@@ -45,8 +55,7 @@ async function rotularPolizas() {
     const faltan = [...new Set(els.map((e) => Number(e.dataset.polId)).filter((id) => id && !cachePol.has(id)))];
     if (faltan.length) {
         try {
-            const { supabaseClient } = await import('./supabase.js');
-            const { data } = await supabaseClient.from('polizas').select('id, tipo, numero').in('id', faltan);
+            const { data } = await consultarPolizas((q) => q.in('id', faltan));
             (data || []).forEach((p) => cachePol.set(p.id, p));
         } catch (_) { /* si falla se queda el #id */ }
     }

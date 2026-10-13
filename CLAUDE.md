@@ -1,9 +1,341 @@
 # Hares de México — guía para trabajar en este repo
 
+> **Al iniciar sesión:** antes de cualquier otra cosa, muestra al usuario los pendientes de la sección Pendiente de este archivo (en viñetas cortas, sin detalle técnico) y pregunta por cuál quiere empezar. No ejecutes ninguno sin su confirmación.
+
 Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwind CDN.
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `js/pagos-compras.js` (nuevo), `js/app.js`, `js/indice.js`, `js/buscador-auto.js`, `index.html`, `version.json`, `CLAUDE.md`. **"Pagos registrados" sale de
+  Cuentas por pagar y pasa a Compras → Pagos a proveedores** (pedido del usuario 2026-10-13): la lista histórica ya no está en Finanzas. En Finanzas, el botón **"Ver"** de una fila pagada (o de una ODC
+  con anticipo cubierto, que ahora se queda como "Pagada") muestra sus pagos con 🖨️ Comprobante y **Cancelar pago** (`cancelar_pago_proveedor`, contra-asiento): ÚNICO lugar donde se cancelan pagos
+  ("solo Finanzas cancela"; sin roles aún, así que se resuelve por pantalla, no por permiso — restringir por rol cuando haya accesos). Compras ve la consulta nueva (Fecha, Proveedor, Aplicado a, Total,
+  Forma/ref., Póliza, Mercancía, 🖨️) sin Cancelar. `cxpPagosPorClave` ('compra:id'/'gasto:id'/'oc:id') reemplaza a `cxpPagoPolizaPorDoc`. Sin cambios de SQL. Pendiente: revisar practicidad y consumo de
+  recursos de las dos pantallas (el usuario lo dijo), y que el botón Ver de ODC con anticipo parcial también permita cancelar (hoy solo las ODC con anticipo ya cubierto).
+- Archivos tocados (lo último): `sql/2026-10-13b_autor_registros_preparacion.sql` (nuevo, NO corrido, sin prisa), `CLAUDE.md`. **Columna "Creó" preparada, no activada** (pedido del usuario 2026-10-13:
+  "que quede preparada para cuando implementemos los accesos a los usuarios"): `empleados.usuario_id` (liga empleado ↔ usuario de acceso) + `autor_de(uuid)` (nombre del empleado, o correo si no
+  está ligado). La pantalla aún no la usa; `polizas.creado_por` ya se guarda. Falta, cuando se active: correr el SQL, ligar empleados con sus usuarios y pintar la columna "Creó" en la lista de
+  pólizas, "Ver póliza" y documentos. Confirmado: `sql/2026-10-13_series_polizas.sql` YA corrido por el usuario (2026-10-13).
+- Archivos tocados (lo último): `sql/2026-10-13_series_polizas.sql` (nuevo), `js/produccion.js`, `version.json`, `CLAUDE.md`. **Catálogo de series aprobado** (ver sección "Catálogo de series"):
+  series para TODAS las pólizas vía tabla `polizas_series_origen` + `registrar_poliza()` reescrita completa (única función tocada; las 13 que crean pólizas no se tocan) y
+  **OP → OPR** (orden de producción) y **ODP → OPC** (cierre de producción) en `produccion.js` (`siguienteFolio('OPR')` / `siguienteFolio('OPC')`; `siguiente_folio` crea el contador
+  solo). Pendiente: correr `sql/2026-10-13_series_polizas.sql`, subir con "comitea" y probar un gasto/venta/nómina nuevos (deben salir como GAS-/VEN-/NOM-2026-0000N) y una
+  orden de producción nueva (OPR-000001). Sin responder: columna "Creó" (¿correo o nombre del empleado?). Sin hacer: serie DET para deterioro.
+- Archivos tocados (lo último): `js/enlaces-reporte.js`, `js/contabilidad.js`, `js/nomina.js`, `js/compras.js`, `js/cuentas-por-cobrar.js`, `js/documentos.js`, `js/entradas.js`,
+  `js/ordenes-compra.js`, `js/pagos-proveedor.js`, `js/prorrateo.js`, `js/salidas.js`, `version.json`, `CLAUDE.md`. **Pólizas: nomenclatura visible unificada.** (1) Etiqueta
+  `etiquetaDe`: con serie → SOLO el folio (`BAN-2026-00001`), sin serie → `Egreso No. 34` ("#" cambia a "No."); igual en título/impresión de "Ver póliza", lista de
+  Pólizas, Contabilidad y Nómina. (2) Los botones "🧾 Póliza #<id interno>" (Compras, Entradas, Salidas, Cuentas por cobrar, Documentos, Órdenes de compra, Pagos registrados,
+  Prorrateo, Gastos, Nómina) ahora son `<span data-pol-id>` que `enlaces-reporte.js` rotula solo (serie o tipo+No.): nunca más el id interno. Pendiente DECIDIR con el usuario
+  (propuesta hecha, sin código): series para TODAS las pólizas (hoy solo BAN/VAE/ING/DIA/CMP/REC; "Diario No. 28" no dice qué es) y mostrar quién creó cada registro
+  (`polizas.creado_por` existe; falta resolverlo a nombre).
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`, `CLAUDE.md`. **Cuentas por pagar: tabla unificada** (a petición del usuario, con capturas;
+  se descartó la propuesta de quitar Pagada/Cancelada de la lista: "¿para qué entonces tengo filtros?"). (1) Anchos fijos (`table-fixed` + `<colgroup>`):
+  las columnas ya no se recorren al cambiar de filtro, ni con la tabla vacía. (2) Se quitó `overflow-x-auto` del contenedor: era el que recortaba los menús
+  de filtro y dibujaba una barra de desplazamiento pequeña que estorbaba. (3) La etiqueta del filtro elegido ya no flota (`absolute`, se empalmaba con el
+  chip de la primera fila): va dentro del botón del encabezado, con `truncate`. (4) Columna Póliza: documento PAGADO muestra SOLO la póliza del pago
+  (BAN-/VAE-…, vía `linkPoliza`); abiertos/cancelados, la del recibo. (5) Botón de acción de ancho fijo (72px): "Pagar" en abiertos (también en la vista
+  "Todas"), "Ver" en pagados/cancelados → `cxpAbrirVer()` abre un selector con la póliza del recibo, el documento y la OC. Pendiente: subir con "comitea" y revisar
+  en el navegador (Ctrl+Shift+R) que no queden barras, que las columnas no se muevan y que el menú de Estatus no se corte. No tocado a propósito: "Pagos registrados"
+  (columna "# Docs" poco útil; se ofreció "Aplicado a" con el folio, sin respuesta).
+- Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`, `version.json`, `CLAUDE.md`. **Cuentas por pagar: presentación homologada en TODOS los temas**
+  (pedido del usuario; antes los ajustes eran solo de Claro Ice): se quitó el prefijo `[data-theme="claro-ice"]` de las reglas de `#view-pagos-proveedor` /
+  `#contenedorPagosProveedor` — píldora "Ayuda" arriba a la derecha (el Asistente pasa a popover), título subido (`margin-top:-2.5rem`) y encabezado de
+  tabla compacto. Siguen EXCLUSIVOS de Claro Ice solo la paleta/tipografía IBM Plex y los chips de estatus con color pálido propio (son del tema, no de la
+  presentación). Subido `?v=` de los 3 CSS en `index.html` a `20261013120000`. Pendiente: subir con "comitea", Ctrl+Shift+R y revisar Cuentas por pagar en
+  cada tema (sobre todo los oscuros: contraste de la píldora y del popover; usan `--bg-1`/`--bd-1`/`--sh-2` del tema).
+- Archivos tocados (lo último): `sql/2026-10-12_odc_generar.sql` (nuevo), `js/requisiciones-compra.js`, `js/ordenes-compra.js`, `version.json`, `CLAUDE.md`.
+  **ODC en UNA sola operación en la base:** `odc_generar(p_datos)` crea la ODC completa (cotización, condiciones, anticipo, partidas con costo/SKU) y, si
+  viene de una requisición, la marca autorizada, todo en la misma transacción (antes eran 3 llamadas: `requisicion_autorizar` + update de la OC +
+  update de cada partida; un corte a la mitad dejaba una ODC sin cotización). Mismo camino para ODC manual (sin `requisicion_id`) y desde requisición
+  (partidas de la requisición, solo costo y SKU de la pantalla). El anticipo y el total (IVA 16% estimado) los calcula la base. `requisicion_autorizar`
+  queda sin uso (no se tocó). **Hallazgo grave corregido en la misma migración:** `pagar_anticipo_oc` de `…07d` (ya corrida) se copió de `…10-27` y
+  PERDIÓ el candado de `…09-30b` (anticipo acumulado ≤ total estimado × 1.30); la migración nueva la reescribe completa con el candado + serie BAN/VAE.
+  También: el concepto de la póliza de anticipo ya no dice "OC ODC-…" y se quitó el prefijo "OC " repetido antes del folio en Requisiciones y en el
+  pre-recibo (`ordenes-compra.js`); los documentos viejos con folio `OC-…` se dejan como están. Pendiente: correr `sql/2026-10-12_odc_generar.sql` en
+  Supabase y subir con "comitea" (sin la migración, "Generar ODC" avisa que falta correrla); probar una ODC manual y una desde requisición.
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`, `CLAUDE.md`. **Cuentas por pagar: lista única + conciliación con lo pactado.**
+  Pedido del usuario: un anticipo de una ODC es un compromiso de pago manifestado y va en "Documentos por pagar", no en un panel aparte.
+  `cxpCargarOcPorPagar()` (nunca lanza; corre en paralelo con la vista de deuda) arma renglones `tipo:'oc'` (anticipo pactado, o total con IVA
+  si es contado sin anticipo, menos lo pagado) que se mezclan en `cxpCache`; chip "Por anticipar", botón "Pagar" igual al de las demás filas,
+  sin checkbox (se paga de a una, otro asiento 109.01); `cxpAbrirPago` delega a `cxpAbrirAnticipo` si la fila es 'oc'. Las tarjetas de deuda
+  NO suman estos compromisos; nueva tarjeta "Por anticipar (ODC)". Botón "Anticipo a otra OC" para ODC anteriores a las condiciones.
+  **Conciliación pactado vs. ejecutado (sin SQL):** al pagar un anticipo o un documento ligado a una ODC con condiciones, se muestra lo
+  pactado y se precarga la forma de pago; si Finanzas paga distinto (forma de pago o monto) se avisa, se exige el motivo y queda en las
+  notas del pago como "[Difiere de lo pactado: …]". `cxpFormaDeClave` mapea la clave SAT de la ODC (01/02/03/04/28) al selector.
+  Pendiente: un reporte/columna de desviaciones en "Pagos registrados" (hoy solo viven en las notas); que el pago de deuda también compare
+  monto y plazo (hoy solo forma de pago). Falta subir con "comitea" y probar con ODC-000007.
+- Archivos tocados (lo último): `js/buscador-auto.js` (nuevo), `js/buscador-select.js`, `js/app.js`, `version.json`, `CLAUDE.md`. **Buscador en
+  selects de listas largas, en toda la app, sin tocar cada módulo**: `buscador-auto.js` (importado en `app.js`) detecta con un
+  MutationObserver los `<select>` de su lista (~45: proveedores, clientes, cuentas contables, insumos de BOM, OC/órdenes, y el
+  proveedor de la ODC formal por `data-f="proveedor"`) y los convierte con `convertirEnBuscador`; también los que nacen dentro de
+  subventanas. `buscador-select.js` ganó: se refresca solo si el código asigna `.value` o cambia las opciones (antes había que llamar
+  `buscadorRefrescar()`), copia al envoltorio las clases de diseño del select (col-span, flex-1…) y respeta `disabled`. No aplica a
+  listas fijas cortas (condición, forma de pago, estatus) ni a las 3 apps de operador. Excluir uno: `data-sin-buscador`. Probado el
+  componente en Edge headless (asignar value, opciones nuevas, disabled, clases de diseño); falta probar en pantallas reales (Compras,
+  Gastos, Pedidos de venta, Pólizas, ODC formal). Pendiente: subir con "comitea" y revisar que ningún select oculto por clase propia
+  deje su campo de texto visible (los que se ocultan desde un contenedor padre sí quedan bien).
+- Archivos tocados (lo último): `sql/2026-10-09_odc_formal.sql` (nuevo), `js/requisiciones-compra.js`, `js/ordenes-compra.js`,
+  `js/pagos-proveedor.js`, `version.json`, `CLAUDE.md`. **ODC formal** (maqueta https://claude.ai/artifact/UHUmppsCjW93kPZ87LwQ5d):
+  `reqAutorizar` ya no es el mini-modal — ahora es la subventana "Generación de Orden de Compra" (requisición de origen, cotización
+  del proveedor con N.º/contacto/vigencia, condiciones, partidas con costo real y SKU proveedor, IVA 16% estimado, notas); al confirmar
+  llama al mismo RPC `requisicion_autorizar` y luego actualiza `ordenes_compra` (cotizacion_*, `condicion_pago` contado/crédito,
+  `dias_credito`, `forma_pago`, `anticipo_pct/_monto`) y el costo/SKU de cada partida. **Regla:** Compras solo PACTA; Finanzas ejecuta
+  (anticipo con `pagar_anticipo_oc`, pago total/parcial desde Cuentas por pagar). La ODC NO genera póliza. Contable (NIF): anticipo
+  antes de recibir = Cargo 109.01/Abono banco; al recibir `contabilizar_compra` reconoce SIEMPRE el pasivo completo en 201.01 y lo
+  cancela contra 109.01 (así Proveedores queda tocada aunque sea contado 100% prepagado). Detalle de la ODC muestra cotización,
+  condiciones, IVA/total y firmas al imprimir; el modal de anticipo en Cuentas por pagar muestra lo pactado y precarga el monto.
+  Sin migración corrida degrada (detalle sin bloques nuevos). Pendiente: correr `sql/2026-10-09_odc_formal.sql` y probar una
+  requisición → Autorizar; los 3 botones del encabezado del detalle (Antecedentes/Imprimir/Editar) NO se quitaron todavía; Editar
+  no edita cotización/condiciones; no se pudo validar sintaxis (sin node en esta máquina) — revisar en el navegador con Ctrl+Shift+R.
+  **Actualización:** se quitaron Antecedentes/Editar del encabezado del detalle (Imprimir pasó al pie). El formulario manual "Nueva orden
+  de compra" se reemplazó por el botón "＋ Nueva orden de compra" → `window.reqAutorizar(null)` (mismo documento formal, modo manual: captura
+  de partidas, solicitante, tipo de cambio DOF; inserta directo con folio ODC). Toda ODC nueva ya lleva cotización/condiciones/anticipo.
+- Archivos tocados (lo último): `sql/2026-10-09_recepcion_serie_rec.sql` (nuevo), `js/contabilidad.js`, `version.json`,
+  `CLAUDE.md`. A petición del usuario (dos capturas: "Diario #36" sin ninguna serie en la lista, y el modal de "Póliza
+  Egreso #71" sin la serie BAN que sí se veía en la lista de Cuentas por pagar). **Revisados los asientos de la captura
+  contra lo acordado: cuadran** — recepción (Diario #36) carga Inventario + IVA 119.01 "pendiente" contra Proveedores
+  (crédito sin anticipo); pago (Egreso #71) cancela Proveedores, reclasifica 119.01→118.01 "pagado" (correcto por LIVA,
+  el IVA solo es acreditable hasta que se paga) y abona Bancos — nada pendiente ahí, ningún cambio de código por eso.
+  **Dos correcciones reales:** 1) El modal "Ver póliza" (`rcVerPoliza`, `js/contabilidad.js`) ya traía `folio_poliza` de
+  la base pero el título y el nombre al imprimir lo ignoraban (`Póliza ${pol.tipo} #${pol.numero}`, fijo) — ahora muestra
+  `Póliza BAN-2026-00001 · Egreso #71 · fecha` cuando la póliza tiene serie, igual que ya se veía en los enlaces de
+  reportes (`linkPoliza`/`etiquetaPoliza`); sin serie, sigue como siempre. 2) La póliza de `contabilizar_compra()`
+  (recepción de mercancía) era la única de las 6 que sí llevan serie (BAN/VAE/ING/DIA/CMP) que se había quedado sin la
+  suya — nueva serie **REC**, mismo patrón de parche de texto sobre `pg_get_functiondef` ya usado para CMP (producción):
+  busca `'tipo', 'Diario'` dentro del llamado a `registrar_poliza` de `contabilizar_compra()` (la versión vigente es
+  `sql/2026-10-07_compras_notas_ajuste.sql`, la recepción siempre es Diario desde esa reescritura) y agrega
+  `'serie', 'REC'` ahí mismo. Requiere `sql/2026-10-07d_polizas_series_y_visto_bueno.sql` corrida antes (crea
+  `contadores_folios_poliza`/`_siguiente_folio_poliza`/`polizas.folio_poliza`) — confirmado al usuario que esa migración
+  parece no estar corrida todavía (por eso no se veía ninguna serie BAN/VAE/etc. en ningún lado, ni siquiera en los pagos).
+  Pendiente: correr `sql/2026-10-07d_polizas_series_y_visto_bueno.sql` (si no se ha corrido) y luego
+  `sql/2026-10-09_recepcion_serie_rec.sql`; probar en el navegador que una recepción nueva salga como
+  "REC-2026-00001 · Diario #N" en la lista de pólizas y en el modal.
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`, `CLAUDE.md`. Ajuste sobre la ronda anterior: el
+  label "Desde"/"Hasta" iba arriba del campo (`block`, apilado) — el usuario lo quería al lado (en línea, como en su
+  referencia). Ahora cada campo es `<div class="flex items-center gap-1.5">` con label + input en la misma línea.
+  Pendiente: confirmar en el navegador.
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`, `CLAUDE.md`. Bug de layout reportado con captura
+  (mockup del usuario vs. estado real): el renglón "Documentos por pagar" + Desde/Hasta/Limpiar usaba `justify-between`
+  (título a la izquierda, filtros pegados al extremo derecho) — al no caber los dos extremos en una sola línea, el grupo
+  de filtros se brincaba a su propio renglón, empezando en el extremo IZQUIERDO del contenedor (lo que el usuario vio y
+  reportó como "lo traes en el extremo izquierdo"). Se quitó `justify-between` (ahora `gap-4`, sin separar a los extremos)
+  para que Desde/Hasta/Limpiar queden pegados al título, como en su mockup. Pendiente: confirmar en el navegador (con
+  Ctrl+Shift+R) que ya quedan juntos en vez de brincar a su propio renglón.
+- Archivos tocados (lo último): `index.html`, `CLAUDE.md`. **Hallazgo real, probable causa de varias rondas de "no vi el
+  cambio":** el CSS (`tema-base.css`/`ui-moderno.css`/`bienvenida.css`) se cargaba SIN `?v=`, a diferencia de los `.js`
+  (que sí tienen cache-busting vía `cargador.js`/`version.json`) — el navegador podía estar sirviendo una copia vieja del
+  CSS aunque ya estuviera actualizado en GitHub, sin importar Ctrl+Shift+R. Se agregó `?v=20261008234500` a los 3 `<link>`
+  de CSS en `index.html` (mismo valor que `version.json`) y se documentó la convención para actualizarlo a mano en cada
+  commit que toque `css/`. Pendiente: que el usuario recargue y confirme si AHORA sí se ven los cambios de Claro Ice
+  (título subido, tabla compacta, chips con color propio) que llevaban varias rondas sin aparecer.
+- Archivos tocados (lo último): `css/ui-moderno.css`, `version.json`. Corrección sobre la ronda 6: el "título duplicado" NO
+  era un artefacto — el usuario literalmente puso una copia del texto en la posición que quería como referencia visual
+  (con flecha "muévelo aquí"), no eran dos títulos reales. `margin-top` de Claro Ice en Cuentas por pagar subió de
+  `-1.5rem` a `-2.5rem` (más agresivo). Pendiente: confirmar si con esto ya queda donde lo pidió, o si hace falta más.
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `css/ui-moderno.css`, `version.json`. Ronda 6: el título duplicado
+  que el usuario vio en una captura parece un artefacto de scroll/captura (la segunda captura, limpia, ya sale una sola vez
+  bien colocado) — se le explicó, sin cambio de código por eso. Sí se reforzó lo que pedía de verdad: **"Claro Ice"** sube
+  más el título (`margin-top` de `-0.75rem` a `-1.5rem`) y el encabezado de la tabla de "Documentos por pagar" se hizo más
+  compacto (`padding` vertical de los `<th>` a `.5rem`, con más especificidad que no toca `thOrden()` — eso es compartido
+  por otras pantallas). De paso, para TODOS los temas (es simple espaciado, no color): el espacio entre las tarjetas KPI y
+  "Documentos por pagar", y entre ese renglón y la tabla, bajó de `mb-3` a `mb-2`. Pendiente: probar en el navegador con
+  Claro Ice activo y confirmar que ya no se ve el título duplicado (si persiste, no es CSS — sería otra cosa, avisar).
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `css/ui-moderno.css`, `version.json`. Ronda 5 (5 capturas).
+  **1) Desde/Hasta/Limpiar** se movió a la MISMA línea que "Documentos por pagar" (antes su propio renglón). **2) Se quitó
+  "Suma: $X"** por completo (antes solo se ocultaba en vistas abiertas). **3) Cambio de comportamiento real, a petición
+  explícita** (revierte una decisión de sesiones anteriores): Desde/Hasta ya NO se deshabilita ni se ignora en
+  Pendiente/Vencida/Parcial — ahora filtra por fecha SIN importar el estatus, en cualquier vista; empieza siempre VACÍO
+  (nunca prellenado con "inicio de mes/hoy", así no hay fecha que confundir) — se quitó el aviso "Desde/Hasta no aplica
+  aquí". Las tarjetas KPI seguen siendo el total real sin filtrar por fecha (se separó `pendientesKPI` de
+  `pendientesTodas`, que ahora sí respeta el rango). **4) Encabezados de columna ya no se desalinean**: el valor elegido
+  (ej. "· Alkem Industrias" bajo Proveedor) ahora es `position:absolute` en vez de empujar el renglón — todos los `<th>`
+  quedan en la misma línea tengan o no un filtro activo; de paso se igualó el tamaño de letra y el padding (`p-3`) con
+  `thOrden()` (antes `text-[11px]`/`p-2`, inconsistente). El triángulo ▾ se cambió a ▼ más grande. **5) "Claro Ice":** el
+  `<h2>` del título y el botón "Ayuda" (ya viven en el mismo renglón, ronda anterior) suben un poco más
+  (`#view-pagos-proveedor { margin-top: -0.75rem }`, solo este tema/pantalla) para ganar espacio vertical. **Aclaración al
+  usuario** sobre "¿dónde quedó el BAN-0000X?" en una póliza de pago: no es un bug de código — falta correr
+  `sql/2026-10-07d_polizas_series_y_visto_bueno.sql` en Supabase; sin esa migración, `registrar_pago_proveedor()` sigue sin
+  asignar serie y la póliza se muestra como "Egreso #N" genérico (comportamiento de respaldo ya previsto). Pendiente:
+  correr esa migración si no se ha corrido, y probar en el navegador — Desde/Hasta en la vista Pendiente, alineación de
+  encabezados, y el título subido en Claro Ice.
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`. Ronda 4 (captura marcando las tarjetas KPI): se
+  quitó el texto de ayuda bajo "Anticipos disponibles" ("Se usan solos al pagar una OC sin recibir — sin botón aparte") y
+  se recortó el padding de las 4 tarjetas (`p-3`→`p-2`, el contenedor `mb-4`→`mb-3`) — la tarjeta "Saldo total pendiente"
+  sobraba espacio en blanco abajo comparada con las demás.
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`. Ronda 3 (3 capturas marcadas por el usuario después de
+  probar un pago real). **1) "Ver ODC ODC-000002" repetía la palabra ODC** — ahora solo "Ver ODC-000002" (el folio ya trae
+  el prefijo, no hace falta repetirlo). **2) Subtítulo redundante** en el encabezado de "Registrar pago" ("1 documento(s) ·
+  Proveedor · saldo $X") — se quita cuando es un solo documento (la misma info ya está en Proveedor/RFC y en Resumen); se
+  queda solo cuando son varios documentos, ahí sí es información nueva. **3) Hallazgo real, no era bug:** tras pagar
+  ODC-000002 (quedó "Pagada", saldo $0.00), la columna Póliza seguía mostrando "Diario #34" — el usuario preguntó "¿dónde
+  está el documento BANK?" (el de pago). Confirmado: así es por diseño — `v_cuentas_por_pagar.poliza_id` siempre es la del
+  RECIBO (`contabilizar_compra`), nunca se actualiza con la del pago, son dos eventos contables distintos a propósito.
+  Mejora real agregada: nueva consulta a `pagos_proveedor_aplicaciones` (join a `pagos_proveedor`, solo pagos
+  `estatus='registrado'`) arma un mapa documento→póliza(s) de pago; la columna Póliza ahora muestra AMBAS, etiquetadas
+  "recibo" (azul) y "pago" (verde) — antes solo se veía en el historial "Pagos registrados" más abajo, ahora también en la
+  fila misma. Pendiente: probar en el navegador — pagar un documento y confirmar que su fila muestra las dos pólizas.
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`. Ronda 2 del mismo PDF "Revisión de documentos"
+  (el usuario marcó "del recuadro rojo hacia abajo" en la imagen APROBADO): puro texto, sin tocar columnas (esas ya
+  quedaron en la ronda anterior) ni colores. Se quitó el encabezado **"Proveedor y documento"** (tachado en rojo en la
+  imagen); **"Fecha de la OC" → "Fecha de la ODC"** y **"Ver OC" → "Ver ODC"** (consistente con el folio real, que ya es
+  ODC-000002, no OC-000002); **"Ver recibo" → "Ver recepción"** (así lo pidió explícito: "en lugar de ver factura ver
+  recepción" — nunca hubo "Ver factura" en el código real, ya se llamaba "Ver recibo", solo cambió la palabra). La duda
+  del usuario sobre "la factura, es el folio del documento o el folio digital" queda resuelta sola: no hay un link de
+  factura aparte — el UUID del CFDI ya vive dentro del detalle de "Ver recepción" (`documentos.uuid_cfdi`). Pendiente:
+  probar en el navegador que el bloque de proveedor/documento se vea bien sin el encabezado y que los 3 renombres
+  aparezcan.
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`. A petición del usuario (PDF "Revisión de documentos"):
+  dos ajustes de texto a la ventana de pago, sin tocar colores. **1) Tabla "Qué ampara este pago"** gana las columnas que
+  faltaban — **Cta.** (cuenta de inventario del producto, `productos.cuenta_inventario_id`, con el mismo fallback 115.01 que
+  usa `contabilizar_compra()`) y **P. Unit.** (`documento_detalles.costo_unitario`, ya se traía de la base pero no se
+  pintaba) — ahora son 6 columnas: Código/Descripción/Cta./Cant./P. Unit./Importe, igual que la maqueta. **2) "Documentos"**
+  (dentro de Proveedor y documento) ahora también lista las notas de crédito/cargo activas de este recibo (`notas_compra`,
+  folio NDC-/NDP-) junto a "Ver OC · Ver recibo" — antes esas notas solo se veían más abajo, en Aprobaciones y trazabilidad.
+  **Aclaración al usuario sobre ODC-000002** (no era un bug): su póliza Diario es SOLO la del recibo de mercancía — reconoce
+  115.01/119.01 contra 201.01 Proveedores, nunca toca banco — por eso el botón "Pagar" sigue activo con saldo real pendiente;
+  es exactamente la regla "Compras ya no decide el pago" de la sesión del 2026-10-07, funcionando como se diseñó. Pendiente:
+  probar en el navegador con un documento que tenga nota de ajuste activa, para ver las dos columnas nuevas y el folio NDC/NDP
+  junto a Ver OC/Ver recibo.
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`. A petición del usuario (comparativo PDF "ACTUAL vs
+  FORMATO APROBADO" con capturas marcadas): tabla de Cuentas por pagar ajustada al formato acordado. Quitada la columna
+  **Tipo** (siempre decía "compra", sin valor — el formato aprobado no la tiene). Columna **Póliza** simplificada a un solo
+  link de texto (`linkPoliza()`, ya se auto-rotula "Egreso #N" o "BAN-2027-00001 · Egreso #N" si ya corrió `…07d`) — se quitó
+  el botón grande "🧾 Póliza #N" y el botón "Ver recibo" (**era 100% redundante**: hacía el mismo `abrirDetalleDocumentoGlobal`
+  que ya dispara el link de la columna Documento — verificado antes de quitarlo, no se perdió nada). Nuevo **botón "Pagar"
+  individual por fila** (azul, solo visible en vistas "abiertas" — Pendiente/Vencida/Parcial, igual que el checkbox): paga
+  ESE documento directo, sin marcar su casilla primero — antes solo existía "Pagar selección" con checkbox. Confirmado al
+  usuario: el botón se deja de ver solo cuando el documento sale de esas vistas (saldo llega a 0 → pasa a "Pagada" → ya no
+  tiene checkbox ni botón Pagar, por diseño de `esAbierto`). **Trazabilidad real agregada** a "Aprobaciones" en la ventana de
+  pago (antes solo tenía el selector de Visto bueno): si la OC viene de una requisición, muestra folio + quién/cuándo la
+  autorizó (`requisiciones_compra.revisada_por/revisada_en`); si el documento tiene una nota de crédito/cargo activa
+  (`notas_compra`, del candado de diferencia física vs. factura), la muestra con monto y motivo. Ambas solo cuando se paga
+  UN documento (con selección múltiple no hay detalle rico, igual que "Qué ampara este pago"). A propósito NO se agregó lo
+  demás que trae la maqueta ahí ("Recepción validada en almacén", "1 concepto fuera de lo habitual") — no hay dato real
+  detrás, se habría tenido que inventar. Pendiente: probar en el navegador — que el botón Pagar de fila abra la ventana
+  correcta, que Póliza muestre el link bien, y revisar una OC con requisición ligada y otra con nota de ajuste para ver la
+  trazabilidad nueva. **Corrección de la misma ronda:** se quitó el "Saldo total: $X" junto a "Documentos por pagar" en las
+  vistas abiertas (Pendiente/Vencida/Parcial) — duplicaba exactamente la tarjeta KPI "Saldo total pendiente" de arriba
+  (el usuario lo marcó con flecha). En Pagadas/Canceladas/Todas se queda "Suma: $X" (ahí sí es un dato distinto, la KPI no
+  lo cubre).
+- Archivos tocados (lo último): `css/ui-moderno.css`. A petición del usuario (con captura marcando dónde): en **Cuentas por
+  pagar, SOLO con el tema Claro Ice activo**, el bloque "Asistente — Cuentas por pagar" (lo monta `montarGuia()`, compartido
+  por ~19 pantallas — NO se tocó ese archivo) se compacta a una píldora "Ayuda" arriba a la derecha, junto al `<h2>` del
+  título, en vez de ocupar su propio renglón completo abajo. Al abrirlo se vuelve un popover flotante (420px) con el
+  contenido completo + el botón "📖 Manual" (ambos ocultos mientras está colapsado). Es 100% CSS, scoped a
+  `#contenedorPagosProveedor > .asist-panel` bajo `[data-theme="claro-ice"]` — usa `position:absolute` relativo a
+  `#view-pagos-proveedor` (padre común del `<h2>` y del contenedor) y `:has()` para cambiar de píldora a popover según si
+  `.asist-body` está `.hidden` o no. Con cualquier otro tema, o en cualquier otra pantalla, no cambia nada. Pendiente:
+  probar en el navegador — que la píldora quede alineada con el título, que abrir/cerrar funcione igual que siempre, y que
+  no se monte encima de las tarjetas KPI de forma rara.
+- Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`. A petición del usuario: nuevo tema global **"Claro Ice"**
+  (`data-theme="claro-ice"`, tarjeta en Configuración → Temas de usuario, junto a "Mac (oscuro)") con la paleta y tipografía de
+  la maqueta de Cuentas por pagar v2 — **modo CLARO** de la maqueta (`:root[data-theme="light"]` de su HTML, no el oscuro que
+  se probó primero y el usuario corrigió con captura): fondo azul-hielo muy pálido (`#f1f4fb`), tarjetas blancas (`#ffffff`),
+  acento azul (`#1d5fd1`), tipografía **IBM Plex Sans/Mono** (Google Fonts agregado en `index.html`, solo para este tema — los
+  demás se quedan con Inter). Mismo patrón que "Mac (claro)" (`[data-theme="macos"]`, usado como plantilla de forma): variables
+  `--bg-0..3`/`--bd-0..2`/`--tx-0..5`/`--acc`/`--ok`/`--bad`/`--warn`/`--chip` propias (no toca `tema-base.css`) + reglas de
+  forma (botones planos sin degradado, esquinas 9-12px, campos planos, menú lateral translúcido claro). Diferencia extra sobre
+  la plantilla macos: los chips de estatus (Pendiente/Vencida/Pagada) llevan su PROPIO fondo pálido por color
+  (`.bg-amber-950`→`#fdf0cf`, `.bg-rose-950`/`.bg-red-950`→`#fde0e6`, `.bg-emerald-950`→`#d9f3e8`, `.bg-sky-950`→`#e1eaff`,
+  todo `!important` solo bajo `[data-theme="claro-ice"]`) — el remapeo genérico de `tema-base.css` solo da un `--chip` único
+  para todas, y en la maqueta cada estatus trae su propio tono. Revisado funcionalmente: todo lo que la maqueta hace (filtros
+  de encabezado, chips, KPIs, ventana de pago, pop-up de autorización) ya estaba portado al código real en sesiones
+  anteriores — lo único que faltaba era la piel visual. Lo que la maqueta tiene de más NO se portó, a propósito (ya explicado
+  antes): el interruptor Subventana/Pantalla completa (el usuario ya eligió solo subventana) y el interruptor de "Caso:
+  anticipo/deuda" (no aplica, anticipo es un flujo aparte en el código real) — ni "Observar y devolver" / "Pedir confirmación"
+  de la maqueta, que ahí tampoco hacen nada real (solo un mensaje de aviso), para no meter botones sin función real detrás.
+  El CSS no se versiona en `version.json` (confirmado en sesiones previas) — no hace falta tocarlo aquí, pero el navegador
+  puede necesitar Ctrl+Shift+R por caché de CSS. Pendiente: probar el tema nuevo en el navegador, sobre todo en Cuentas por
+  pagar (las tarjetas KPI, los chips de estatus con su color propio, la ventana de pago) y el menú lateral translúcido.
+- Archivos tocados (lo último): `sql/2026-10-08_fix_dias_credito_legacy.sql` (nuevo), `js/pagos-proveedor.js`, `version.json`.
+  A petición del usuario, dos correcciones sobre lo de ayer, comparando contra la maqueta otra vez. **1) Bug real encontrado
+  comparando contra la maqueta**: todas las OC existentes (de antes de "Días de crédito") salían "Vencida" — el backfill de
+  ayer les puso `dias_credito = 0`, y como son de septiembre, Vence (fecha + 0) ya quedaba en el pasado; antes de ese campo
+  no existía ningún concepto de "vencida" para ellas. `dias_credito` vuelve a ser NULLABLE (sin default); las que tenían 0 por
+  el backfill regresan a NULL (Vence sale "—", nunca Vencida); las OC NUEVAS lo siguen exigiendo, pero eso es validación de
+  pantalla (`ordenes-compra.js`), no columna NOT NULL. **Ojo**: ese SQL solo es seguro correrlo el mismo día — si ya se
+  capturó una OC real con "Inmediato" (0) a propósito, también se le borraría; avisar antes de recorrerlo si pasó tiempo.
+  **2) Ventana "Registrar pago" reconstruida en dos columnas, igual que la maqueta** (antes era una sola columna con los
+  campos apilados, divergía bastante): izquierda = Proveedor y documento (RFC, fecha de la OC, días de crédito, enlaces Ver
+  OC/Ver recibo), Qué ampara este pago (tabla de líneas con código/descripción/cantidad/importe + subtotal/IVA/total — SOLO
+  cuando se paga UN documento, trae `documento_detalles` fresco al abrir; con varios documentos seleccionados se queda la
+  tabla resumen folio+saldo de siempre) y Aprobaciones (el selector de Visto bueno, que antes vivía del lado derecho);
+  derecha = Datos del pago (+ nuevo campo "Notas internas", el RPC ya lo soportaba y no se estaba usando), Resumen (Total/
+  Pagado anteriormente/Este pago/Saldo restante, en vivo) y una vista previa de la póliza (cuenta cargo/abono, serie BAN o
+  VAE según la cuenta elegida). La ventana YA era subventana movible/redimensionable/maximizable desde que se creó —
+  `subventanas-movibles.js` la detecta sola por su estructura (`fixed inset-0`, panel = primer hijo) — lo que faltaba era
+  el contenido, no el mecanismo. `cxpAbrirPago` pasó a `async` (trae el detalle antes de pintar, con un "Cargando…" breve).
+  Pendiente: correr `sql/2026-10-08_fix_dias_credito_legacy.sql` y probar — que las OC viejas ya no salgan Vencida, y abrir
+  "Pagar" en un documento único vs. varios para ver las dos variantes de "Qué ampara este pago".
+- Archivos tocados (lo último): `sql/2026-10-07b_cxp_v2.sql`, `sql/2026-10-07c_diagnostico_migraciones_pendientes3.sql` (solo
+  lectura), `sql/2026-10-07d_polizas_series_y_visto_bueno.sql` (nuevos), `js/pagos-proveedor.js`, `js/ordenes-compra.js`,
+  `js/enlaces-reporte.js`, `version.json`. **Cuentas por pagar v2 implementada en código real** (hasta hoy solo vivía en la
+  maqueta https://claude.ai/artifact/PeKAi5Wsp4VdokSwZzMDoi) + **nomenclatura de pólizas por serie** + **visto bueno ligado a
+  empleado real**. Pagos a proveedores: "Pendientes de pago" → "Pendiente"; Folio de cada fila = el de la OC, nunca el del recibo
+  (`v_cuentas_por_pagar` ahora hace `coalesce(oc.folio, d.folio)`, vista recreada con `DROP VIEW` porque `CREATE OR REPLACE` no
+  deja cambiar el tipo de una columna); columna "Pagado" quitada, columna "Vence" agregada (= fecha de la OC + `dias_credito`,
+  en rojo si ya venció); columna "Póliza / Recibo" → "Póliza"; botón "💰 Pagar anticipo a una OC" bajó de botón prominente a link
+  discreto aparte (a propósito: un anticipo sobre una OC sin recibir no es una deuda todavía, meterlo en la lista de saldo
+  pendiente habría sido contablemente engañoso — es la ÚNICA diferencia a propósito contra lo acordado en la maqueta); pagar
+  varias OC del mismo proveedor en un solo pago sigue permitido pero ahora pide autorización (pop-up con nombre de quien
+  autoriza, texto libre por ahora); "Forma de pago" ya no viene preseleccionado; alerta visual de efectivo > $2,000 (el asiento
+  contable de IVA no acreditable queda pendiente de validar con el contador, a propósito); 4 tarjetas KPI (Saldo total
+  pendiente/Vencido/Vence en 7 días/Anticipos disponibles). Órdenes de compra: nuevo campo obligatorio **"Días de crédito"**
+  (Inmediato/7/15/30/60, select con fallback si la migración no se ha corrido) y nuevo campo opcional **"Solicitado por"**
+  (empleado real, no texto libre). **Nomenclatura de pólizas**: nueva tabla `contadores_folios_poliza` (consecutivo POR AÑO,
+  ej. `BAN-2027-00001` — distinto a `contadores_folios`, que es continuo) + función `_siguiente_folio_poliza(serie, fecha)` +
+  columna `polizas.folio_poliza`; `registrar_poliza()` gana `p_datos->>'serie'` opcional (si no viene, sigue igual que
+  siempre); solo 5 flujos la usan: `pagar_anticipo_oc`/`registrar_pago_proveedor` (BAN si la cuenta es banco 102.x, VAE si es
+  caja 101.x), `registrar_cobro_cliente` (siempre ING), `cancelar_poliza` (siempre DIA, en TODA cancelación sin importar la
+  serie original), `contabilizar_produccion` (siempre CMP — parche de texto sobre `pg_get_functiondef`, mismo patrón ya usado en
+  `2026-10-05_series_3_letras.sql`, se eligió CMP y no ODP para no chocar con el folio del documento de cierre). Compras,
+  gastos, nómina, activos fijos, devoluciones y prorrateo NO llevan serie, se quedan como "Diario #N"/"Egreso #N". `etiquetaPoliza()`
+  (`js/enlaces-reporte.js`) ya muestra `"BAN-2027-00001 · Egreso #34"` cuando hay serie, con fallback si la columna no existe
+  aún. **Visto bueno**: `ordenes_compra.solicitante_empleado_id` + `pagos_proveedor.visto_bueno_empleado_id`/`_at` (FK a
+  `empleados`, no texto libre) — sigue siendo informativo, no bloquea nada; se marca a mano desde un select en la ventana de
+  pago (columna nueva "Visto bueno" en el historial). Pendiente a propósito, no es de hoy: que aparezca en el menú de Tareas del
+  empleado en vez de marcarse a mano aquí. Probado visualmente en el navegador (capturas del usuario) tras cada push — faltan
+  push de ESTA ronda (pólizas/visto bueno/KPIs) y correr `…07d` en Supabase. **Corrección a petición explícita del usuario:**
+  el filtro de Estatus había quedado como pestañas (simplificación propia, no se lo mostré claro) — se deshizo: ahora Documento,
+  Proveedor y Estatus son menú desplegable EN EL ENCABEZADO de columna (triángulo ▼, valor elegido debajo del botón en letra
+  chica para no ensanchar la columna), igual que la maqueta. Nuevo: columna Estatus con chip por fila (Pendiente/Vencida/
+  Parcial/Pagada/Cancelada — Vencida/Parcial se calculan en el cliente, `v_cuentas_por_pagar.estatus_cxp` solo conoce pendiente/
+  pagado/cancelado); columna checkbox siempre presente (antes se sustituía por "Estatus" en las vistas no-pendientes). Corregido
+  de paso: si un filtro no encontraba nada, la tabla entera desaparecía (con los 3 menús adentro) dejando al usuario sin forma
+  de cambiar el filtro — ahora el `<thead>` siempre se queda, solo cambia la fila del `<tbody>`. Un solo listener global
+  (`window.__cxpMenuListener`, mismo patrón que `subventanas-movibles.js`) cierra los menús al tocar fuera o con Escape.
+  **Deploy**: esta sesión no tenía git local
+  conectado — se subió con script temporal vía API de GitHub (token del usuario, nunca guardado, script borrado después,
+  verificado antes de pushear que nadie más hubiera tocado los mismos archivos en GitHub — ver `feedback-sync-verificar-antes-de-pushear`).
+- Archivos tocados (lo último): `sql/2026-10-07_compras_notas_ajuste.sql` (nuevo), `sql/2026-10-07_diagnostico_aju_egresos.sql`
+  (nuevo, solo lectura), `js/ordenes-compra.js`, `js/pagos-proveedor.js`, `version.json`. **Compras ya no decide el pago + Notas
+  de crédito/cargo (NDC/NDP).** Corrección sobre el plan de ayer: "Recibo de mercancía" y "Pre-recibos" ya eran la MISMA pantalla
+  (el pre-recibo se valida ahí mismo, con el mismo botón que contabiliza) — no se quitó ningún menú, solo el bloque de pago de
+  esa pantalla. `contabilizar_compra()` reescrita: ya no recibe Condición ni Cuenta de pago (se quitaron del formulario de
+  recepción); la recepción SIEMPRE contabiliza a crédito, aplica el anticipo de la OC si lo hay (ya existía) y la póliza es
+  SIEMPRE Diario — el banco solo se mueve en `pagar_anticipo_oc` (antes) o el pago desde Cuentas por pagar (después), que ya
+  generaban Egreso bien. El IVA (118.01 pagado / 119.01 pendiente) ahora depende de si el anticipo cubrió TODO (resto = 0), no
+  de un combo Contado/Crédito que ya no existe. **NDC/NDP:** cuando lo recibido no coincide en valor con la factura (el candado
+  de 2026-10-07 que antes solo tronaba), ahora se puede resolver sin salir de la recepción — `contabilizar_compra` devuelve la
+  diferencia con detalle estructurado, `js/ordenes-compra.js` (`rmPedirNotaAjuste`) pregunta tipo (NDC si llegó menos / NDP si
+  llegó más, precargado), motivo (dañada en transporte / caducada / fuera de especificación / empaque roto / excedente /
+  producto distinto / Otro, con detalle obligatorio) y monto, y reintenta. La nota vive en tabla nueva `notas_compra` (folio
+  NDC-/NDP- vía `siguiente_folio`) SIN póliza propia — su efecto contable es un ajuste al 201.01 reconocido en la MISMA póliza
+  de la recepción, así que cancelar la recepción (`cancelar_recibo_inventario`, que ahora también marca la nota 'cancelada')
+  revierte todo junto. El inventario siempre entra a lo que de verdad llegó (nunca al valor de la factura). Rechazo por mercancía
+  dañada/consumida: el usuario decidió NO usar una nota aparte sobre algo ya consumido — se resuelve aquí, en el momento de
+  validar. **Pagos a proveedor:** se quitó 102.02 (Bancos extranjeros USD) del selector de cuenta de pago (`js/pagos-proveedor.js`,
+  un solo punto: el fetch que alimenta todos los selectores de esa pantalla) — la empresa nunca paga en USD (no tiene cuenta),
+  aunque la OC esté en USD; la cuenta se queda en el catálogo para cuando haya expansión real a compras/ventas en el extranjero.
+  **Sin hacer a propósito, por tiempo/riesgo (pendiente, más chico):** motivo de rechazo por partida (por qué no se recibió
+  completa una línea) — iba a tocar dos flujos de captura (OC normal y XML directo); se dejó fuera para no meterlo a medias.
+  **Diagnóstico de los 3 documentos que no cuadran** (AJU-000001 $27,553.24, Egreso #67 $16,946 F-2407, Egreso #69 pago OC-000001
+  en 102.02): NO se canceló/archivó nada todavía — no hay función para deshacer una salida de ajuste de inventario (solo
+  recepciones, devoluciones y pólizas sueltas tienen "cancelar"), y antes de inventar una reversa a mano hace falta saber si ese
+  inventario ya se consumió en producción (si sí, es más delicado). El SQL de diagnóstico (solo lectura) ya está listo — falta
+  correrlo y revisar el resultado antes de decidir cómo cerrar cada uno. Pendiente: correr ambos SQL (el de compras/notas primero,
+  es el que de verdad cambia comportamiento; el diagnóstico es independiente y no tiene prisa) y probar una recepción con
+  diferencia real para ver aparecer el cuadro de NDC/NDP.
 - Archivos tocados (lo último): `js/requisiciones-compra.js`, `version.json`. **MOQ en la requisición** (a petición del usuario: no pedir solo lo
   que necesita la orden). Aplica a toda requisición precargada (desde orden de producción, pedido o Tareas): `reqCargarCatalogos` trae
   `productos.cantidad_minima_compra`; si el faltante es menor al MOQ, la partida se precarga con el MOQ y guarda `necesario` (lo que pidió la orden).
@@ -94,18 +426,44 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   un operador reabra su tarea); si algo falta (alguien asignado sin finalizar) NO se cierra sola; si faltan existencias se queda abierta con nota "no pudo cerrarse: faltan X" + Tarea; el trabajo programado no afecta nunca a `ot_finalizar` ni al
   operador. Cierra con lo planeado (como el botón). Pendiente: que el usuario pruebe la entrega 1 (cerrar OP-000011 desde Órdenes de producción) antes de seguir con la 2.
 - **EN DISCUSIÓN (solo propuestas, sin código):** dos temas abiertos para retomar. Maquetas privadas (no son pantallas reales): lista y pago de Cuentas por pagar v2 https://claude.ai/artifact/PeKAi5Wsp4VdokSwZzMDoi (la v1 y su revisión contable: https://claude.ai/artifact/Y76kgS8aiL775ifwQPmT1c).
+  **A) Cuentas por pagar (Finanzas) — ronda de feedback 2026-10-07 (sobre la pantalla real, incorporada a la maqueta v2):**
+  documento de la fila = OC, nunca folio de recepción como subtítulo; Saldo ya neta el anticipo (sin "diste $2,000" aparte);
+  sin botón "💰 Pagar anticipo a una OC" ni selector de proveedor repetido — un solo "Pagar" por fila decide sola si es
+  anticipo o deuda; filtro de Estatus en el encabezado de columna, no en pestañas. Maqueta v2 actualizada con estos puntos.
   **A) Cuentas por pagar (Finanzas) — ya acordado en la maqueta:** documento = OC autorizada (sin folio de recepción en la lista); columnas Total y Saldo (sin "pagado"); botón siempre "Pagar"; filtros en los encabezados
   (Documento ▾ busca folio de OC, Proveedor ▾, Estatus ▾ con Pendientes/Pendiente/Vencida/Parcial/Pagada/Cancelada/Todas) + solo "desde"/"hasta" arriba; sin columna de alertas; columna "Póliza"; sin enlace de anticipo en la tarjeta de anticipos;
   un pago = un proveedor = un evento; Pago total NO editable (refleja el saldo de la OC), Pago parcial editable y EXIGE escribir el acuerdo con el proveedor (+ evidencia opcional; idealmente la condición se declara en la OC, queda en el tintero);
   visto bueno de quien solicitó solo informativo (después obligatorio, como interruptor en Configuración). Subventana movible vs pantalla completa: la maqueta muestra ambas, falta que el usuario elija. Contabilidad (ya existe, verificado en
   `pagar_anticipo_oc` y `contabilizar_compra`): prepago 100% contra la cotización anexa a la OC = anticipo (Cargo 109.01 / Abono banco, Egreso); al validar el pre-recibo, UNA póliza Diario reconoce Inventario + IVA 118.01 contra 201.01 y cancela
   201.01 contra 109.01 (queda inventario, IVA y banco; Proveedores en cero). La deuda por recepción solo vive en compras a crédito y gastos. La pantalla de pago debe decidir sola entre anticipo (OC sin recibir) y pago de deuda (OC recibida).
-  **Nomenclatura de pólizas (propuesta):** serie por origen con 3 letras, además del tipo SAT (Ingreso/Egreso/Diario, que se sigue reportando): BAN = pago por banco (antes "póliza de cheque"), VAE = pago en efectivo a una persona (el usuario renombró VAL→VAE),
-  ING = ingresos por depósitos, DIA = cancelaciones/diario, y una serie para consumos de producción (el usuario dijo ODP). La serie saldría de la cuenta de pago (banco→BAN, caja→VAE). Hoy: "Tipo #número" con consecutivo por (tipo, año) y la cancelación
-  crea contra-asiento del MISMO tipo (`cancelar_poliza`); no renumerar pólizas viejas. Estandarizar series de documentos a 3 letras (OC→ODC, PROD→ODP, DEVCLI/DEVPROV→3 letras) es solo propuesta. PREGUNTAS ABIERTAS: contado + transferencia como valores por defecto;
-  varias OC del mismo proveedor en una sola transferencia; consecutivo de series de póliza por año o continuo; choque de nombre ODP (orden de producción vs póliza de consumos); serie OC vs ODC; "Vence/Vencida" se dejó como en su imagen (sin días de crédito = fecha de la OC).
-  Datos que faltarían en la base (propuesta): fecha de vencimiento / días de crédito del proveedor, banco/CLABE/beneficiario del proveedor (con bitácora), UUID del complemento de pago (REP) en compras PPD, estado "observado", visto bueno. Alerta propuesta: pago en
-  efectivo > $2,000 no deducible ni IVA acreditable (LISR 27 fr. III / LIVA 5 fr. III; confirmar con contador). DIOT sigue vigente (formato nuevo 2025), se basa en lo pagado por proveedor.
+  **Nomenclatura de pólizas — DECIDIDO 2026-10-07 (sigue sin código, pero ya no son preguntas abiertas):** serie por origen con 3 letras,
+  además del tipo SAT (Ingreso/Egreso/Diario, que se sigue reportando): BAN = pago por banco, VAE = pago en efectivo a una persona,
+  ING = ingresos por depósitos, DIA = cancelaciones/diario, **CMP = la póliza Diario que genera `contabilizar_produccion()` al cerrar una
+  orden de producción** (Consumo de Materia Prima — se eligió CMP y no ODP para no chocar: ODP es el folio del DOCUMENTO que nace al
+  cerrar la orden — entrada ODP-000123 + salida ODP-000123-MP —, no el de la póliza; hoy esa póliza es un "Diario #N" genérico sin serie
+  propia, y solo el documento de entrada carga con `poliza_id`, el de salida es puro Kardex). La serie de pago sale de la cuenta
+  (banco→BAN, caja→VAE). **Consecutivo por año** (ej. `BAN-2027-00001`, se reinicia cada enero). Hoy sigue siendo "Tipo #número" con
+  consecutivo por (tipo, año) y la cancelación crea contra-asiento del MISMO tipo (`cancelar_poliza`); no renumerar pólizas viejas.
+  Confirmado: ninguna póliza/documento de este ERP espera a un evento posterior para volverse contable (ni pagos: el Egreso nace al dar
+  "Confirmar pago", no al aparecer en el banco) — no hay equivalente a "cheque en tránsito" o "vale por comprobar".
+  **Resueltas las demás preguntas abiertas:**
+  - Varias OC del mismo proveedor en un solo pago/transferencia: **sí se permite**, pero pide un pop-up de autorización del responsable
+    de finanzas (por ahora solo el pop-up/placeholder, sin ligar a roles reales todavía).
+  - "Vence/Vencida": nuevo campo **obligatorio** en la OC, "Días de crédito" (desplegable: Inmediato/7/15/30/60 días) — Vence = fecha de
+    la OC + esos días. No se puede dejar en blanco. (Reemplaza la idea de capturarlo en el catálogo de Proveedores.)
+  - Visto bueno de quien solicitó: sigue **informativo** por ahora, pero la base debe quedar lista para ligarlo a un usuario real (no
+    texto libre) y que después aparezca en el menú de Tareas de ese usuario (encaja con el sistema de `tareas.js` ya existente).
+  - Alerta de pago en efectivo > $2,000: **confirmado implementar**, con el asiento reflejando no deducible / IVA no acreditable
+    (LISR 27 fr. III / LIVA 5 fr. III) — la alerta en pantalla es sencilla; las cuentas exactas para el IVA no acreditable quedan
+    pendientes de validar con el contador antes de tocar código contable.
+  - Forma de pago: el campo empieza **vacío** (sin preseleccionar Transferencia ni nada).
+  - Serie OC vs ODC: sin cambio, ODC ya es la serie vigente del documento de la orden de compra (no de una póliza).
+  Pendiente (sin resolver aún, menor prioridad): datos que faltarían en la base — banco/CLABE/beneficiario del proveedor (con
+  bitácora), UUID del complemento de pago (REP) en compras PPD, estado "observado". DIOT sigue vigente (formato nuevo 2025), se basa en
+  lo pagado por proveedor. Maqueta v2 (https://claude.ai/artifact/PeKAi5Wsp4VdokSwZzMDoi) actualizada con filtros en encabezado,
+  Documento=OC, Saldo neto, sin botón de anticipo aparte — **falta reflejar ahí** CMP, días de crédito, pop-up de varias OC y forma de
+  pago vacía. **Nada de esto tiene código real todavía** — falta el plan de implementación (SQL de series de póliza + campo
+  `dias_credito` en OC + reescribir `js/pagos-proveedor.js` y partes de `js/ordenes-compra.js`) antes de tocar ninguna función.
   **B) Producción por pedido (reservas):** analizar un plan de necesidades en cascada en vez de pasos sueltos: Pedido → ODP del terminado (redondeo al lote mínimo, ya hecho) → ODP del granel en tandas ENTERAS → requisiciones de MP/insumos con MOQ y múltiplos,
   agrupadas por proveedor, todo con vista previa que el usuario aprueba. Hallazgos: el MOQ (`productos.cantidad_minima_compra`) solo se usa en Tareas de almacén (`max(MOQ, faltante)`), NO en requisiciones que salen de un pedido o de una orden; hoy "Pregunta de tanda"
   permite medias tandas y "solo lo necesario" (el usuario quiere granel NO fraccionado); el pedido no tiene fecha prometida ni la orden fecha programada; no hay tiempo de fabricación por producto; el disparo por pedido y el disparo por stock mínimo son independientes
@@ -951,6 +1309,24 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   `sql/2026-09-22_factor_conversion_sin_densidad.sql` y `sql/2026-09-22_requisicion_orden_produccion.sql`; cada
   intento fallido de cierre dejó 2 documentos vacíos (`PROD-…-MP` y `PROD-…`) sin movimientos.
 
+## Catálogo de series (aprobado por el usuario 2026-10-13)
+
+Todas de 3 letras. Documentos/órdenes: `SERIE-000001` (consecutivo continuo, `siguiente_folio`). Pólizas: `SERIE-AÑO-00001` (consecutivo por año,
+`_siguiente_folio_poliza`). Lo ya emitido NO se renombra (ODC reemplazó OC; **OPR reemplaza OP y OPC reemplaza ODP desde 2026-10-13** — los `OP-…`/`ODP-…` viejos se quedan).
+
+**Pólizas (serie · qué es · tipo SAT):** BAN pago por banco/anticipo · Egreso — VAE pago en efectivo/caja · Egreso — ING cobro a cliente · Ingreso — DIA cancelación
+(reverso, mismo tipo que la original) — CMP consumo de MP al cerrar producción · Diario — REC recepción de mercancía (con o sin ODC) · Diario — GAS gasto · Egreso/Diario —
+NOM nómina · Egreso — DEP depreciación · Diario — VEN venta · Ingreso/Diario — SMA salida por merma/ajuste · Diario — EDI entrada directa · Diario — DVC devolución de
+cliente · Diario — DVP devolución a proveedor · Diario — PRR prorrateo de CIF · Diario — RAN resolución de anticipo (reembolso Ingreso / baja Diario) — MAN póliza manual ·
+el que se elija. (DET deterioro de inventario: reservada, pendiente — su origen es `ajuste`, compartido con reclasificaciones; requiere una línea en
+`registrar_deterioro_inventario`.) La serie sale de `polizas_series_origen` (tabla editable en el SQL Editor) vía `registrar_poliza()` cuando la función que crea la póliza
+no manda `serie`; BAN/VAE/ING/CMP/REC las mandan explícitas y DIA la pone `cancelar_poliza()`. Migración: `sql/2026-10-13_series_polizas.sql` (solo pólizas nuevas; no renumera).
+
+**Documentos y órdenes (serie · qué es · tipo):** REQ requisición · Solicitud — ODC orden de compra · Orden — PRE pre-recibo · Documento de almacén — NDC/NDP nota de
+crédito/cargo de compra · Documento — OPR orden de producción · Orden — OPC cierre de producción (entrada y consumo `-MP`) · Documento de almacén — PED pedido de venta · Orden —
+VTA/MER/SAL/AJU salida por venta/merma/general/ajuste · Documento de almacén — ENT entrada directa · Documento de almacén — DCL/DPV devolución de cliente/a proveedor ·
+Documento de almacén. Sin folio propio: pagos, cobros, nómina, auditoría.
+
 ## Estructura
 
 - `js/` — un módulo por pantalla del menú (ver `index.html`); `js/app.js` es el router (`window.loadView`).
@@ -986,7 +1362,9 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `iconos-accesos.js` — galería de íconos de línea (por categoría) para los accesos rápidos de Inicio.
 - `bitacora-cambios.js` — consulta de la bitácora de movimientos (quién/cuándo/qué cambió) de todo el negocio.
 - `buscador-productos.js` — `montarBuscadorProductos()`: input con sugerencias de productos (SKU o nombre) mientras se escribe.
-- `buscador-select.js` — convierte un `<select>` largo en un buscador con teclado, sin cambiar su comportamiento.
+- `buscador-select.js` — convierte un `<select>` largo en un buscador con teclado, sin cambiar su comportamiento (se refresca solo si el código cambia su valor u opciones).
+- `pagos-compras.js` — Compras → Pagos a proveedores: CONSULTA (solo lectura) de pagos ya hechos, mes actual por default, proveedor, paginado en servidor, columna "Mercancía" (por recibir/parcial/recibida) y 🖨️ comprobante; sin botón Cancelar (eso es de Finanzas).
+- `buscador-auto.js` — aplica ese buscador solo a los selects de listas largas (proveedor, cliente, cuenta contable, insumo, orden) detectándolos al aparecer en pantalla; la lista está en `POR_ID`/`POR_SELECTOR`. Para sumar uno, agregarlo ahí.
 - `catalogo.js` — dos pantallas separadas: `cargarModuloAltaArticulo` ("Alta de artículo", solo el
   formulario: alta/edición por nombre, clasificación, BOM) y `cargarModuloCatalogoKardex` ("Catálogo y
   Kardex", el listado general con ☰ acciones, export Excel/CSV, y el panel de Kardex embebido al elegir un artículo).
@@ -1069,57 +1447,29 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `trazabilidad.js` — antecedentes de proceso: Requisición → Orden de compra → Documento(s) de recepción.
   También `abrirSeguimientoPedido`: seguimiento 🔗 de un pedido de venta (producción/requisición → OC → recepción → surtidos).
 
-## Series de folios y pólizas (tabla viva)
-
-**Se actualiza en el mismo cambio en que nazca un módulo/función que emita un folio o una póliza** (ver Convenciones). Los folios
-los asigna la base (`siguiente_folio(serie)`, `js/folios.js`); los anteriores a un cambio de serie NO se renombran.
-
-**Documentos** (estado al 2026-10-13):
-
-| Serie | Qué es | Dónde se asigna | Nota |
-|---|---|---|---|
-| REQ | Requisición de compra | `js/requisiciones-compra.js` | |
-| ODC | Orden de compra | `requisicion_autorizar` (SQL), `js/ordenes-compra.js` | antes OC (corte 2026-10-05); OC-… viejos se quedan |
-| OP | Orden de producción (solo texto "OP-000011", id de la orden) | `js/produccion.js` | sin contador propio |
-| ODP | Cierre de producción (documento PROD) | `js/produccion.js` | antes PROD (corte 2026-10-05) |
-| PED | Pedido de venta | `js/pedidos-venta.js` | |
-| VTA / MER / SAL / AJU | Salida por venta / merma / salida / ajuste | `SERIE_SALIDA` en `js/folios.js` | |
-| ENT | Entrada directa | `js/entradas.js` | |
-| DCL | Devolución de cliente | `registrar_devolucion_cliente` | antes DEVCLI |
-| DPV | Devolución a proveedor | `registrar_devolucion_proveedor` | antes DEVPROV |
-| PRE | Pre-recibo (solo texto "PRE-000038", id de `pre_recibos`) | `js/recibo-operador.js` | sin contador propio |
-| — | Sin folio propio: pagos, cobros, nómina, auditoría, recepción | | decisión pendiente |
-
-**Pólizas** — hoy: folio "Tipo #número" (consecutivo por tipo y año), tipo SAT Ingreso / Egreso / Diario; cancelar = contra-asiento
-del mismo tipo (`cancelar_poliza`). Quién genera cada tipo hoy: **Egreso** = pago/anticipo a proveedor, compra de contado
-(`contabilizar_compra` si abona banco), gasto pagado; **Ingreso** = venta/cobro, reembolso de anticipo; **Diario** = recepción sin
-banco, devoluciones, activos fijos, baja de anticipo, cancelaciones.
-
-**Propuesta de series de póliza (NO implementada, pendiente de decisión del usuario):** serie de 3 letras por origen además del tipo SAT:
-
-| Serie | Origen | Tipo SAT |
-|---|---|---|
-| BAN | Pago/cobro por banco (antes "póliza de cheque") | Egreso / Ingreso |
-| VAE | Pago en efectivo a una persona | Egreso |
-| ING | Ingresos por depósitos | Ingreso |
-| DIA | Cancelaciones / diario | Diario |
-| ODP | Consumos de producción (choca con el documento ODP de cierre) | Diario |
-
-La serie saldría de la cuenta de pago (banco→BAN, caja→VAE). No renumerar pólizas viejas.
-**Preguntas abiertas:** contado+transferencia como valores por defecto; varias OC de un proveedor en una transferencia; consecutivo por
-año o continuo; choque ODP (documento vs póliza); **separar la póliza de recepción con pago en Diario (compra + aplicación de
-anticipo) + Egreso (solo la salida de banco)** — hoy `contabilizar_compra` hace UNA póliza, Egreso si abona banco (2026-10-13).
-**Verificar en la base:** que `contabilizar_compra` siga siendo la versión con anticipos (`…09-30b`), no la de `…10-07`
-(copia anterior a anticipos con 'Egreso' fijo): `select pg_get_functiondef('public.contabilizar_compra(bigint,jsonb)'::regprocedure) ilike '%_saldo_anticipo_oc%';`
-
 ## Convenciones
 
-- **Series de folios y pólizas**: toda función/módulo nuevo que emita un folio (`siguiente_folio`) o una póliza (`registrar_poliza`,
-  con su `tipo`) debe agregar o actualizar su renglón en la tabla "Series de folios y pólizas (tabla viva)" de este archivo, en el
-  mismo cambio. Si cambia una serie, anotar el corte y que los folios viejos no se renombran.
+- **Series de folios y pólizas**: toda función/módulo nuevo que emita un folio (`siguiente_folio`) o una póliza (`registrar_poliza`, serie en `polizas_series_origen`) debe agregar o actualizar su renglón en "Catálogo de series" de este archivo, en el mismo cambio. Si cambia una serie, anotar el corte y que lo ya emitido no se renombra.
+
+- **INSTRUCCIÓN PRIORITARIA — optimizar las cargas (pedido explícito del usuario 2026-10-12).** Toda pantalla o cambio nuevo debe
+  cargar lo mínimo necesario y pintar rápido; y SIEMPRE que, al tocar o revisar código, Claude detecte cargas excesivas o innecesarias
+  (catálogos completos que la pantalla ya no usa, consultas en serie que pueden ir en paralelo con `Promise.all`, `select('*')` o
+  `.limit(...)` enormes, joins/embeds que no se muestran, recargar todo para cambiar una fila, N+1 consultas dentro de un ciclo), debe
+  **avisar y sugerir la corrección** sin esperar a que el usuario note la lentitud — y corregirla si es seguro. Criterios: (1) pintar
+  la pantalla de inmediato y cargar en segundo plano lo secundario; (2) consultas independientes en paralelo; (3) pedir solo las
+  columnas y filas que se muestran (filtrar/paginar en el servidor); (4) catálogos grandes (productos, cuentas) solo donde se usen,
+  y cacheados si se reutilizan; (5) no repetir una consulta que ya se hizo en la misma pantalla. Ejemplo ya corregido: Órdenes de
+  compra tardaba en abrir por cargar todo el catálogo de productos y encadenar 5-6 consultas (2026-10-12).
 - **Selects** siempre desde la tabla real de Supabase, nunca hardcodeados.
 - **Migraciones SQL**: idempotentes (`if not exists`, `create or replace`), envueltas en `begin;`/`commit;`.
   Nunca se edita una ya corrida — se agrega una nueva. Se pegan a mano en Supabase → SQL Editor.
+- **Funciones: siempre `create or replace function` con el cuerpo COMPLETO, nunca parche de texto** (a petición
+  explícita del usuario 2026-10-09: "no quiero parches... cambios con trazabilidad más sólida, no adendums que con
+  el tiempo pierden sentido o se hacen tan frágiles que les metes más parches"). El truco de `pg_get_functiondef(oid)`
+  + `replace()` + `execute` (usado para la serie CMP de `contabilizar_produccion` y la serie REC de
+  `contabilizar_compra`, ambos ya corridos — no se deshacen, pero no se repite el patrón) queda descartado para
+  cualquier cambio nuevo: cada migración que toque una función debe poder leerse sola y mostrar qué hace la función
+  HOY, sin que alguien tenga que reconstruir una cadena de parches anteriores para entenderla.
 - **Push a GitHub** solo cuando el usuario dice "comitea" (cualquier forma), y siempre directo a `main` (así lo pidió el usuario). El repo local NO está
   conectado a git: se sube con un script temporal que usa la API de GitHub (blob→tree→commit→PATCH ref);
   el token nunca se guarda y el script se borra justo después de usarlo. GitHub Pages (URL principal) +
@@ -1143,7 +1493,7 @@ anticipo) + Egreso (solo la salida de banco)** — hoy `contabilizar_compra` hac
   detalle en subventana sin salir del reporte — documento → `window.abrirDetalleDocumentoGlobal(id)`
   (`js/documentos.js`), póliza → `window.rcVerPoliza(id)` (`js/contabilidad.js`). Si el reporte ya vive en una
   subventana, subir el `z-index` de la nueva (ver `lnkDoc`/`lnkPol` en `ordenes-produccion.js`).
-- **Pólizas se muestran como tipo + número** ("Egreso #34", el consecutivo por tipo), NUNCA con el id interno global
+- **Pólizas se muestran como tipo + número** ("Egreso No. 34", el consecutivo por tipo; si tiene serie propia, SOLO el folio: "BAN-2026-00001" — cambio del usuario 2026-10-13), NUNCA con el id interno global
   (`polizas.id`): en enlaces usar `linkPoliza` / `data-pol-id` y en mensajes `etiquetaPoliza()` (`js/enlaces-reporte.js`).
 - **Contabilidad y NIF**: toda propuesta o cambio relacionado con contabilidad (pólizas, cuentas, tipo Ingreso/Egreso/Diario,
   cuándo se reconoce un pasivo vs. cuándo sale efectivo, anticipos, etc.) debe apegarse a los principios de contabilidad y
@@ -1156,6 +1506,11 @@ anticipo) + Egreso (solo la salida de banco)** — hoy `contabilizar_compra` hac
 - **Versión de los .js**: en cada commit que toque `js/` correr `python3 actualizar-version.py` (regenera `version.json`,
   que usa `cargador.js`); si no, los navegadores pueden seguir con los archivos viejos en caché. Un módulo nuevo en
   `js/` entra solo a la lista al regenerar.
+- **Versión del CSS (hallazgo 2026-10-08)**: `css/tema-base.css`, `css/ui-moderno.css` y `css/bienvenida.css` se cargan
+  en `index.html` con `?v=<version>` igual que los `.js` — SIN esto, el navegador puede quedarse sirviendo el CSS viejo
+  indefinidamente aunque el archivo ya esté actualizado en GitHub (causó varias rondas de "no vi el cambio" en la sesión
+  del tema Claro Ice, donde el culpable real era caché, no el código). En cada commit que toque algo de `css/`, actualizar
+  a mano el `?v=` de esos 3 `<link>` en `index.html` al mismo valor que `version.json`.
 - **Subventanas (modales)** — aplica a TODAS las que se generen en cualquier proceso (nuevas y existentes), para que
   el usuario pueda analizar la información de la pantalla que la originó:
   - **Nunca ocultar el contenido que originó la subventana**: la pantalla de atrás sigue visible detrás (overlay
@@ -1249,9 +1604,51 @@ anticipo) + Egreso (solo la salida de banco)** — hoy `contabilizar_compra` hac
 
 ## Pendiente
 
+- **PARA MAÑANA (2026-10-13) — ODC en una sola operación: correr, subir y probar.** Código ya hecho en la carpeta local, NO subido a GitHub.
+  (1) Correr `sql/2026-10-12_odc_generar.sql` en Supabase → SQL Editor (crea `odc_generar` y reescribe `pagar_anticipo_oc` restituyendo el candado
+  ×1.30 que `…07d` había perdido). (2) Decir "comitea" para subir `js/requisiciones-compra.js`, `js/ordenes-compra.js`, el SQL, `version.json` y
+  `CLAUDE.md`. (3) Probar: una ODC manual ("Crear") y una desde requisición (Autorizar) — deben quedar con cotización, condiciones y precios; y un
+  anticipo desde Cuentas por pagar (ODC-000007) para confirmar el candado y que la póliza ya no diga "OC ODC-…". No subir antes de correr el SQL.
+- **FRESH START (más adelante, el usuario aún NO lo autoriza — no ejecutar ni proponer fecha sin que él lo pida).** Decisión 2026-10-12:
+  todo lo capturado hasta hoy es fase de pruebas del ERP, así que NO se parchan documentos sueltos (cada cancelación con contra-asiento
+  deja otra póliza para siempre); se limpian todos juntos al hacer el Fresh start. Se resuelven ahí, sin trabajo previo, estos hallazgos
+  del diagnóstico `sql/2026-10-12_diagnostico_unico.sql` (ya corrido, todas las pólizas cuadran aritméticamente; el "no cuadra" es contra
+  la realidad, todo del 2026-10-06): **AJU-000001** (Diario #33, $27,553.24: ajuste de saldos que dejó en cero Miel de Abeja 103,
+  Granel Miel Bee Power 10, Fructosa 7.1 y Damiana 0.9 contra 601.99 Otros gastos generales — gasto probablemente falso en octubre);
+  **Egreso #67** ($16,946, pago de F-2407 desde Cuentas por pagar, referencia de relleno `X00000000X`; sin doble pago: #38 se canceló
+  con #41 y se reclasificó en Diario #8); **Egreso #69** ($1,866.99, recepción de ODC-000001 capturada "Contado" contra 102.02 Bancos
+  extranjeros USD, cuenta sin saldo real; su recepción no se puede cancelar porque lo recibido ya se consumió en producción).
+  Al llegar el momento: (1) respaldo de Supabase (Database → Backups) justo antes; (2) revisar y actualizar el SQL de Configuración →
+  Fresh start (`js/fresh-start.js`, solo muestra el SQL, nunca borra): faltan tablas de las últimas semanas — anticipos
+  (`anticipo_oc_resoluciones`, aplicaciones tipo anticipo), `notas_compra`, `contadores_folios_poliza`, reservas de pedidos, columnas de
+  la ODC formal, `pagos_proveedor.visto_bueno_*`; (3) conservar catálogos (productos, proveedores, clientes, empleados, plan de cuentas,
+  BOM, regímenes, plantillas); (4) recargar inventario inicial real con Entrada directa "Inventario Inicial" contra 304.01. Esto reemplaza
+  al pendiente anterior "Diagnóstico de 3 documentos que no cuadran" (ya diagnosticado; no hay que cerrarlos uno por uno).
+- **[HECHO 2026-10-12 en código local, falta subir/probar: las ODC por pagar ya son renglones de "Documentos por pagar" (chip "Por anticipar", mismo botón "Pagar" azul; sin checkbox, un anticipo a la vez) y se quitó el panel aparte; la ventana de anticipo sigue siendo la compacta, unificar la ventana grande queda opcional.]** Unificar el criterio del botón "Pagar" en Finanzas → Cuentas por pagar (pedido del usuario 2026-10-09, para la próxima sesión). Hoy
+  hay dos "Pagar" distintos: el azul de cada fila de "Documentos por pagar" (deuda ya recibida → `cxpAbrirPago`, pago a 201.01) y el verde
+  de "Órdenes de compra por pagar" (ODC sin recibir → `cxpAbrirAnticipo`, anticipo a 109.01). Distinto color, distinta ventana y distinto
+  texto de ayuda, sin criterio común para el usuario. Decidir con él: un solo estilo/botón y una sola ventana de pago que decida sola
+  (anticipo vs. deuda, como ya se había acordado en la maqueta de Cuentas por pagar v2), o al menos mismo color/rótulo y una lista única.
+  Nota: el panel "Órdenes de compra por pagar" se movió ARRIBA de "Documentos por pagar" en el código local (`js/pagos-proveedor.js`,
+  `cxp-pagar-oc`) y NO está subido a GitHub todavía; la captura del usuario aún lo mostraba debajo.
+- **[HECHO 2026-10-09: el texto/enlace se reemplazó por el panel "Órdenes de compra por pagar" — lista lo pactado por Compras en la ODC (anticipo pactado, o total si es contado sin anticipo, menos lo ya pagado) con botón Pagar → modal de anticipo precargado; `cxpAbrirAnticipo(ocPre, montoPre)`. Falta subir y probar.]** Quitar el texto de ayuda debajo de las tarjetas KPI en Finanzas → Cuentas por pagar (`js/pagos-proveedor.js`, ~línea 117),
+  incluido el enlace azul "💰 pagar anticipo a una OC sin recibir" (`cxpBtnAnticipo` → `cxpAbrirAnticipo`). A petición del usuario
+  (2026-10-09): el pago de anticipo se reubicará (probablemente con la ODC formal, ver maqueta "Orden de Compra formal") — NO borrar
+  `cxpAbrirAnticipo` hasta decidir dónde vive. Pendiente de aprobación aparte: reemplazar la ODC actual (`js/ordenes-compra.js`
+  `abrirDetalleOC`/`renderVistaOC`/`renderEdicionOC` + mini-modal `reqAutorizar`) por el documento formal de la maqueta
+  https://claude.ai/artifact/UHUmppsCjW93kPZ87LwQ5d (sin los 3 botones Antecedentes/Imprimir/Editar del encabezado).
+- **Cuentas por pagar v2 + series de pólizas + visto bueno — EJECUTADO 2026-10-07, falta correr el SQL y probar.** Pendiente:
+  correr en orden `sql/2026-10-07b_cxp_v2.sql` (si no se corrió ya), `sql/2026-10-07d_polizas_series_y_visto_bueno.sql`; probar
+  en el navegador — Pagos a proveedores (KPIs, Vence, pop-up de varias OC, selector de Visto bueno), Órdenes de compra (Días de
+  crédito obligatorio, Solicitado por), y confirmar que una póliza de pago sale como "BAN-2027-00001 · Egreso #N" (o VAE si la
+  cuenta es caja). Correr `sql/2026-10-07c_diagnostico_migraciones_pendientes3.sql` (solo lectura) para confirmar qué más falta
+  de rondas anteriores (series ODC/DCL/DPV, acuerdo de pago parcial, tipo de cambio en la OC, reservas de pedidos...).
+  Sin hacer a propósito: el tratamiento contable del IVA no acreditable en efectivo > $2,000 (solo queda el aviso visual,
+  falta que el contador confirme la cuenta); que el Visto bueno aparezca en el menú de Tareas del empleado (hoy se marca a
+  mano desde un select en Pagos a proveedores).
 - Semiterminado como tipo: TERMINADO (verificado 2026-09-23): migración 1, código en `main`, `…24b` (columna `es_semiterminado`
   borrada) y `…23f` (graneles de aceite en 14.64 L, 115.02) corridos. Ids 232 y 254 (Aceite Sey Piña Colada/Chocolate)
-  corregidos a semiterminado (verificado). Pendiente: Granel Love Oil Fresa Kiwi (id 227) quedó en 7.99 L: su fórmula tiene solo 3 componentes, completarla. Al crear graneles
+  corregidos a semiterminado (verificado). **[DATO DEL USUARIO — no ofrecer; él lo sabe]** Pendiente: Granel Love Oil Fresa Kiwi (id 227) quedó en 7.99 L: su fórmula tiene solo 3 componentes, completarla. Al crear graneles
   nuevos, volver a correr revisión `…23e` + aplicar `…23f` (o usar "🧪 Revisión del granel").
 - Verificado 2026-09-23 en la base: corridas todas las migraciones de 2026-09-22 y 2026-09-23 (`…23d` no, es opcional).
   Documentos vacíos de los cierres fallidos (ids 22-25, PROD-000001/-MP y PROD-000002/-MP) marcados `cancelado` (no
@@ -1259,9 +1656,22 @@ anticipo) + Egreso (solo la salida de banco)** — hoy `contabilizar_compra` hac
 - Graneles en Kilogramos: el usuario confirmó que sus terminados los consumen en GRAMOS → no hace falta la densidad del
   granel (solo la de los insumos que la receta pida en L/mL). Si algún terminado pidiera un granel en mL, capturar la
   densidad del granel (ya se calcula sola de la fórmula; botón "Usar X kg/L como Densidad").
-- Los demás graneles de Gel/Miel/Lubricante (Anal Xtasi, Bubblegum, Cherry, Chocolate, Essence, Mango, Mint, Prolongel
+- **[DATO DEL USUARIO — no ofrecer ni listar como pendiente de Claude; él lo sabe y lo hará cuando quiera]** Los demás graneles de Gel/Miel/Lubricante (Anal Xtasi, Bubblegum, Cherry, Chocolate, Essence, Mango, Mint, Prolongel
   Retardador, Vcream, Watermelon, Miel Bee Power, Lubricante Silicón) no salieron en la revisión: o no tienen BOM o su
   nombre no dice "granel". Cuando tengan receta, se configuran con la revisión ✅/⚠ o con los SQL `…e`/`…f`.
-- Evaluar si extender el buscador de selects a otras pantallas (Salidas, Órdenes de compra, alta de BOM).
+- [HECHO 2026-10-12] Buscador de selects extendido a proveedores, clientes, cuentas contables, insumos de BOM y órdenes en toda la app (`js/buscador-auto.js`).
 - Subventanas: ya movibles y con fondo semitransparente todas las detectadas; una nueva queda cubierta sola si usa
   `fixed inset-0` (fondo + panel) o `fixed rounded-2xl` (flotante) y su barra de título es el primer hijo del panel.
+- **Compras y pagos — EJECUTADO 2026-10-07, falta correr el SQL:** puntos 1, 2 y 5 del plan quedaron en código (ver "Última
+  sesión" arriba) — con una corrección: el punto 1 no quitó ningún menú (Recibo de mercancía y Pre-recibos ya eran la misma
+  pantalla), solo el bloque de pago. El punto 3 (NDC/NDP) se implementó distinto a lo planeado: no son documentos aparte con su
+  propia póliza — se capturan en el momento de validar la recepción y ajustan el 201.01 en la MISMA póliza (a petición del
+  usuario, que aclaró que así es como se van a usar). El punto 4 (rechazo con merma dañada que se da de baja a gasto) NO se
+  hizo — el usuario decidió que no hace falta: la diferencia se resuelve con NDC/NDP en la validación, no con una merma aparte.
+  Queda pendiente, más chico: motivo de rechazo por partida (por qué no se recibió completa una línea) — informativo, no toca
+  dinero. Correr `sql/2026-10-07_compras_notas_ajuste.sql` en Supabase antes de usar la recepción.
+  Pendiente de decisión con el contador: si el IVA de la nota de ajuste debe prorratearse (hoy se ajusta solo el neto).
+  Diagnóstico de los 3 documentos que no cuadran (AJU-000001 $27,553.24, Egreso #67 $16,946 F-2407, Egreso #69 pago OC-000001 en
+  102.02 USD): SQL de solo lectura listo en `sql/2026-10-07_diagnostico_aju_egresos.sql` — correrlo y revisar antes de decidir
+  cómo cerrar cada uno (no hay función para deshacer una salida de ajuste de inventario; hay que saber primero si ese inventario
+  ya se consumió en producción).

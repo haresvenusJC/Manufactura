@@ -29,7 +29,9 @@ const normTxt = (s) => String(s || '').normalize('NFD').replace(/\p{Diacritic}/g
 // miligramo). Redondea a 4 decimales, de sobra para las unidades que se manejan.
 const pendienteSeguro = (cantidad, recibida) => Math.max(0, Math.round((Number(cantidad || 0) - Number(recibida || 0)) * 10000) / 10000);
 
+let ocCatalogosListos = Promise.resolve(); // carga de catálogos en segundo plano (detalle/edición la esperan)
 let ocProveedores = [];
+let ocEmpleados = [];
 let ocUnidades = [];
 const ocListaOrden = crearOrdenTabla('id', 'desc');
 const rmRecepOrden = crearOrdenTabla();
@@ -40,12 +42,14 @@ let ocProdSel = null;          // producto elegido en el autocompletar de la OC
 let ocRecibirId = null;        // OC preseleccionada al entrar a "Recibo de mercancía"
 
 async function ocCargarCatalogos() {
-    const [pv, um, mo] = await Promise.all([
+    const [pv, em, um, mo] = await Promise.all([
         supabaseClient.from('proveedores').select('id, nombre').order('nombre'),
+        supabaseClient.from('empleados').select('id, nombre').eq('activo', true).order('nombre'),
         supabaseClient.from('unidades_medida').select('id, nombre').order('nombre'),
         supabaseClient.from('monedas').select('id, codigo').order('id'),
     ]);
     ocProveedores = pv.data || [];
+    ocEmpleados = em.data || [];
     ocUnidades = um.data || [];
     ocMonedas = mo.data || [];
 
@@ -66,66 +70,19 @@ export async function cargarModuloOrdenesCompra() {
     const cont = document.getElementById('contenedorOrdenesCompra');
     if (!cont) return;
     cont.innerHTML = '<p class="text-slate-500 text-sm">Cargando...</p>';
-    try { await ocCargarCatalogos(); }
-    catch (e) { cont.innerHTML = `<p class="text-rose-400 text-xs">Error al cargar catálogos: ${e.message || e}</p>`; return; }
+    // La lista ya no necesita los catálogos (el formulario manual vive ahora en el documento formal de
+    // requisiciones-compra.js): se cargan en segundo plano para el detalle/edición y la pantalla pinta de inmediato.
+    ocCatalogosListos = ocCargarCatalogos().catch((e) => { console.warn("Órdenes de compra: catálogos no cargados", e); });
 
     ocPartidasTemp = [];
     ocProdSel = null;
 
-    const optProv = '<option value="">Seleccione proveedor...</option>' + ocProveedores.map(p => `<option value="${p.id}">${esc(p.nombre)}</option>`).join('');
-    const optUni = '<option value="">Unidad...</option>' + ocUnidades.map(u => `<option value="${u.id}">${esc(u.nombre)}</option>`).join('');
-    const optMon = ocMonedas.map(m => `<option value="${m.id}">${esc(m.codigo)}</option>`).join('');
 
     cont.innerHTML = `
     <div class="space-y-5">
-      <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
-        <h3 class="text-md font-semibold text-emerald-400 mb-3">Nueva orden de compra</h3>
-        <div class="grid grid-cols-1 md:grid-cols-4 lg:flex lg:flex-wrap lg:items-end gap-3 mb-3">
-          <div class="lg:flex-1 lg:min-w-[220px]"><label class="block text-xs text-slate-400 mb-1">Proveedor</label>
-            <select id="ocProveedor" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optProv}</select></div>
-          <div class="lg:w-40"><label class="block text-xs text-slate-400 mb-1">Fecha</label>
-            <input type="date" id="ocFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-          <div class="lg:w-40"><label class="block text-xs text-slate-400 mb-1">Fecha esperada</label>
-            <input type="date" id="ocFechaEsp" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-          <div class="lg:w-28"><label class="block text-xs text-slate-400 mb-1">Moneda</label>
-            <select id="ocMoneda" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optMon}</select></div>
-          <div id="ocBloqueTC" class="hidden lg:w-40"><label class="block text-xs text-slate-400 mb-1">Tipo de cambio</label>
-            <input type="number" step="0.0001" min="0" id="ocTipoCambio" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm font-mono text-slate-100">
-            <p id="ocTCFuente" class="text-[10px] text-slate-500 mt-0.5"></p></div>
-          <div class="md:col-span-4 lg:basis-full lg:min-w-[240px]"><label class="block text-xs text-slate-400 mb-1">Notas</label>
-            <input type="text" id="ocNotas" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-        </div>
-
-        <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-3 mb-3">
-          <div class="grid grid-cols-2 md:grid-cols-5 lg:flex lg:flex-wrap lg:items-end gap-2">
-            <div class="col-span-2 lg:flex-1 lg:min-w-[260px] relative">
-              <label class="block text-[11px] text-slate-400 mb-1">Producto</label>
-              <input type="text" id="ocProdInput" autocomplete="off" placeholder="Buscar o escribir uno nuevo..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
-              <div id="ocProdSug" class="hidden absolute left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-40 max-h-44 overflow-y-auto"></div>
-            </div>
-            <div class="lg:w-28"><label class="block text-[11px] text-slate-400 mb-1">Cantidad</label>
-              <input type="number" step="any" min="0" id="ocProdCant" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
-            <div class="lg:w-32"><label class="block text-[11px] text-slate-400 mb-1">Costo estimado</label>
-              <input type="number" step="any" min="0" id="ocProdCosto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
-            <div class="lg:w-44"><label class="block text-[11px] text-slate-400 mb-1">Unidad</label>
-              <select id="ocProdUnidad" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${optUni}</select></div>
-          </div>
-          <div id="ocInfoProveedor" class="hidden mt-2 text-[11px] text-slate-300 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2"></div>
-          <button type="button" id="ocAddPartida" class="mt-2 w-full lg:w-auto lg:px-6 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium py-1.5 rounded-lg text-xs">＋ Agregar partida</button>
-        </div>
-
-        <div class="overflow-x-auto border border-slate-800 rounded-lg mb-3">
-          <table class="w-full text-left text-xs text-slate-300">
-            <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-              <th class="p-2">Mi catálogo (interno)</th><th class="p-2 text-right">Cantidad</th>
-              <th class="p-2">Datos del proveedor (para comunicarle la orden)</th>
-              <th class="p-2 text-right">Costo est.</th><th class="p-2 text-right">Importe</th><th class="p-2"></th>
-            </tr></thead>
-            <tbody id="ocPartidasBody"><tr><td colspan="6" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr></tbody>
-          </table>
-        </div>
-        <button type="button" id="ocGuardar" class="w-full lg:w-auto lg:px-10 bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Guardar orden de compra</button>
-        <p id="ocMsg" class="text-xs mt-2 min-h-[1rem]"></p>
+      <div class="flex items-center gap-4 bg-slate-950 border border-slate-800 rounded-xl p-4">
+        <button type="button" onclick="window.reqAutorizar(null)" class="shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-2.5 rounded-lg text-sm">Crear</button>
+        <h3 class="text-xl font-bold text-slate-100">Nueva Orden de Compra sin Requisición</h3>
       </div>
 
       <div>
@@ -134,13 +91,6 @@ export async function cargarModuloOrdenesCompra() {
       </div>
     </div>`;
 
-    document.getElementById('ocFecha').value = hoyISO();
-    const mxn = ocMonedas.find(m => m.codigo === 'MXN');
-    if (mxn) document.getElementById('ocMoneda').value = mxn.id;
-    document.getElementById('ocMoneda').onchange = () => ocActualizarTipoCambio(OC_TC_IDS);
-    ocActualizarTipoCambio(OC_TC_IDS);
-
-    ocWireFormulario();
     await ocRenderLista();
 
     // Viene de "Autorizar y crear Orden de compra" en Requisiciones: abre esa OC directo.
@@ -322,16 +272,20 @@ async function ocGuardarOrden() {
     const msg = document.getElementById('ocMsg');
     msg.textContent = ''; msg.className = 'text-xs mt-2 min-h-[1rem]';
     if (!ocPartidasTemp.length) { msg.textContent = 'Agrega al menos una partida.'; msg.className = 'text-xs mt-2 text-rose-400'; return; }
+    const diasCreditoVal = document.getElementById('ocDiasCredito').value;
+    if (diasCreditoVal === '') { msg.textContent = 'Elige los días de crédito.'; msg.className = 'text-xs mt-2 text-rose-400'; return; }
 
     const btn = document.getElementById('ocGuardar');
     btn.disabled = true;
     try {
         const folio = await siguienteFolio('ODC');   // consecutivo desde 2026-10-05: ODC-000001, ODC-000002...
-        const { data: oc, error: e1 } = await supabaseClient.from('ordenes_compra').insert([{
+        const datosOC = {
             folio,
             proveedor_id: document.getElementById('ocProveedor').value ? parseInt(document.getElementById('ocProveedor').value) : null,
             fecha: document.getElementById('ocFecha').value || hoyISO(),
             fecha_esperada: document.getElementById('ocFechaEsp').value || null,
+            dias_credito: parseInt(diasCreditoVal),
+            solicitante_empleado_id: document.getElementById('ocSolicitante').value ? parseInt(document.getElementById('ocSolicitante').value) : null,
             moneda_id: document.getElementById('ocMoneda').value ? parseInt(document.getElementById('ocMoneda').value) : null,
             ...(ocEsMonedaExtranjera() && document.getElementById('ocTipoCambio').value ? (() => {
                 const input = document.getElementById('ocTipoCambio');
@@ -344,7 +298,20 @@ async function ocGuardarOrden() {
             })() : {}),
             estatus: 'abierta',
             notas: document.getElementById('ocNotas').value.trim() || null,
-        }]).select('id, folio').single();
+        };
+        // dias_credito / solicitante_empleado_id son columnas nuevas (sql/2026-10-07b_cxp_v2.sql y
+        // sql/2026-10-07d_polizas_series_y_visto_bueno.sql); si alguna migración no se ha corrido,
+        // reintenta quitando esa columna en vez de tronar.
+        let datosIntento = { ...datosOC };
+        let oc, e1;
+        for (let intentos = 0; intentos < 3; intentos++) {
+            ({ data: oc, error: e1 } = await supabaseClient.from('ordenes_compra').insert([datosIntento]).select('id, folio').single());
+            if (!e1 || !/does not exist|schema cache|could not find/i.test(e1.message || '')) break;
+            const col = /column "?(\w+)"?/i.exec(e1.message || '')?.[1];
+            if (!col || !(col in datosIntento)) break;
+            const { [col]: _quitado, ...resto } = datosIntento;
+            datosIntento = resto;
+        }
         if (e1) throw e1;
 
         const filas = ocPartidasTemp.map(p => ({
@@ -398,30 +365,18 @@ async function ocRenderLista() {
         if (error) throw error;
         if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin órdenes de compra.</p>'; return; }
 
-        // El botón "Pagar" solo debe verse si de verdad hay saldo pendiente
-        // (crédito, sin liquidar) — antes se mostraba con solo que la OC
-        // estuviera recibida, aunque ya estuviera pagada o fuera de contado.
-        let ocsConSaldo = new Set();
-        try {
-            const { data: cxp } = await supabaseClient
-                .from('v_cuentas_por_pagar')
-                .select('orden_compra_id')
-                .eq('estatus_cxp', 'pendiente')
-                .in('orden_compra_id', data.map(o => o.id));
-            ocsConSaldo = new Set((cxp || []).map(x => x.orden_compra_id));
-        } catch (_) { /* si la vista no existe, no se oculta el botón (mejor mostrarlo de más que de menos) */ }
-
-        // Anticipo disponible por OC (pagado antes de recibir) — requiere
-        // sql/2026-10-27_anticipo_proveedores.sql; sin la vista, simplemente
-        // no se muestra el badge (no bloquea el resto de la pantalla).
-        let anticiposPorOc = new Map();
-        try {
-            const { data: ant } = await supabaseClient
-                .from('v_anticipos_oc')
-                .select('orden_compra_id, disponible')
-                .in('orden_compra_id', data.map(o => o.id));
-            anticiposPorOc = new Map((ant || []).map(x => [x.orden_compra_id, Number(x.disponible) || 0]));
-        } catch (_) {}
+        // Las dos consultas son independientes: van en paralelo (antes una esperaba a la otra).
+        // - Saldo pendiente: el estatus PAGADO solo debe afirmarse si de verdad no hay saldo en
+        //   v_cuentas_por_pagar (si la vista no existe, no se oculta nada: mejor de más que de menos).
+        // - Anticipo disponible por OC (pagado antes de recibir): requiere sql/2026-10-27_anticipo_proveedores.sql;
+        //   sin la vista, simplemente no se muestra el badge.
+        const idsOc = data.map(o => o.id);
+        const [rCxp, rAnt] = await Promise.all([
+            supabaseClient.from('v_cuentas_por_pagar').select('orden_compra_id').eq('estatus_cxp', 'pendiente').in('orden_compra_id', idsOc).then((r) => r, () => ({ data: null })),
+            supabaseClient.from('v_anticipos_oc').select('orden_compra_id, disponible').in('orden_compra_id', idsOc).then((r) => r, () => ({ data: null })),
+        ]);
+        const ocsConSaldo = new Set((rCxp.data || []).map(x => x.orden_compra_id));
+        const anticiposPorOc = new Map((rAnt.data || []).map(x => [x.orden_compra_id, Number(x.disponible) || 0]));
 
         data.forEach(o => {
             const det = o.ordenes_compra_detalle || [];
@@ -489,6 +444,7 @@ async function ocRenderLista() {
 async function abrirDetalleOC(id) {
     const idModal = window.idSubventana('modalDetalleOC');
     if (idModal === 'modalDetalleOC') document.getElementById('modalDetalleOC')?.remove();
+    await ocCatalogosListos; // unidades de medida para pintar las partidas (se cargan en segundo plano al abrir la pantalla)
 
     const modal = document.createElement('div');
     modal.id = idModal;
@@ -501,15 +457,13 @@ async function abrirDetalleOC(id) {
     modal.innerHTML = `
         <div class="flex justify-between items-center p-4 border-b border-slate-800">
             <h3 class="text-base font-semibold text-slate-100">Orden de compra <span id="tituloDetalleOCSub" class="text-emerald-300 font-mono"></span></h3>
-            <div class="flex items-center gap-2">
-                <button onclick="window.abrirAntecedentesOC(${id})" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg">🔗 Antecedentes</button>
-                <button id="btnImprimirOC" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg">🖨️ Imprimir</button>
-                <button id="btnEditarOC" class="hidden text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg">✏️ Editar</button>
-                <button id="cerrarDetalleOC" class="text-slate-400 hover:text-slate-200 text-xl leading-none">&times;</button>
-            </div>
+            <button id="cerrarDetalleOC" class="text-slate-400 hover:text-slate-200 text-xl leading-none">&times;</button>
         </div>
         <div id="cuerpoDetalleOC" class="p-4 overflow-y-auto flex-1">
             <p class="text-slate-500 text-sm text-center">Cargando...</p>
+        </div>
+        <div class="flex justify-end p-3 border-t border-slate-800">
+            <button id="btnImprimirOC" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg">🖨️ Imprimir</button>
         </div>`;
     document.body.appendChild(modal);
     // id único del cuerpo por instancia — imprimirConPlantilla busca por id global
@@ -533,9 +487,17 @@ async function abrirDetalleOC(id) {
 
     let { data: o, error } = await supabaseClient
         .from('ordenes_compra')
-        .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, tipo_cambio, tipo_cambio_fuente, tipo_cambio_fecha, created_at, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, productos ( nombre, sku ) )')
+        .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, tipo_cambio, tipo_cambio_fuente, tipo_cambio_fecha, created_at, dias_credito, cotizacion_folio, cotizacion_contacto, cotizacion_telefono, cotizacion_email, cotizacion_fecha, cotizacion_vigencia, condicion_pago, forma_pago, anticipo_pct, anticipo_monto, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, productos ( nombre, sku ) )')
         .eq('id', id)
         .single();
+    if (error && /does not exist|schema cache|could not find/i.test(error.message || '')) {
+        // sin la migración de la ODC formal (cotización/condiciones): select de antes.
+        ({ data: o, error } = await supabaseClient
+            .from('ordenes_compra')
+            .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, tipo_cambio, tipo_cambio_fuente, tipo_cambio_fecha, created_at, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, productos ( nombre, sku ) )')
+            .eq('id', id)
+            .single());
+    }
     if (error && /does not exist|schema cache|could not find/i.test(error.message || '')) {
         // columnas de datos del proveedor aún no existen: cae al select sin ellas.
         ({ data: o, error } = await supabaseClient
@@ -558,13 +520,6 @@ async function abrirDetalleOC(id) {
             await renderVistaOC(o, cuerpo);
             await imprimirConPlantilla('orden_compra', 'Orden de compra ' + (o.folio || ('#' + o.id)), idCuerpo, marcaDeEstatus(o.estatus));
         };
-    }
-
-    const btnEditar = modal.querySelector('#btnEditarOC');
-    const puedeEditar = o.estatus === 'abierta' || o.estatus === 'borrador';
-    if (btnEditar) {
-        btnEditar.classList.toggle('hidden', !puedeEditar);
-        btnEditar.onclick = () => renderEdicionOC(o, cuerpo);
     }
 
     await renderVistaOC(o, cuerpo);
@@ -599,6 +554,17 @@ async function renderVistaOC(o, cuerpo) {
             <div><span class="block text-[10px] text-slate-500">Moneda</span><span class="text-slate-300">${esc(o.monedas?.codigo || '—')}</span></div>
             <div><span class="block text-[10px] text-slate-500">Creada el</span><span class="text-slate-300">${fmtFecha(o.created_at)}</span></div>
         </div>
+        ${(o.cotizacion_folio || o.condicion_pago) ? `
+        <div class="grid grid-cols-2 gap-3 mb-4 text-sm border-t border-slate-800 pt-3">
+            ${o.cotizacion_folio ? `<div><span class="block text-[10px] text-slate-500">Cotización del proveedor</span>
+                <span class="text-slate-100 font-mono">${esc(o.cotizacion_folio)}</span>
+                <span class="block text-[11px] text-slate-400">${esc(o.cotizacion_fecha || '')}${o.cotizacion_vigencia ? ' · vigente hasta ' + esc(o.cotizacion_vigencia) : ''}</span>
+                <span class="block text-[11px] text-slate-400">Contacto: ${esc(o.cotizacion_contacto || '—')}${o.cotizacion_telefono ? ' · ' + esc(o.cotizacion_telefono) : ''}${o.cotizacion_email ? ' · ' + esc(o.cotizacion_email) : ''}</span></div>` : '<div></div>'}
+            ${o.condicion_pago ? `<div><span class="block text-[10px] text-slate-500">Condiciones pactadas</span>
+                <span class="text-slate-100">${o.condicion_pago === 'credito' ? `Crédito ${Number(o.dias_credito || 0)} días` : 'Contado'}</span>
+                ${o.forma_pago ? `<span class="block text-[11px] text-slate-400">Forma de pago: ${esc(o.forma_pago)}</span>` : ''}
+                ${o.anticipo_pct ? `<span class="block text-[11px] text-slate-400">Anticipo comprometido: ${Number(o.anticipo_pct)}% = ${money(o.anticipo_monto)} (lo paga Finanzas antes de recibir)</span>` : '<span class="block text-[11px] text-slate-400">Sin anticipo</span>'}</div>` : ''}
+        </div>` : ''}
         ${o.notas ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Notas de la orden</span><p class="text-xs text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5">${esc(o.notas)}</p></div>` : ''}
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-xs text-slate-300">
@@ -626,10 +592,14 @@ async function renderVistaOC(o, cuerpo) {
               }).join('') || '<tr><td colspan="6" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
             </tbody>
             <tfoot>
-              <tr><td colspan="4" class="p-2 text-right font-semibold text-slate-400">Total estimado</td><td class="p-2 text-right font-mono font-semibold text-emerald-300">${money(totalEst)}</td><td></td></tr>
+              <tr><td colspan="4" class="p-2 text-right font-semibold text-slate-400">Subtotal estimado</td><td class="p-2 text-right font-mono font-semibold text-emerald-300">${money(totalEst)}</td><td></td></tr>
+              ${o.condicion_pago ? `<tr><td colspan="4" class="p-2 text-right text-slate-400">IVA 16% (estimado)</td><td class="p-2 text-right font-mono text-slate-300">${money(totalEst * 0.16)}</td><td></td></tr>
+              <tr><td colspan="4" class="p-2 text-right font-semibold text-slate-300">Total estimado</td><td class="p-2 text-right font-mono font-bold text-emerald-300">${money(totalEst * 1.16)}</td><td></td></tr>` : ''}
             </tfoot>
           </table>
-        </div>`;
+        </div>
+        ${o.condicion_pago ? `<div class="hidden print:grid grid-cols-2 gap-10 mt-10 text-[10px] text-slate-500">
+            <div class="border-t border-slate-500 pt-1">Solicitó</div><div class="border-t border-slate-500 pt-1">Autorizó compra</div></div>` : ''}`;
 }
 
 // ---- Edición de una OC ya guardada (solo mientras nada se ha recibido) ----
@@ -653,7 +623,6 @@ function renderEdicionOC(o, cuerpo) {
 
     const optProv = '<option value="">Seleccione proveedor...</option>' + ocProveedores.map(p => `<option value="${p.id}" ${p.id === o.proveedor_id ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('');
     const optMon = ocMonedas.map(m => `<option value="${m.id}" ${m.id === o.moneda_id ? 'selected' : ''}>${esc(m.codigo)}</option>`).join('');
-    const optUni = '<option value="">Unidad...</option>' + ocUnidades.map(u => `<option value="${u.id}">${esc(u.nombre)}</option>`).join('');
 
     cuerpo.innerHTML = `
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 items-end mb-3">
@@ -1092,7 +1061,7 @@ export async function cargarModuloReciboMercancia() {
       </div>` : `
       <div id="rmBloqueFiscal" class="bg-slate-950 border border-slate-800 rounded-xl p-4 mt-4">
         <label class="flex items-center gap-2 text-sm font-semibold text-slate-200 mb-3">
-          <input type="checkbox" id="rmContabilizar" checked class="accent-emerald-500"> Generar póliza contable
+          <input type="checkbox" id="rmContabilizar" checked class="accent-emerald-500"> Registrar Entrada a Almacén
         </label>
         <div id="rmCamposFiscales" class="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div><label class="block text-xs text-slate-400 mb-1">Subtotal</label>
@@ -1107,9 +1076,6 @@ export async function cargarModuloReciboMercancia() {
             <input type="number" step="0.01" min="0" id="rmRetIva" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
           <div><label class="block text-xs text-slate-400 mb-1">Ret. ISR</label>
             <input type="number" step="0.01" min="0" id="rmRetIsr" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Condición</label>
-            <select id="rmCondicion" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-              <option value="credito">Crédito (por pagar)</option><option value="contado">Contado</option></select></div>
           <div><label class="block text-xs text-slate-400 mb-1">Forma de pago (SAT)</label>
             <select id="rmFormaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optForma}</select></div>
           <div><label class="block text-xs text-slate-400 mb-1">Método de pago</label>
@@ -1120,9 +1086,7 @@ export async function cargarModuloReciboMercancia() {
             <input type="number" step="0.0001" min="0" id="rmTipoCambio" value="1" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono"></div>
           <div class="md:col-span-2"><label class="block text-xs text-slate-400 mb-1">Uso CFDI</label>
             <select id="rmUsoCfdi" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${optUso}</select></div>
-          <div id="rmPagoWrap" class="hidden md:col-span-2"><label class="block text-xs text-slate-400 mb-1">Pagado desde (caja / banco)</label>
-            <select id="rmCuentaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-              <option value="">— caja / banco —</option>${rmCuentasPago.map(c => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('')}</select></div>
+          <p class="md:col-span-2 text-[10px] text-slate-500 self-end mb-1">Cómo y cuándo se paga esta compra ya no se captura aquí — lo decide Finanzas en Cuentas por pagar, sobre lo que quede pendiente en 201.01 después del anticipo (si lo hubo).</p>
           <div class="md:col-span-2"><label class="block text-xs text-slate-400 mb-1">UUID CFDI</label>
             <input type="text" id="rmUuid" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono"></div>
           <div class="md:col-span-2"><label class="block text-xs text-slate-400 mb-1">RFC emisor</label>
@@ -1255,9 +1219,6 @@ export async function cargarModuloReciboMercancia() {
         document.getElementById('rmContabilizar').onchange = (e) => {
             document.getElementById('rmCamposFiscales').style.display = e.target.checked ? '' : 'none';
         };
-        document.getElementById('rmCondicion').onchange = (e) => {
-            document.getElementById('rmPagoWrap').classList.toggle('hidden', e.target.value !== 'contado');
-        };
     }
 
     document.getElementById('rmConfirmar').onclick = () => rmConfirmar(ocs);
@@ -1337,7 +1298,7 @@ function rmTarjetaPrerecibo(pr, { conBotones = true } = {}) {
     // originó) queda consultable con un clic — reutiliza la trazabilidad ya
     // construida (js/trazabilidad.js) en vez de duplicar la consulta aquí.
     const oc = pr.orden_compra_id
-        ? `<button type="button" onclick="window.abrirAntecedentesOC(${pr.orden_compra_id})" class="text-sm text-slate-200 font-semibold hover:text-sky-400 hover:underline text-left cursor-pointer">OC ${esc(pr.ordenes_compra?.folio || '#' + pr.orden_compra_id)} · ${esc(pr.ordenes_compra?.proveedores?.nombre || 's/proveedor')}</button>`
+        ? `<button type="button" onclick="window.abrirAntecedentesOC(${pr.orden_compra_id})" class="text-sm text-slate-200 font-semibold hover:text-sky-400 hover:underline text-left cursor-pointer">${esc(pr.ordenes_compra?.folio || 'OC #' + pr.orden_compra_id)} · ${esc(pr.ordenes_compra?.proveedores?.nombre || 's/proveedor')}</button>`
         : `<span class="text-sm text-slate-200 font-semibold">Sin OC · ref. ${esc(pr.referencia || '—')}</span>`;
     const lineas = Array.isArray(pr.lineas) ? pr.lineas : [];
     const discrepancias = lineas.filter(l => Number(l.cantidad_capturada || 0) !== Number(l.cantidad_pendiente || 0));
@@ -1583,7 +1544,7 @@ window.prereciboVer = async (id) => {
     const fotos = Array.isArray(pr.fotos) ? pr.fotos : [];
     const lineas = Array.isArray(pr.lineas) ? pr.lineas : [];
     const oc = pr.orden_compra_id
-        ? `OC ${esc(pr.ordenes_compra?.folio || '#' + pr.orden_compra_id)} · ${esc(pr.ordenes_compra?.proveedores?.nombre || 's/proveedor')}`
+        ? `${esc(pr.ordenes_compra?.folio || 'OC #' + pr.orden_compra_id)} · ${esc(pr.ordenes_compra?.proveedores?.nombre || 's/proveedor')}`
         : `Sin OC · ref. ${esc(pr.referencia || '—')}`;
     rmMostrarModal(`
       <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-lg w-full max-h-[85vh] overflow-y-auto space-y-3">
@@ -1827,7 +1788,7 @@ async function rmRecepciones() {
                       <td class="p-2">${esc(d.proveedores?.nombre || '—')}</td>
                       <td class="p-2 text-right font-mono">${dets.length}</td>
                       <td class="p-2 text-right font-mono">${money(total)}</td>
-                      <td class="p-2">${d.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${d.poliza_id}, '${fecha}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer">🧾 Póliza #${d.poliza_id}</button>` : '<span class="text-slate-500">—</span>'}</td>
+                      <td class="p-2">${d.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${d.poliza_id}, '${fecha}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer"><span data-pol-id="${d.poliza_id}">póliza…</span></button>` : '<span class="text-slate-500">—</span>'}</td>
                     </tr>`;
               }).join('')}
             </tbody>
@@ -2493,36 +2454,103 @@ async function rmContabilizarDoc(documentoId, subtotalFallback, extras) {
     // Con cargos adicionales: el subtotal enviado es SOLO material (los extras van aparte),
     // para no contarlos dos veces si el CFDI ya los traía como partida.
     if (Array.isArray(extras) && extras.length) subtotal = subtotalFallback;
-    const condicion = document.getElementById('rmCondicion').value;
-    try {
-        const { data: cc, error: eCc } = await supabaseClient.rpc('contabilizar_compra', {
-            p_documento_id: documentoId,
-            p_datos: {
-                subtotal,
-                iva: nf('rmIva') * tc, ieps: nf('rmIeps') * tc, ret_iva: nf('rmRetIva') * tc, ret_isr: nf('rmRetIsr') * tc,
-                condicion,
-                costos_adicionales: (extras || []).map(e => ({
-                    concepto: e.concepto, monto: e.monto, capitaliza: e.capitaliza, cuenta_gasto_id: e.cuenta_gasto_id || null,
-                })),
-                tipo_cambio: tc,
-                forma_pago: document.getElementById('rmFormaPago')?.value || null,
-                metodo_pago: document.getElementById('rmMetodoPago')?.value || null,
-                uso_cfdi: document.getElementById('rmUsoCfdi')?.value || null,
-                moneda,
-                cuenta_pago_id: condicion === 'contado' && document.getElementById('rmCuentaPago')?.value
-                    ? parseInt(document.getElementById('rmCuentaPago').value) : null,
-                uuid_cfdi: document.getElementById('rmUuid').value.trim() || null,
-                rfc_emisor: document.getElementById('rmRfc').value.trim() || null,
-            },
-        });
-        if (eCc) throw eCc;
-        const tipoPol = cc?.tipo_poliza || 'Egreso'; // respaldo si la migración de tipo_poliza aún no corrió
-        return cc && cc.total != null
-            ? ` Póliza de ${tipoPol} generada (total ${money(cc.total)}).`
-            : ` Póliza de ${tipoPol} generada.`;
-    } catch (e) {
-        return ` (Entrada OK, pero no se contabilizó: ${e.message || e})`;
+    const datosBase = {
+        subtotal,
+        iva: nf('rmIva') * tc, ieps: nf('rmIeps') * tc, ret_iva: nf('rmRetIva') * tc, ret_isr: nf('rmRetIsr') * tc,
+        costos_adicionales: (extras || []).map(e => ({
+            concepto: e.concepto, monto: e.monto, capitaliza: e.capitaliza, cuenta_gasto_id: e.cuenta_gasto_id || null,
+        })),
+        tipo_cambio: tc,
+        forma_pago: document.getElementById('rmFormaPago')?.value || null,
+        metodo_pago: document.getElementById('rmMetodoPago')?.value || null,
+        uso_cfdi: document.getElementById('rmUsoCfdi')?.value || null,
+        moneda,
+        uuid_cfdi: document.getElementById('rmUuid').value.trim() || null,
+        rfc_emisor: document.getElementById('rmRfc').value.trim() || null,
+    };
+    // Compras ya no decide cómo se paga (eso es de Finanzas, en Cuentas por pagar) — la
+    // recepción siempre contabiliza a crédito y, si la OC tiene anticipo, se aplica solo.
+    let notaAjuste = null;
+    for (let intento = 0; intento < 2; intento++) {
+        try {
+            const { data: cc, error: eCc } = await supabaseClient.rpc('contabilizar_compra', {
+                p_documento_id: documentoId,
+                p_datos: { ...datosBase, ...(notaAjuste ? { nota_ajuste: notaAjuste } : {}) },
+            });
+            if (eCc) throw eCc;
+            const notaMsg = cc?.nota_folio ? ` Se registró ${cc.nota_folio} por la diferencia.` : '';
+            return cc && cc.total != null
+                ? ` Póliza Diario generada (total ${money(cc.total)}).${notaMsg}`
+                : ` Póliza Diario generada.${notaMsg}`;
+        } catch (e) {
+            let detalle = null;
+            try { detalle = JSON.parse(e.details || e.detail || ''); } catch (_) { /* no era json */ }
+            if (intento === 0 && detalle && detalle.necesita_nota) {
+                notaAjuste = await rmPedirNotaAjuste(detalle.tipo, detalle.monto);
+                if (notaAjuste) continue;   // reintenta con la nota ya capturada
+            }
+            return ` (Entrada OK, pero no se contabilizó: ${e.message || e})`;
+        }
     }
+}
+
+// Lo que llegó físicamente no coincide en valor con la factura (diferencia mayor a la
+// tolerancia de redondeo) — contabilizar_compra lo detecta y pide resolverlo aquí mismo,
+// sin salir de la recepción. tipoSugerido/montoSugerido vienen de su mensaje de error.
+function rmPedirNotaAjuste(tipoSugerido, montoSugerido) {
+    const motivos = [
+        'dañada en transporte', 'caducada o próxima a caducar', 'fuera de especificación de calidad',
+        'empaque roto', 'excedente (llegó más de lo ordenado)', 'producto distinto al de la OC', 'otro',
+    ];
+    return new Promise((resolve) => {
+        rmMostrarModal(`
+          <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-md w-full">
+            <h3 class="text-base font-bold text-slate-100 mb-1">Diferencia entre lo recibido y la factura</h3>
+            <p class="text-xs text-slate-400 mb-3">Lo que entró a inventario no coincide con el subtotal facturado. Regístralo como una nota para seguir — el inventario se queda en lo que de verdad llegó.</p>
+            <div class="space-y-2">
+              <div>
+                <label class="block text-xs text-slate-400 mb-1">Tipo</label>
+                <select id="rmNotaTipo" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                  <option value="credito" ${tipoSugerido === 'credito' ? 'selected' : ''}>Nota de crédito (NDC) — llegó menos, nos deben</option>
+                  <option value="cargo" ${tipoSugerido === 'cargo' ? 'selected' : ''}>Nota de cargo (NDP) — llegó más, nos cobran</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs text-slate-400 mb-1">Monto</label>
+                <input type="number" step="0.01" min="0.01" id="rmNotaMonto" value="${Number(montoSugerido || 0).toFixed(2)}" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 text-right font-mono">
+              </div>
+              <div>
+                <label class="block text-xs text-slate-400 mb-1">Motivo</label>
+                <select id="rmNotaMotivo" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                  ${motivos.map(m => `<option value="${esc(m)}">${esc(m[0].toUpperCase() + m.slice(1))}</option>`).join('')}
+                </select>
+              </div>
+              <div id="rmNotaDetalleWrap" class="hidden">
+                <label class="block text-xs text-slate-400 mb-1">Especifica</label>
+                <input type="text" id="rmNotaDetalle" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+              </div>
+            </div>
+            <p id="rmNotaMsg" class="text-xs text-rose-400 min-h-[1rem] mt-2"></p>
+            <div class="flex gap-2 mt-3">
+              <button type="button" id="rmNotaCancelar" class="flex-1 bg-slate-800 border border-slate-700 text-slate-300 py-2.5 rounded-lg text-sm">Cancelar</button>
+              <button type="button" id="rmNotaGuardar" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-lg text-sm">Registrar nota</button>
+            </div>
+          </div>`);
+        const selMotivo = document.getElementById('rmNotaMotivo');
+        const wrapDet = document.getElementById('rmNotaDetalleWrap');
+        selMotivo.onchange = () => wrapDet.classList.toggle('hidden', selMotivo.value !== 'otro');
+        document.getElementById('rmNotaCancelar').onclick = () => { rmOcultarModal(); resolve(null); };
+        document.getElementById('rmNotaGuardar').onclick = () => {
+            const tipo = document.getElementById('rmNotaTipo').value;
+            const monto = parseFloat(document.getElementById('rmNotaMonto').value) || 0;
+            const motivo = selMotivo.value;
+            const motivo_detalle = document.getElementById('rmNotaDetalle').value.trim() || null;
+            if (monto <= 0) { document.getElementById('rmNotaMsg').textContent = 'El monto debe ser mayor a 0.'; return; }
+            if (motivo === 'otro' && !motivo_detalle) { document.getElementById('rmNotaMsg').textContent = 'Motivo "Otro": especifica el detalle.'; return; }
+            rmOcultarModal();
+            resolve({ tipo, monto, motivo, motivo_detalle });
+        };
+    });
 }
 
 async function rmConfirmar(ocs) {

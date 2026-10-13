@@ -565,7 +565,7 @@ async function guardarPoliza() {
         document.getElementById('polGuardar').disabled = true;
         const { data, error } = await supabaseClient.rpc('registrar_poliza', { p_datos });
         if (error) throw error;
-        msg.textContent = `Poliza ${p_datos.tipo} #${data.numero} registrada.`;
+        msg.textContent = `Poliza ${p_datos.tipo} No. ${data.numero} registrada.`;
         msg.className = 'text-xs self-center text-emerald-400';
         polLineas = [nuevaLinea(), nuevaLinea()];
         document.getElementById('polConcepto').value = '';
@@ -659,7 +659,7 @@ function renderFilaPoliza(p) {
     let html = `
         <tr class="pol-row border-b border-slate-900 hover:bg-slate-900/40 cursor-pointer ${p.estatus === 'cancelada' ? 'opacity-50' : ''}" data-id="${p.id}">
             <td class="p-2 whitespace-nowrap">${p.fecha}</td>
-            <td class="p-2 font-mono">${p.tipo} #${p.numero}</td>
+            <td class="p-2 font-mono">${p.folio_poliza || (p.tipo + " No. " + p.numero)}</td>
             <td class="p-2">${p.concepto || ''}</td>
             <td class="p-2 text-right font-mono">${money(total)}</td>
             <td class="p-2 ${estColor}">${p.estatus}</td>
@@ -1661,7 +1661,7 @@ async function gaBuscar() {
                                 <td class="p-2 text-slate-400">${g.proveedores?.nombre || '—'}</td>
                                 <td class="p-2 font-mono text-slate-500">${g.cuentas_contables ? g.cuentas_contables.codigo : '—'}</td>
                                 <td class="p-2 text-right font-mono">${money(g.total)}</td>
-                                <td class="p-2 font-mono">${g.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${g.poliza_id}, '${g.fecha || ''}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer">🧾 ${g.polizas ? g.polizas.tipo + ' #' + g.polizas.numero : 'Póliza #' + g.poliza_id}</button>` : '<span class="text-slate-500">—</span>'}</td>
+                                <td class="p-2 font-mono">${g.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${g.poliza_id}, '${g.fecha || ''}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer"><span data-pol-id="${g.poliza_id}">póliza…</span></button>` : '<span class="text-slate-500">—</span>'}</td>
                                 <td class="p-2 ${g.estatus === 'registrado' ? 'text-emerald-400' : 'text-rose-400'}">${g.estatus}</td>
                                 <td class="p-2 text-right">
                                     ${g.estatus === 'registrado'
@@ -1744,7 +1744,7 @@ function rcFilaDetalleCuenta(cuenta, colspan) {
         return `<tr class="border-b border-slate-900/60">
             <td class="p-1.5 whitespace-nowrap text-slate-400">${p.fecha || ''}</td>
             <td class="p-1.5">
-                <button type="button" class="rc-ver-pol text-sky-400 hover:underline font-mono" data-pol="${p.id}">${p.tipo || '?'} #${p.numero ?? '?'}</button>
+                <button type="button" class="rc-ver-pol text-sky-400 hover:underline font-mono" data-pol="${p.id}">${p.tipo || '?'} No. ${p.numero ?? '?'}</button>
                 ${p.origen && p.origen !== 'manual' ? `<span class="text-[10px] text-slate-600 ml-1">(${p.origen})</span>` : ''}
                 ${p.estatus === 'cancelada' && lista.includes(m) ? '<span class="text-[10px] text-rose-400/80 ml-1">· cancelada (con reverso)</span>' : ''}
             </td>
@@ -2010,7 +2010,7 @@ function rcAuxPintar() {
         ${b.filas.map((f) => `
         <tr class="border-b border-slate-900/60">
             <td class="p-1.5 whitespace-nowrap text-slate-400">${rcEsc(f.fecha)}</td>
-            <td class="p-1.5 whitespace-nowrap"><button type="button" class="rc-ver-pol text-sky-400 hover:underline font-mono" data-pol="${f.polId}">${rcEsc(f.tipo || '?')} #${rcEsc(f.numero ?? '?')}</button></td>
+            <td class="p-1.5 whitespace-nowrap"><button type="button" class="rc-ver-pol text-sky-400 hover:underline font-mono" data-pol="${f.polId}">${rcEsc(f.tipo || '?')} No. ${rcEsc(f.numero ?? '?')}</button></td>
             <td class="p-1.5 text-slate-300">${rcEsc(f.concepto)}</td>
             <td class="p-1.5 text-[10px] text-slate-500">${rcEsc(f.origen)}${f.cancelada ? ' <span class="text-rose-400/80">· cancelada (con reverso)</span>' : ''}</td>
             <td class="p-1.5 text-right font-mono">${f.cargo ? rcFmt(f.cargo) : ''}</td>
@@ -2524,7 +2524,7 @@ window.rcVerPoliza = async function (polId) {
         cont.innerHTML = `
         <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div class="bg-slate-950 px-5 py-3 border-b border-slate-800 flex justify-between items-center">
-                <h3 class="text-sm font-bold text-slate-200">Póliza ${pol.tipo} #${pol.numero} · ${pol.fecha}</h3>
+                <h3 class="text-sm font-bold text-slate-200">Póliza ${pol.folio_poliza || (pol.tipo + ' No. ' + pol.numero)} · ${pol.fecha}</h3>
                 <button onclick="window.rcCerrarModalPoliza('${idModal}')" class="text-slate-400 hover:text-slate-200 text-lg font-bold px-2">&times;</button>
             </div>
             <div class="rc-pol-cuerpo p-5 space-y-3 overflow-y-auto text-sm">
@@ -2567,7 +2567,7 @@ window.rcVerPoliza = async function (polId) {
             </div>
         </div>`;
         cont.querySelector('.rc-pol-imprimir').onclick = () =>
-            imprimirConPlantilla('poliza', `Póliza ${pol.tipo} #${pol.numero} · ${pol.fecha}`, cont.querySelector('.rc-pol-cuerpo'), marcaDeEstatus(pol.estatus));
+            imprimirConPlantilla('poliza', `Póliza ${pol.folio_poliza || (pol.tipo + ' No. ' + pol.numero)} · ${pol.fecha}`, cont.querySelector('.rc-pol-cuerpo'), marcaDeEstatus(pol.estatus));
     } catch (err) {
         cont.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl p-6 text-sm">
             <p class="text-rose-400">No se pudo cargar la póliza.<br>${err.message || err}</p>

@@ -5,6 +5,7 @@ import { configurarFormularioEntradasDirectas } from './entradas.js';
 import { cargarModuloOrdenesCompra, cargarModuloReciboMercancia } from './ordenes-compra.js';
 import { cargarModuloRequisicionesCompra } from './requisiciones-compra.js';
 import { cargarModuloPagosProveedor } from './pagos-proveedor.js';
+import { cargarModuloPagosCompras } from './pagos-compras.js';
 import { cargarModuloCuentasPorCobrar } from './cuentas-por-cobrar.js';
 import { cargarModuloAuditoriaInventario } from './auditoria-inventario.js';
 import { cargarModuloProduccion } from './produccion.js';
@@ -43,6 +44,7 @@ import { montarLogin, cerrarSesion } from './auth.js';
 import { abrirManual } from './asistente-contable.js';
 import './enlaces-reporte.js'; // rotula "Egreso #34" en los enlaces a pólizas
 import './subventanas-movibles.js'; // todas las subventanas se pueden arrastrar (ver CLAUDE.md)
+import './buscador-auto.js'; // selects de listas largas (proveedor, cliente, cuenta...) con buscador (ver buscador-auto.js)
 
 // 1. Exposición de funciones al scope global para eventos HTML (onclick)
 window.toggleSubmenu = function(submenuId) {
@@ -209,6 +211,9 @@ window.loadView = function(viewName, opciones = {}) {
             break;
         case 'ordenes-compra':
             cargarModuloOrdenesCompra();
+            break;
+        case 'pagos-compras':
+            cargarModuloPagosCompras();
             break;
         case 'recibo-mercancia':
             cargarModuloReciboMercancia();

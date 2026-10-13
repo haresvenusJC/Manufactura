@@ -13,26 +13,41 @@ import { imprimirHtml, marcaDeEstatus } from './impresion.js';
 
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const hoyISO = () => new Date().toISOString().slice(0, 10);
-const primerDiaMesISO = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// Forma de pago de la ODC (clave SAT c_forma_pago) → valor del selector "Forma de pago" de esta pantalla.
+// Pagos registrados de una fila (documento de compra, gasto u ODC con anticipo).
+const cxpPagosDe = (x) => cxpPagosPorClave.get((x.tipo === 'oc' ? 'oc' : x.tipo) + ':' + x.id) || [];
+const cxpFormaDeClave = (c) => ({ '01': 'efectivo', '02': 'cheque', '03': 'transferencia', '04': 'tarjeta', '28': 'tarjeta', '29': 'tarjeta' }[String(c || '')] || '');
 
 // Estado del filtro de visibilidad (Pendientes / Pagadas / Canceladas / Todas)
 // y el último dataset traído, para poder refiltrar sin volver a consultar.
 let cxpCache = [];
 let cxpCuentasPago = []; // cuentas de banco/caja, para el modal de Anticipo (reusa lo ya cargado por el módulo)
+let cxpEmpleados = []; // para "Visto bueno" (ligado a un empleado real, no texto libre)
+let cxpAnticiposDisp = 0; // suma de v_anticipos_oc.disponible, para la tarjeta KPI
+let cxpPagosPorClave = new Map(); // 'compra:<id>' | 'gasto:<id>' | 'oc:<id>' -> [{pago_id, poliza_id, fecha, monto, referencia}] de los pagos registrados
 let cxpPreOcCache = null;
+let cxpDesvioPago = ''; // diferencia entre lo pactado en la ODC y la forma de pago elegida (la calcula validar() de la ventana de pago)
 let cxpFiltro = 'pendiente';
-let cxpDesde = primerDiaMesISO();
-let cxpHasta = hoyISO();
+// Vacíos siempre al entrar (nunca prellenados): si se llenan, filtran por fecha SIN importar el
+// estatus — "Desde/Hasta" ya no es exclusivo de Pagadas/Canceladas/Todas, aplica a cualquier vista.
+let cxpDesde = '';
+let cxpHasta = '';
 let cxpProveedorId = '';
-const CXP_FILTROS = [
-    { v: 'pendiente', t: 'Pendientes de pago' },
-    { v: 'pagado', t: 'Pagadas' },
-    { v: 'cancelado', t: 'Canceladas' },
-    { v: 'todas', t: 'Todas' },
+let cxpDocQ = '';
+// Estatus como menú desplegable en el encabezado de la columna (no pestañas), igual que la
+// maqueta https://claude.ai/artifact/PeKAi5Wsp4VdokSwZzMDoi: "Pendiente" es la unión de
+// vencida + parcial + sin ningún pago (vencida/parcial se calculan aquí, el backend solo
+// conoce pendiente/pagado/cancelado — v_cuentas_por_pagar.estatus_cxp).
+const CXP_ESTATUS_MENU = [
+    ['pendiente', 'Pendiente'], ['vencida', 'Vencida'], ['parcial', 'Parcial'], '-',
+    ['pagado', 'Pagada'], ['cancelado', 'Cancelada'], '-',
+    ['todas', 'Todas'],
 ];
+const CXP_ABIERTOS = ['pendiente', 'vencida', 'parcial'];
+const cxpEstLabel = (v) => CXP_ESTATUS_MENU.find((m) => Array.isArray(m) && m[0] === v)?.[1] || v;
 const cxpOrden = crearOrdenTabla();
-const cxpHistOrden = crearOrdenTabla('id', 'desc');
+
 
 export async function cargarModuloPagosProveedor() {
     const cont = document.getElementById('contenedorPagosProveedor');
@@ -44,18 +59,54 @@ export async function cargarModuloPagosProveedor() {
         const { data, error } = await supabaseClient.from('cuentas_contables')
             .select('id, codigo, nombre').eq('afectable', true).eq('activa', true).order('codigo');
         if (error) throw error;
-        ctasPago = (data || []).filter(c => /^(101|102)/.test(c.codigo));
+        // 102.02 (Bancos extranjeros USD) se excluye a propósito: la empresa no tiene cuenta en
+        // USD, siempre paga en MXN aunque la OC esté en USD. Se deja en el catálogo para cuando
+        // haya expansión a compras/ventas en el extranjero — solo se oculta de este selector.
+        ctasPago = (data || []).filter(c => /^(101|102)/.test(c.codigo) && c.codigo !== '102.02');
         cxpCuentasPago = ctasPago;
     } catch (_) {
         cont.innerHTML = '<p class="text-amber-400 text-xs">El módulo de contabilidad no está instalado (faltan las cuentas contables).</p>';
         return;
     }
 
-    let cxp = [];
     try {
-        const { data, error } = await supabaseClient.from('v_cuentas_por_pagar').select('*').order('fecha', { ascending: true });
-        if (error) throw error;
-        cxp = data || [];
+        const { data } = await supabaseClient.from('empleados').select('id, nombre').eq('activo', true).order('nombre');
+        cxpEmpleados = data || [];
+    } catch (_) { cxpEmpleados = []; }
+    try {
+        const { data } = await supabaseClient.from('v_anticipos_oc').select('disponible');
+        cxpAnticiposDisp = (data || []).reduce((a, r) => a + Number(r.disponible || 0), 0);
+    } catch (_) { cxpAnticiposDisp = 0; }
+
+    // Para las filas ya "Pagada": la póliza de la columna es la del RECIBO (contabilizar_compra),
+    // nunca se actualiza con la del pago — es por diseño, son dos eventos distintos. Esto trae
+    // aparte la póliza del/los pago(s) que la liquidaron, para mostrar las dos.
+    // Pagos registrados de cada documento / gasto / ODC (anticipos): sirven para la columna Póliza
+    // (póliza del pago) y para el botón "Ver" (comprobante y cancelar pago). Clave: 'compra:<id>', 'gasto:<id>', 'oc:<id>'.
+    cxpPagosPorClave = new Map();
+    try {
+        const { data } = await supabaseClient.from('pagos_proveedor_aplicaciones')
+            .select('tipo, documento_id, gasto_id, orden_compra_id, monto, pagos_proveedor!inner ( id, fecha, poliza_id, estatus, referencia )')
+            .eq('pagos_proveedor.estatus', 'registrado').in('tipo', ['compra', 'gasto', 'anticipo_oc']);
+        (data || []).forEach((a) => {
+            const clave = a.tipo === 'compra' ? 'compra:' + a.documento_id : a.tipo === 'gasto' ? 'gasto:' + a.gasto_id : 'oc:' + a.orden_compra_id;
+            const arr = cxpPagosPorClave.get(clave) || [];
+            arr.push({ pago_id: a.pagos_proveedor.id, poliza_id: a.pagos_proveedor.poliza_id, fecha: a.pagos_proveedor.fecha, monto: Number(a.monto || 0), referencia: a.pagos_proveedor.referencia });
+            cxpPagosPorClave.set(clave, arr);
+        });
+    } catch (_) { /* degrada sin esto */ }
+
+    let cxp = [];
+    let ocPorPagar = [];
+    try {
+        // Independientes: van en paralelo (la ODC por pagar nunca lanza, devuelve [] si falla).
+        const [rCxp, ocRows] = await Promise.all([
+            supabaseClient.from('v_cuentas_por_pagar').select('*').order('fecha', { ascending: true }),
+            cxpCargarOcPorPagar(),
+        ]);
+        if (rCxp.error) throw rCxp.error;
+        cxp = rCxp.data || [];
+        ocPorPagar = ocRows;
     } catch (err) {
         const m = err?.message || String(err);
         cont.innerHTML = /does not exist|schema cache|could not find/i.test(m)
@@ -64,31 +115,64 @@ export async function cargarModuloPagosProveedor() {
         return;
     }
 
-    cxpCache = cxp;
+    cxpCache = cxp.concat(ocPorPagar); // las ODC por pagar (compromisos pactados) viven en la misma lista
     cxpPreOcCache = window.__cxpOcPreseleccion || null;
     window.__cxpOcPreseleccion = null;
     cxpFiltro = 'pendiente';
-    cxpDesde = primerDiaMesISO(); cxpHasta = hoyISO(); cxpProveedorId = '';
+    cxpDesde = ''; cxpHasta = ''; cxpProveedorId = '';
 
     cont.innerHTML = `
     <div class="space-y-4">
-      <div class="flex justify-end">
-        <button type="button" id="cxpBtnAnticipo" class="text-xs bg-amber-700 hover:bg-amber-600 text-white px-3 py-2 rounded-lg whitespace-nowrap">💰 Pagar anticipo a una OC</button>
-      </div>
-
       <div id="cxpPanelDocumentos" class="bg-slate-950 border border-slate-800 rounded-xl p-4"></div>
 
-      <div>
-        <h3 class="text-md font-semibold text-slate-300 mb-2">Pagos registrados</h3>
-        <div id="cxpHist" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-500">Cargando...</div>
-      </div>
     </div>`;
 
-    document.getElementById('cxpBtnAnticipo').onclick = cxpAbrirAnticipo;
-
     cxpPintarDocumentos();
-    await cxpHistorial();
     montarGuia(cont, 'pagos-proveedor');
+}
+
+// =====================================================================
+//  Órdenes de compra por pagar — lo que COMPRAS pactó en la ODC formal
+//  (sql/2026-10-09_odc_formal.sql) y FINANZAS ejecuta. Entran a "Documentos
+//  por pagar" como un renglón más (tipo 'oc', chip "Por anticipar"): es un
+//  compromiso de pago manifestado, aunque aún no sea deuda contable (no está
+//  en 201.01 hasta recibir). Lo que se paga ahí es un anticipo (Cargo 109.01 /
+//  Abono banco) que al recibir se aplica contra el pasivo. Monto por pagar =
+//  anticipo pactado; si la ODC es de contado y no pactó anticipo, el total
+//  estimado con IVA (pago anticipado total); menos lo ya pagado. Crédito sin
+//  anticipo no aparece: se paga como deuda una vez recibida la mercancía.
+//  Nunca lanza: si algo falla devuelve [] (la lista de deuda sigue funcionando).
+// =====================================================================
+async function cxpCargarOcPorPagar() {
+    try {
+        const [rOc, rAnt] = await Promise.all([
+            supabaseClient.from('ordenes_compra')
+                .select('id, folio, fecha, fecha_esperada, proveedor_id, condicion_pago, dias_credito, forma_pago, anticipo_pct, anticipo_monto, proveedores ( nombre ), ordenes_compra_detalle ( cantidad, costo_unitario_estimado )')
+                .in('estatus', ['abierta', 'recibida_parcial'])
+                .not('condicion_pago', 'is', null)
+                .order('id', { ascending: false }),
+            supabaseClient.from('v_anticipos_oc').select('orden_compra_id, pagado').then((r) => r, () => ({ data: null })),
+        ]);
+        if (rOc.error) throw rOc.error;
+        const pagadoPorOc = new Map((rAnt.data || []).map((a) => [a.orden_compra_id, Number(a.pagado || 0)]));
+        return (rOc.data || []).map((o) => {
+            const sub = (o.ordenes_compra_detalle || []).reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0), 0);
+            const total = Math.round(sub * 1.16 * 100) / 100;
+            const objetivo = Number(o.anticipo_monto) > 0 ? Number(o.anticipo_monto) : (o.condicion_pago === 'contado' ? total : 0);
+            const pagado = pagadoPorOc.get(o.id) || 0;
+            const textoPactado = (o.condicion_pago === 'credito' ? `Crédito ${Number(o.dias_credito || 0)} días` : 'Contado')
+                + (Number(o.anticipo_pct) > 0 ? ` · anticipo ${Number(o.anticipo_pct)}%` : '');
+            return {
+                tipo: 'oc', id: o.id, folio: o.folio || '#' + o.id, fecha: o.fecha, vence: null,
+                proveedor_id: o.proveedor_id, proveedor_nombre: o.proveedores?.nombre || '—',
+                total, pagado, saldo: Math.round((objetivo - pagado) * 100) / 100, objetivo,
+                orden_compra_id: o.id, poliza_id: null, estatus_cxp: Math.round((objetivo - pagado) * 100) / 100 > 0.01 ? 'pendiente' : 'pagado', textoPactado,
+            };
+        }).filter((o) => o.saldo > 0.01 || o.pagado > 0.01); // anticipo ya cubierto: se queda como "Pagada" (para ver/cancelar su pago)
+    } catch (e) {
+        console.warn('Cuentas por pagar: no se pudieron cargar las órdenes de compra por pagar —', e?.message || e);
+        return [];
+    }
 }
 
 // Repinta solo el panel "Documentos por pagar" según cxpFiltro, sin
@@ -97,115 +181,180 @@ function cxpPintarDocumentos() {
     const panel = document.getElementById('cxpPanelDocumentos');
     if (!panel) return;
 
-    // "Pendientes de pago" nunca se oculta por fecha (es lo que debes, no
-    // caduca por ser de un mes anterior) — a petición del usuario, antes
-    // se escondía fuera del rango "inicio de mes a hoy" y avisaba con un
-    // banner aparte; ahora simplemente siempre se ve todo. "Pagadas" /
-    // "Canceladas" / "Todas" sí respetan el rango elegido (ahí sí es un
-    // historial, tiene sentido acotarlo).
+    // "Desde/Hasta" aplica a cualquier estatus por igual (antes "Pendiente" lo ignoraba siempre) —
+    // vacíos (default) no excluyen nada. Las tarjetas KPI SÍ siguen siendo el total real sin
+    // importar el rango de fecha elegido (son "cuánto debo de verdad", no la vista filtrada).
     const porProveedor = (x) => !cxpProveedorId || String(x.proveedor_id || '') === cxpProveedorId;
+    const porDoc = (x) => !cxpDocQ || (x.folio || '').toLowerCase().includes(cxpDocQ.toLowerCase());
     const porFecha = (x) => (!cxpDesde || (x.fecha || '') >= cxpDesde) && (!cxpHasta || (x.fecha || '') <= cxpHasta);
-    const pendientesTodas = cxpCache.filter((x) => x.estatus_cxp === 'pendiente' && porProveedor(x));
-    const noPendientesConFecha = cxpCache.filter((x) => x.estatus_cxp !== 'pendiente' && porProveedor(x) && porFecha(x));
+    const esVencida = (x) => x.estatus_cxp === 'pendiente' && !!x.vence && x.vence < hoyISO();
+    const esParcial = (x) => x.tipo !== 'oc' && x.estatus_cxp === 'pendiente' && Number(x.pagado || 0) > 0;
+
+    const pendientesKPI = cxpCache.filter((x) => x.estatus_cxp === 'pendiente' && porProveedor(x) && porDoc(x));
+    const pendientesTodas = pendientesKPI.filter(porFecha);
+    const noPendientesConFecha = cxpCache.filter((x) => x.estatus_cxp !== 'pendiente' && porProveedor(x) && porDoc(x) && porFecha(x));
     const todasVista = [...pendientesTodas, ...noPendientesConFecha];
 
     const conteos = {
         pendiente: pendientesTodas.length,
+        vencida: pendientesTodas.filter(esVencida).length,
+        parcial: pendientesTodas.filter(esParcial).length,
         pagado: noPendientesConFecha.filter((x) => x.estatus_cxp === 'pagado').length,
         cancelado: noPendientesConFecha.filter((x) => x.estatus_cxp === 'cancelado').length,
     };
 
-    const esPendiente = cxpFiltro === 'pendiente';
-    const filtrados = esPendiente ? pendientesTodas
+    const esAbierto = CXP_ABIERTOS.includes(cxpFiltro);
+    const filtrados = cxpFiltro === 'pendiente' ? pendientesTodas
+        : cxpFiltro === 'vencida' ? pendientesTodas.filter(esVencida)
+        : cxpFiltro === 'parcial' ? pendientesTodas.filter(esParcial)
         : cxpFiltro === 'todas' ? todasVista
         : noPendientesConFecha.filter((x) => x.estatus_cxp === cxpFiltro);
-    const totalGeneral = filtrados.reduce((a, x) => a + Number(x.saldo || 0), 0);
 
     aplicarOrden(cxpOrden, filtrados, (x, campo) => {
         switch (campo) {
-            case 'tipo': return x.tipo || '';
             case 'folio': return (x.folio || String(x.id)).toLowerCase();
             case 'proveedor': return (x.proveedor_nombre || '').toLowerCase();
             case 'fecha': return x.fecha || '';
             case 'total': return Number(x.total || 0);
-            case 'pagado': return Number(x.pagado || 0);
+            case 'vence': return x.vence || '';
             case 'saldo': return Number(x.saldo || 0);
             default: return x.id;
         }
     });
 
-    const pills = CXP_FILTROS.map((f) => {
-        const n = f.v === 'todas' ? todasVista.length : (conteos[f.v] || 0);
-        const on = f.v === cxpFiltro;
-        return `<button type="button" class="cxp-filtro-btn text-xs px-3 py-1.5 rounded-lg border transition ${on ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'}" data-filtro="${f.v}">${f.t} <span class="opacity-70">(${n})</span></button>`;
-    }).join('');
-
     const proveedoresUnicos = new Map();
     cxpCache.forEach((x) => { if (x.proveedor_id && !proveedoresUnicos.has(x.proveedor_id)) proveedoresUnicos.set(x.proveedor_id, x.proveedor_nombre || `#${x.proveedor_id}`); });
-    const optProveedor = '<option value="">— todos los proveedores —</option>' +
-        [...proveedoresUnicos.entries()]
-            .sort((a, b) => a[1].localeCompare(b[1], 'es'))
-            .map(([id, nombre]) => `<option value="${id}" ${cxpProveedorId === String(id) ? 'selected' : ''}>${esc(nombre)}</option>`).join('');
+    const listaProveedores = [...proveedoresUnicos.entries()].sort((a, b) => a[1].localeCompare(b[1], 'es'));
 
-    const estatusBadge = (x) => x.estatus_cxp === 'cancelado'
-        ? '<span class="text-[10px] text-rose-400 font-semibold">CANCELADO</span>'
-        : x.estatus_cxp === 'pagado'
-            ? '<span class="text-[10px] text-emerald-400 font-semibold">PAGADO</span>'
-            : '';
+    // Chip de estatus por fila (Pendiente/Vencida/Parcial/Pagada/Cancelada) — igual que la maqueta.
+    const chipEstatus = (x) => {
+        if (x.tipo === 'oc' && x.estatus_cxp === 'pendiente') return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 whitespace-nowrap">Por anticipar</span>';
+        if (x.estatus_cxp === 'cancelado') return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-950 text-rose-300">Cancelada</span>';
+        if (x.estatus_cxp === 'pagado') return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300">Pagada</span>';
+        if (esVencida(x)) return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-950 text-rose-300">Vencida</span>';
+        if (esParcial(x)) return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-950 text-sky-300">Parcial</span>';
+        return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-950 text-amber-300">Pendiente</span>';
+    };
+
+    // Encabezado de columna como menú desplegable (triángulo grande + valor elegido DEBAJO del
+    // botón, en letra chica, para que elegir un filtro nunca ensanche la columna): mismo patrón
+    // en los 3 — Documento (busca folio de OC), Proveedor (lista), Estatus (lista con conteo).
+    // La etiqueta del valor elegido va con position:absolute (no en flujo) para que TODOS los
+    // encabezados queden en el mismo renglón, tengan o no un filtro activo — mismo tamaño de
+    // letra y padding que thOrden() (orden-tabla.js: p-3, hereda text-xs de la tabla).
+    const thFiltro = (id, titulo, etiqueta, menuHtml) => `
+      <th class="p-3 relative">
+        <button type="button" id="cxpTh${id}" class="inline-flex items-center gap-1 max-w-full text-sky-400 hover:text-sky-300 font-semibold normal-case tracking-normal"><span class="truncate">${titulo}${etiqueta ? ` <span class="text-[10px] font-normal">${etiqueta}</span>` : ''}</span><span class="text-base leading-none shrink-0">▼</span></button>
+        <div id="cxp${id}Menu" class="hidden absolute top-full left-0 mt-1 z-30 bg-slate-800 border border-slate-600 rounded-lg p-2 shadow-2xl normal-case font-normal">${menuHtml}</div>
+      </th>`;
+
+    const thDoc = thFiltro('Doc', 'Documento', cxpDocQ ? `· ${esc(cxpDocQ)}` : '', `
+      <div class="w-52">
+        <input type="search" id="cxpDocQInput" value="${esc(cxpDocQ)}" placeholder="Buscar folio de OC" autocomplete="off" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-slate-100 mb-1.5">
+        <button type="button" id="cxpDocClear" class="text-[11px] text-slate-400 hover:text-slate-200">Quitar búsqueda</button>
+      </div>`);
+
+    const thProv = thFiltro('Prov', 'Proveedor', cxpProveedorId ? `· ${esc(proveedoresUnicos.get(Number(cxpProveedorId)) || '')}` : '', `
+      <div class="w-56">
+        <input type="search" id="cxpProvQInput" placeholder="Buscar proveedor" autocomplete="off" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-xs text-slate-100 mb-1.5">
+        <div id="cxpProvLista" class="max-h-56 overflow-y-auto">
+          <button type="button" data-prov="" class="cxp-prov-opt block w-full text-left text-xs px-2 py-1.5 rounded ${!cxpProveedorId ? 'text-sky-400 font-semibold' : 'text-slate-200 hover:bg-slate-700'}">Todos los proveedores</button>
+          ${listaProveedores.map(([id, nombre]) => `<button type="button" data-prov="${id}" data-nombre="${esc(nombre.toLowerCase())}" class="cxp-prov-opt block w-full text-left text-xs px-2 py-1.5 rounded ${cxpProveedorId === String(id) ? 'text-sky-400 font-semibold' : 'text-slate-200 hover:bg-slate-700'}">${esc(nombre)}</button>`).join('')}
+        </div>
+      </div>`);
+
+    const thEst = thFiltro('Est', 'Estatus', cxpFiltro === 'pendiente' ? '' : `· ${cxpEstLabel(cxpFiltro)}`, `
+      <div class="w-48">
+        ${CXP_ESTATUS_MENU.map((m) => m === '-' ? '<hr class="border-slate-700 my-1">' :
+            `<button type="button" data-est="${m[0]}" class="cxp-est-opt flex items-center justify-between gap-3 w-full text-left text-xs px-2 py-1.5 rounded ${cxpFiltro === m[0] ? 'text-sky-400 font-semibold' : 'text-slate-200 hover:bg-slate-700'}"><span>${m[1]}</span><span class="text-slate-500">${m[0] === 'todas' ? todasVista.length : (conteos[m[0]] || 0)}</span></button>`
+        ).join('')}
+      </div>`);
+
+    const hoy7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    // Las tarjetas de deuda NO suman los compromisos por anticipar (aún no es deuda contable: no está en 201.01).
+    const sumSi = (f) => pendientesKPI.filter((x) => x.tipo !== 'oc').filter(f).reduce((a, x) => a + Number(x.saldo || 0), 0);
+    const porAnticiparKPI = pendientesKPI.filter((x) => x.tipo === 'oc').reduce((a, x) => a + Number(x.saldo || 0), 0);
+    const kpis = `
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-2">
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-2">
+          <p class="text-[10px] uppercase text-slate-500">Por anticipar (ODC)</p>
+          <p class="font-mono text-lg text-sky-300">${money(porAnticiparKPI)}</p>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-2">
+          <p class="text-[10px] uppercase text-slate-500">Saldo total pendiente</p>
+          <p class="font-mono text-lg text-slate-100">${money(sumSi(() => true))}</p>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-2">
+          <p class="text-[10px] uppercase text-slate-500">Vencido</p>
+          <p class="font-mono text-lg text-rose-400">${money(sumSi((x) => x.vence && x.vence < hoyISO()))}</p>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-2">
+          <p class="text-[10px] uppercase text-slate-500">Vence en 7 días</p>
+          <p class="font-mono text-lg text-amber-300">${money(sumSi((x) => x.vence && x.vence >= hoyISO() && x.vence <= hoy7))}</p>
+        </div>
+        <div class="bg-slate-950 border border-slate-800 rounded-xl p-2">
+          <p class="text-[10px] uppercase text-slate-500">Anticipos disponibles</p>
+          <p class="font-mono text-lg text-sky-300">${money(cxpAnticiposDisp)}</p>
+        </div>
+      </div>`;
 
     panel.innerHTML = `
-      <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+      ${kpis}
+      <div class="flex items-end mb-2 flex-wrap gap-4">
         <h3 class="text-md font-semibold text-slate-300">Documentos por pagar</h3>
-        <span class="text-xs text-slate-400">${esPendiente ? 'Saldo total' : 'Suma'}: <span class="font-mono text-amber-300">${money(totalGeneral)}</span></span>
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="flex items-center gap-1.5"><label class="text-[10px] text-slate-400">Desde</label>
+            <input type="date" id="cxpDesde" value="${cxpDesde}" placeholder="mm/dd/aaaa" class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></div>
+          <div class="flex items-center gap-1.5"><label class="text-[10px] text-slate-400">Hasta</label>
+            <input type="date" id="cxpHasta" value="${cxpHasta}" placeholder="mm/dd/aaaa" class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></div>
+          <button type="button" id="cxpLimpiarFiltros" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg">Limpiar</button>
+          <button type="button" id="cxpBtnAnticipo" title="Para una OC anterior a las condiciones pactadas, que no aparece en la lista" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg">Anticipo a otra OC</button>
+        </div>
       </div>
-      <div class="flex flex-wrap items-end gap-2 mb-3">
-        <div><label class="block text-[10px] text-slate-400 mb-1">Desde</label>
-          <input type="date" id="cxpDesde" value="${cxpDesde}" ${esPendiente ? 'disabled' : ''} class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 disabled:opacity-40"></div>
-        <div><label class="block text-[10px] text-slate-400 mb-1">Hasta</label>
-          <input type="date" id="cxpHasta" value="${cxpHasta}" ${esPendiente ? 'disabled' : ''} class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 disabled:opacity-40"></div>
-        <div class="min-w-[200px]"><label class="block text-[10px] text-slate-400 mb-1">Proveedor</label>
-          <select id="cxpFiltroProveedor" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100">${optProveedor}</select></div>
-        <button type="button" id="cxpLimpiarFiltros" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg">Limpiar</button>
-      </div>
-      ${esPendiente ? '<p class="text-[10px] text-slate-500 mb-3">"Desde/Hasta" no aplica aquí — pendientes de pago siempre se ven todos, sin importar la fecha.</p>' : ''}
-      <div class="flex flex-wrap gap-2 mb-3">${pills}</div>
-      ${filtrados.length ? `
-      <div class="overflow-x-auto border border-slate-800 rounded-lg">
-        <table class="w-full text-left text-xs text-slate-300">
+      <div class="border border-slate-800 rounded-lg">
+        <table class="w-full text-left text-xs text-slate-300 table-fixed">
+          <colgroup><col style="width:44px"><col style="width:13%"><col style="width:20%"><col style="width:9%"><col style="width:9%"><col style="width:10%"><col style="width:10%"><col style="width:11%"><col style="width:18%"><col style="width:92px"></colgroup>
           <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-            ${esPendiente ? '<th class="p-2"><input type="checkbox" id="cxpAll" class="accent-emerald-500"></th>' : '<th class="p-2">Estatus</th>'}
-            ${thOrden(cxpOrden, 'tipo', 'Tipo')}${thOrden(cxpOrden, 'folio', 'Folio')}${thOrden(cxpOrden, 'proveedor', 'Proveedor')}${thOrden(cxpOrden, 'fecha', 'Fecha')}
-            ${thOrden(cxpOrden, 'total', 'Total', 'text-right justify-end')}${thOrden(cxpOrden, 'pagado', 'Pagado', 'text-right justify-end')}${thOrden(cxpOrden, 'saldo', 'Saldo', 'text-right justify-end')}
-            <th class="p-2">Póliza / Recibo</th>
+            <th class="p-3">${esAbierto ? '<input type="checkbox" id="cxpAll" class="accent-emerald-500">' : ''}</th>
+            ${thDoc}
+            ${thProv}
+            ${thOrden(cxpOrden, 'fecha', 'Fecha')}
+            ${thOrden(cxpOrden, 'vence', 'Vence')}${thOrden(cxpOrden, 'total', 'Total', 'text-right justify-end')}${thOrden(cxpOrden, 'saldo', 'Saldo', 'text-right justify-end')}
+            ${thEst}
+            <th class="p-3">Póliza</th>
+            <th class="p-3"></th>
           </tr></thead>
           <tbody id="cxpBody">
-            ${filtrados.map((x) => {
-                const pre = esPendiente && cxpPreOcCache && x.tipo === 'compra' && Number(x.orden_compra_id) === Number(cxpPreOcCache);
-                const verPoliza = x.poliza_id
-                    ? `<button type="button" onclick="window.verPolizaDeDocumento(${x.poliza_id}, '${x.fecha || ''}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer">🧾 Póliza #${x.poliza_id}</button>`
-                    : '';
-                const verDoc = x.tipo === 'compra'
-                    ? `<button type="button" onclick="window.abrirDetalleDocumentoGlobal(${x.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded cursor-pointer">Ver recibo</button>`
-                    : '';
+            ${filtrados.length ? filtrados.map((x) => {
+                const pre = esAbierto && cxpPreOcCache && x.tipo === 'compra' && Number(x.orden_compra_id) === Number(cxpPreOcCache);
+                const vencida = esVencida(x);
+                const polizasPago = x.estatus_cxp === 'pagado' ? cxpPagosDe(x).map((p) => p.poliza_id).filter(Boolean) : [];
+                const abierto = x.estatus_cxp === 'pendiente';
                 return `
-                <tr class="border-b border-slate-900 ${x.estatus_cxp === 'cancelado' ? 'opacity-60' : ''}" data-tipo="${x.tipo}" data-id="${x.id}" data-saldo="${x.saldo}" data-prov="${x.proveedor_id || ''}" data-prov-nombre="${esc(x.proveedor_nombre || '—')}" data-folio="${esc(x.folio || '#' + x.id)}">
-                  ${esPendiente
-                      ? `<td class="p-2 text-center"><input type="checkbox" class="cxp-chk accent-emerald-500 w-4 h-4" ${pre ? 'checked' : ''}></td>`
-                      : `<td class="p-2">${estatusBadge(x)}</td>`}
-                  <td class="p-2">${x.tipo}</td>
-                  <td class="p-2">${x.tipo === 'compra' ? linkDoc(x.id, x.folio || '#' + x.id, 'font-mono text-slate-200') : `<span class="font-mono text-slate-200">${esc(x.folio || '#' + x.id)}</span>`}</td>
-                  <td class="p-2">${esc(x.proveedor_nombre || '—')}</td>
-                  <td class="p-2 whitespace-nowrap text-slate-400">${x.fecha || ''}</td>
-                  <td class="p-2 text-right font-mono">${money(x.total)}</td>
-                  <td class="p-2 text-right font-mono text-slate-500">${money(x.pagado)}</td>
-                  <td class="p-2 text-right font-mono text-amber-300">${money(x.saldo)}</td>
-                  <td class="p-2"><div class="flex flex-col gap-1">${verPoliza}${verDoc}${!verPoliza && !verDoc ? '<span class="text-slate-500">—</span>' : ''}</div></td>
+                <tr class="border-b border-slate-900 ${x.estatus_cxp === 'cancelado' ? 'opacity-60' : ''}" data-poliza="${x.poliza_id || ''}" data-tipo="${x.tipo}" data-id="${x.id}" data-saldo="${x.saldo}" data-total="${x.total || 0}" data-oc-id="${x.orden_compra_id || ''}" data-prov="${x.proveedor_id || ''}" data-prov-nombre="${esc(x.proveedor_nombre || '—')}" data-folio="${esc(x.folio || '#' + x.id)}">
+                  <td class="p-2 text-center">${esAbierto && x.tipo !== 'oc' ? `<input type="checkbox" class="cxp-chk accent-emerald-500 w-4 h-4" ${pre ? 'checked' : ''}>` : ''}</td>
+                  <td class="p-2">${x.tipo === 'compra' ? linkDoc(x.id, x.folio || '#' + x.id, 'text-xs font-mono text-slate-200')
+                      : x.tipo === 'oc' ? `<button type="button" onclick="window.verDetalleOC(${x.id})" class="text-xs font-mono text-emerald-300 hover:underline">${esc(x.folio)}</button>`
+                      : `<span class="text-xs font-mono text-slate-200">${esc(x.folio || '#' + x.id)}</span>`}</td>
+                  <td class="p-2 text-xs">${esc(x.proveedor_nombre || '—')}</td>
+                  <td class="p-2 text-xs whitespace-nowrap text-slate-400">${x.fecha || ''}</td>
+                  <td class="p-2 text-xs whitespace-nowrap ${vencida ? 'text-rose-400 font-semibold' : 'text-slate-400'}">${x.vence || '—'}</td>
+                  <td class="p-2 text-right text-xs font-mono">${money(x.total)}</td>
+                  <td class="p-2 text-right text-xs font-mono text-amber-300">${money(x.saldo)}</td>
+                  <td class="p-2">${chipEstatus(x)}</td>
+                  <td class="p-2 text-xs">${x.tipo === 'oc' && abierto ? `<span class="text-slate-400" title="Lo que Compras pactó en la ODC">${esc(x.textoPactado || '')}</span>`
+                      // Pagada: solo la póliza del PAGO (BAN-/VAE-…); la del recibo se ve con el botón "Ver".
+                      : polizasPago.length ? `<div class="flex flex-col gap-0.5">${polizasPago.map((pid) => `<span>${linkPoliza(pid, 'text-xs font-mono text-emerald-400 hover:underline')}</span>`).join('')}</div>`
+                      : `<span>${linkPoliza(x.poliza_id, 'text-xs font-mono text-sky-400 hover:underline')} <span class="text-slate-600">recibo</span></span>`}</td>
+                  <td class="p-2 text-right">${abierto && (esAbierto || cxpFiltro === 'todas')
+                      ? `<button type="button" class="cxp-pagar-fila inline-block w-[72px] text-center text-xs bg-sky-600 hover:bg-sky-500 text-white font-medium py-1.5 rounded-lg">Pagar</button>`
+                      : !abierto ? `<button type="button" class="cxp-ver-fila inline-block w-[72px] text-center text-xs bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600 font-medium py-1.5 rounded-lg">Ver</button>` : ''}</td>
                 </tr>`;
-            }).join('')}
+            }).join('') : `<tr><td colspan="10" class="p-4 text-center text-slate-500">No hay documentos en "${cxpEstLabel(cxpFiltro).toLowerCase()}" con los filtros elegidos.</td></tr>`}
           </tbody>
         </table>
       </div>
-      ${esPendiente ? `
+      ${esAbierto ? `
       <div id="cxpBarraSel" class="hidden items-center justify-between gap-3 flex-wrap mt-3 border border-emerald-700 rounded-lg p-3 bg-slate-900">
         <span class="text-sm text-slate-300"><span id="cxpSelTxt"></span></span>
         <div class="flex gap-2">
@@ -213,20 +362,26 @@ function cxpPintarDocumentos() {
           <button type="button" id="cxpRegistrar" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-5 py-2 rounded-lg text-sm">Pagar selección</button>
         </div>
       </div>` : ''}
-      ` : `<p class="text-slate-500 text-sm">No hay documentos en "${CXP_FILTROS.find((f) => f.v === cxpFiltro)?.t.toLowerCase()}" con los filtros de fecha/proveedor elegidos.</p>`}
       <p id="cxpMsg" class="text-xs mt-2 min-h-[1rem]"></p>
     `;
 
-    panel.querySelectorAll('.cxp-filtro-btn').forEach((b) => {
-        b.onclick = () => { cxpFiltro = b.dataset.filtro; cxpPintarDocumentos(); };
-    });
     document.getElementById('cxpDesde').onchange = (e) => { cxpDesde = e.target.value; cxpPintarDocumentos(); };
     document.getElementById('cxpHasta').onchange = (e) => { cxpHasta = e.target.value; cxpPintarDocumentos(); };
-    document.getElementById('cxpFiltroProveedor').onchange = (e) => { cxpProveedorId = e.target.value; cxpPintarDocumentos(); };
-    document.getElementById('cxpLimpiarFiltros').onclick = () => { cxpDesde = ''; cxpHasta = ''; cxpProveedorId = ''; cxpPintarDocumentos(); };
+    document.getElementById('cxpLimpiarFiltros').onclick = () => { cxpDesde = ''; cxpHasta = ''; cxpProveedorId = ''; cxpDocQ = ''; cxpPintarDocumentos(); };
+    document.getElementById('cxpBtnAnticipo').onclick = () => cxpAbrirAnticipo();
     wireOrdenTabla(panel, cxpOrden, cxpPintarDocumentos);
+    cxpWireFiltrosEncabezado(panel);
 
-    if (!esPendiente || !filtrados.length) return;
+    // "Pagar" por fila: paga solo ESE documento, sin tener que marcar su casilla primero (también en la vista "Todas").
+    document.querySelectorAll('#cxpBody .cxp-pagar-fila').forEach((b) => {
+        b.onclick = () => cxpAbrirPago([b.closest('tr')]);
+    });
+    // "Ver" (documento pagado o cancelado): elige qué póliza / documento abrir. La del pago ya está en la columna Póliza.
+    document.querySelectorAll('#cxpBody .cxp-ver-fila').forEach((b) => {
+        b.onclick = () => cxpAbrirVer(b.closest('tr'));
+    });
+
+    if (!esAbierto) return;
 
     // Un pago = un proveedor: al marcar uno, los demás proveedores se deshabilitan.
     const seleccionadas = () => Array.from(document.querySelectorAll('#cxpBody tr')).filter((tr) => tr.querySelector('.cxp-chk')?.checked);
@@ -257,31 +412,240 @@ function cxpPintarDocumentos() {
         document.getElementById('cxpAll').checked = false;
         actualizarSeleccion();
     };
-    document.getElementById('cxpRegistrar').onclick = () => cxpAbrirPago(seleccionadas());
+    document.getElementById('cxpRegistrar').onclick = () => {
+        const filas = seleccionadas();
+        if (filas.length > 1) cxpAbrirAutorizacion(filas); else cxpAbrirPago(filas);
+    };
     actualizarSeleccion();
 }
 
-// Ventana de pago: total (saldo completo, no editable) o parcial (un solo documento,
-// monto editable y acuerdo con el proveedor obligatorio).
-function cxpAbrirPago(filas) {
-    if (!filas.length) return;
-    const docs = filas.map((tr) => ({ tipo: tr.dataset.tipo, id: Number(tr.dataset.id), saldo: parseFloat(tr.dataset.saldo) || 0, folio: tr.dataset.folio, prov: tr.dataset.provNombre }));
-    const total = docs.reduce((a, d) => a + d.saldo, 0);
-    const provNombre = docs[0].prov;
-    const filasHtml = docs.map((d) => `<tr><td class="p-2 font-mono">${esc(d.folio)}</td><td class="p-2 text-right font-mono">${money(d.saldo)}</td></tr>`).join('');
-    const opcionesCuenta = cxpCuentasPago.map((c) => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
-
+// "Ver" en un documento ya pagado o cancelado: pagos que lo cubrieron (comprobante y cancelar pago) y qué más abrir.
+// La póliza del PAGO (BAN-/VAE-…) ya está en la columna Póliza de la fila. Esta es la ÚNICA pantalla desde la que se
+// cancela un pago (Finanzas); la consulta para Compras (Compras → Pagos a proveedores) no trae el botón Cancelar.
+function cxpAbrirVer(tr) {
+    const polizaRecibo = tr.dataset.poliza ? Number(tr.dataset.poliza) : null;
+    const esCompra = tr.dataset.tipo === 'compra';
+    const esOc = tr.dataset.tipo === 'oc';
+    const pagos = cxpPagosDe({ tipo: tr.dataset.tipo, id: Number(tr.dataset.id) });
+    const opcion = (html) => `<div class="px-3 py-2 rounded-lg bg-slate-900 border border-slate-800">${html}</div>`;
     cxpMostrarModal(`
-      <div class="bg-slate-950 border border-slate-700 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 space-y-4 shadow-2xl">
-        <div class="flex items-start justify-between gap-3">
-          <div>
-            <h3 class="text-md font-semibold text-emerald-400">Registrar pago a ${esc(provNombre)}</h3>
-            <p class="text-xs text-slate-400">${docs.length} documento(s) · saldo ${money(total)}</p>
-          </div>
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-md w-full">
+        <div class="flex items-start justify-between gap-3 mb-1">
+          <h3 class="text-base font-bold text-slate-100">Ver · <span class="font-mono text-emerald-400">${esc(tr.dataset.folio)}</span></h3>
           <button type="button" class="text-slate-400 hover:text-slate-100 text-xl leading-none" onclick="window.cxpAntCerrar()">&times;</button>
         </div>
-        <table class="w-full text-xs text-slate-300"><tbody>${filasHtml}</tbody></table>
+        <p class="text-xs text-slate-400 mb-3">${esc(tr.dataset.provNombre)}</p>
+        <div class="space-y-2 text-sm">
+          ${pagos.length ? `<div class="space-y-1.5"><p class="text-[11px] uppercase text-slate-500 font-semibold">${esOc ? 'Anticipos pagados' : 'Pagos'}</p>
+            ${pagos.map((p) => `<div class="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-900 border border-slate-800">
+              <div class="min-w-0"><span class="block text-xs text-slate-400">${esc(p.fecha || '')} · ${money(p.monto)}${p.referencia ? ' · ' + esc(p.referencia) : ''}</span>${linkPoliza(p.poliza_id, 'text-sm font-mono text-emerald-400 hover:underline')}</div>
+              <div class="flex gap-1.5 shrink-0">
+                <button type="button" class="cxp-ver-print text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded" data-id="${p.pago_id}">🖨️ Comprobante</button>
+                <button type="button" class="cxp-ver-cancel text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded" data-id="${p.pago_id}">Cancelar pago</button>
+              </div></div>`).join('')}</div>` : ''}
+          ${polizaRecibo ? opcion(`<span class="text-slate-400 text-xs block">Póliza del recibo de mercancía</span>${linkPoliza(polizaRecibo, 'text-sm font-mono text-sky-400 hover:underline')}`) : ''}
+          ${esCompra ? opcion(`<span class="text-slate-400 text-xs block">Documento de recepción</span>${linkDoc(Number(tr.dataset.id), 'Abrir ' + tr.dataset.folio, 'text-sm text-sky-400 hover:underline')}`) : ''}
+          ${tr.dataset.ocId ? opcion(`<span class="text-slate-400 text-xs block">Orden de compra</span><button type="button" onclick="window.verDetalleOC(${Number(tr.dataset.ocId)})" class="text-sm text-sky-400 hover:underline">Abrir la orden de compra</button>`) : ''}
+          ${!pagos.length && !polizaRecibo && !esCompra && !tr.dataset.ocId ? '<p class="text-xs text-slate-500">Este registro no tiene más documentos que abrir.</p>' : ''}
+        </div>
+      </div>`);
+    document.querySelectorAll('#cxpModalWrap .cxp-ver-print').forEach((b) => { b.onclick = () => cxpImprimirComprobante(Number(b.dataset.id)); });
+    document.querySelectorAll('#cxpModalWrap .cxp-ver-cancel').forEach((b) => {
+        b.onclick = async () => {
+            if (!confirm('¿Cancelar este pago? Se genera la póliza de reverso y los saldos vuelven a quedar pendientes.')) return;
+            const { error } = await supabaseClient.rpc('cancelar_pago_proveedor', { p_pago_id: Number(b.dataset.id) });
+            if (error) { alert('No se pudo cancelar: ' + error.message); return; }
+            window.cxpAntCerrar();
+            await cargarModuloPagosProveedor();
+        };
+    });
+}
 
+function cxpCerrarMenusFiltro() {
+    ['cxpDocMenu', 'cxpProvMenu', 'cxpEstMenu'].forEach((id) => { document.getElementById(id)?.classList.add('hidden'); });
+}
+// Un solo listener global (como subventanas-movibles.js): cierra cualquier menú de encabezado
+// abierto al tocar fuera, sin importar cuántas veces se repinte la tabla.
+if (typeof document !== 'undefined' && !window.__cxpMenuListener) {
+    window.__cxpMenuListener = true;
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#cxpDocMenu, #cxpProvMenu, #cxpEstMenu, #cxpThDoc, #cxpThProv, #cxpThEst')) cxpCerrarMenusFiltro();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cxpCerrarMenusFiltro(); });
+}
+
+function cxpWireFiltrosEncabezado(panel) {
+    const toggle = (btnId, menuId) => {
+        const btn = document.getElementById(btnId);
+        const menu = document.getElementById(menuId);
+        if (!btn || !menu) return;
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            const abrir = menu.classList.contains('hidden');
+            cxpCerrarMenusFiltro();
+            if (abrir) { menu.classList.remove('hidden'); const i = menu.querySelector('input'); if (i) setTimeout(() => i.focus(), 0); }
+        };
+    };
+    toggle('cxpThDoc', 'cxpDocMenu');
+    toggle('cxpThProv', 'cxpProvMenu');
+    toggle('cxpThEst', 'cxpEstMenu');
+
+    // El buscador de Documento sí repinta todo el panel (necesita refiltrar la tabla), así que
+    // sin esto perdería el foco y la posición del cursor en cada tecla.
+    const docInput = document.getElementById('cxpDocQInput');
+    if (docInput) docInput.oninput = (e) => {
+        const pos = e.target.selectionStart;
+        cxpDocQ = e.target.value;
+        cxpPintarDocumentos();
+        const nuevo = document.getElementById('cxpDocQInput');
+        if (nuevo) { document.getElementById('cxpDocMenu')?.classList.remove('hidden'); nuevo.focus(); nuevo.setSelectionRange(pos, pos); }
+    };
+    document.getElementById('cxpDocClear')?.addEventListener('click', () => { cxpDocQ = ''; cxpPintarDocumentos(); });
+
+    // El buscador de Proveedor solo filtra la lista ya pintada (no repinta nada), por eso no
+    // necesita el mismo cuidado de foco.
+    document.getElementById('cxpProvQInput')?.addEventListener('input', (e) => {
+        const q = e.target.value.trim().toLowerCase();
+        panel.querySelectorAll('.cxp-prov-opt[data-nombre]').forEach((b) => { b.classList.toggle('hidden', !!q && !b.dataset.nombre.includes(q)); });
+    });
+    panel.querySelectorAll('.cxp-prov-opt').forEach((b) => { b.onclick = () => { cxpProveedorId = b.dataset.prov || ''; cxpPintarDocumentos(); }; });
+    panel.querySelectorAll('.cxp-est-opt').forEach((b) => { b.onclick = () => { cxpFiltro = b.dataset.est; cxpPintarDocumentos(); }; });
+}
+
+// Pagar varias OC del mismo proveedor en una sola transferencia sigue
+// permitido, pero pide autorización del responsable de Finanzas antes de
+// abrir el pago (por ahora un campo de texto — más adelante se ligaría al
+// usuario que inició sesión con ese rol, sin tener que escribirlo).
+function cxpAbrirAutorizacion(filas) {
+    const total = filas.reduce((a, tr) => a + (parseFloat(tr.dataset.saldo) || 0), 0);
+    cxpMostrarModal(`
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-md w-full">
+        <div class="flex items-start justify-between gap-3 mb-2">
+          <h3 class="text-base font-bold text-slate-100">Autorización requerida</h3>
+          <button type="button" class="text-slate-400 hover:text-slate-100 text-xl leading-none" onclick="window.cxpAntCerrar()">&times;</button>
+        </div>
+        <p class="text-xs text-slate-400 mb-3">Vas a pagar ${filas.length} documentos de <b class="text-slate-200">${esc(filas[0].dataset.provNombre)}</b> en una sola transferencia (${money(total)}). Por política, esto necesita el visto bueno del responsable de Finanzas.</p>
+        <div><label class="block text-[10px] text-slate-400 mb-1">Autoriza (nombre)</label>
+          <input type="text" id="cxpAutNombre" placeholder="Nombre de quien autoriza" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
+        <p class="text-[10px] text-sky-400 bg-sky-950/40 border border-sky-900 rounded-lg px-2.5 py-2 mt-2">Por ahora es un campo de texto libre — más adelante se ligaría al usuario que inició sesión con ese rol.</p>
+        <p id="cxpAutErr" class="text-xs text-rose-400 min-h-[1rem] mt-1"></p>
+        <div class="flex justify-end gap-2 mt-2">
+          <button type="button" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-2 rounded-lg" onclick="window.cxpAntCerrar()">Cancelar</button>
+          <button type="button" id="cxpAutOk" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg">Autorizar y continuar</button>
+        </div>
+      </div>`);
+    document.getElementById('cxpAutOk').onclick = () => {
+        const nombre = document.getElementById('cxpAutNombre').value.trim();
+        if (!nombre) { document.getElementById('cxpAutErr').textContent = 'Escribe quién autoriza.'; return; }
+        cxpAbrirPago(filas);
+    };
+}
+
+// Ventana de pago: dos columnas, igual que la maqueta (https://claude.ai/artifact/PeKAi5Wsp4VdokSwZzMDoi) —
+// izquierda: proveedor/documento, qué ampara el pago (detalle real solo si es UN documento), aprobaciones;
+// derecha: datos del pago, resumen y vista previa de la póliza. Pago total (saldo completo, no editable) o
+// parcial (un solo documento, monto editable y acuerdo con el proveedor obligatorio).
+async function cxpAbrirPago(filas) {
+    if (!filas.length) return;
+    // Una ODC por pagar (compromiso pactado, aún sin recibir) se paga como anticipo: otro asiento
+    // (109.01), por eso no se mezcla con documentos de deuda en el mismo pago.
+    if (filas[0].dataset.tipo === 'oc') { await cxpAbrirAnticipo(Number(filas[0].dataset.id), parseFloat(filas[0].dataset.saldo) || null); return; }
+    const docs = filas.map((tr) => ({
+        tipo: tr.dataset.tipo, id: Number(tr.dataset.id), saldo: parseFloat(tr.dataset.saldo) || 0,
+        totalDoc: parseFloat(tr.dataset.total) || 0, ocId: tr.dataset.ocId ? Number(tr.dataset.ocId) : null,
+        folio: tr.dataset.folio, prov: tr.dataset.provNombre,
+    }));
+    const provId = filas[0].dataset.prov ? Number(filas[0].dataset.prov) : null;
+
+    cxpMostrarModal(`<div class="bg-slate-950 border border-slate-700 rounded-xl w-full max-w-sm p-5 text-sm text-slate-400 shadow-2xl">Cargando…</div>`);
+
+    // El detalle "rico" (línea por línea, subtotal/IVA, datos de la OC, trazabilidad real: requisición
+    // que autorizó la OC y nota de crédito/cargo si la hubo) solo aplica cuando se paga UN documento a
+    // la vez — con varios documentos seleccionados se queda la tabla resumen folio+saldo.
+    let detalle = null, proveedorInfo = null;
+    if (docs.length === 1 && docs[0].tipo === 'compra') {
+        try {
+            const [{ data: doc }, { data: lineas }, { data: prov }, { data: oc }, { data: req }, { data: notas }] = await Promise.all([
+                supabaseClient.from('documentos').select('subtotal, iva, total').eq('id', docs[0].id).maybeSingle(),
+                supabaseClient.from('documento_detalles').select('cantidad, costo_unitario, subtotal, productos ( nombre, sku, cuentas_contables!cuenta_inventario_id ( codigo ) )').eq('documento_id', docs[0].id),
+                provId ? supabaseClient.from('proveedores').select('nombre, rfc').eq('id', provId).maybeSingle() : Promise.resolve({ data: null }),
+                docs[0].ocId ? supabaseClient.from('ordenes_compra').select('folio, fecha, dias_credito, condicion_pago, forma_pago, anticipo_pct').eq('id', docs[0].ocId).maybeSingle() : Promise.resolve({ data: null }),
+                docs[0].ocId ? supabaseClient.from('requisiciones_compra').select('folio, solicitada_por, revisada_por, revisada_en').eq('orden_compra_id', docs[0].ocId).maybeSingle() : Promise.resolve({ data: null }),
+                supabaseClient.from('notas_compra').select('folio, tipo, monto, motivo, motivo_detalle, estatus').eq('documento_id', docs[0].id),
+            ]);
+            detalle = { doc: doc || {}, lineas: lineas || [], oc: oc || null, requisicion: req || null, notas: notas || [] };
+            proveedorInfo = prov || null;
+        } catch (_) { detalle = null; }
+    }
+
+    cxpPintarVentanaPago(docs, provId, detalle, proveedorInfo);
+}
+
+function cxpPintarVentanaPago(docs, provId, detalle, proveedorInfo) {
+    const total = docs.reduce((a, d) => a + d.saldo, 0);
+    const pagadoAntes = docs.reduce((a, d) => a + (d.totalDoc - d.saldo), 0);
+    const provNombre = docs[0].prov;
+    const opcionesCuenta = cxpCuentasPago.map((c) => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
+    const opcionesEmpleado = cxpEmpleados.map((e) => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('');
+    const unico = docs.length === 1;
+
+    const bloqueProveedorDoc = `
+      <div class="space-y-2">
+        <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+          <div><span class="text-slate-500 block">Proveedor</span><span class="text-slate-200">${esc(provNombre)}</span></div>
+          <div><span class="text-slate-500 block">RFC</span><span class="text-slate-200 font-mono">${esc(proveedorInfo?.rfc || '—')}</span></div>
+          ${unico ? `
+          <div><span class="text-slate-500 block">Fecha de la ODC</span><span class="text-slate-200 font-mono">${esc(detalle?.oc?.fecha || '—')}</span></div>
+          <div><span class="text-slate-500 block">Días de crédito</span><span class="text-slate-200">${detalle?.oc?.dias_credito != null ? detalle.oc.dias_credito + ' días' : '— (sin capturar)'}</span></div>
+          ${detalle?.oc?.condicion_pago ? `<div class="col-span-2"><span class="text-slate-500 block">Pactado por Compras en la ODC</span>
+            <span class="text-slate-200">${detalle.oc.condicion_pago === 'credito' ? `Crédito ${Number(detalle.oc.dias_credito || 0)} días` : 'Contado'}${detalle.oc.forma_pago ? ' · pago por ' + esc(cxpFormaDeClave(detalle.oc.forma_pago) || detalle.oc.forma_pago) : ''}${Number(detalle.oc.anticipo_pct) > 0 ? ' · anticipo ' + Number(detalle.oc.anticipo_pct) + '%' : ''}</span></div>` : ''}
+          <div class="col-span-2"><span class="text-slate-500 block">Documentos</span>
+            ${docs[0].ocId ? `<button type="button" onclick="window.verDetalleOC(${docs[0].ocId})" class="text-sky-400 hover:underline">Ver ${esc(detalle?.oc?.folio || 'ODC')}</button> · ` : ''}
+            ${linkDoc(docs[0].id, 'Ver recepción', 'text-sky-400 hover:underline')}
+            ${(detalle?.notas || []).filter((n) => n.estatus === 'activa').map((n) => ` · <span class="text-amber-300 font-mono">${esc(n.folio)}</span>`).join('')}
+          </div>` : `<div class="col-span-2"><span class="text-slate-500 block">Documentos</span><span class="text-slate-200">${docs.length} seleccionados (ver tabla abajo)</span></div>`}
+        </div>
+      </div>`;
+
+    const bloqueAmpara = `
+      <div class="space-y-2">
+        <h4 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Qué ampara este pago</h4>
+        ${unico && detalle?.lineas?.length ? `
+        <div class="overflow-x-auto border border-slate-800 rounded-lg">
+          <table class="w-full text-left text-[11px] text-slate-300">
+            <thead class="bg-slate-900 text-slate-500 uppercase"><tr><th class="p-1.5">Código</th><th class="p-1.5">Descripción</th><th class="p-1.5">Cta.</th><th class="p-1.5 text-right">Cant.</th><th class="p-1.5 text-right">P. Unit.</th><th class="p-1.5 text-right">Importe</th></tr></thead>
+            <tbody>${detalle.lineas.map((l) => `<tr class="border-t border-slate-900"><td class="p-1.5 font-mono">${esc(l.productos?.sku || '—')}</td><td class="p-1.5">${esc(l.productos?.nombre || '—')}</td><td class="p-1.5 font-mono">${esc(l.productos?.cuentas_contables?.codigo || '115.01')}</td><td class="p-1.5 text-right font-mono">${l.cantidad}</td><td class="p-1.5 text-right font-mono">${money(l.costo_unitario)}</td><td class="p-1.5 text-right font-mono">${money(l.subtotal)}</td></tr>`).join('')}</tbody>
+          </table>
+        </div>
+        <div class="text-xs text-slate-400 space-y-0.5 text-right pr-1">
+          <p>Subtotal <span class="font-mono text-slate-200">${money(detalle.doc.subtotal)}</span></p>
+          <p>IVA <span class="font-mono text-slate-200">${money(detalle.doc.iva)}</span></p>
+          <p class="font-semibold">Total <span class="font-mono text-amber-300">${money(detalle.doc.total)}</span></p>
+        </div>` : `
+        <div class="overflow-x-auto border border-slate-800 rounded-lg">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="bg-slate-900 text-slate-500 uppercase"><tr><th class="p-1.5">Documento</th><th class="p-1.5 text-right">Saldo</th></tr></thead>
+            <tbody>${docs.map((d) => `<tr class="border-t border-slate-900"><td class="p-1.5 font-mono">${esc(d.folio)}</td><td class="p-1.5 text-right font-mono">${money(d.saldo)}</td></tr>`).join('')}</tbody>
+          </table>
+        </div>`}
+      </div>`;
+
+    const req = detalle?.requisicion;
+    const notasActivas = (detalle?.notas || []).filter((n) => n.estatus === 'activa');
+    const filaTraza = (txt) => `<p class="flex items-start gap-1.5 text-xs text-slate-300"><span class="text-emerald-400 shrink-0">✓</span><span>${txt}</span></p>`;
+    const bloqueAprobaciones = `
+      <div class="space-y-1.5">
+        <h4 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Aprobaciones y trazabilidad</h4>
+        ${unico && req ? filaTraza(`Requisición <b class="font-mono">${esc(req.folio)}</b> autorizada${req.revisada_por ? ' por ' + esc(req.revisada_por) : ''}${req.revisada_en ? ' · ' + esc(String(req.revisada_en).slice(0, 10)) : ''}`) : ''}
+        ${unico && notasActivas.length ? notasActivas.map((n) => `<p class="flex items-start gap-1.5 text-xs text-amber-300 bg-amber-950/40 border border-amber-900 rounded-lg px-2.5 py-1.5"><span class="shrink-0">⚠</span><span>Nota ${n.tipo === 'credito' ? 'de crédito' : 'de cargo'} <b class="font-mono">${esc(n.folio)}</b> por ${money(n.monto)} — ${esc(n.motivo)}${n.motivo_detalle ? ': ' + esc(n.motivo_detalle) : ''}</span></p>`).join('') : ''}
+        ${!unico ? `<p class="text-xs text-slate-500">Trazabilidad detallada solo cuando se paga un documento a la vez.</p>` : (!req && !notasActivas.length ? `<p class="text-xs text-slate-500">Sin requisición ligada ni notas de ajuste para este documento.</p>` : '')}
+        <label class="block text-xs text-slate-400 mb-1 mt-1.5">Visto bueno de quien solicitó <span class="text-slate-500">· informativo, opcional</span></label>
+        <select id="cxpVistoBueno" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">— sin confirmar —</option>${opcionesEmpleado}</select>
+      </div>`;
+
+    const bloqueDatosPago = `
+      <div class="space-y-2">
+        <h4 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Datos del pago</h4>
         <div class="flex gap-2">
           <button type="button" id="cxpTipoTotal" aria-pressed="true" class="text-xs px-3 py-1.5 rounded-lg border bg-sky-600 border-sky-500 text-white">Pago total</button>
           <button type="button" id="cxpTipoParcial" aria-pressed="false" class="text-xs px-3 py-1.5 rounded-lg border bg-slate-900 border-slate-800 text-slate-300">Pago parcial</button>
@@ -301,20 +665,61 @@ function cxpAbrirPago(filas) {
           <div><label class="block text-xs text-slate-400 mb-1">Cuenta (banco / caja)</label>
             <select id="cxpCuentaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">— elige —</option>${opcionesCuenta}</select></div>
           <div><label class="block text-xs text-slate-400 mb-1">Forma de pago</label>
-            <select id="cxpFormaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option>transferencia</option><option>cheque</option><option>tarjeta</option><option>efectivo</option></select></div>
+            <select id="cxpFormaPago" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="" selected>— elegir —</option><option value="transferencia">transferencia</option><option value="cheque">cheque</option><option value="tarjeta">tarjeta</option><option value="efectivo">efectivo</option></select></div>
           <div><label class="block text-xs text-slate-400 mb-1">Referencia</label>
             <input type="text" id="cxpRefPago" placeholder="No. de transferencia / cheque" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
         </div>
-        <p id="cxpPagoErr" class="text-xs text-rose-400 min-h-[1rem]"></p>
-        <div class="flex justify-end gap-2">
-          <button type="button" class="text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-4 py-2 rounded-lg" onclick="window.cxpAntCerrar()">Cancelar</button>
-          <button type="button" id="cxpConfirmarPago" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-5 py-2 rounded-lg text-sm">Confirmar pago</button>
+        <p id="cxpAlertaEfectivo" class="hidden text-xs text-amber-300 bg-amber-950/40 border border-amber-900 rounded-lg px-2.5 py-2">Pagos en efectivo mayores a $2,000 no son deducibles y su IVA no es acreditable. Confírmalo con tu contador.</p>
+        <div><label class="block text-xs text-slate-400 mb-1">Notas internas</label>
+          <input type="text" id="cxpNotasPago" placeholder="Opcional" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+      </div>`;
+
+    const bloqueResumen = `
+      <div class="space-y-1 text-xs border-t border-slate-800 pt-3">
+        <h4 class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Resumen</h4>
+        <p class="flex justify-between"><span class="text-slate-500">Total</span><span class="font-mono text-slate-200">${money(total + pagadoAntes)}</span></p>
+        <p class="flex justify-between"><span class="text-slate-500">Pagado anteriormente</span><span class="font-mono text-slate-200">${money(pagadoAntes)}</span></p>
+        <p class="flex justify-between font-semibold"><span>Este pago</span><span id="cxpResumenEste" class="font-mono text-emerald-400">${money(total)}</span></p>
+        <p class="flex justify-between"><span class="text-slate-500">Saldo restante</span><span id="cxpResumenSaldo" class="font-mono text-amber-300">$0.00</span></p>
+      </div>
+      <div id="cxpPolizaPreview" class="border border-dashed border-slate-700 rounded-lg p-3 text-xs text-slate-400">Elige la cuenta de pago para ver la póliza.</div>`;
+
+    cxpMostrarModal(`
+      <div class="bg-slate-950 border border-slate-700 rounded-xl w-full max-w-4xl max-h-[92vh] overflow-y-auto shadow-2xl">
+        <div class="flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-800">
+          <div>
+            <h3 class="text-md font-semibold text-slate-100">Registrar pago · <span class="font-mono text-emerald-400">${unico ? esc(docs[0].folio) : esc(provNombre)}</span></h3>
+            ${unico ? '' : `<p class="text-xs text-slate-400">${docs.length} documentos · ${esc(provNombre)} · saldo ${money(total)}</p>`}
+          </div>
+          <button type="button" class="text-slate-400 hover:text-slate-100 text-xl leading-none" onclick="window.cxpAntCerrar()">&times;</button>
+        </div>
+        <div class="p-5 grid md:grid-cols-2 gap-5">
+          <div class="space-y-4">${bloqueProveedorDoc}${bloqueAmpara}${bloqueAprobaciones}</div>
+          <div class="space-y-4">
+            ${bloqueDatosPago}
+            ${bloqueResumen}
+            <p id="cxpPagoErr" class="text-xs text-rose-400 min-h-[1rem]"></p>
+            <div class="flex justify-end gap-2">
+              <button type="button" class="text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-4 py-2 rounded-lg" onclick="window.cxpAntCerrar()">Cancelar</button>
+              <button type="button" id="cxpConfirmarPago" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-5 py-2 rounded-lg text-sm">Confirmar pago</button>
+            </div>
+          </div>
         </div>
       </div>`);
 
     let parcial = false;
     const monto = document.getElementById('cxpMonto');
     const err = document.getElementById('cxpPagoErr');
+    const actualizarPolizaPreview = () => {
+        const ctaId = document.getElementById('cxpCuentaPago').value;
+        const cta = cxpCuentasPago.find((c) => String(c.id) === ctaId);
+        const prev = document.getElementById('cxpPolizaPreview');
+        if (!cta) { prev.textContent = 'Elige la cuenta de pago para ver la póliza.'; return; }
+        const serie = cta.codigo.startsWith('101') ? 'VAE' : 'BAN';
+        prev.innerHTML = `<p class="text-slate-300 font-semibold mb-1.5">Póliza ${serie}-… · Egreso (se genera al confirmar)</p>
+          <div class="flex justify-between"><span>201.01 Proveedores</span><span class="font-mono">Cargo</span></div>
+          <div class="flex justify-between"><span>${esc(cta.codigo)} ${esc(cta.nombre)}</span><span class="font-mono">Abono</span></div>`;
+    };
     const validar = () => {
         const m = parseFloat(monto.value) || 0;
         let e = '';
@@ -324,8 +729,18 @@ function cxpAbrirPago(filas) {
             else if (m >= total - 0.005) e = 'Si paga el saldo completo, usa «Pago total».';
             else if (!document.getElementById('cxpAcuerdo').value.trim()) e = 'Escribe el acuerdo con el proveedor.';
         }
+        // Conciliación con lo pactado (solo al pagar UN documento ligado a una ODC con condiciones):
+        // si la forma de pago difiere, se exige el motivo en "Notas internas" y queda escrito en el pago.
+        const formaSel = document.getElementById('cxpFormaPago').value;
+        const formaPactada = unico ? cxpFormaDeClave(detalle?.oc?.forma_pago) : '';
+        cxpDesvioPago = (formaPactada && formaSel && formaSel !== formaPactada) ? `forma de pago: Compras pactó ${formaPactada}, se paga en ${formaSel}` : '';
+        if (cxpDesvioPago && !e && !document.getElementById('cxpNotasPago').value.trim()) e = 'Difiere de lo pactado por Compras (' + cxpDesvioPago + '): explica el motivo en Notas internas.';
         err.textContent = e;
         document.getElementById('cxpConfirmarPago').disabled = !!e;
+        const forma = document.getElementById('cxpFormaPago').value;
+        document.getElementById('cxpAlertaEfectivo').classList.toggle('hidden', !(forma === 'efectivo' && m > 2000));
+        document.getElementById('cxpResumenEste').textContent = money(m);
+        document.getElementById('cxpResumenSaldo').textContent = money(Math.max(0, total - m));
     };
     const fijarTipo = (esParcial) => {
         parcial = esParcial;
@@ -343,8 +758,12 @@ function cxpAbrirPago(filas) {
     document.getElementById('cxpTipoParcial').onclick = () => fijarTipo(true);
     monto.oninput = validar;
     document.getElementById('cxpAcuerdo').oninput = validar;
+    document.getElementById('cxpFormaPago').onchange = validar;
+    document.getElementById('cxpNotasPago').oninput = validar;
+    document.getElementById('cxpCuentaPago').onchange = actualizarPolizaPreview;
     document.getElementById('cxpConfirmarPago').onclick = () => registrarPago(docs, parcial);
     validar();
+    actualizarPolizaPreview();
 }
 
 async function registrarPago(docs, parcial) {
@@ -365,6 +784,8 @@ async function registrarPago(docs, parcial) {
                 cuenta_pago_id: Number(cuenta),
                 forma_pago: document.getElementById('cxpFormaPago').value || null,
                 referencia: document.getElementById('cxpRefPago').value.trim() || null,
+                notas: (cxpDesvioPago ? `[Difiere de lo pactado: ${cxpDesvioPago}] ` : '') + document.getElementById('cxpNotasPago').value.trim() || null,
+                visto_bueno_empleado_id: document.getElementById('cxpVistoBueno').value ? Number(document.getElementById('cxpVistoBueno').value) : null,
                 aplicaciones,
             },
         });
@@ -383,7 +804,7 @@ async function registrarPago(docs, parcial) {
 }
 
 // Comprobante de pago a proveedor (mismo estilo de impresión que el resto de la app).
-async function cxpImprimirComprobante(id) {
+export async function cxpImprimirComprobante(id) {
     try {
         const { data: p, error } = await supabaseClient.from('pagos_proveedor')
             .select('id, fecha, total, referencia, forma_pago, notas, estatus, poliza_id, proveedores ( nombre, rfc ), cuentas_contables!cuenta_pago_id ( codigo, nombre ), pagos_proveedor_aplicaciones ( tipo, monto, documentos ( folio ), gastos ( concepto, folio_factura ) )')
@@ -413,63 +834,6 @@ async function cxpImprimirComprobante(id) {
     } catch (e) { alert('No se pudo armar el comprobante: ' + (e.message || e)); }
 }
 
-async function cxpHistorial() {
-    const cont = document.getElementById('cxpHist');
-    try {
-        const { data, error } = await supabaseClient.from('pagos_proveedor')
-            .select('id, fecha, total, referencia, forma_pago, estatus, poliza_id, proveedores ( nombre ), pagos_proveedor_aplicaciones ( tipo, monto )')
-            .order('id', { ascending: false }).limit(100);
-        if (error) throw error;
-        if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin pagos registrados.</p>'; return; }
-
-        aplicarOrden(cxpHistOrden, data, (p, campo) => {
-            switch (campo) {
-                case 'fecha': return p.fecha || '';
-                case 'proveedor': return (p.proveedores?.nombre || '').toLowerCase();
-                case 'ref': return (p.referencia || '').toLowerCase();
-                case 'total': return Number(p.total || 0);
-                case 'docs': return (p.pagos_proveedor_aplicaciones || []).length;
-                case 'estatus': return p.estatus || '';
-                default: return p.id;
-            }
-        });
-
-        cont.innerHTML = `
-        <div class="overflow-x-auto border border-slate-800 rounded-lg">
-          <table class="w-full text-left text-xs text-slate-300">
-            <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-              <th class="p-2 text-left">Acción</th>${thOrden(cxpHistOrden, 'fecha', 'Fecha')}${thOrden(cxpHistOrden, 'proveedor', 'Proveedor')}${thOrden(cxpHistOrden, 'ref', 'Ref.')}
-              ${thOrden(cxpHistOrden, 'total', 'Total', 'text-right justify-end')}${thOrden(cxpHistOrden, 'docs', '# Docs', 'text-center justify-center')}<th class="p-2">Póliza</th>${thOrden(cxpHistOrden, 'estatus', 'Estatus')}
-            </tr></thead>
-            <tbody>
-              ${data.map(p => `
-                <tr class="border-b border-slate-900 ${p.estatus === 'cancelado' ? 'opacity-50' : ''}">
-                  <td class="p-2 whitespace-nowrap"><button type="button" class="cxp-print text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded mr-1" data-id="${p.id}" title="Imprimir comprobante de pago">🖨️</button>${p.estatus === 'registrado' ? `<button type="button" class="cxp-cancel text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded" data-id="${p.id}">Cancelar</button>` : ''}</td>
-                  <td class="p-2 whitespace-nowrap">${p.fecha || ''}</td>
-                  <td class="p-2">${esc(p.proveedores?.nombre || '(varios)')}</td>
-                  <td class="p-2 text-slate-400">${esc(p.referencia || '')}</td>
-                  <td class="p-2 text-right font-mono">${money(p.total)}</td>
-                  <td class="p-2 text-center font-mono text-slate-400">${(p.pagos_proveedor_aplicaciones || []).length}</td>
-                  <td class="p-2">${p.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${p.poliza_id}, '${p.fecha || ''}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer">🧾 Póliza #${p.poliza_id}</button>` : '<span class="text-slate-500">—</span>'}</td>
-                  <td class="p-2 ${p.estatus === 'registrado' ? 'text-emerald-400' : 'text-rose-400'}">${esc(p.estatus)}</td>
-                </tr>`).join('')}
-            </tbody>
-          </table>
-        </div>`;
-        cont.querySelectorAll('.cxp-print').forEach(b => { b.onclick = () => cxpImprimirComprobante(Number(b.dataset.id)); });
-        cont.querySelectorAll('.cxp-cancel').forEach(b => {
-            b.onclick = async () => {
-                if (!confirm('¿Cancelar este pago? Se genera la póliza de reverso y los saldos vuelven a quedar pendientes.')) return;
-                const { error } = await supabaseClient.rpc('cancelar_pago_proveedor', { p_pago_id: Number(b.dataset.id) });
-                if (error) { alert('No se pudo cancelar: ' + error.message); return; }
-                await cargarModuloPagosProveedor();
-            };
-        });
-        wireOrdenTabla(cont, cxpHistOrden, cxpHistorial);
-    } catch (err) {
-        cont.innerHTML = `<p class="text-slate-500 text-xs">Historial no disponible: ${esc(err.message || err)}</p>`;
-    }
-}
 
 // =====================================================================
 //  Anticipo a proveedor (se paga ANTES de recibir la mercancía). Antes
@@ -479,7 +843,7 @@ async function cxpHistorial() {
 //  vez de llegar con ella preseleccionada. Misma función del lado de la
 //  base (pagar_anticipo_oc, sql/2026-10-27_anticipo_proveedores.sql).
 // =====================================================================
-async function cxpAbrirAnticipo() {
+async function cxpAbrirAnticipo(ocPre = null, montoPre = null) {
     let ocs = [];
     try {
         const { data, error } = await supabaseClient.from('ordenes_compra')
@@ -518,6 +882,10 @@ async function cxpAbrirAnticipo() {
               <option value="">—</option><option>transferencia</option><option>efectivo</option><option>cheque</option><option>tarjeta</option></select></div>
           <div><label class="block text-[10px] text-slate-400 mb-1">Referencia</label>
             <input type="text" id="cxpAntRef" placeholder="No. de transferencia / cheque" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
+          <div id="cxpAntDif" class="hidden space-y-1.5 text-xs text-amber-300 bg-amber-950/40 border border-amber-900 rounded-lg px-2.5 py-2">
+            <p id="cxpAntDifTxt"></p>
+            <input type="text" id="cxpAntMotivo" placeholder="Motivo de la diferencia (obligatorio)" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+          </div>
         </div>
         <p id="cxpAntMsg" class="text-xs mt-2 min-h-[1rem] text-rose-400"></p>
         <div class="flex justify-end gap-2 mt-3">
@@ -534,7 +902,53 @@ async function cxpAbrirAnticipo() {
             const { data } = await supabaseClient.from('v_anticipos_oc').select('disponible').eq('orden_compra_id', Number(id)).maybeSingle();
             info.textContent = data && Number(data.disponible) > 0 ? `Ya tiene ${money(data.disponible)} de anticipo disponible sin aplicar.` : '';
         } catch (_) { info.textContent = ''; }
+        // Lo que Compras pactó en la ODC formal (sql/2026-10-09_odc_formal.sql): Finanzas solo lo ejecuta.
+        try {
+            const { data: pac, error: ePac } = await supabaseClient.from('ordenes_compra')
+                .select('condicion_pago, dias_credito, forma_pago, anticipo_pct, anticipo_monto').eq('id', Number(id)).single();
+            if (!ePac && pac && pac.condicion_pago) {
+                pactadoOc = { forma: cxpFormaDeClave(pac.forma_pago), monto: Number(montoPre) > 0 ? Number(montoPre) : Number(pac.anticipo_monto) || null };
+                if (pac.forma_pago && pactadoOc.forma && !document.getElementById('cxpAntForma').value) document.getElementById('cxpAntForma').value = pactadoOc.forma; // precarga lo pactado
+                const cond = pac.condicion_pago === 'credito' ? `Crédito ${Number(pac.dias_credito || 0)} días` : 'Contado';
+                const ant = pac.anticipo_pct ? `anticipo pactado ${Number(pac.anticipo_pct)}% = ${money(pac.anticipo_monto)}` : 'sin anticipo pactado';
+                info.textContent = (info.textContent ? info.textContent + ' ' : '') + `Compras pactó: ${cond}, ${ant}.`;
+                const campo = document.getElementById('cxpAntMonto');
+                if (pac.anticipo_monto && campo && !campo.value) campo.value = Number(pac.anticipo_monto).toFixed(2);
+            }
+        } catch (_) { /* migración no corrida: se omite */ }
+        revisarDesvio();
     };
+
+    // Conciliación: lo que Compras pactó en la ODC contra lo que Finanzas ejecuta. Si difiere (forma de
+    // pago o monto), se avisa y se exige el motivo; queda escrito en las notas del pago.
+    let pactadoOc = null;
+    let desvioTxt = '';
+    function revisarDesvio() {
+        const cajaDif = document.getElementById('cxpAntDif');
+        if (!cajaDif) return;
+        const d = [];
+        if (pactadoOc) {
+            const forma = document.getElementById('cxpAntForma').value;
+            if (pactadoOc.forma && forma && forma !== pactadoOc.forma) d.push(`forma de pago: Compras pactó ${pactadoOc.forma}, se paga en ${forma}`);
+            const m = parseFloat(document.getElementById('cxpAntMonto').value) || 0;
+            if (pactadoOc.monto && m > 0 && Math.abs(m - pactadoOc.monto) > 0.01) d.push(`monto: pactado ${money(pactadoOc.monto)}, se paga ${money(m)}`);
+        }
+        desvioTxt = d.join('; ');
+        cajaDif.classList.toggle('hidden', !d.length);
+        document.getElementById('cxpAntDifTxt').textContent = d.length ? 'Difiere de lo pactado por Compras — ' + d.join('; ') + '.' : '';
+    }
+    document.getElementById('cxpAntForma').onchange = revisarDesvio;
+    document.getElementById('cxpAntMonto').oninput = revisarDesvio;
+
+    if (ocPre) {
+        const selOc = document.getElementById('cxpAntOc');
+        selOc.value = String(ocPre);
+        if (selOc.value) {
+            await selOc.onchange({ target: selOc });
+            if (montoPre > 0) document.getElementById('cxpAntMonto').value = Number(montoPre).toFixed(2);
+            revisarDesvio();
+        }
+    }
 
     document.getElementById('cxpAntGuardar').onclick = async () => {
         const msg = document.getElementById('cxpAntMsg');
@@ -544,6 +958,9 @@ async function cxpAbrirAnticipo() {
         if (!ocId) { msg.textContent = 'Elige la orden de compra.'; return; }
         if (!(monto > 0)) { msg.textContent = 'Captura un monto mayor a cero.'; return; }
         if (!cuenta) { msg.textContent = 'Elige la cuenta de banco / caja.'; return; }
+        revisarDesvio();
+        const motivo = document.getElementById('cxpAntMotivo').value.trim();
+        if (desvioTxt && !motivo) { msg.textContent = 'Difiere de lo pactado por Compras: escribe el motivo.'; return; }
         const btn = document.getElementById('cxpAntGuardar');
         btn.disabled = true;
         try {
@@ -555,6 +972,7 @@ async function cxpAbrirAnticipo() {
                     cuenta_pago_id: Number(cuenta),
                     forma_pago: document.getElementById('cxpAntForma').value || null,
                     referencia: document.getElementById('cxpAntRef').value.trim() || null,
+                    notas: desvioTxt ? `[Difiere de lo pactado: ${desvioTxt}] ${motivo}` : null,
                 },
             });
             if (error) throw error;

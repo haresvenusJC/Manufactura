@@ -506,7 +506,7 @@ async function nomBuscar() {
                                 <td class="p-2 whitespace-nowrap">${n.fecha_pago}</td>
                                 <td class="p-2 text-right font-mono">${money(n.subtotal)}</td>
                                 <td class="p-2 text-right font-mono">${money(n.total)}</td>
-                                <td class="p-2 font-mono">${n.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${n.poliza_id}, '${n.fecha_pago || ''}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer">🧾 ${n.polizas ? n.polizas.tipo + ' #' + n.polizas.numero : 'Póliza #' + n.poliza_id}</button>` : '<span class="text-slate-500">—</span>'}</td>
+                                <td class="p-2 font-mono">${n.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${n.poliza_id}, '${n.fecha_pago || ''}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer"><span data-pol-id="${n.poliza_id}">póliza…</span></button>` : '<span class="text-slate-500">—</span>'}</td>
                                 <td class="p-2 ${n.estatus === 'registrada' ? 'text-emerald-400' : n.estatus === 'borrador' ? 'text-amber-400 font-semibold' : 'text-rose-400'}">${n.estatus === 'borrador' ? '⏳ pendiente de autorizar' : n.estatus}</td>
                                 <td class="p-2 text-right whitespace-nowrap">
                                     <button data-print="${n.id}" class="nom-print text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 px-2 py-1 rounded border border-slate-700 cursor-pointer mr-1">🖨️ Imprimir</button>
@@ -679,7 +679,7 @@ async function nomImprimir(id, btn) {
                         <td><strong>Pagado desde:</strong> ${cuentaPago}</td>
                     </tr>
                     <tr>
-                        <td><strong>Póliza:</strong> ${n.polizas ? n.polizas.tipo + ' #' + n.polizas.numero : '—'}</td>
+                        <td><strong>Póliza:</strong> ${n.polizas ? n.polizas.tipo + ' No. ' + n.polizas.numero : '—'}</td>
                         <td><strong>Estatus:</strong> ${n.estatus === 'registrada' ? 'Registrada' : 'Cancelada'}</td>
                     </tr>
                 </table>
