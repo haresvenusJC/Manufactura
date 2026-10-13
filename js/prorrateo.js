@@ -31,7 +31,7 @@ export async function cargarModuloProrrateo() {
           <input type="month" id="prMes" value="${mesActualISO()}" class="bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
         </div>
         <span class="flex flex-wrap gap-2 items-center">
-          <button type="button" id="prAsistente" class="text-sm font-semibold bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg shadow cursor-pointer whitespace-nowrap">&#129517; Asistente de llenado</button>
+          <button type="button" id="prAsistente" class="pr-asist-btn">&#129517; Asistente de llenado</button>
           <a href="${GUIA_URL}" target="_blank" rel="noopener" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg whitespace-nowrap">&#9654; Guia interactiva</a>
           <a href="${MANUAL_URL}" target="_blank" rel="noopener" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg whitespace-nowrap">Manual &#8599;</a>
         </span>
@@ -117,12 +117,22 @@ async function prCargar() {
     }
     const sinTipoPend = (cor ? prorrateados : pendientes).filter(g => !tipoDe(g));
     if (sinTipoPend.length) faltan.push(['revision', `${sinTipoPend.length} gasto(s) sin tipo fijo/variable (se tratan como variables)`]);
-    let html = faltan.length
-        ? `<div class="mb-4 border border-amber-800 bg-amber-950/20 rounded-xl p-3 text-xs text-amber-300 flex flex-wrap items-center justify-between gap-2">
-            <div><b>Antes de aplicar, revisa:</b> ${faltan.map(([, t]) => `&#9888; ${t}`).join(' &middot; ')}</div>
-            <button type="button" data-pr-paso="${faltan[0][0]}" class="text-xs bg-sky-600 hover:bg-sky-500 text-white font-medium px-3 py-1.5 rounded-lg cursor-pointer whitespace-nowrap">Resolver con el asistente</button>
+    const completo = faltan.length === 0;
+    document.getElementById('prAsistente')?.classList.toggle('pr-pulso', !completo);
+    let html = completo
+        ? `<div class="pr-asist-mini mb-4">
+            <span>&#129517; Asistente de llenado &middot; <b>todo completo</b> &#9989;</span>
+            <button type="button" data-pr-paso="inicio" class="pr-asist-link">Abrir</button>
           </div>`
-        : '';
+        : `<div class="pr-asist-banner mb-4">
+            <div class="pr-asist-ico">&#129517;</div>
+            <div class="pr-asist-txt">
+              <div class="pr-asist-t1">&iquest;No sabes por d&oacute;nde empezar?</div>
+              <div class="pr-asist-t2">Te gu&iacute;o paso a paso: planta &rarr; &aacute;reas &rarr; luz &rarr; tus gastos &rarr; revisi&oacute;n. Te muestro un resumen y solo guardo cuando confirmas.</div>
+              <div class="pr-asist-falta"><b>Falta:</b> ${faltan.map(([, t]) => t).join(' &middot; ')}</div>
+            </div>
+            <button type="button" data-pr-paso="${faltan[0][0]}" class="pr-asist-cta pr-pulso">&#9654; Empezar el asistente</button>
+          </div>`;
 
     if (cor) {
         html += `<div class="bg-emerald-950/30 border border-emerald-800 rounded-xl p-3 mb-4 flex flex-wrap items-center justify-between gap-2">

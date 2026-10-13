@@ -6,6 +6,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/prorrateo.js`, `css/ui-moderno.css`, `index.html` (`?v=` de los 3 CSS), `version.json`, `CLAUDE.md`. **Asistente de prorrateo más llamativo (opción C elegida por el usuario):** banner grande
+  con degradado del acento del tema ("¿No sabes por dónde empezar?", lista de lo que falta, botón blanco "▶ Empezar el asistente" con pulso) + botón del encabezado con degradado y pulso; cuando no falta nada
+  el banner se reduce a una línea "todo completo ✅ · Abrir" y se apaga el pulso. Reemplaza el aviso ámbar anterior. Clases `.pr-asist-*`/`.pr-pulso` al final de `ui-moderno.css` (solo esta pantalla;
+  respeta `prefers-reduced-motion`). Revisado en Chromium con una página de muestra (Tailwind no carga aquí). Pendiente: verlo en la app real y en los temas oscuros/Claro Ice con Ctrl+Shift+R.
 - Archivos tocados (lo último): `js/asistente-prorrateo.js` (nuevo), `js/prorrateo.js`, `js/asistente-contable.js`, `manual-costos-produccion.html`, `version.json`, `CLAUDE.md`. **Asistente de llenado del prorrateo**
   (pedido del usuario 2026-10-13: "no sé qué va primero", quería una guía interactiva con casos prácticos): botón destacado "🧭 Asistente de llenado" en Prorrateo de gastos que abre una subventana con 5 pasos en el
   orden de dependencia — (1) Tu planta: capacidad normal por etapa (operadores × jornada × días × factores), (2) Áreas: m²/personas/rol/etapa con sugerencias típicas de planta de cosméticos y farmacéuticos,
