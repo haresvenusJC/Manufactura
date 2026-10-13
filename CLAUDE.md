@@ -6,6 +6,12 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`, `version.json`, `CLAUDE.md`. **Cuentas por pagar: presentación homologada en TODOS los temas**
+  (pedido del usuario; antes los ajustes eran solo de Claro Ice): se quitó el prefijo `[data-theme="claro-ice"]` de las reglas de `#view-pagos-proveedor` /
+  `#contenedorPagosProveedor` — píldora "Ayuda" arriba a la derecha (el Asistente pasa a popover), título subido (`margin-top:-2.5rem`) y encabezado de
+  tabla compacto. Siguen EXCLUSIVOS de Claro Ice solo la paleta/tipografía IBM Plex y los chips de estatus con color pálido propio (son del tema, no de la
+  presentación). Subido `?v=` de los 3 CSS en `index.html` a `20261013120000`. Pendiente: subir con "comitea", Ctrl+Shift+R y revisar Cuentas por pagar en
+  cada tema (sobre todo los oscuros: contraste de la píldora y del popover; usan `--bg-1`/`--bd-1`/`--sh-2` del tema).
 - Archivos tocados (lo último): `sql/2026-10-12_odc_generar.sql` (nuevo), `js/requisiciones-compra.js`, `js/ordenes-compra.js`, `version.json`, `CLAUDE.md`.
   **ODC en UNA sola operación en la base:** `odc_generar(p_datos)` crea la ODC completa (cotización, condiciones, anticipo, partidas con costo/SKU) y, si
   viene de una requisición, la marca autorizada, todo en la misma transacción (antes eran 3 llamadas: `requisicion_autorizar` + update de la OC +
