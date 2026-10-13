@@ -102,6 +102,8 @@ export const SECCIONES = [
             { v: 'tablas', t: 'Tablas · SAT · Forma de pago', d: 'Catálogo de formas de pago del SAT (solo lectura).', extra: "{tabla:'c_forma_pago'}" },
             { v: 'tablas', t: 'Tablas · SAT · Método de pago', d: 'Catálogo de métodos de pago del SAT, PUE / PPD (solo lectura).', extra: "{tabla:'c_metodo_pago'}" },
             { v: 'tablas', t: 'Tablas · SAT · Regímenes fiscales', d: 'Catálogo de regímenes fiscales del SAT que usan Proveedores y Clientes (solo lectura).', extra: "{tabla:'regimenes'}" },
+            { v: 'tablas', t: 'Tablas · Series de pólizas', d: 'Serie de 3 letras de cada tipo de póliza según su origen (solo lectura).', extra: "{tabla:'polizas_series_origen'}" },
+            { v: 'tablas', t: 'Tablas · Series de documentos', d: 'Series de documentos y órdenes con su último folio asignado (solo lectura).', extra: "{tabla:'contadores_folios'}" },
         ],
     },
 ];

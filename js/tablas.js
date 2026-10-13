@@ -18,6 +18,8 @@ const TABLAS = {
     c_forma_pago: { titulo: '🧾 SAT · Forma de pago', desc: 'Catálogo c_FormaPago del SAT (01 Efectivo, 03 Transferencia...).', orden: 'clave' },
     c_metodo_pago: { titulo: '🧾 SAT · Método de pago', desc: 'Catálogo c_MetodoPago del SAT (PUE / PPD).', orden: 'clave' },
     regimenes: { titulo: '🧾 SAT · Regímenes fiscales', desc: '', orden: 'clave' },
+    polizas_series_origen: { titulo: '🔢 Series de pólizas', desc: 'Serie de 3 letras que lleva el folio de cada póliza según su origen (SERIE-AÑO-00001). Se cambia desde el SQL Editor; lo ya emitido no se renombra. Detalle en el Catálogo de series de CLAUDE.md.', orden: 'serie' },
+    contadores_folios: { titulo: '🔢 Series de documentos', desc: 'Serie de cada documento u orden y el último consecutivo asignado (SERIE-000001): REQ requisición, ODC orden de compra, OPR orden de producción, OPC cierre de producción, PED pedido de venta, VTA/MER/SAL/AJU salidas, ENT entrada directa, DCL/DPV devoluciones, PRE pre-recibo, NDC/NDP notas. Las series viejas (OC, OP, PROD, ODP, DEVCLI, DEVPROV) ya no avanzan.', orden: 'serie' },
     monedas: { titulo: '💱 Monedas', desc: 'Monedas disponibles en Órdenes de compra y Compra directa (MXN, USD...).', orden: 'id' },
 };
 
