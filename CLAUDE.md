@@ -6,6 +6,12 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `css/ui-moderno.css`, `index.html` (`?v=`), `version.json`. **Encabezado unificado — CORRECCIÓN tras PROBARLO RENDERIZADO** (ahora sí se puede: Chromium + `@tailwindcss/browser` local en el scratchpad,
+  ruteando `cdn.tailwindcss.com` y abortando el resto; ver "Cómo ver pantallas aquí" abajo). Hallazgos: (1) el margen negativo `-2.5rem` + `position:sticky` dejaba el título a 24/48/64 px según la pantalla;
+  (2) el título fijo NO se quedaba fijo porque `<main>` (Tailwind `overflow-y-auto`) no es quien se desplaza —lo hace la ventana—. Fix: en vez del margen negativo, `#app > main:has(> section.vista-seccion:not(.hidden):not(#view-bienvenida)) { padding-top:1.5rem }`
+  (index.html lo deja en 4rem por el ☰) → las 43 pantallas con título nacen a la MISMA altura (medido); `#app > main { overflow: visible }` para que el sticky use la ventana (`top:.4rem`). La píldora "Ayuda" no es fija (se va con el scroll).
+  **Cómo ver pantallas aquí:** servidor `python3 -m http.server`, Playwright-core + `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`, `npm i @tailwindcss/browser` (v4, sirve para maquetar), responder `cdn.tailwindcss.com` con ese JS y abortar lo demás; la app pide login (Supabase) así que se oculta `#loginOverlay`, se muestra la `section.vista-seccion` deseada y se inyecta contenido/`.asist-panel` de prueba.
+  Pendiente: ver en la app real con Ctrl+Shift+R.
 - Archivos tocados (lo último): `css/ui-moderno.css`, `index.html` (`?v=`), `version.json`. **Encabezado unificado, PASO 2** (el usuario pidió ir por pasos: paso 1 = altura + título fijo; paso 2 = píldora): el cuadro "Asistente — … / 📖 Manual"
   (`.asist-panel`) pasa a ser en TODAS las pantallas y temas la píldora "Ayuda" arriba a la derecha (popover al abrir), con las reglas de `main section.vista-seccion:not(#view-bienvenida) .asist-panel`
   (antes solo `#contenedorPagosProveedor`). Sin HTML/JS/SQL. Pendiente: probar con Ctrl+Shift+R en varias pantallas (Pedidos de venta, Gastos, Pólizas…); vigilar choques con el botón "📖 Cómo llenar esta pantalla" a la derecha del título.
