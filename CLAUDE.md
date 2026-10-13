@@ -6,6 +6,18 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/asistente-prorrateo.js` (nuevo), `js/prorrateo.js`, `js/asistente-contable.js`, `manual-costos-produccion.html`, `version.json`, `CLAUDE.md`. **Asistente de llenado del prorrateo**
+  (pedido del usuario 2026-10-13: "no sé qué va primero", quería una guía interactiva con casos prácticos): botón destacado "🧭 Asistente de llenado" en Prorrateo de gastos que abre una subventana con 5 pasos en el
+  orden de dependencia — (1) Tu planta: capacidad normal por etapa (operadores × jornada × días × factores), (2) Áreas: m²/personas/rol/etapa con sugerencias típicas de planta de cosméticos y farmacéuticos,
+  (3) Luz: submedidor o equipos (kW/HP/W), (4) Tus gastos: 16 casos con preguntas (renta, luz, agua, gas, internet, mantenimiento, piezas [mejora mayor → Activos fijos], fumigación, monitoreo ambiental,
+  calibraciones, limpieza, vigilancia/seguros, supervisión, insumos, calidad [de un lote → gasto directo], residuos) + info de depreciación y de lo que NO se prorratea, (5) Revisión del mes y simulación con
+  `_reparto_resolver`. **Cada paso muestra un resumen y solo guarda al confirmar.** Escribe solo en tablas existentes (`centros_costo`, `areas_fisicas`(+`_cargas`), `reparto_plantillas`(+`_lineas`),
+  `cuentas_contables` → crea cuentas 503.09–503.16 si no existen y fija `cif_tipo`); sin SQL nuevo. Cuentas nuevas propuestas: 503.09 Fumigación, 503.10 Monitoreo ambiental, 503.11 Calibración/validación,
+  503.12 Refacciones, 503.13 Limpieza y sanitización, 503.14 Control de calidad externo, 503.15 Residuos, 503.16 Telecomunicaciones. `prorrateo.js` gana: aviso "Antes de aplicar, revisa" con atajo al paso del
+  asistente, y tabla "Por etapa" (horas reales, capacidad, utilización, CIF aplicado y no utilizado por centro) — **corrige** que las tarjetas leían solo la primera fila del cálculo (con SURT/MEZ/ENV mezclaba/mostraba un centro).
+  Probado en Chromium con Supabase simulado (los 5 pasos, 6 casos, guardado y simulación); falta probarlo con la base real y con Tailwind/estilos (no cargan en este entorno).
+  **Hallazgo SIN corregir:** la depreciación de Activos fijos (503.04) se contabiliza con póliza directa y NO pasa por Gastos, así que el prorrateo (que solo lee `gastos` indirectos) hoy no la reparte;
+  requiere decidir con el usuario cómo meterla (etapa por activo + entrada al pool como CIF fijo). Pendiente: probar con Ctrl+Shift+R, subir con "comitea".
 - Archivos tocados (lo último): `css/ui-moderno.css`, `index.html` (`?v=`), `version.json`. **Encabezado unificado, PASO 2** (el usuario pidió ir por pasos: paso 1 = altura + título fijo; paso 2 = píldora): el cuadro "Asistente — … / 📖 Manual"
   (`.asist-panel`) pasa a ser en TODAS las pantallas y temas la píldora "Ayuda" arriba a la derecha (popover al abrir), con las reglas de `main section.vista-seccion:not(#view-bienvenida) .asist-panel`
   (antes solo `#contenedorPagosProveedor`). Sin HTML/JS/SQL. Pendiente: probar con Ctrl+Shift+R en varias pantallas (Pedidos de venta, Gastos, Pólizas…); vigilar choques con el botón "📖 Cómo llenar esta pantalla" a la derecha del título.
@@ -1360,6 +1372,7 @@ Documento de almacén. Sin folio propio: pagos, cobros, nómina, auditoría.
 
 - `app.js` — router de vistas (`window.loadView`, con historial del navegador: ← / → entre pantallas; F5 se queda en la pantalla) + shell de
   navegación (riel de iconos + cajón) y exposición de funciones al `window` para los `onclick` del HTML.
+- `asistente-prorrateo.js` — "🧭 Asistente de llenado" de Prorrateo de gastos: subventana de 5 pasos (planta → áreas → luz → casos de gasto → revisión) con resumen y confirmación antes de guardar; `abrirAsistenteProrrateo(paso, onCerrar)`.
 - `areas-prorrateo.js` — declara m²/kW/personas por área para derivar los % de prorrateo de gastos compartidos.
 - `asistente-contable.js` — panel de ayuda colapsable ("¿Cómo llenar esta pantalla?") reutilizado por
   varios módulos + el asistente de captura de Gastos.

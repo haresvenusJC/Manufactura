@@ -1,10 +1,11 @@
 {
- "v": "20261013230922",
+ "v": "20261013235247",
  "modulos": [
   "activos-fijos.js",
   "app.js",
   "areas-prorrateo.js",
   "asistente-contable.js",
+  "asistente-prorrateo.js",
   "auditoria-inventario.js",
   "auth.js",
   "auxiliar-anticipos.js",
