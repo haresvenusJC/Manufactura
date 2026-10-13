@@ -6,6 +6,9 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `css/ui-moderno.css`, `index.html` (`?v=` del CSS), `version.json`. **Corrección del encabezado unificado** (el usuario aclaró con capturas que NO quería la píldora "Ayuda" en todas las pantallas): se conserva en TODAS las pantallas
+  (menos Inicio) la altura de Cuentas por pagar (título + tarjetas suben, `margin-top:-2.5rem`) y el título fijo (sticky); la píldora "Ayuda" (asistente + manual) vuelve a ser SOLO de Cuentas por pagar
+  (`#contenedorPagosProveedor > .asist-panel`); en las demás pantallas el cuadro "Asistente — … / 📖 Manual" queda como era. Sin HTML/JS/SQL. Pendiente: probar con Ctrl+Shift+R.
 - Archivos tocados (lo último): `css/ui-moderno.css`, `index.html` (solo el `?v=` del CSS), `version.json`. **Encabezado unificado de TODAS las pantallas** (pedido del usuario 2026-10-13; referencia = Cuentas por pagar):
   las reglas que solo valían para `#view-pagos-proveedor` pasaron a `main section.vista-seccion:not(#view-bienvenida)` — (1) el título sube al renglón del ☰ (`margin-top:-2.5rem`, el mismo de CxP);
   (2) el título (o la fila título+botón Manual de las pantallas que la traen) queda **fijo arriba** (`position:sticky`, fondo `--bg-0`); (3) el bloque "Asistente — … / 📖 Manual" (`.asist-panel`, de
