@@ -1069,8 +1069,54 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `trazabilidad.js` — antecedentes de proceso: Requisición → Orden de compra → Documento(s) de recepción.
   También `abrirSeguimientoPedido`: seguimiento 🔗 de un pedido de venta (producción/requisición → OC → recepción → surtidos).
 
+## Series de folios y pólizas (tabla viva)
+
+**Se actualiza en el mismo cambio en que nazca un módulo/función que emita un folio o una póliza** (ver Convenciones). Los folios
+los asigna la base (`siguiente_folio(serie)`, `js/folios.js`); los anteriores a un cambio de serie NO se renombran.
+
+**Documentos** (estado al 2026-10-13):
+
+| Serie | Qué es | Dónde se asigna | Nota |
+|---|---|---|---|
+| REQ | Requisición de compra | `js/requisiciones-compra.js` | |
+| ODC | Orden de compra | `requisicion_autorizar` (SQL), `js/ordenes-compra.js` | antes OC (corte 2026-10-05); OC-… viejos se quedan |
+| OP | Orden de producción (solo texto "OP-000011", id de la orden) | `js/produccion.js` | sin contador propio |
+| ODP | Cierre de producción (documento PROD) | `js/produccion.js` | antes PROD (corte 2026-10-05) |
+| PED | Pedido de venta | `js/pedidos-venta.js` | |
+| VTA / MER / SAL / AJU | Salida por venta / merma / salida / ajuste | `SERIE_SALIDA` en `js/folios.js` | |
+| ENT | Entrada directa | `js/entradas.js` | |
+| DCL | Devolución de cliente | `registrar_devolucion_cliente` | antes DEVCLI |
+| DPV | Devolución a proveedor | `registrar_devolucion_proveedor` | antes DEVPROV |
+| PRE | Pre-recibo (solo texto "PRE-000038", id de `pre_recibos`) | `js/recibo-operador.js` | sin contador propio |
+| — | Sin folio propio: pagos, cobros, nómina, auditoría, recepción | | decisión pendiente |
+
+**Pólizas** — hoy: folio "Tipo #número" (consecutivo por tipo y año), tipo SAT Ingreso / Egreso / Diario; cancelar = contra-asiento
+del mismo tipo (`cancelar_poliza`). Quién genera cada tipo hoy: **Egreso** = pago/anticipo a proveedor, compra de contado
+(`contabilizar_compra` si abona banco), gasto pagado; **Ingreso** = venta/cobro, reembolso de anticipo; **Diario** = recepción sin
+banco, devoluciones, activos fijos, baja de anticipo, cancelaciones.
+
+**Propuesta de series de póliza (NO implementada, pendiente de decisión del usuario):** serie de 3 letras por origen además del tipo SAT:
+
+| Serie | Origen | Tipo SAT |
+|---|---|---|
+| BAN | Pago/cobro por banco (antes "póliza de cheque") | Egreso / Ingreso |
+| VAE | Pago en efectivo a una persona | Egreso |
+| ING | Ingresos por depósitos | Ingreso |
+| DIA | Cancelaciones / diario | Diario |
+| ODP | Consumos de producción (choca con el documento ODP de cierre) | Diario |
+
+La serie saldría de la cuenta de pago (banco→BAN, caja→VAE). No renumerar pólizas viejas.
+**Preguntas abiertas:** contado+transferencia como valores por defecto; varias OC de un proveedor en una transferencia; consecutivo por
+año o continuo; choque ODP (documento vs póliza); **separar la póliza de recepción con pago en Diario (compra + aplicación de
+anticipo) + Egreso (solo la salida de banco)** — hoy `contabilizar_compra` hace UNA póliza, Egreso si abona banco (2026-10-13).
+**Verificar en la base:** que `contabilizar_compra` siga siendo la versión con anticipos (`…09-30b`), no la de `…10-07`
+(copia anterior a anticipos con 'Egreso' fijo): `select pg_get_functiondef('public.contabilizar_compra(bigint,jsonb)'::regprocedure) ilike '%_saldo_anticipo_oc%';`
+
 ## Convenciones
 
+- **Series de folios y pólizas**: toda función/módulo nuevo que emita un folio (`siguiente_folio`) o una póliza (`registrar_poliza`,
+  con su `tipo`) debe agregar o actualizar su renglón en la tabla "Series de folios y pólizas (tabla viva)" de este archivo, en el
+  mismo cambio. Si cambia una serie, anotar el corte y que los folios viejos no se renombran.
 - **Selects** siempre desde la tabla real de Supabase, nunca hardcodeados.
 - **Migraciones SQL**: idempotentes (`if not exists`, `create or replace`), envueltas en `begin;`/`commit;`.
   Nunca se edita una ya corrida — se agrega una nueva. Se pegan a mano en Supabase → SQL Editor.
