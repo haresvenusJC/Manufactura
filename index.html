@@ -253,6 +253,7 @@
                             <li><button onclick="window.loadView('requisiciones-compra')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Requisiciones de compra</button></li>
                             <li><button onclick="window.loadView('ordenes-compra')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Órdenes de compra</button></li>
                             <li><button onclick="window.loadView('recibo-mercancia')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Recibo de mercancía</button></li>
+                            <li><button onclick="window.loadView('pagos-compras')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Pagos a proveedores</button></li>
                             <li><button onclick="window.loadView('compras')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Compra directa</button></li>
                             <li><button onclick="window.loadView('entradas-directas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Entradas Directas</button></li>
                         </ul>
@@ -547,6 +548,12 @@
                     <button type="button" onclick="window.abrirManual('#p7', 'Recibir mercancía')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
                 </div>
                 <div id="contenedorReciboMercancia">Cargando módulo de recibo de mercancía...</div>
+            </section>
+
+            <!-- Vista: Pagos a proveedores (consulta para Compras; el pago y su cancelación viven en Finanzas → Cuentas por pagar) -->
+            <section id="view-pagos-compras" class="vista-seccion hidden space-y-4">
+                <h2 class="text-xl font-bold text-emerald-400">Pagos a proveedores</h2>
+                <div id="contenedorPagosCompras">Cargando...</div>
             </section>
 
             <!-- Vista: Salidas de Inventario -->

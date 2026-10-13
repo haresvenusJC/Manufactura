@@ -6,6 +6,28 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `js/pagos-compras.js` (nuevo), `js/app.js`, `js/indice.js`, `js/buscador-auto.js`, `index.html`, `version.json`, `CLAUDE.md`. **"Pagos registrados" sale de
+  Cuentas por pagar y pasa a Compras → Pagos a proveedores** (pedido del usuario 2026-10-13): la lista histórica ya no está en Finanzas. En Finanzas, el botón **"Ver"** de una fila pagada (o de una ODC
+  con anticipo cubierto, que ahora se queda como "Pagada") muestra sus pagos con 🖨️ Comprobante y **Cancelar pago** (`cancelar_pago_proveedor`, contra-asiento): ÚNICO lugar donde se cancelan pagos
+  ("solo Finanzas cancela"; sin roles aún, así que se resuelve por pantalla, no por permiso — restringir por rol cuando haya accesos). Compras ve la consulta nueva (Fecha, Proveedor, Aplicado a, Total,
+  Forma/ref., Póliza, Mercancía, 🖨️) sin Cancelar. `cxpPagosPorClave` ('compra:id'/'gasto:id'/'oc:id') reemplaza a `cxpPagoPolizaPorDoc`. Sin cambios de SQL. Pendiente: revisar practicidad y consumo de
+  recursos de las dos pantallas (el usuario lo dijo), y que el botón Ver de ODC con anticipo parcial también permita cancelar (hoy solo las ODC con anticipo ya cubierto).
+- Archivos tocados (lo último): `sql/2026-10-13b_autor_registros_preparacion.sql` (nuevo, NO corrido, sin prisa), `CLAUDE.md`. **Columna "Creó" preparada, no activada** (pedido del usuario 2026-10-13:
+  "que quede preparada para cuando implementemos los accesos a los usuarios"): `empleados.usuario_id` (liga empleado ↔ usuario de acceso) + `autor_de(uuid)` (nombre del empleado, o correo si no
+  está ligado). La pantalla aún no la usa; `polizas.creado_por` ya se guarda. Falta, cuando se active: correr el SQL, ligar empleados con sus usuarios y pintar la columna "Creó" en la lista de
+  pólizas, "Ver póliza" y documentos. Confirmado: `sql/2026-10-13_series_polizas.sql` YA corrido por el usuario (2026-10-13).
+- Archivos tocados (lo último): `sql/2026-10-13_series_polizas.sql` (nuevo), `js/produccion.js`, `version.json`, `CLAUDE.md`. **Catálogo de series aprobado** (ver sección "Catálogo de series"):
+  series para TODAS las pólizas vía tabla `polizas_series_origen` + `registrar_poliza()` reescrita completa (única función tocada; las 13 que crean pólizas no se tocan) y
+  **OP → OPR** (orden de producción) y **ODP → OPC** (cierre de producción) en `produccion.js` (`siguienteFolio('OPR')` / `siguienteFolio('OPC')`; `siguiente_folio` crea el contador
+  solo). Pendiente: correr `sql/2026-10-13_series_polizas.sql`, subir con "comitea" y probar un gasto/venta/nómina nuevos (deben salir como GAS-/VEN-/NOM-2026-0000N) y una
+  orden de producción nueva (OPR-000001). Sin responder: columna "Creó" (¿correo o nombre del empleado?). Sin hacer: serie DET para deterioro.
+- Archivos tocados (lo último): `js/enlaces-reporte.js`, `js/contabilidad.js`, `js/nomina.js`, `js/compras.js`, `js/cuentas-por-cobrar.js`, `js/documentos.js`, `js/entradas.js`,
+  `js/ordenes-compra.js`, `js/pagos-proveedor.js`, `js/prorrateo.js`, `js/salidas.js`, `version.json`, `CLAUDE.md`. **Pólizas: nomenclatura visible unificada.** (1) Etiqueta
+  `etiquetaDe`: con serie → SOLO el folio (`BAN-2026-00001`), sin serie → `Egreso No. 34` ("#" cambia a "No."); igual en título/impresión de "Ver póliza", lista de
+  Pólizas, Contabilidad y Nómina. (2) Los botones "🧾 Póliza #<id interno>" (Compras, Entradas, Salidas, Cuentas por cobrar, Documentos, Órdenes de compra, Pagos registrados,
+  Prorrateo, Gastos, Nómina) ahora son `<span data-pol-id>` que `enlaces-reporte.js` rotula solo (serie o tipo+No.): nunca más el id interno. Pendiente DECIDIR con el usuario
+  (propuesta hecha, sin código): series para TODAS las pólizas (hoy solo BAN/VAE/ING/DIA/CMP/REC; "Diario No. 28" no dice qué es) y mostrar quién creó cada registro
+  (`polizas.creado_por` existe; falta resolverlo a nombre).
 - Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`, `CLAUDE.md`. **Cuentas por pagar: tabla unificada** (a petición del usuario, con capturas;
   se descartó la propuesta de quitar Pagada/Cancelada de la lista: "¿para qué entonces tengo filtros?"). (1) Anchos fijos (`table-fixed` + `<colgroup>`):
   las columnas ya no se recorren al cambiar de filtro, ni con la tabla vacía. (2) Se quitó `overflow-x-auto` del contenedor: era el que recortaba los menús
@@ -1287,6 +1309,24 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   `sql/2026-09-22_factor_conversion_sin_densidad.sql` y `sql/2026-09-22_requisicion_orden_produccion.sql`; cada
   intento fallido de cierre dejó 2 documentos vacíos (`PROD-…-MP` y `PROD-…`) sin movimientos.
 
+## Catálogo de series (aprobado por el usuario 2026-10-13)
+
+Todas de 3 letras. Documentos/órdenes: `SERIE-000001` (consecutivo continuo, `siguiente_folio`). Pólizas: `SERIE-AÑO-00001` (consecutivo por año,
+`_siguiente_folio_poliza`). Lo ya emitido NO se renombra (ODC reemplazó OC; **OPR reemplaza OP y OPC reemplaza ODP desde 2026-10-13** — los `OP-…`/`ODP-…` viejos se quedan).
+
+**Pólizas (serie · qué es · tipo SAT):** BAN pago por banco/anticipo · Egreso — VAE pago en efectivo/caja · Egreso — ING cobro a cliente · Ingreso — DIA cancelación
+(reverso, mismo tipo que la original) — CMP consumo de MP al cerrar producción · Diario — REC recepción de mercancía (con o sin ODC) · Diario — GAS gasto · Egreso/Diario —
+NOM nómina · Egreso — DEP depreciación · Diario — VEN venta · Ingreso/Diario — SMA salida por merma/ajuste · Diario — EDI entrada directa · Diario — DVC devolución de
+cliente · Diario — DVP devolución a proveedor · Diario — PRR prorrateo de CIF · Diario — RAN resolución de anticipo (reembolso Ingreso / baja Diario) — MAN póliza manual ·
+el que se elija. (DET deterioro de inventario: reservada, pendiente — su origen es `ajuste`, compartido con reclasificaciones; requiere una línea en
+`registrar_deterioro_inventario`.) La serie sale de `polizas_series_origen` (tabla editable en el SQL Editor) vía `registrar_poliza()` cuando la función que crea la póliza
+no manda `serie`; BAN/VAE/ING/CMP/REC las mandan explícitas y DIA la pone `cancelar_poliza()`. Migración: `sql/2026-10-13_series_polizas.sql` (solo pólizas nuevas; no renumera).
+
+**Documentos y órdenes (serie · qué es · tipo):** REQ requisición · Solicitud — ODC orden de compra · Orden — PRE pre-recibo · Documento de almacén — NDC/NDP nota de
+crédito/cargo de compra · Documento — OPR orden de producción · Orden — OPC cierre de producción (entrada y consumo `-MP`) · Documento de almacén — PED pedido de venta · Orden —
+VTA/MER/SAL/AJU salida por venta/merma/general/ajuste · Documento de almacén — ENT entrada directa · Documento de almacén — DCL/DPV devolución de cliente/a proveedor ·
+Documento de almacén. Sin folio propio: pagos, cobros, nómina, auditoría.
+
 ## Estructura
 
 - `js/` — un módulo por pantalla del menú (ver `index.html`); `js/app.js` es el router (`window.loadView`).
@@ -1323,6 +1363,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 - `bitacora-cambios.js` — consulta de la bitácora de movimientos (quién/cuándo/qué cambió) de todo el negocio.
 - `buscador-productos.js` — `montarBuscadorProductos()`: input con sugerencias de productos (SKU o nombre) mientras se escribe.
 - `buscador-select.js` — convierte un `<select>` largo en un buscador con teclado, sin cambiar su comportamiento (se refresca solo si el código cambia su valor u opciones).
+- `pagos-compras.js` — Compras → Pagos a proveedores: CONSULTA (solo lectura) de pagos ya hechos, mes actual por default, proveedor, paginado en servidor, columna "Mercancía" (por recibir/parcial/recibida) y 🖨️ comprobante; sin botón Cancelar (eso es de Finanzas).
 - `buscador-auto.js` — aplica ese buscador solo a los selects de listas largas (proveedor, cliente, cuenta contable, insumo, orden) detectándolos al aparecer en pantalla; la lista está en `POR_ID`/`POR_SELECTOR`. Para sumar uno, agregarlo ahí.
 - `catalogo.js` — dos pantallas separadas: `cargarModuloAltaArticulo` ("Alta de artículo", solo el
   formulario: alta/edición por nombre, clasificación, BOM) y `cargarModuloCatalogoKardex` ("Catálogo y
@@ -1451,7 +1492,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   detalle en subventana sin salir del reporte — documento → `window.abrirDetalleDocumentoGlobal(id)`
   (`js/documentos.js`), póliza → `window.rcVerPoliza(id)` (`js/contabilidad.js`). Si el reporte ya vive en una
   subventana, subir el `z-index` de la nueva (ver `lnkDoc`/`lnkPol` en `ordenes-produccion.js`).
-- **Pólizas se muestran como tipo + número** ("Egreso #34", el consecutivo por tipo), NUNCA con el id interno global
+- **Pólizas se muestran como tipo + número** ("Egreso No. 34", el consecutivo por tipo; si tiene serie propia, SOLO el folio: "BAN-2026-00001" — cambio del usuario 2026-10-13), NUNCA con el id interno global
   (`polizas.id`): en enlaces usar `linkPoliza` / `data-pol-id` y en mensajes `etiquetaPoliza()` (`js/enlaces-reporte.js`).
 - **Contabilidad y NIF**: toda propuesta o cambio relacionado con contabilidad (pólizas, cuentas, tipo Ingreso/Egreso/Diario,
   cuándo se reconoce un pasivo vs. cuándo sale efectivo, anticipos, etc.) debe apegarse a los principios de contabilidad y
@@ -1562,13 +1603,6 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Pendiente
 
-- **Tabla "Pagos registrados" (Finanzas → Cuentas por pagar) — REDISEÑO PENDIENTE, el usuario está pensando dónde ponerla (2026-10-13). No tocar hasta que él lo diga.**
-  Hoy: historial de los últimos 100 pagos sin filtro de fechas, con columnas Acción (🖨️/Cancelar), Fecha, Proveedor, Ref., Total, "# Docs" (poco útil: solo
-  cuenta documentos), Póliza, Visto bueno y Estatus. Quejas del usuario: "# Docs" no le sirve (idea ofrecida: columna "Aplicado a" con el folio de la ODC o
-  del documento); repite información que ya está en "Documentos por pagar" (un pago aparece en las dos tablas, ocupa espacio y consume recursos); posible
-  reubicarla (otro menú/pantalla). Criterios ya propuestos si se rehace: Desde/Hasta con el mes actual por default y paginación (regla de optimizar cargas),
-  filtros por proveedor/cuenta, mantener 🖨️ Imprimir y Cancelar (contra-asiento), incluir anticipos y pagos de deuda, y mostrar la desviación contra lo pactado
-  (hoy solo vive en las notas del pago como "[Difiere de lo pactado: …]").
 - **PARA MAÑANA (2026-10-13) — ODC en una sola operación: correr, subir y probar.** Código ya hecho en la carpeta local, NO subido a GitHub.
   (1) Correr `sql/2026-10-12_odc_generar.sql` en Supabase → SQL Editor (crea `odc_generar` y reescribe `pagar_anticipo_oc` restituyendo el candado
   ×1.30 que `…07d` había perdido). (2) Decir "comitea" para subir `js/requisiciones-compra.js`, `js/ordenes-compra.js`, el SQL, `version.json` y

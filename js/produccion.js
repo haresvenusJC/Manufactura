@@ -1334,7 +1334,7 @@ export async function generarOrdenDeProduccion(datos) {
         }
         if (errOrden) throw errOrden;
         const ordenId = ordenNueva.id;
-        const folio = 'OP-' + String(ordenId).padStart(6, '0');
+        const folio = await siguienteFolio('OPR');   // orden de producción: serie OPR desde 2026-10-13 (antes OP-<id>; los OP-… ya emitidos no se renombran)
         await supabaseClient.from('ordenes_produccion').update({ folio }).eq('id', ordenId);
 
         for (const proc of procesos) {
@@ -1473,7 +1473,7 @@ export async function cerrarOrdenDeProduccion(ordenId, cantidadReal = null) {
         // transformación de inventario -una sola póliza-, así que al póliza que
         // genera contabilizar_produccion() se le liga también el documento de
         // salida (ver más abajo) en vez de duplicar el asiento.
-        const folioBase = await siguienteFolio('ODP');   // consecutivo desde 2026-10-05: ODP-000001, ODP-000002...
+        const folioBase = await siguienteFolio('OPC');   // cierre de producción: serie OPC desde 2026-10-13 (antes ODP; los ODP-… ya emitidos no se renombran)
         const { data: docSalida, error: errDocSalida } = await supabaseClient
             .from('documentos')
             .insert([{

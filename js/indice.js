@@ -20,6 +20,7 @@ export const SECCIONES = [
         grupo: 'Compras', ancla: 'ent', items: [
             { v: 'requisiciones-compra', t: 'Requisiciones de compra', d: 'Solicitudes de compra (manuales o por stock bajo mínimo) pendientes de revisión; el admin las autoriza y ahí se convierten en Orden de compra, o las rechaza.' },
             { v: 'ordenes-compra', t: 'Órdenes de compra', d: 'Emisión de órdenes de compra a proveedores.' },
+            { v: 'pagos-compras', t: 'Pagos a proveedores', d: 'Consulta de los pagos ya hechos por Finanzas: qué orden está pagada y si ya se puede reclamar la mercancía.' },
             { v: 'recibo-mercancia', t: 'Recibo de mercancía', d: 'Recepción contra OC o desde el XML del CFDI; captura de lote y caducidad.' },
             { v: 'compras', t: 'Compra directa', d: 'Compra con afectación contable directa, sin pasar por Orden de compra → Recibo de mercancía.' },
             { v: 'entradas-directas', t: 'Entradas directas', d: 'Altas de inventario sin orden de compra.' },

@@ -5,6 +5,7 @@ import { configurarFormularioEntradasDirectas } from './entradas.js';
 import { cargarModuloOrdenesCompra, cargarModuloReciboMercancia } from './ordenes-compra.js';
 import { cargarModuloRequisicionesCompra } from './requisiciones-compra.js';
 import { cargarModuloPagosProveedor } from './pagos-proveedor.js';
+import { cargarModuloPagosCompras } from './pagos-compras.js';
 import { cargarModuloCuentasPorCobrar } from './cuentas-por-cobrar.js';
 import { cargarModuloAuditoriaInventario } from './auditoria-inventario.js';
 import { cargarModuloProduccion } from './produccion.js';
@@ -210,6 +211,9 @@ window.loadView = function(viewName, opciones = {}) {
             break;
         case 'ordenes-compra':
             cargarModuloOrdenesCompra();
+            break;
+        case 'pagos-compras':
+            cargarModuloPagosCompras();
             break;
         case 'recibo-mercancia':
             cargarModuloReciboMercancia();

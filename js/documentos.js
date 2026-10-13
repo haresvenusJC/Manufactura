@@ -225,7 +225,7 @@ window.renderizarTablaDocumentos = function(lista) {
                 </td>
                 <td class="p-4">
                     ${doc.poliza_id
-                        ? `<button onclick="window.verPolizaDeDocumento(${doc.poliza_id}, '${doc.fecha_emision || ''}')" class="bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-800/60 px-3 py-1.5 rounded-xl text-xs font-semibold transition inline-flex items-center gap-1.5 whitespace-nowrap" style="cursor:pointer;">🧾 Póliza #${doc.poliza_id}</button>`
+                        ? `<button onclick="window.verPolizaDeDocumento(${doc.poliza_id}, '${doc.fecha_emision || ''}')" class="bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-800/60 px-3 py-1.5 rounded-xl text-xs font-semibold transition inline-flex items-center gap-1.5 whitespace-nowrap" style="cursor:pointer;"><span data-pol-id="${doc.poliza_id}">póliza…</span></button>`
                         : `<span class="text-[11px] text-slate-600">— sin póliza —</span>`}
                 </td>
                 <td class="p-4 font-mono">

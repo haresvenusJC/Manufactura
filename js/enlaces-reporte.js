@@ -14,14 +14,13 @@ export const linkPoliza = (id, clase = 'font-mono text-sky-300') => id
     ? `<button type="button" onclick="window.verPolizaDeDocumento(${Number(id)})" data-pol-id="${Number(id)}" class="${clase} hover:underline cursor-pointer" title="Abrir la póliza">póliza…</button>`
     : '—';
 
-// Etiqueta "Egreso #34" en vez del id interno: todo elemento con data-pol-id="<id>" se rotula solo
+// Etiqueta "Egreso No. 34" (o BAN-2027-00001) en vez del id interno: todo elemento con data-pol-id="<id>" se rotula solo
 // (tipo + número de la póliza), sin que cada pantalla tenga que consultarlo. Se consultan en lote y se
 // guardan en caché; mientras llega la respuesta se ve "póliza…" (si no se encuentra, "ver póliza").
 const cachePol = new Map();
 let pendiente = null;
-// "BAN-2027-00001 · Egreso #34" si la póliza tiene serie propia (folio_poliza — requiere
-// sql/2026-10-07d_polizas_series_y_visto_bueno.sql), si no, solo "Egreso #34" como siempre.
-const etiquetaDe = (p) => p ? (p.folio_poliza ? `${p.folio_poliza} · ${p.tipo} #${p.numero}` : `${p.tipo} #${p.numero}`) : null;
+// Con serie propia (folio_poliza: BAN-2027-00001, requiere sql/2026-10-07d_polizas_series_y_visto_bueno.sql) se muestra SOLO ese folio; sin serie, "Egreso No. 34".
+const etiquetaDe = (p) => p ? (p.folio_poliza ? p.folio_poliza : `${p.tipo} No. ${p.numero}`) : null;
 function rotular(el) {
     const p = cachePol.get(Number(el.dataset.polId));
     el.textContent = etiquetaDe(p) || 'ver póliza';
@@ -35,7 +34,7 @@ async function consultarPolizas(filtro) {
     }
     return r;
 }
-// Texto "Egreso #34" (o "BAN-2027-00001 · Egreso #34") de una póliza para mensajes y avisos
+// Texto "Egreso No. 34" (o "BAN-2027-00001") de una póliza para mensajes y avisos
 // (nunca el id interno). Si no se encuentra: "(sin número)".
 export async function etiquetaPoliza(id) {
     id = Number(id);

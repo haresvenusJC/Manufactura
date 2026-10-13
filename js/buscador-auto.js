@@ -19,7 +19,7 @@ const POR_ID = {
     prodProveedorId: 'Escribe para buscar proveedor…', cpProveedor: 'Escribe para buscar proveedor…',
     devpProveedor: 'Escribe para buscar proveedor…', rmRecProveedor: 'Escribe para buscar proveedor…',
     reqProdProveedor: 'Escribe para buscar proveedor…', rpProveedor: 'Escribe para buscar proveedor…',
-    selectFiltroProveedor: 'Escribe para buscar proveedor…', aaProveedor: 'Escribe para buscar proveedor…',
+    selectFiltroProveedor: 'Escribe para buscar proveedor…', aaProveedor: 'Escribe para buscar proveedor…', pcProveedor: 'Escribe para buscar proveedor…',
     // Clientes
     devcCliente: 'Escribe para buscar cliente…', pvCliente: 'Escribe para buscar cliente…',
     salClienteSelect: 'Escribe para buscar cliente…', cxcFiltroCliente: 'Escribe para buscar cliente…',

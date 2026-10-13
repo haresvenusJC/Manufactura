@@ -184,7 +184,7 @@ function cxcPintarDocumentos() {
           <tbody id="cxcBody">
             ${filtrados.map((x) => {
                 const verPoliza = x.poliza_id
-                    ? `<button type="button" onclick="window.verPolizaDeDocumento(${x.poliza_id}, '${x.fecha || ''}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer">🧾 Póliza #${x.poliza_id}</button>`
+                    ? `<button type="button" onclick="window.verPolizaDeDocumento(${x.poliza_id}, '${x.fecha || ''}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer"><span data-pol-id="${x.poliza_id}">póliza…</span></button>`
                     : '';
                 const verDoc = `<button type="button" onclick="window.abrirDetalleDocumentoGlobal(${x.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded cursor-pointer">Ver venta</button>`;
                 return `
@@ -350,7 +350,7 @@ async function cxcHistorial() {
                   <td class="p-2 text-slate-400">${esc(p.referencia || '')}</td>
                   <td class="p-2 text-right font-mono">${money(p.total)}</td>
                   <td class="p-2 text-center font-mono text-slate-400">${(p.cobros_cliente_aplicaciones || []).length}</td>
-                  <td class="p-2">${p.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${p.poliza_id}, '${p.fecha || ''}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer">🧾 Póliza #${p.poliza_id}</button>` : '<span class="text-slate-500">—</span>'}</td>
+                  <td class="p-2">${p.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${p.poliza_id}, '${p.fecha || ''}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer"><span data-pol-id="${p.poliza_id}">póliza…</span></button>` : '<span class="text-slate-500">—</span>'}</td>
                   <td class="p-2 ${p.estatus === 'registrado' ? 'text-emerald-400' : 'text-rose-400'}">${esc(p.estatus)}</td>
                 </tr>`).join('')}
             </tbody>

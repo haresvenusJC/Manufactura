@@ -1788,7 +1788,7 @@ async function rmRecepciones() {
                       <td class="p-2">${esc(d.proveedores?.nombre || '—')}</td>
                       <td class="p-2 text-right font-mono">${dets.length}</td>
                       <td class="p-2 text-right font-mono">${money(total)}</td>
-                      <td class="p-2">${d.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${d.poliza_id}, '${fecha}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer">🧾 Póliza #${d.poliza_id}</button>` : '<span class="text-slate-500">—</span>'}</td>
+                      <td class="p-2">${d.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${d.poliza_id}, '${fecha}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer"><span data-pol-id="${d.poliza_id}">póliza…</span></button>` : '<span class="text-slate-500">—</span>'}</td>
                     </tr>`;
               }).join('')}
             </tbody>

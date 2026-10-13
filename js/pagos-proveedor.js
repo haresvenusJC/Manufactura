@@ -15,6 +15,8 @@ const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFract
 const hoyISO = () => new Date().toISOString().slice(0, 10);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 // Forma de pago de la ODC (clave SAT c_forma_pago) → valor del selector "Forma de pago" de esta pantalla.
+// Pagos registrados de una fila (documento de compra, gasto u ODC con anticipo).
+const cxpPagosDe = (x) => cxpPagosPorClave.get((x.tipo === 'oc' ? 'oc' : x.tipo) + ':' + x.id) || [];
 const cxpFormaDeClave = (c) => ({ '01': 'efectivo', '02': 'cheque', '03': 'transferencia', '04': 'tarjeta', '28': 'tarjeta', '29': 'tarjeta' }[String(c || '')] || '');
 
 // Estado del filtro de visibilidad (Pendientes / Pagadas / Canceladas / Todas)
@@ -23,7 +25,7 @@ let cxpCache = [];
 let cxpCuentasPago = []; // cuentas de banco/caja, para el modal de Anticipo (reusa lo ya cargado por el módulo)
 let cxpEmpleados = []; // para "Visto bueno" (ligado a un empleado real, no texto libre)
 let cxpAnticiposDisp = 0; // suma de v_anticipos_oc.disponible, para la tarjeta KPI
-let cxpPagoPolizaPorDoc = new Map(); // documento_id (recibo) -> [poliza_id del/los pago(s) que lo liquidaron]
+let cxpPagosPorClave = new Map(); // 'compra:<id>' | 'gasto:<id>' | 'oc:<id>' -> [{pago_id, poliza_id, fecha, monto, referencia}] de los pagos registrados
 let cxpPreOcCache = null;
 let cxpDesvioPago = ''; // diferencia entre lo pactado en la ODC y la forma de pago elegida (la calcula validar() de la ventana de pago)
 let cxpFiltro = 'pendiente';
@@ -45,7 +47,7 @@ const CXP_ESTATUS_MENU = [
 const CXP_ABIERTOS = ['pendiente', 'vencida', 'parcial'];
 const cxpEstLabel = (v) => CXP_ESTATUS_MENU.find((m) => Array.isArray(m) && m[0] === v)?.[1] || v;
 const cxpOrden = crearOrdenTabla();
-const cxpHistOrden = crearOrdenTabla('id', 'desc');
+
 
 export async function cargarModuloPagosProveedor() {
     const cont = document.getElementById('contenedorPagosProveedor');
@@ -79,16 +81,18 @@ export async function cargarModuloPagosProveedor() {
     // Para las filas ya "Pagada": la póliza de la columna es la del RECIBO (contabilizar_compra),
     // nunca se actualiza con la del pago — es por diseño, son dos eventos distintos. Esto trae
     // aparte la póliza del/los pago(s) que la liquidaron, para mostrar las dos.
-    cxpPagoPolizaPorDoc = new Map();
+    // Pagos registrados de cada documento / gasto / ODC (anticipos): sirven para la columna Póliza
+    // (póliza del pago) y para el botón "Ver" (comprobante y cancelar pago). Clave: 'compra:<id>', 'gasto:<id>', 'oc:<id>'.
+    cxpPagosPorClave = new Map();
     try {
         const { data } = await supabaseClient.from('pagos_proveedor_aplicaciones')
-            .select('documento_id, pagos_proveedor!inner ( poliza_id, estatus )')
-            .eq('tipo', 'compra').eq('pagos_proveedor.estatus', 'registrado').not('documento_id', 'is', null);
+            .select('tipo, documento_id, gasto_id, orden_compra_id, monto, pagos_proveedor!inner ( id, fecha, poliza_id, estatus, referencia )')
+            .eq('pagos_proveedor.estatus', 'registrado').in('tipo', ['compra', 'gasto', 'anticipo_oc']);
         (data || []).forEach((a) => {
-            if (!a.pagos_proveedor?.poliza_id) return;
-            const arr = cxpPagoPolizaPorDoc.get(a.documento_id) || [];
-            arr.push(a.pagos_proveedor.poliza_id);
-            cxpPagoPolizaPorDoc.set(a.documento_id, arr);
+            const clave = a.tipo === 'compra' ? 'compra:' + a.documento_id : a.tipo === 'gasto' ? 'gasto:' + a.gasto_id : 'oc:' + a.orden_compra_id;
+            const arr = cxpPagosPorClave.get(clave) || [];
+            arr.push({ pago_id: a.pagos_proveedor.id, poliza_id: a.pagos_proveedor.poliza_id, fecha: a.pagos_proveedor.fecha, monto: Number(a.monto || 0), referencia: a.pagos_proveedor.referencia });
+            cxpPagosPorClave.set(clave, arr);
         });
     } catch (_) { /* degrada sin esto */ }
 
@@ -121,14 +125,9 @@ export async function cargarModuloPagosProveedor() {
     <div class="space-y-4">
       <div id="cxpPanelDocumentos" class="bg-slate-950 border border-slate-800 rounded-xl p-4"></div>
 
-      <div>
-        <h3 class="text-md font-semibold text-slate-300 mb-2">Pagos registrados</h3>
-        <div id="cxpHist" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-500">Cargando...</div>
-      </div>
     </div>`;
 
     cxpPintarDocumentos();
-    await cxpHistorial();
     montarGuia(cont, 'pagos-proveedor');
 }
 
@@ -167,9 +166,9 @@ async function cxpCargarOcPorPagar() {
                 tipo: 'oc', id: o.id, folio: o.folio || '#' + o.id, fecha: o.fecha, vence: null,
                 proveedor_id: o.proveedor_id, proveedor_nombre: o.proveedores?.nombre || '—',
                 total, pagado, saldo: Math.round((objetivo - pagado) * 100) / 100, objetivo,
-                orden_compra_id: o.id, poliza_id: null, estatus_cxp: 'pendiente', textoPactado,
+                orden_compra_id: o.id, poliza_id: null, estatus_cxp: Math.round((objetivo - pagado) * 100) / 100 > 0.01 ? 'pendiente' : 'pagado', textoPactado,
             };
-        }).filter((o) => o.saldo > 0.01);
+        }).filter((o) => o.saldo > 0.01 || o.pagado > 0.01); // anticipo ya cubierto: se queda como "Pagada" (para ver/cancelar su pago)
     } catch (e) {
         console.warn('Cuentas por pagar: no se pudieron cargar las órdenes de compra por pagar —', e?.message || e);
         return [];
@@ -229,7 +228,7 @@ function cxpPintarDocumentos() {
 
     // Chip de estatus por fila (Pendiente/Vencida/Parcial/Pagada/Cancelada) — igual que la maqueta.
     const chipEstatus = (x) => {
-        if (x.tipo === 'oc') return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 whitespace-nowrap">Por anticipar</span>';
+        if (x.tipo === 'oc' && x.estatus_cxp === 'pendiente') return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 whitespace-nowrap">Por anticipar</span>';
         if (x.estatus_cxp === 'cancelado') return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-950 text-rose-300">Cancelada</span>';
         if (x.estatus_cxp === 'pagado') return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300">Pagada</span>';
         if (esVencida(x)) return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-950 text-rose-300">Vencida</span>';
@@ -329,7 +328,7 @@ function cxpPintarDocumentos() {
             ${filtrados.length ? filtrados.map((x) => {
                 const pre = esAbierto && cxpPreOcCache && x.tipo === 'compra' && Number(x.orden_compra_id) === Number(cxpPreOcCache);
                 const vencida = esVencida(x);
-                const polizasPago = x.estatus_cxp === 'pagado' ? (cxpPagoPolizaPorDoc.get(x.id) || []) : [];
+                const polizasPago = x.estatus_cxp === 'pagado' ? cxpPagosDe(x).map((p) => p.poliza_id).filter(Boolean) : [];
                 const abierto = x.estatus_cxp === 'pendiente';
                 return `
                 <tr class="border-b border-slate-900 ${x.estatus_cxp === 'cancelado' ? 'opacity-60' : ''}" data-poliza="${x.poliza_id || ''}" data-tipo="${x.tipo}" data-id="${x.id}" data-saldo="${x.saldo}" data-total="${x.total || 0}" data-oc-id="${x.orden_compra_id || ''}" data-prov="${x.proveedor_id || ''}" data-prov-nombre="${esc(x.proveedor_nombre || '—')}" data-folio="${esc(x.folio || '#' + x.id)}">
@@ -343,7 +342,7 @@ function cxpPintarDocumentos() {
                   <td class="p-2 text-right text-xs font-mono">${money(x.total)}</td>
                   <td class="p-2 text-right text-xs font-mono text-amber-300">${money(x.saldo)}</td>
                   <td class="p-2">${chipEstatus(x)}</td>
-                  <td class="p-2 text-xs">${x.tipo === 'oc' ? `<span class="text-slate-400" title="Lo que Compras pactó en la ODC">${esc(x.textoPactado || '')}</span>`
+                  <td class="p-2 text-xs">${x.tipo === 'oc' && abierto ? `<span class="text-slate-400" title="Lo que Compras pactó en la ODC">${esc(x.textoPactado || '')}</span>`
                       // Pagada: solo la póliza del PAGO (BAN-/VAE-…); la del recibo se ve con el botón "Ver".
                       : polizasPago.length ? `<div class="flex flex-col gap-0.5">${polizasPago.map((pid) => `<span>${linkPoliza(pid, 'text-xs font-mono text-emerald-400 hover:underline')}</span>`).join('')}</div>`
                       : `<span>${linkPoliza(x.poliza_id, 'text-xs font-mono text-sky-400 hover:underline')} <span class="text-slate-600">recibo</span></span>`}</td>
@@ -420,26 +419,46 @@ function cxpPintarDocumentos() {
     actualizarSeleccion();
 }
 
-// "Ver" en un documento ya pagado o cancelado: elegir qué abrir. La póliza del PAGO (BAN-/VAE-…) ya está en la
-// columna Póliza de la fila; aquí van la póliza del recibo y el documento.
+// "Ver" en un documento ya pagado o cancelado: pagos que lo cubrieron (comprobante y cancelar pago) y qué más abrir.
+// La póliza del PAGO (BAN-/VAE-…) ya está en la columna Póliza de la fila. Esta es la ÚNICA pantalla desde la que se
+// cancela un pago (Finanzas); la consulta para Compras (Compras → Pagos a proveedores) no trae el botón Cancelar.
 function cxpAbrirVer(tr) {
     const polizaRecibo = tr.dataset.poliza ? Number(tr.dataset.poliza) : null;
     const esCompra = tr.dataset.tipo === 'compra';
+    const esOc = tr.dataset.tipo === 'oc';
+    const pagos = cxpPagosDe({ tipo: tr.dataset.tipo, id: Number(tr.dataset.id) });
     const opcion = (html) => `<div class="px-3 py-2 rounded-lg bg-slate-900 border border-slate-800">${html}</div>`;
     cxpMostrarModal(`
-      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-sm w-full">
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-md w-full">
         <div class="flex items-start justify-between gap-3 mb-1">
           <h3 class="text-base font-bold text-slate-100">Ver · <span class="font-mono text-emerald-400">${esc(tr.dataset.folio)}</span></h3>
           <button type="button" class="text-slate-400 hover:text-slate-100 text-xl leading-none" onclick="window.cxpAntCerrar()">&times;</button>
         </div>
-        <p class="text-xs text-slate-400 mb-3">${esc(tr.dataset.provNombre)} — elige qué abrir. La póliza del pago está en la columna Póliza.</p>
+        <p class="text-xs text-slate-400 mb-3">${esc(tr.dataset.provNombre)}</p>
         <div class="space-y-2 text-sm">
+          ${pagos.length ? `<div class="space-y-1.5"><p class="text-[11px] uppercase text-slate-500 font-semibold">${esOc ? 'Anticipos pagados' : 'Pagos'}</p>
+            ${pagos.map((p) => `<div class="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-slate-900 border border-slate-800">
+              <div class="min-w-0"><span class="block text-xs text-slate-400">${esc(p.fecha || '')} · ${money(p.monto)}${p.referencia ? ' · ' + esc(p.referencia) : ''}</span>${linkPoliza(p.poliza_id, 'text-sm font-mono text-emerald-400 hover:underline')}</div>
+              <div class="flex gap-1.5 shrink-0">
+                <button type="button" class="cxp-ver-print text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded" data-id="${p.pago_id}">🖨️ Comprobante</button>
+                <button type="button" class="cxp-ver-cancel text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded" data-id="${p.pago_id}">Cancelar pago</button>
+              </div></div>`).join('')}</div>` : ''}
           ${polizaRecibo ? opcion(`<span class="text-slate-400 text-xs block">Póliza del recibo de mercancía</span>${linkPoliza(polizaRecibo, 'text-sm font-mono text-sky-400 hover:underline')}`) : ''}
           ${esCompra ? opcion(`<span class="text-slate-400 text-xs block">Documento de recepción</span>${linkDoc(Number(tr.dataset.id), 'Abrir ' + tr.dataset.folio, 'text-sm text-sky-400 hover:underline')}`) : ''}
           ${tr.dataset.ocId ? opcion(`<span class="text-slate-400 text-xs block">Orden de compra</span><button type="button" onclick="window.verDetalleOC(${Number(tr.dataset.ocId)})" class="text-sm text-sky-400 hover:underline">Abrir la orden de compra</button>`) : ''}
-          ${!polizaRecibo && !esCompra && !tr.dataset.ocId ? '<p class="text-xs text-slate-500">Este registro no tiene más documentos que abrir.</p>' : ''}
+          ${!pagos.length && !polizaRecibo && !esCompra && !tr.dataset.ocId ? '<p class="text-xs text-slate-500">Este registro no tiene más documentos que abrir.</p>' : ''}
         </div>
       </div>`);
+    document.querySelectorAll('#cxpModalWrap .cxp-ver-print').forEach((b) => { b.onclick = () => cxpImprimirComprobante(Number(b.dataset.id)); });
+    document.querySelectorAll('#cxpModalWrap .cxp-ver-cancel').forEach((b) => {
+        b.onclick = async () => {
+            if (!confirm('¿Cancelar este pago? Se genera la póliza de reverso y los saldos vuelven a quedar pendientes.')) return;
+            const { error } = await supabaseClient.rpc('cancelar_pago_proveedor', { p_pago_id: Number(b.dataset.id) });
+            if (error) { alert('No se pudo cancelar: ' + error.message); return; }
+            window.cxpAntCerrar();
+            await cargarModuloPagosProveedor();
+        };
+    });
 }
 
 function cxpCerrarMenusFiltro() {
@@ -785,7 +804,7 @@ async function registrarPago(docs, parcial) {
 }
 
 // Comprobante de pago a proveedor (mismo estilo de impresión que el resto de la app).
-async function cxpImprimirComprobante(id) {
+export async function cxpImprimirComprobante(id) {
     try {
         const { data: p, error } = await supabaseClient.from('pagos_proveedor')
             .select('id, fecha, total, referencia, forma_pago, notas, estatus, poliza_id, proveedores ( nombre, rfc ), cuentas_contables!cuenta_pago_id ( codigo, nombre ), pagos_proveedor_aplicaciones ( tipo, monto, documentos ( folio ), gastos ( concepto, folio_factura ) )')
@@ -815,67 +834,6 @@ async function cxpImprimirComprobante(id) {
     } catch (e) { alert('No se pudo armar el comprobante: ' + (e.message || e)); }
 }
 
-async function cxpHistorial() {
-    const cont = document.getElementById('cxpHist');
-    try {
-        const selCompleto = 'id, fecha, total, referencia, forma_pago, estatus, poliza_id, visto_bueno_at, proveedores ( nombre ), empleados!visto_bueno_empleado_id ( nombre ), pagos_proveedor_aplicaciones ( tipo, monto )';
-        const selBase = 'id, fecha, total, referencia, forma_pago, estatus, poliza_id, proveedores ( nombre ), pagos_proveedor_aplicaciones ( tipo, monto )';
-        let { data, error } = await supabaseClient.from('pagos_proveedor').select(selCompleto).order('id', { ascending: false }).limit(100);
-        if (error && /does not exist|schema cache|could not find/i.test(error.message || '')) {
-            ({ data, error } = await supabaseClient.from('pagos_proveedor').select(selBase).order('id', { ascending: false }).limit(100));
-        }
-        if (error) throw error;
-        if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin pagos registrados.</p>'; return; }
-
-        aplicarOrden(cxpHistOrden, data, (p, campo) => {
-            switch (campo) {
-                case 'fecha': return p.fecha || '';
-                case 'proveedor': return (p.proveedores?.nombre || '').toLowerCase();
-                case 'ref': return (p.referencia || '').toLowerCase();
-                case 'total': return Number(p.total || 0);
-                case 'docs': return (p.pagos_proveedor_aplicaciones || []).length;
-                case 'estatus': return p.estatus || '';
-                default: return p.id;
-            }
-        });
-
-        cont.innerHTML = `
-        <div class="overflow-x-auto border border-slate-800 rounded-lg">
-          <table class="w-full text-left text-xs text-slate-300">
-            <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-              <th class="p-2 text-left">Acción</th>${thOrden(cxpHistOrden, 'fecha', 'Fecha')}${thOrden(cxpHistOrden, 'proveedor', 'Proveedor')}${thOrden(cxpHistOrden, 'ref', 'Ref.')}
-              ${thOrden(cxpHistOrden, 'total', 'Total', 'text-right justify-end')}${thOrden(cxpHistOrden, 'docs', '# Docs', 'text-center justify-center')}<th class="p-2">Póliza</th><th class="p-2">Visto bueno</th>${thOrden(cxpHistOrden, 'estatus', 'Estatus')}
-            </tr></thead>
-            <tbody>
-              ${data.map(p => `
-                <tr class="border-b border-slate-900 ${p.estatus === 'cancelado' ? 'opacity-50' : ''}">
-                  <td class="p-2 whitespace-nowrap"><button type="button" class="cxp-print text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded mr-1" data-id="${p.id}" title="Imprimir comprobante de pago">🖨️</button>${p.estatus === 'registrado' ? `<button type="button" class="cxp-cancel text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded" data-id="${p.id}">Cancelar</button>` : ''}</td>
-                  <td class="p-2 whitespace-nowrap">${p.fecha || ''}</td>
-                  <td class="p-2">${esc(p.proveedores?.nombre || '(varios)')}</td>
-                  <td class="p-2 text-slate-400">${esc(p.referencia || '')}</td>
-                  <td class="p-2 text-right font-mono">${money(p.total)}</td>
-                  <td class="p-2 text-center font-mono text-slate-400">${(p.pagos_proveedor_aplicaciones || []).length}</td>
-                  <td class="p-2">${p.poliza_id ? `<button type="button" onclick="window.verPolizaDeDocumento(${p.poliza_id}, '${p.fecha || ''}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer">🧾 Póliza #${p.poliza_id}</button>` : '<span class="text-slate-500">—</span>'}</td>
-                  <td class="p-2 text-slate-400">${p.empleados?.nombre ? `✓ ${esc(p.empleados.nombre)}` : '<span class="text-slate-600">—</span>'}</td>
-                  <td class="p-2 ${p.estatus === 'registrado' ? 'text-emerald-400' : 'text-rose-400'}">${esc(p.estatus)}</td>
-                </tr>`).join('')}
-            </tbody>
-          </table>
-        </div>`;
-        cont.querySelectorAll('.cxp-print').forEach(b => { b.onclick = () => cxpImprimirComprobante(Number(b.dataset.id)); });
-        cont.querySelectorAll('.cxp-cancel').forEach(b => {
-            b.onclick = async () => {
-                if (!confirm('¿Cancelar este pago? Se genera la póliza de reverso y los saldos vuelven a quedar pendientes.')) return;
-                const { error } = await supabaseClient.rpc('cancelar_pago_proveedor', { p_pago_id: Number(b.dataset.id) });
-                if (error) { alert('No se pudo cancelar: ' + error.message); return; }
-                await cargarModuloPagosProveedor();
-            };
-        });
-        wireOrdenTabla(cont, cxpHistOrden, cxpHistorial);
-    } catch (err) {
-        cont.innerHTML = `<p class="text-slate-500 text-xs">Historial no disponible: ${esc(err.message || err)}</p>`;
-    }
-}
 
 // =====================================================================
 //  Anticipo a proveedor (se paga ANTES de recibir la mercancía). Antes

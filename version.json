@@ -1,5 +1,5 @@
 {
- "v": "20261013150000",
+ "v": "20261013230000",
  "modulos": [
   "activos-fijos.js",
   "app.js",
@@ -47,6 +47,7 @@
   "orden-trabajo.js",
   "ordenes-compra.js",
   "ordenes-produccion.js",
+  "pagos-compras.js",
   "pagos-proveedor.js",
   "patron-login.js",
   "pedidos-venta.js",
