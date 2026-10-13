@@ -6,6 +6,15 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`, `CLAUDE.md`. **Cuentas por pagar: tabla unificada** (a petición del usuario, con capturas;
+  se descartó la propuesta de quitar Pagada/Cancelada de la lista: "¿para qué entonces tengo filtros?"). (1) Anchos fijos (`table-fixed` + `<colgroup>`):
+  las columnas ya no se recorren al cambiar de filtro, ni con la tabla vacía. (2) Se quitó `overflow-x-auto` del contenedor: era el que recortaba los menús
+  de filtro y dibujaba una barra de desplazamiento pequeña que estorbaba. (3) La etiqueta del filtro elegido ya no flota (`absolute`, se empalmaba con el
+  chip de la primera fila): va dentro del botón del encabezado, con `truncate`. (4) Columna Póliza: documento PAGADO muestra SOLO la póliza del pago
+  (BAN-/VAE-…, vía `linkPoliza`); abiertos/cancelados, la del recibo. (5) Botón de acción de ancho fijo (72px): "Pagar" en abiertos (también en la vista
+  "Todas"), "Ver" en pagados/cancelados → `cxpAbrirVer()` abre un selector con la póliza del recibo, el documento y la OC. Pendiente: subir con "comitea" y revisar
+  en el navegador (Ctrl+Shift+R) que no queden barras, que las columnas no se muevan y que el menú de Estatus no se corte. No tocado a propósito: "Pagos registrados"
+  (columna "# Docs" poco útil; se ofreció "Aplicado a" con el folio, sin respuesta).
 - Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`, `version.json`, `CLAUDE.md`. **Cuentas por pagar: presentación homologada en TODOS los temas**
   (pedido del usuario; antes los ajustes eran solo de Claro Ice): se quitó el prefijo `[data-theme="claro-ice"]` de las reglas de `#view-pagos-proveedor` /
   `#contenedorPagosProveedor` — píldora "Ayuda" arriba a la derecha (el Asistente pasa a popover), título subido (`margin-top:-2.5rem`) y encabezado de
@@ -1553,6 +1562,13 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Pendiente
 
+- **Tabla "Pagos registrados" (Finanzas → Cuentas por pagar) — REDISEÑO PENDIENTE, el usuario está pensando dónde ponerla (2026-10-13). No tocar hasta que él lo diga.**
+  Hoy: historial de los últimos 100 pagos sin filtro de fechas, con columnas Acción (🖨️/Cancelar), Fecha, Proveedor, Ref., Total, "# Docs" (poco útil: solo
+  cuenta documentos), Póliza, Visto bueno y Estatus. Quejas del usuario: "# Docs" no le sirve (idea ofrecida: columna "Aplicado a" con el folio de la ODC o
+  del documento); repite información que ya está en "Documentos por pagar" (un pago aparece en las dos tablas, ocupa espacio y consume recursos); posible
+  reubicarla (otro menú/pantalla). Criterios ya propuestos si se rehace: Desde/Hasta con el mes actual por default y paginación (regla de optimizar cargas),
+  filtros por proveedor/cuenta, mantener 🖨️ Imprimir y Cancelar (contra-asiento), incluir anticipos y pagos de deuda, y mostrar la desviación contra lo pactado
+  (hoy solo vive en las notas del pago como "[Difiere de lo pactado: …]").
 - **PARA MAÑANA (2026-10-13) — ODC en una sola operación: correr, subir y probar.** Código ya hecho en la carpeta local, NO subido a GitHub.
   (1) Correr `sql/2026-10-12_odc_generar.sql` en Supabase → SQL Editor (crea `odc_generar` y reescribe `pagar_anticipo_oc` restituyendo el candado
   ×1.30 que `…07d` había perdido). (2) Decir "comitea" para subir `js/requisiciones-compra.js`, `js/ordenes-compra.js`, el SQL, `version.json` y

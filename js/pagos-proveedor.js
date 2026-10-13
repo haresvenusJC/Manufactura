@@ -244,9 +244,8 @@ function cxpPintarDocumentos() {
     // encabezados queden en el mismo renglón, tengan o no un filtro activo — mismo tamaño de
     // letra y padding que thOrden() (orden-tabla.js: p-3, hereda text-xs de la tabla).
     const thFiltro = (id, titulo, etiqueta, menuHtml) => `
-      <th class="p-3 relative align-top">
-        <button type="button" id="cxpTh${id}" class="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 font-semibold normal-case tracking-normal">${titulo}<span class="text-base leading-none">▼</span></button>
-        ${etiqueta ? `<span class="absolute left-3 top-full mt-0.5 text-[10px] font-semibold text-sky-400 normal-case whitespace-nowrap">${etiqueta}</span>` : ''}
+      <th class="p-3 relative">
+        <button type="button" id="cxpTh${id}" class="inline-flex items-center gap-1 max-w-full text-sky-400 hover:text-sky-300 font-semibold normal-case tracking-normal"><span class="truncate">${titulo}${etiqueta ? ` <span class="text-[10px] font-normal">${etiqueta}</span>` : ''}</span><span class="text-base leading-none shrink-0">▼</span></button>
         <div id="cxp${id}Menu" class="hidden absolute top-full left-0 mt-1 z-30 bg-slate-800 border border-slate-600 rounded-lg p-2 shadow-2xl normal-case font-normal">${menuHtml}</div>
       </th>`;
 
@@ -313,8 +312,9 @@ function cxpPintarDocumentos() {
           <button type="button" id="cxpBtnAnticipo" title="Para una OC anterior a las condiciones pactadas, que no aparece en la lista" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg">Anticipo a otra OC</button>
         </div>
       </div>
-      <div class="overflow-x-auto border border-slate-800 rounded-lg" style="overflow-y:visible">
-        <table class="w-full text-left text-xs text-slate-300">
+      <div class="border border-slate-800 rounded-lg">
+        <table class="w-full text-left text-xs text-slate-300 table-fixed">
+          <colgroup><col style="width:44px"><col style="width:13%"><col style="width:20%"><col style="width:9%"><col style="width:9%"><col style="width:10%"><col style="width:10%"><col style="width:11%"><col style="width:18%"><col style="width:92px"></colgroup>
           <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
             <th class="p-3">${esAbierto ? '<input type="checkbox" id="cxpAll" class="accent-emerald-500">' : ''}</th>
             ${thDoc}
@@ -330,8 +330,9 @@ function cxpPintarDocumentos() {
                 const pre = esAbierto && cxpPreOcCache && x.tipo === 'compra' && Number(x.orden_compra_id) === Number(cxpPreOcCache);
                 const vencida = esVencida(x);
                 const polizasPago = x.estatus_cxp === 'pagado' ? (cxpPagoPolizaPorDoc.get(x.id) || []) : [];
+                const abierto = x.estatus_cxp === 'pendiente';
                 return `
-                <tr class="border-b border-slate-900 ${x.estatus_cxp === 'cancelado' ? 'opacity-60' : ''}" data-tipo="${x.tipo}" data-id="${x.id}" data-saldo="${x.saldo}" data-total="${x.total || 0}" data-oc-id="${x.orden_compra_id || ''}" data-prov="${x.proveedor_id || ''}" data-prov-nombre="${esc(x.proveedor_nombre || '—')}" data-folio="${esc(x.folio || '#' + x.id)}">
+                <tr class="border-b border-slate-900 ${x.estatus_cxp === 'cancelado' ? 'opacity-60' : ''}" data-poliza="${x.poliza_id || ''}" data-tipo="${x.tipo}" data-id="${x.id}" data-saldo="${x.saldo}" data-total="${x.total || 0}" data-oc-id="${x.orden_compra_id || ''}" data-prov="${x.proveedor_id || ''}" data-prov-nombre="${esc(x.proveedor_nombre || '—')}" data-folio="${esc(x.folio || '#' + x.id)}">
                   <td class="p-2 text-center">${esAbierto && x.tipo !== 'oc' ? `<input type="checkbox" class="cxp-chk accent-emerald-500 w-4 h-4" ${pre ? 'checked' : ''}>` : ''}</td>
                   <td class="p-2">${x.tipo === 'compra' ? linkDoc(x.id, x.folio || '#' + x.id, 'text-xs font-mono text-slate-200')
                       : x.tipo === 'oc' ? `<button type="button" onclick="window.verDetalleOC(${x.id})" class="text-xs font-mono text-emerald-300 hover:underline">${esc(x.folio)}</button>`
@@ -342,11 +343,13 @@ function cxpPintarDocumentos() {
                   <td class="p-2 text-right text-xs font-mono">${money(x.total)}</td>
                   <td class="p-2 text-right text-xs font-mono text-amber-300">${money(x.saldo)}</td>
                   <td class="p-2">${chipEstatus(x)}</td>
-                  <td class="p-2 text-xs">${x.tipo === 'oc' ? `<span class="text-slate-400" title="Lo que Compras pactó en la ODC">${esc(x.textoPactado || '')}</span>` : `<div class="flex flex-col gap-0.5">
-                    <span>${linkPoliza(x.poliza_id, 'text-xs font-mono text-sky-400 hover:underline')} <span class="text-slate-600">recibo</span></span>
-                    ${polizasPago.map((pid) => `<span>${linkPoliza(pid, 'text-xs font-mono text-emerald-400 hover:underline')} <span class="text-slate-600">pago</span></span>`).join('')}
-                  </div>`}</td>
-                  <td class="p-2 text-right">${esAbierto ? `<button type="button" class="cxp-pagar-fila text-xs bg-sky-600 hover:bg-sky-500 text-white font-medium px-3 py-1.5 rounded-lg">Pagar</button>` : ''}</td>
+                  <td class="p-2 text-xs">${x.tipo === 'oc' ? `<span class="text-slate-400" title="Lo que Compras pactó en la ODC">${esc(x.textoPactado || '')}</span>`
+                      // Pagada: solo la póliza del PAGO (BAN-/VAE-…); la del recibo se ve con el botón "Ver".
+                      : polizasPago.length ? `<div class="flex flex-col gap-0.5">${polizasPago.map((pid) => `<span>${linkPoliza(pid, 'text-xs font-mono text-emerald-400 hover:underline')}</span>`).join('')}</div>`
+                      : `<span>${linkPoliza(x.poliza_id, 'text-xs font-mono text-sky-400 hover:underline')} <span class="text-slate-600">recibo</span></span>`}</td>
+                  <td class="p-2 text-right">${abierto && (esAbierto || cxpFiltro === 'todas')
+                      ? `<button type="button" class="cxp-pagar-fila inline-block w-[72px] text-center text-xs bg-sky-600 hover:bg-sky-500 text-white font-medium py-1.5 rounded-lg">Pagar</button>`
+                      : !abierto ? `<button type="button" class="cxp-ver-fila inline-block w-[72px] text-center text-xs bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600 font-medium py-1.5 rounded-lg">Ver</button>` : ''}</td>
                 </tr>`;
             }).join('') : `<tr><td colspan="10" class="p-4 text-center text-slate-500">No hay documentos en "${cxpEstLabel(cxpFiltro).toLowerCase()}" con los filtros elegidos.</td></tr>`}
           </tbody>
@@ -369,6 +372,15 @@ function cxpPintarDocumentos() {
     document.getElementById('cxpBtnAnticipo').onclick = () => cxpAbrirAnticipo();
     wireOrdenTabla(panel, cxpOrden, cxpPintarDocumentos);
     cxpWireFiltrosEncabezado(panel);
+
+    // "Pagar" por fila: paga solo ESE documento, sin tener que marcar su casilla primero (también en la vista "Todas").
+    document.querySelectorAll('#cxpBody .cxp-pagar-fila').forEach((b) => {
+        b.onclick = () => cxpAbrirPago([b.closest('tr')]);
+    });
+    // "Ver" (documento pagado o cancelado): elige qué póliza / documento abrir. La del pago ya está en la columna Póliza.
+    document.querySelectorAll('#cxpBody .cxp-ver-fila').forEach((b) => {
+        b.onclick = () => cxpAbrirVer(b.closest('tr'));
+    });
 
     if (!esAbierto) return;
 
@@ -405,11 +417,29 @@ function cxpPintarDocumentos() {
         const filas = seleccionadas();
         if (filas.length > 1) cxpAbrirAutorizacion(filas); else cxpAbrirPago(filas);
     };
-    // "Pagar" por fila: paga solo ESE documento, sin tener que marcar su casilla primero.
-    document.querySelectorAll('#cxpBody .cxp-pagar-fila').forEach((b) => {
-        b.onclick = () => cxpAbrirPago([b.closest('tr')]);
-    });
     actualizarSeleccion();
+}
+
+// "Ver" en un documento ya pagado o cancelado: elegir qué abrir. La póliza del PAGO (BAN-/VAE-…) ya está en la
+// columna Póliza de la fila; aquí van la póliza del recibo y el documento.
+function cxpAbrirVer(tr) {
+    const polizaRecibo = tr.dataset.poliza ? Number(tr.dataset.poliza) : null;
+    const esCompra = tr.dataset.tipo === 'compra';
+    const opcion = (html) => `<div class="px-3 py-2 rounded-lg bg-slate-900 border border-slate-800">${html}</div>`;
+    cxpMostrarModal(`
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-sm w-full">
+        <div class="flex items-start justify-between gap-3 mb-1">
+          <h3 class="text-base font-bold text-slate-100">Ver · <span class="font-mono text-emerald-400">${esc(tr.dataset.folio)}</span></h3>
+          <button type="button" class="text-slate-400 hover:text-slate-100 text-xl leading-none" onclick="window.cxpAntCerrar()">&times;</button>
+        </div>
+        <p class="text-xs text-slate-400 mb-3">${esc(tr.dataset.provNombre)} — elige qué abrir. La póliza del pago está en la columna Póliza.</p>
+        <div class="space-y-2 text-sm">
+          ${polizaRecibo ? opcion(`<span class="text-slate-400 text-xs block">Póliza del recibo de mercancía</span>${linkPoliza(polizaRecibo, 'text-sm font-mono text-sky-400 hover:underline')}`) : ''}
+          ${esCompra ? opcion(`<span class="text-slate-400 text-xs block">Documento de recepción</span>${linkDoc(Number(tr.dataset.id), 'Abrir ' + tr.dataset.folio, 'text-sm text-sky-400 hover:underline')}`) : ''}
+          ${tr.dataset.ocId ? opcion(`<span class="text-slate-400 text-xs block">Orden de compra</span><button type="button" onclick="window.verDetalleOC(${Number(tr.dataset.ocId)})" class="text-sm text-sky-400 hover:underline">Abrir la orden de compra</button>`) : ''}
+          ${!polizaRecibo && !esCompra && !tr.dataset.ocId ? '<p class="text-xs text-slate-500">Este registro no tiene más documentos que abrir.</p>' : ''}
+        </div>
+      </div>`);
 }
 
 function cxpCerrarMenusFiltro() {
