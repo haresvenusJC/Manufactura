@@ -6,6 +6,17 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`, `CLAUDE.md`. **Cuentas por pagar: lista única + conciliación con lo pactado.**
+  Pedido del usuario: un anticipo de una ODC es un compromiso de pago manifestado y va en "Documentos por pagar", no en un panel aparte.
+  `cxpCargarOcPorPagar()` (nunca lanza; corre en paralelo con la vista de deuda) arma renglones `tipo:'oc'` (anticipo pactado, o total con IVA
+  si es contado sin anticipo, menos lo pagado) que se mezclan en `cxpCache`; chip "Por anticipar", botón "Pagar" igual al de las demás filas,
+  sin checkbox (se paga de a una, otro asiento 109.01); `cxpAbrirPago` delega a `cxpAbrirAnticipo` si la fila es 'oc'. Las tarjetas de deuda
+  NO suman estos compromisos; nueva tarjeta "Por anticipar (ODC)". Botón "Anticipo a otra OC" para ODC anteriores a las condiciones.
+  **Conciliación pactado vs. ejecutado (sin SQL):** al pagar un anticipo o un documento ligado a una ODC con condiciones, se muestra lo
+  pactado y se precarga la forma de pago; si Finanzas paga distinto (forma de pago o monto) se avisa, se exige el motivo y queda en las
+  notas del pago como "[Difiere de lo pactado: …]". `cxpFormaDeClave` mapea la clave SAT de la ODC (01/02/03/04/28) al selector.
+  Pendiente: un reporte/columna de desviaciones en "Pagos registrados" (hoy solo viven en las notas); que el pago de deuda también compare
+  monto y plazo (hoy solo forma de pago). Falta subir con "comitea" y probar con ODC-000007.
 - Archivos tocados (lo último): `js/buscador-auto.js` (nuevo), `js/buscador-select.js`, `js/app.js`, `version.json`, `CLAUDE.md`. **Buscador en
   selects de listas largas, en toda la app, sin tocar cada módulo**: `buscador-auto.js` (importado en `app.js`) detecta con un
   MutationObserver los `<select>` de su lista (~45: proveedores, clientes, cuentas contables, insumos de BOM, OC/órdenes, y el
@@ -1541,7 +1552,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   la ODC formal, `pagos_proveedor.visto_bueno_*`; (3) conservar catálogos (productos, proveedores, clientes, empleados, plan de cuentas,
   BOM, regímenes, plantillas); (4) recargar inventario inicial real con Entrada directa "Inventario Inicial" contra 304.01. Esto reemplaza
   al pendiente anterior "Diagnóstico de 3 documentos que no cuadran" (ya diagnosticado; no hay que cerrarlos uno por uno).
-- **Unificar el criterio del botón "Pagar" en Finanzas → Cuentas por pagar** (pedido del usuario 2026-10-09, para la próxima sesión). Hoy
+- **[HECHO 2026-10-12 en código local, falta subir/probar: las ODC por pagar ya son renglones de "Documentos por pagar" (chip "Por anticipar", mismo botón "Pagar" azul; sin checkbox, un anticipo a la vez) y se quitó el panel aparte; la ventana de anticipo sigue siendo la compacta, unificar la ventana grande queda opcional.]** Unificar el criterio del botón "Pagar" en Finanzas → Cuentas por pagar (pedido del usuario 2026-10-09, para la próxima sesión). Hoy
   hay dos "Pagar" distintos: el azul de cada fila de "Documentos por pagar" (deuda ya recibida → `cxpAbrirPago`, pago a 201.01) y el verde
   de "Órdenes de compra por pagar" (ODC sin recibir → `cxpAbrirAnticipo`, anticipo a 109.01). Distinto color, distinta ventana y distinto
   texto de ayuda, sin criterio común para el usuario. Decidir con él: un solo estilo/botón y una sola ventana de pago que decida sola
