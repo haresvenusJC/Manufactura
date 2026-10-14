@@ -1,5 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { montarGuia } from './asistente-contable.js';
+import { abrirAsistenteProrrateo } from './asistente-prorrateo.js';
 
 // =====================================================================
 // Contabilidad · Prorrateo de gastos indirectos de fabricación (CIF)
@@ -29,7 +30,8 @@ export async function cargarModuloProrrateo() {
           <label class="block text-[11px] text-slate-400 mb-1">Mes a prorratear</label>
           <input type="month" id="prMes" value="${mesActualISO()}" class="bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
         </div>
-        <span class="flex gap-2">
+        <span class="flex flex-wrap gap-2 items-center">
+          <button type="button" id="prAsistente" class="pr-asist-btn">&#129517; Asistente de llenado</button>
           <a href="${GUIA_URL}" target="_blank" rel="noopener" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg whitespace-nowrap">&#9654; Guia interactiva</a>
           <a href="${MANUAL_URL}" target="_blank" rel="noopener" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg whitespace-nowrap">Manual &#8599;</a>
         </span>
@@ -37,6 +39,7 @@ export async function cargarModuloProrrateo() {
       <div id="prCuerpo"><p class="text-slate-500 text-sm">Cargando...</p></div>`;
 
     document.getElementById('prMes').addEventListener('change', prCargar);
+    document.getElementById('prAsistente').addEventListener('click', () => abrirAsistenteProrrateo('inicio', prCargar));
     await prCargar();
     montarGuia(cont, 'prorrateo');
 }
@@ -47,15 +50,20 @@ async function prCargar() {
     const periodo = `${mes}-01`;
     cuerpo.innerHTML = `<p class="text-slate-500 text-sm">Calculando ${mes}...</p>`;
 
-    let pool, corrida, calc, err;
+    let pool, corrida, calc, centros, areas, deps, err;
     try {
-        [pool, corrida, calc] = await Promise.all([
+        [pool, corrida, calc, centros, areas, deps] = await Promise.all([
             supabaseClient.from('gastos')
                 .select('id, concepto, subtotal, cif_tipo, prorrateo_estatus, cuenta_gasto:cuentas_contables!cuenta_gasto_id(codigo, nombre, cif_tipo)')
                 .eq('clasificacion', 'indirecto_produccion').eq('estatus', 'registrado')
                 .gte('fecha', periodo).lt('fecha', prSiguienteMes(periodo)).order('fecha'),
             supabaseClient.from('prorrateo_corridas').select('*').eq('periodo', periodo).eq('estatus', 'aplicado').maybeSingle(),
             supabaseClient.rpc('prorrateo_calcular', { p_periodo: periodo }),
+            supabaseClient.from('centros_costo').select('id, codigo, nombre, capacidad_normal_horas').eq('tipo', 'produccion').eq('activo', true),
+            supabaseClient.from('areas_fisicas').select('id, codigo, rol, m2, activo, centro_costo_id'),
+            // depreciación de maquinaria productiva del mes (requiere sql/2026-10-14; si falta, simplemente no hay filas)
+            supabaseClient.from('activos_fijos_depreciaciones').select('id, monto, prorrateo_estatus, activos_fijos(nombre)')
+                .eq('anio', Number(mes.slice(0, 4))).eq('mes', Number(mes.slice(5, 7))).in('prorrateo_estatus', ['pendiente', 'prorrateado']),
         ]);
         err = pool.error || calc.error;
     } catch (e) { err = e; }
@@ -67,7 +75,11 @@ async function prCargar() {
         return;
     }
 
-    const gastos = pool.data || [];
+    const depRows = ((deps && !deps.error && deps.data) || []).map(d => ({
+        id: 'dep' + d.id, concepto: 'Depreciación ' + (d.activos_fijos?.nombre || 'de maquinaria'), subtotal: d.monto,
+        cif_tipo: 'fijo', prorrateo_estatus: d.prorrateo_estatus, cuenta_gasto: { codigo: 'Activos fijos', cif_tipo: 'fijo' },
+    }));
+    const gastos = [...(pool.data || []), ...depRows];
     const cor = corrida && corrida.data ? corrida.data : null;
     const filas = calc.data || [];
     const pendientes = gastos.filter(g => g.prorrateo_estatus === 'pendiente');
@@ -82,19 +94,52 @@ async function prCargar() {
 
     // agrupar el cálculo (preview)
     const porOrden = new Map();
+    const porCentro = new Map();
     let ociosa = 0, aplicado = 0;
     filas.forEach(f => {
+        const kc = f.centro_costo_id;
+        if (!porCentro.has(kc)) porCentro.set(kc, { horas: Number(f.horas_centro || 0), cap: Number(f.capacidad_normal || 0), util: f.utilizacion, aplicado: 0, ocioso: 0 });
+        if (f.es_capacidad_ociosa) porCentro.get(kc).ocioso += Number(f.monto || 0);
+        else porCentro.get(kc).aplicado += Number(f.monto || 0);
         if (f.es_capacidad_ociosa) { ociosa += Number(f.monto || 0); return; }
         aplicado += Number(f.monto || 0);
         const k = f.orden_produccion_id;
         if (!porOrden.has(k)) porOrden.set(k, { folio: f.orden_folio, horas: Number(f.horas_orden || 0), monto: 0 });
         porOrden.get(k).monto += Number(f.monto || 0);
     });
-    const horasCentro = filas.length ? Number(filas[0].horas_centro || 0) : 0;
-    const capNormal = filas.length ? Number(filas[0].capacidad_normal || 0) : 0;
-    const util = filas.length ? filas[0].utilizacion : null;
+    const horasCentro = [...porCentro.values()].reduce((s, c) => s + c.horas, 0);
+    const capNormal = [...porCentro.values()].reduce((s, c) => s + c.cap, 0);
+    const util = capNormal > 0 ? horasCentro / capNormal : null;
+    const ctrs = centros && centros.data ? centros.data : [];
+    const arsData = areas && areas.data ? areas.data : [];
+    const centroCod = (id) => ctrs.find(c => c.id === id)?.codigo || ('#' + id);
 
-    let html = '';
+    // ¿Listo para prorratear? — avisos rápidos de lo que falta (con atajo al paso del asistente)
+    const faltan = [];
+    const sinCap = ctrs.filter(c => !(Number(c.capacidad_normal_horas) > 0));
+    if (!ctrs.length || sinCap.length) faltan.push(['centros', ctrs.length ? `Sin capacidad normal: ${sinCap.map(c => esc(c.codigo)).join(', ')}` : 'No hay etapas (centros de costo) de producción']);
+    const arAct = arsData.filter(a => a.activo);
+    if (!arAct.length || arAct.some(a => !(Number(a.m2) > 0)) || !arAct.some(a => a.rol === 'no_produccion') || arAct.some(a => a.rol === 'produccion' && !a.centro_costo_id)) {
+        faltan.push(['areas', 'Áreas incompletas (m², etapa u oficina)']);
+    }
+    const sinTipoPend = (cor ? prorrateados : pendientes).filter(g => !tipoDe(g));
+    if (sinTipoPend.length) faltan.push(['revision', `${sinTipoPend.length} gasto(s) sin tipo fijo/variable (se tratan como variables)`]);
+    const completo = faltan.length === 0;
+    document.getElementById('prAsistente')?.classList.toggle('pr-pulso', !completo);
+    let html = completo
+        ? `<div class="pr-asist-mini mb-4">
+            <span>&#129517; Asistente de llenado &middot; <b>todo completo</b> &#9989;</span>
+            <button type="button" data-pr-paso="inicio" class="pr-asist-link">Abrir</button>
+          </div>`
+        : `<div class="pr-asist-banner mb-4">
+            <div class="pr-asist-ico">&#129517;</div>
+            <div class="pr-asist-txt">
+              <div class="pr-asist-t1">&iquest;No sabes por d&oacute;nde empezar?</div>
+              <div class="pr-asist-t2">Te gu&iacute;o paso a paso: planta &rarr; &aacute;reas &rarr; luz &rarr; tus gastos &rarr; revisi&oacute;n. Te muestro un resumen y solo guardo cuando confirmas.</div>
+              <div class="pr-asist-falta"><b>Falta:</b> ${faltan.map(([, t]) => t).join(' &middot; ')}</div>
+            </div>
+            <button type="button" data-pr-paso="${faltan[0][0]}" class="pr-asist-cta pr-pulso">&#9654; Empezar el asistente</button>
+          </div>`;
 
     if (cor) {
         html += `<div class="bg-emerald-950/30 border border-emerald-800 rounded-xl p-3 mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -114,7 +159,7 @@ async function prCargar() {
           <p class="text-[11px] text-slate-500">fijo ${money(totFijo)} &middot; variable ${money(totVar)}${baseLista.length ? '' : ' &middot; sin gastos'}</p>
         </div>
         <div class="bg-slate-950 border border-slate-800 rounded-xl p-3">
-          <p class="text-[11px] text-slate-400">Horas de mano de obra del mes</p>
+          <p class="text-[11px] text-slate-400">Horas de mano de obra del mes (todas las etapas)</p>
           <p class="text-lg font-mono text-slate-100">${fnum(horasCentro, 1)} h</p>
           <p class="text-[11px] text-slate-500">capacidad normal ${fnum(capNormal, 0)} h &middot; utilizacion ${util != null ? fnum(util * 100, 0) + '%' : '-'}</p>
         </div>
@@ -124,6 +169,23 @@ async function prCargar() {
           <p class="text-[11px] text-slate-500">a ordenes &middot; capacidad no utilizada <span class="text-amber-400">${money(ociosa)}</span></p>
         </div>
       </div>`;
+
+    if (porCentro.size) {
+        html += `<h3 class="text-sm font-semibold text-slate-300 mb-2">Por etapa (centro de costo)</h3>
+          <div class="overflow-x-auto mb-4"><table class="w-full text-xs">
+            <thead><tr class="text-left text-slate-500 border-b border-slate-800">
+              <th class="p-2">Etapa</th><th class="p-2 text-right">Horas reales</th><th class="p-2 text-right">Capacidad normal</th><th class="p-2 text-right">Utilización</th><th class="p-2 text-right">CIF a órdenes</th><th class="p-2 text-right">Capacidad no utilizada</th></tr></thead>
+            <tbody>${[...porCentro.entries()].map(([id, c]) => `
+              <tr class="border-b border-slate-900">
+                <td class="p-2 font-mono text-slate-200">${esc(centroCod(id))}</td>
+                <td class="p-2 text-right font-mono text-slate-300">${fnum(c.horas, 1)} h</td>
+                <td class="p-2 text-right font-mono ${c.cap > 0 ? 'text-slate-400' : 'text-amber-400'}">${c.cap > 0 ? fnum(c.cap, 0) + ' h' : '0 &#9888;'}</td>
+                <td class="p-2 text-right font-mono text-slate-400">${c.util != null ? fnum(c.util * 100, 0) + '%' : '-'}</td>
+                <td class="p-2 text-right font-mono text-emerald-400">${money(c.aplicado)}</td>
+                <td class="p-2 text-right font-mono text-amber-400">${money(c.ocioso)}</td>
+              </tr>`).join('')}</tbody>
+          </table></div>`;
+    }
 
     if (baseLista.length) {
         html += `<h3 class="text-sm font-semibold text-slate-300 mb-2">Gastos indirectos ${cor ? 'incluidos' : 'pendientes'} &mdash; ${mes}</h3>
@@ -171,6 +233,7 @@ async function prCargar() {
 
     document.getElementById('prCuerpo').innerHTML = html;
 
+    cuerpo.querySelectorAll('[data-pr-paso]').forEach(b => b.addEventListener('click', () => abrirAsistenteProrrateo(b.dataset.prPaso, prCargar)));
     const bA = document.getElementById('prAplicar');
     if (bA) bA.addEventListener('click', () => prEjecutar('prorrateo_aplicar', periodo, `Aplicar el prorrateo de ${mes}? Genera la poliza de traspaso y ajusta el costo de las ordenes cerradas del mes.`));
     const bC = document.getElementById('prCancelar');

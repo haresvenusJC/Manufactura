@@ -7,6 +7,33 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 ## Última sesión
 
 - Archivos tocados (lo último): `css/ui-moderno.css`, `js/app.js` (listener de scroll → `body.pagina-desplazada`), `index.html` (`?v=`), `version.json`. **Encabezado, 3 puntos del usuario:** (1) título centrado con el ☰ (y≈32) y píldora "Ayuda" de 28 px de alto (se bajó el alto, no el largo); (2) al desplazar, el título fijo se tapa con fondo opaco (`pagina-desplazada` + `box-shadow` del color de fondo) para que no se vea contenido detrás; (3) **Cuentas por pagar** (pantallas ≥1024 px): título+Ayuda, tarjetas KPI, fila "Documentos por pagar"/Desde-Hasta y encabezados de tabla quedan fijos; solo las filas se desplazan (scroll vertical propio, `thead` sticky). Probado renderizado (Chromium local, Claro Ice y Mac oscuro). Pendiente: Ctrl+Shift+R en la app real; vigilar que los menús de filtro del encabezado no se corten (están dentro del contenedor con scroll) y decidir si otras pantallas con tabla largas usan el mismo esquema.
+- Archivos tocados (lo último): `sql/2026-10-14_depreciacion_al_prorrateo.sql` (nuevo, **YA corrido por el usuario 2026-10-14**), `js/activos-fijos.js`, `js/prorrateo.js`, `js/asistente-prorrateo.js`, `version.json`, `CLAUDE.md`.
+  **La depreciación de la maquinaria productiva entra al prorrateo del CIF** (pedido del usuario 2026-10-14: "considera poner esa necesidad de compra de maquinaria para tenerlo resuelto"; hoy no tiene maquinaria por
+  depreciar, es para cuando compre). Hallazgos: `depreciacion_aplicar` cargaba 503.04 con póliza propia sin crear un gasto, así que el prorrateo (solo lee `gastos`) no la repartía; y el selector "cuenta de gasto"
+  de Activos fijos solo listaba tipo `gasto`, no 503.xx (`costo`). **Decisión del usuario:** una máquina se usa en varias etapas y el reparto es en **PARTES IGUALES entre las etapas que se marquen** (descartó por
+  horas de uso). Migración (funciones reescritas COMPLETAS): tabla `activos_fijos_centros` (activo ↔ etapas), `activos_fijos_depreciaciones.prorrateo_estatus` (no_aplica/pendiente/prorrateado),
+  `gasto_aplicaciones.depreciacion_id` (gasto_id ya no es obligatorio; exactamente uno de los dos), y `depreciacion_aplicar`, `depreciacion_cancelar` (no deja si ya se prorrateó), `prorrateo_calcular` (se recrea:
+  agrega `depreciacion_id`; la depreciación es CIF fijo de cada etapa, partes iguales con el centavo a la primera etapa), `prorrateo_aplicar` y `prorrateo_cancelar`. Solo entran máquinas con cuenta 503.xx y etapas;
+  equipo de oficina (601.xx) o sin etapas = 'no_aplica'. Contabilidad: Cargo 503.04/Abono 153.xx al depreciar; Cargo 115.03 (o 503.98 si no se utilizó)/Abono 503.04 al prorratear (NIF C-4/C-6). Probada en Postgres local
+  (3 etapas: 333.34/333.33/333.33, póliza cuadra, cancelaciones, 2 corridas de la migración). Activos fijos: el selector ya incluye 503.xx, bloque "¿En qué etapas se usa?" (checkboxes), columna "Etapas (CIF)" con ⚠ si falta.
+  Prorrateo de gastos: las depreciaciones del mes aparecen en la tabla de gastos indirectos como "Depreciación <máquina>" (fijo). El asistente: el caso Depreciación ya no es solo advertencia (explica los pasos y lista las máquinas con o sin etapas)
+  y la Revisión avisa solo si hay maquinaria sin etapas o falta la migración. Sin la migración todo degrada (no hay selector de etapas, no hay filas de depreciación). Subido a `main` (2026-10-14, "comitea": solo lo de prorrateo; los demás pendientes del proyecto quedan como están). Pendiente: probar
+  con una máquina de prueba (alta con 503.04 y 2 etapas → aplicar depreciación → prorrateo).
+- Archivos tocados (lo último): `js/prorrateo.js`, `css/ui-moderno.css`, `index.html` (`?v=` de los 3 CSS), `version.json`, `CLAUDE.md`. **Asistente de prorrateo más llamativo (opción C elegida por el usuario):** banner grande
+  con degradado del acento del tema ("¿No sabes por dónde empezar?", lista de lo que falta, botón blanco "▶ Empezar el asistente" con pulso) + botón del encabezado con degradado y pulso; cuando no falta nada
+  el banner se reduce a una línea "todo completo ✅ · Abrir" y se apaga el pulso. Reemplaza el aviso ámbar anterior. Clases `.pr-asist-*`/`.pr-pulso` al final de `ui-moderno.css` (solo esta pantalla;
+  respeta `prefers-reduced-motion`). Revisado en Chromium con una página de muestra (Tailwind no carga aquí). Pendiente: verlo en la app real y en los temas oscuros/Claro Ice con Ctrl+Shift+R.
+- Archivos tocados (lo último): `js/asistente-prorrateo.js` (nuevo), `js/prorrateo.js`, `js/asistente-contable.js`, `manual-costos-produccion.html`, `version.json`, `CLAUDE.md`. **Asistente de llenado del prorrateo**
+  (pedido del usuario 2026-10-13: "no sé qué va primero", quería una guía interactiva con casos prácticos): botón destacado "🧭 Asistente de llenado" en Prorrateo de gastos que abre una subventana con 5 pasos en el
+  orden de dependencia — (1) Tu planta: capacidad normal por etapa (operadores × jornada × días × factores), (2) Áreas: m²/personas/rol/etapa con sugerencias típicas de planta de cosméticos y farmacéuticos,
+  (3) Luz: submedidor o equipos (kW/HP/W), (4) Tus gastos: 16 casos con preguntas (renta, luz, agua, gas, internet, mantenimiento, piezas [mejora mayor → Activos fijos], fumigación, monitoreo ambiental,
+  calibraciones, limpieza, vigilancia/seguros, supervisión, insumos, calidad [de un lote → gasto directo], residuos) + info de depreciación y de lo que NO se prorratea, (5) Revisión del mes y simulación con
+  `_reparto_resolver`. **Cada paso muestra un resumen y solo guarda al confirmar.** Escribe solo en tablas existentes (`centros_costo`, `areas_fisicas`(+`_cargas`), `reparto_plantillas`(+`_lineas`),
+  `cuentas_contables` → crea cuentas 503.09–503.16 si no existen y fija `cif_tipo`); sin SQL nuevo. Cuentas nuevas propuestas: 503.09 Fumigación, 503.10 Monitoreo ambiental, 503.11 Calibración/validación,
+  503.12 Refacciones, 503.13 Limpieza y sanitización, 503.14 Control de calidad externo, 503.15 Residuos, 503.16 Telecomunicaciones. `prorrateo.js` gana: aviso "Antes de aplicar, revisa" con atajo al paso del
+  asistente, y tabla "Por etapa" (horas reales, capacidad, utilización, CIF aplicado y no utilizado por centro) — **corrige** que las tarjetas leían solo la primera fila del cálculo (con SURT/MEZ/ENV mezclaba/mostraba un centro).
+  Probado en Chromium con Supabase simulado (los 5 pasos, 6 casos, guardado y simulación); falta probarlo con la base real y con Tailwind/estilos (no cargan en este entorno).
+  (El hallazgo de la depreciación quedó resuelto en la entrada siguiente.) Pendiente: probar con Ctrl+Shift+R, subir con "comitea".
 - Archivos tocados (lo último): `css/ui-moderno.css`, `index.html` (`?v=`), `version.json`. **Encabezado unificado — CORRECCIÓN tras PROBARLO RENDERIZADO** (ahora sí se puede: Chromium + `@tailwindcss/browser` local en el scratchpad,
   ruteando `cdn.tailwindcss.com` y abortando el resto; ver "Cómo ver pantallas aquí" abajo). Hallazgos: (1) el margen negativo `-2.5rem` + `position:sticky` dejaba el título a 24/48/64 px según la pantalla;
   (2) el título fijo NO se quedaba fijo porque `<main>` (Tailwind `overflow-y-auto`) no es quien se desplaza —lo hace la ventana—. Fix: en vez del margen negativo, `#app > main:has(> section.vista-seccion:not(.hidden):not(#view-bienvenida)) { padding-top:1.5rem }`
@@ -1367,6 +1394,7 @@ Documento de almacén. Sin folio propio: pagos, cobros, nómina, auditoría.
 
 - `app.js` — router de vistas (`window.loadView`, con historial del navegador: ← / → entre pantallas; F5 se queda en la pantalla) + shell de
   navegación (riel de iconos + cajón) y exposición de funciones al `window` para los `onclick` del HTML.
+- `asistente-prorrateo.js` — "🧭 Asistente de llenado" de Prorrateo de gastos: subventana de 5 pasos (planta → áreas → luz → casos de gasto → revisión) con resumen y confirmación antes de guardar; `abrirAsistenteProrrateo(paso, onCerrar)`.
 - `areas-prorrateo.js` — declara m²/kW/personas por área para derivar los % de prorrateo de gastos compartidos.
 - `asistente-contable.js` — panel de ayuda colapsable ("¿Cómo llenar esta pantalla?") reutilizado por
   varios módulos + el asistente de captura de Gastos.
