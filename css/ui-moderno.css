@@ -699,14 +699,18 @@ span.rounded-full[class*="bg-"] { box-shadow: inset 0 0 0 1px color-mix(in srgb,
 [data-theme="claro-ice"] .bv-tile .ico { background-image: none; background-color: color-mix(in srgb, currentColor 16%, transparent); box-shadow: none; }
 
 /* ENCABEZADO UNIFICADO de todas las pantallas (pedido del usuario 2026-10-13; la referencia es Contabilidad · Cuentas por pagar):
-   (1) el título y las tarjetas suben al renglón del botón ☰ (margen -2.5rem, el mismo que ya tenía Cuentas por pagar) en TODAS las pantallas menos Inicio;
+   (1) el título y las tarjetas suben al renglón del botón ☰ (relleno superior de <main> en 1.5rem) en TODAS las pantallas menos Inicio;
    (2) el título queda FIJO arriba al desplazarse (sticky) para no perder en qué módulo se está.
    (3) PASO 2 (2026-10-13): el bloque "Asistente — … / 📖 Manual" (.asist-panel de montarGuia()/crearPanelAsistente(), js/asistente-contable.js, sin tocarlo) es en TODAS las pantallas y temas la píldora "Ayuda" arriba a la derecha; al abrirla es un popover con el contenido y el Manual.
    El HTML/JS no cambia. */
-main section.vista-seccion:not(#view-bienvenida) { position: relative; margin-top: -2.5rem; }
+/* En vez de un margen negativo (que movía el título pegajoso por distintos desplazamientos según la pantalla), se reduce el relleno superior de <main> (index.html lo deja en 4rem para el ☰ flotante): el título nace a la misma altura que Cuentas por pagar en TODAS las pantallas. */
+#app > main:has(> section.vista-seccion:not(.hidden):not(#view-bienvenida)) { padding-top: 1.5rem; }
+main section.vista-seccion:not(#view-bienvenida) { position: relative; }
+/* La página la desplaza la ventana (<main> crece con su contenido), no <main>: con overflow-y:auto de Tailwind el título "pegajoso" se pegaba a un contenedor que nunca se desplaza y no se quedaba fijo. Sin overflow en <main>, el sticky usa la ventana. */
+#app > main { overflow: visible; }
 main section.vista-seccion:not(#view-bienvenida) > h2:first-child,
 main section.vista-seccion:not(#view-bienvenida) > div:first-child:has(> h2:first-child) {
-    position: sticky; top: 0; z-index: 25; background: var(--bg-0); padding-right: 6.5rem;
+    position: sticky; top: .4rem; z-index: 25; background: var(--bg-0); padding-right: 6.5rem;
 }
 /* Píldora "Ayuda" (paso 2): el título de arriba deja 6.5rem libres a la derecha para ella. */
 /* La tabla de "Documentos por pagar" se ve con mucho aire: encabezado más compacto (sin tocar thOrden(), que es compartido por otras pantallas — solo aquí, con más especificidad). */

@@ -6,7 +6,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
-- Archivos tocados (lo último): `sql/2026-10-14_depreciacion_al_prorrateo.sql` (nuevo, **NO corrido**), `js/activos-fijos.js`, `js/prorrateo.js`, `js/asistente-prorrateo.js`, `version.json`, `CLAUDE.md`.
+- Archivos tocados (lo último): `sql/2026-10-14_depreciacion_al_prorrateo.sql` (nuevo, **YA corrido por el usuario 2026-10-14**), `js/activos-fijos.js`, `js/prorrateo.js`, `js/asistente-prorrateo.js`, `version.json`, `CLAUDE.md`.
   **La depreciación de la maquinaria productiva entra al prorrateo del CIF** (pedido del usuario 2026-10-14: "considera poner esa necesidad de compra de maquinaria para tenerlo resuelto"; hoy no tiene maquinaria por
   depreciar, es para cuando compre). Hallazgos: `depreciacion_aplicar` cargaba 503.04 con póliza propia sin crear un gasto, así que el prorrateo (solo lee `gastos`) no la repartía; y el selector "cuenta de gasto"
   de Activos fijos solo listaba tipo `gasto`, no 503.xx (`costo`). **Decisión del usuario:** una máquina se usa en varias etapas y el reparto es en **PARTES IGUALES entre las etapas que se marquen** (descartó por
@@ -16,7 +16,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   equipo de oficina (601.xx) o sin etapas = 'no_aplica'. Contabilidad: Cargo 503.04/Abono 153.xx al depreciar; Cargo 115.03 (o 503.98 si no se utilizó)/Abono 503.04 al prorratear (NIF C-4/C-6). Probada en Postgres local
   (3 etapas: 333.34/333.33/333.33, póliza cuadra, cancelaciones, 2 corridas de la migración). Activos fijos: el selector ya incluye 503.xx, bloque "¿En qué etapas se usa?" (checkboxes), columna "Etapas (CIF)" con ⚠ si falta.
   Prorrateo de gastos: las depreciaciones del mes aparecen en la tabla de gastos indirectos como "Depreciación <máquina>" (fijo). El asistente: el caso Depreciación ya no es solo advertencia (explica los pasos y lista las máquinas con o sin etapas)
-  y la Revisión avisa solo si hay maquinaria sin etapas o falta la migración. Sin la migración todo degrada (no hay selector de etapas, no hay filas de depreciación). Pendiente: **correr el SQL en Supabase**, subir con "comitea" y probar
+  y la Revisión avisa solo si hay maquinaria sin etapas o falta la migración. Sin la migración todo degrada (no hay selector de etapas, no hay filas de depreciación). Subido a `main` (2026-10-14, "comitea": solo lo de prorrateo; los demás pendientes del proyecto quedan como están). Pendiente: probar
   con una máquina de prueba (alta con 503.04 y 2 etapas → aplicar depreciación → prorrateo).
 - Archivos tocados (lo último): `js/prorrateo.js`, `css/ui-moderno.css`, `index.html` (`?v=` de los 3 CSS), `version.json`, `CLAUDE.md`. **Asistente de prorrateo más llamativo (opción C elegida por el usuario):** banner grande
   con degradado del acento del tema ("¿No sabes por dónde empezar?", lista de lo que falta, botón blanco "▶ Empezar el asistente" con pulso) + botón del encabezado con degradado y pulso; cuando no falta nada
@@ -33,6 +33,12 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   asistente, y tabla "Por etapa" (horas reales, capacidad, utilización, CIF aplicado y no utilizado por centro) — **corrige** que las tarjetas leían solo la primera fila del cálculo (con SURT/MEZ/ENV mezclaba/mostraba un centro).
   Probado en Chromium con Supabase simulado (los 5 pasos, 6 casos, guardado y simulación); falta probarlo con la base real y con Tailwind/estilos (no cargan en este entorno).
   (El hallazgo de la depreciación quedó resuelto en la entrada siguiente.) Pendiente: probar con Ctrl+Shift+R, subir con "comitea".
+- Archivos tocados (lo último): `css/ui-moderno.css`, `index.html` (`?v=`), `version.json`. **Encabezado unificado — CORRECCIÓN tras PROBARLO RENDERIZADO** (ahora sí se puede: Chromium + `@tailwindcss/browser` local en el scratchpad,
+  ruteando `cdn.tailwindcss.com` y abortando el resto; ver "Cómo ver pantallas aquí" abajo). Hallazgos: (1) el margen negativo `-2.5rem` + `position:sticky` dejaba el título a 24/48/64 px según la pantalla;
+  (2) el título fijo NO se quedaba fijo porque `<main>` (Tailwind `overflow-y-auto`) no es quien se desplaza —lo hace la ventana—. Fix: en vez del margen negativo, `#app > main:has(> section.vista-seccion:not(.hidden):not(#view-bienvenida)) { padding-top:1.5rem }`
+  (index.html lo deja en 4rem por el ☰) → las 43 pantallas con título nacen a la MISMA altura (medido); `#app > main { overflow: visible }` para que el sticky use la ventana (`top:.4rem`). La píldora "Ayuda" no es fija (se va con el scroll).
+  **Cómo ver pantallas aquí:** servidor `python3 -m http.server`, Playwright-core + `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`, `npm i @tailwindcss/browser` (v4, sirve para maquetar), responder `cdn.tailwindcss.com` con ese JS y abortar lo demás; la app pide login (Supabase) así que se oculta `#loginOverlay`, se muestra la `section.vista-seccion` deseada y se inyecta contenido/`.asist-panel` de prueba.
+  Pendiente: ver en la app real con Ctrl+Shift+R.
 - Archivos tocados (lo último): `css/ui-moderno.css`, `index.html` (`?v=`), `version.json`. **Encabezado unificado, PASO 2** (el usuario pidió ir por pasos: paso 1 = altura + título fijo; paso 2 = píldora): el cuadro "Asistente — … / 📖 Manual"
   (`.asist-panel`) pasa a ser en TODAS las pantallas y temas la píldora "Ayuda" arriba a la derecha (popover al abrir), con las reglas de `main section.vista-seccion:not(#view-bienvenida) .asist-panel`
   (antes solo `#contenedorPagosProveedor`). Sin HTML/JS/SQL. Pendiente: probar con Ctrl+Shift+R en varias pantallas (Pedidos de venta, Gastos, Pólizas…); vigilar choques con el botón "📖 Cómo llenar esta pantalla" a la derecha del título.
