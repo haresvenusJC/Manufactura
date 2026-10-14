@@ -365,8 +365,10 @@ function cxpPintarDocumentos() {
       <p id="cxpMsg" class="text-xs mt-2 min-h-[1rem]"></p>
     `;
 
-    document.getElementById('cxpDesde').onchange = (e) => { cxpDesde = e.target.value; cxpPintarDocumentos(); };
-    document.getElementById('cxpHasta').onchange = (e) => { cxpHasta = e.target.value; cxpPintarDocumentos(); };
+    // Se repinta solo con fecha completa (año ≥ 2000) o vacía: si no, al teclear el año (0002, 0020…) el campo se reiniciaba.
+    const fechaLista = (v) => !v || Number(v.slice(0, 4)) >= 2000;
+    document.getElementById('cxpDesde').onchange = (e) => { if (!fechaLista(e.target.value)) return; cxpDesde = e.target.value; cxpPintarDocumentos(); };
+    document.getElementById('cxpHasta').onchange = (e) => { if (!fechaLista(e.target.value)) return; cxpHasta = e.target.value; cxpPintarDocumentos(); };
     document.getElementById('cxpLimpiarFiltros').onclick = () => { cxpDesde = ''; cxpHasta = ''; cxpProveedorId = ''; cxpDocQ = ''; cxpPintarDocumentos(); };
     document.getElementById('cxpBtnAnticipo').onclick = () => cxpAbrirAnticipo();
     wireOrdenTabla(panel, cxpOrden, cxpPintarDocumentos);
