@@ -864,7 +864,7 @@ async function cxpAbrirAnticipo(ocPre = null, montoPre = null) {
         cxpCuentasPago.map((c) => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
 
     cxpMostrarModal(`
-      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-md w-full">
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-md w-full max-h-[92vh] overflow-y-auto">
         <h3 class="text-base font-bold text-slate-100 mb-1">💰 Pagar anticipo a proveedor</h3>
         <p class="text-xs text-slate-400 mb-3">Se paga ANTES de recibir la mercancía; al recibirla, el anticipo se aplica solo contra el pasivo que se reconozca.</p>
         <div class="space-y-2">
@@ -888,7 +888,7 @@ async function cxpAbrirAnticipo(ocPre = null, montoPre = null) {
           </div>
         </div>
         <p id="cxpAntMsg" class="text-xs mt-2 min-h-[1rem] text-rose-400"></p>
-        <div class="flex justify-end gap-2 mt-3">
+        <div class="flex justify-end gap-2 mt-3 sticky bottom-0 bg-slate-900 pt-2">
           <button type="button" onclick="window.cxpAntCerrar()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg">Cancelar</button>
           <button type="button" id="cxpAntGuardar" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg">Registrar pago</button>
         </div>

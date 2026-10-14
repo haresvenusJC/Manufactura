@@ -6,6 +6,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/pagos-proveedor.js`, `version.json`. **Pagar anticipo (Cuentas por pagar):** el modal no tenía scroll y en pantallas bajas el botón "Registrar pago" quedaba fuera de vista (usuario atorado con un anticipo menor a lo pactado). Ahora el panel hace scroll (`max-h-[92vh]`) y la barra Cancelar/Registrar pago es fija abajo. La lógica de diferencia ya funcionaba: pagar menos de lo pactado se permite con el motivo obligatorio (queda en notas del pago). Pendiente: probar con ODC-000009.
 - Archivos tocados (lo último): `js/inventario.js`, `css/ui-moderno.css`, `index.html` (`?v=`), `version.json`. **Lotes compacto:** botón "Cómo llenar esta pantalla" al borde derecho; filtros en una línea más baja (etiquetas al lado, "Solo con existencia" en línea); filas más bajas; título, filtros y encabezados fijos y solo las filas se desplazan (≥1024 px, clase `.lotes-scroll`). Pendiente: Ctrl+Shift+R en Lotes; si gusta, mismo esquema en otras tablas largas.
 - Archivos tocados (lo último): `js/auxiliar-inventarios.js`, `js/cierre-periodo.js`, `version.json`, `CLAUDE.md`. **Cuadre de inventario: ahora dice QUÉ documentos explican la diferencia** (pedido del usuario con captura de
   Cierre de periodo: 115.01 con kardex 40,486.04 vs balanza 36,048.10, dif −4,437.94). Antes el cuadre solo listaba las pólizas SIN movimiento de inventario; faltaba la otra mitad. Nuevo `conciliarDocumentos()`: agrupa los
