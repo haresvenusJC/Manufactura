@@ -40,7 +40,7 @@ let cxpDocQ = '';
 // vencida + parcial + sin ningún pago (vencida/parcial se calculan aquí, el backend solo
 // conoce pendiente/pagado/cancelado — v_cuentas_por_pagar.estatus_cxp).
 const CXP_ESTATUS_MENU = [
-    ['pendiente', 'Pendiente'], ['vencida', 'Vencida'], ['parcial', 'Parcial'], '-',
+    ['pendiente', 'Pendiente'], ['vencida', 'Vencida'], ['parcial', 'Pago parcial'], '-',
     ['anticipado', 'Anticipo pagado'], ['pagado', 'Pagada'], ['cancelado', 'Cancelada'], '-',
     ['todas', 'Todas'],
 ];
@@ -234,7 +234,7 @@ function cxpPintarDocumentos() {
         if (x.estatus_cxp === 'anticipado') return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 whitespace-nowrap" title="Anticipo cubierto; la mercancía aún no se recibe">Anticipo pagado</span>';
         if (x.estatus_cxp === 'pagado') return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300">Pagada</span>';
         if (esVencida(x)) return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-950 text-rose-300">Vencida</span>';
-        if (esParcial(x)) return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-950 text-sky-300">Parcial</span>';
+        if (esParcial(x)) return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-950 text-sky-300">Pago parcial</span>';
         return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-950 text-amber-300">Pendiente</span>';
     };
 
