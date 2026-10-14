@@ -78,6 +78,12 @@ html, body { background-color: var(--bg-0) !important; color: var(--tx-0) !impor
 .bg-slate-950\/80, .bg-slate-950\/50 { background-color: var(--bg-0) !important; }
 .bg-slate-900\/60, .bg-slate-900\/50, .bg-slate-900\/40, .bg-slate-900\/25 { background-color: var(--soft) !important; }
 .bg-slate-800\/50, .bg-slate-800\/40 { background-color: var(--bg-2) !important; }
+/* Variantes con transparencia que faltaban (2026-10-14): sin esto quedan gris oscuro fijo en los temas claros y el texto no se lee.
+   NO se incluye .bg-slate-950/40: es el fondo semitransparente de las subventanas (overlay) y debe seguir transparente. */
+.bg-slate-950\/60 { background-color: var(--bg-0) !important; }
+.bg-slate-900\/30 { background-color: var(--soft) !important; }
+.bg-slate-800\/60, .bg-slate-800\/30 { background-color: var(--bg-2) !important; }
+.bg-slate-700\/60 { background-color: var(--bg-3) !important; }
 
 .border-slate-900 { border-color: var(--bd-0) !important; }
 .border-slate-800, .border-slate-800\/80, .border-slate-800\/60 { border-color: var(--bd-1) !important; }
@@ -117,4 +123,4 @@ html, body { background-color: var(--bg-0) !important; color: var(--tx-0) !impor
 .hover\:bg-sky-900:hover, .hover\:bg-emerald-900:hover, .hover\:bg-rose-900:hover,
 .hover\:bg-red-900:hover, .hover\:bg-amber-900:hover, .hover\:bg-indigo-900:hover { background-color: var(--bg-3) !important; }
 
-select option { background-color: var(--bg-1); color: var(--tx-0); }
+select option { background-color: var(--bg-1); color: var(--tx-0); }
