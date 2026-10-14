@@ -92,6 +92,12 @@ function cpPintarResultado() {
                 <span class="shrink-0 min-w-[1.75rem] text-center text-xs font-bold text-white bg-amber-600 rounded-full px-2 py-0.5">${esc(c.cantidad)}</span>
               </summary>
               <div class="px-3 pb-3 overflow-x-auto">
+                ${/no cuadran contra el kardex/i.test(c.descripcion || '') && Array.isArray(c.detalle) && c.detalle.length
+                    ? c.detalle.filter((fila) => fila.cuenta).map((fila) => {
+                        const cod = String(fila.cuenta).split(' ')[0];
+                        const fecha = ((c.descripcion || '').match(/al (\d{4}-\d{2}-\d{2})/) || [])[1] || '';
+                        return fecha ? `<button type="button" onclick="window.abrirCuadreInventarioCuenta('${esc(cod)}','${fecha}')" class="mt-2 text-xs font-semibold bg-sky-700 hover:bg-sky-600 text-white px-3 py-1.5 rounded-lg cursor-pointer">🔎 Ver qué documentos explican la diferencia de ${esc(cod)}</button>` : '';
+                    }).join('') : ''}
                 ${Array.isArray(c.detalle) && c.detalle.length
                     ? `<div class="mt-1 space-y-1.5">${c.detalle.map((fila) => `
                         <div class="flex flex-wrap gap-x-5 gap-y-1 border-t border-slate-700 pt-1.5 text-xs">${Object.entries(fila).map(([k, v]) => `<span><span class="text-slate-400">${esc(String(k).replace(/_/g, ' '))}:</span> <span class="text-slate-100 font-medium">${esc(v ?? '—')}</span></span>`).join('')}</div>`).join('')}</div>`

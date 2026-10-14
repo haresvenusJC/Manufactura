@@ -180,6 +180,33 @@ async function traerPolizasCuenta(cuentaIds, hasta, reversos) {
     return out;
 }
 
+/**
+ * Conciliación documento por documento de UNA cuenta de inventario: agrupa los movimientos del kardex por su póliza
+ * (o por documento si no tiene póliza) y compara el valor del kardex contra lo que esa póliza contabilizó EN ESTA
+ * cuenta. Lo que no coincide (documento sin póliza, póliza por otro monto, cancelaciones a medias) es lo que explica
+ * la diferencia contra la balanza, junto con las pólizas sin kardex (`ajenas`).
+ */
+function conciliarDocumentos(cid, signo, movs, productoIds, pols, polizaDeMov) {
+    const grupos = new Map();
+    for (const m of movs) {
+        if (!productoIds.has(m.producto_id)) continue;
+        const pid = polizaDeMov(m);
+        const key = pid ? 'p' + pid : 'd' + (m.documento_id || 'm' + m.id);
+        const q = Number(m.cantidad || 0);
+        const v = Math.abs(q) * Number(m.costo_unitario || 0) * (q < 0 ? -1 : 1);
+        if (!grupos.has(key)) grupos.set(key, { polizaId: pid || null, docId: m.documento_id || null, folio: m.documentos?.folio || (m.documento_id ? '#' + m.documento_id : '—'),
+            tipo: TIPO_MOV[m.tipo_movimiento] || m.tipo_movimiento || '—', fecha: fechaLocal(m.created_at), kardex: 0, contab: 0 });
+        grupos.get(key).kardex += v;
+    }
+    pols.filter((x) => x.cuenta_id === cid).forEach((x) => {
+        const g = grupos.get('p' + x.polizas.id);
+        if (g) g.contab += signo * ((Number(x.cargo) || 0) - (Number(x.abono) || 0));
+    });
+    return [...grupos.values()].map((g) => ({ ...g, dif: g.contab - g.kardex }))
+        .filter((g) => Math.abs(g.dif) >= 0.01)
+        .sort((a, b) => Math.abs(b.dif) - Math.abs(a.dif));
+}
+
 /** Genera el reporte y lo pinta en `res` (el contenedor #rcResultado). */
 export async function generarAuxInventarios(res, desde, hasta) {
     if (!desde || !hasta) { alert('Indica el periodo.'); return; }
@@ -247,7 +274,8 @@ export async function generarAuxInventarios(res, desde, hasta) {
             });
             const deCuenta = todosDeCuentas.filter((p) => p.cuentaId === cid);
             const kardexTotal = deCuenta.reduce((a, p) => a + kardex.get(p.id).valFin, 0);
-            return { cta, saldoBalanza: saldo, kardexTotal, dif: saldo - kardexTotal, ajenas: [...ajenas.values()].sort((a, b) => (a.pol.fecha < b.pol.fecha ? -1 : 1)),
+            const docs = conciliarDocumentos(cid, signo, movs, new Set(deCuenta.map((p) => p.id)), pols, polizaDeMov);
+            return { cta, docs, saldoBalanza: saldo, kardexTotal, dif: saldo - kardexTotal, ajenas: [...ajenas.values()].sort((a, b) => (a.pol.fecha < b.pol.fecha ? -1 : 1)),
                 sinCuenta: deCuenta.filter((p) => !p.cuentaAsignada).length, nArticulos: deCuenta.length };
         });
 
@@ -255,6 +283,34 @@ export async function generarAuxInventarios(res, desde, hasta) {
     } catch (err) {
         res.innerHTML = `<p class="text-rose-400 text-xs">No se pudo generar el auxiliar de inventarios.<br>${esc(err.message || err)}</p>`;
     }
+}
+
+function filaCuadre(c, hasta) {
+    const td = 'p-1.5';
+    const tdR = 'p-1.5 text-right font-mono';
+    const ok = Math.abs(c.dif) < 0.5;
+    const sumaDocs = (c.docs || []).reduce((a, d) => a + d.dif, 0);
+    const sumaAjenas = c.ajenas.reduce((a, x) => a + (c.cta.naturaleza === 'A' ? -1 : 1) * x.neto, 0);
+    return `
+        <tr class="bg-slate-800/60"><td class="p-2 font-bold ${ok ? 'text-emerald-400' : 'text-amber-400'}" colspan="11">${ok ? '✅' : '⚠️'} Cuadre ${esc(c.cta.codigo)} · ${esc(c.cta.nombre)} al ${esc(hasta)}
+            <span class="font-normal text-[10px] text-slate-500 ml-2">${c.nArticulos} artículo(s) en esta cuenta${c.sinCuenta ? `, ${c.sinCuenta} sin cuenta asignada (se asumió)` : ''}</span></td></tr>
+        <tr class="text-slate-300"><td class="${td}" colspan="10">Suma del kardex valorizado de TODOS los artículos de la cuenta</td><td class="${tdR}">${fmt(c.kardexTotal)}</td></tr>
+        <tr class="text-slate-300"><td class="${td}" colspan="10">Saldo de la cuenta en la balanza (contabilizadas + canceladas con su reverso)</td><td class="${tdR}">${fmt(c.saldoBalanza)}</td></tr>
+        <tr class="font-semibold ${ok ? 'text-emerald-300' : 'text-amber-300'}"><td class="${td}" colspan="10">Diferencia (balanza − kardex)</td><td class="${tdR}">${fmt(c.dif)}</td></tr>
+        ${(c.docs || []).length ? `
+        <tr class="text-slate-200"><td class="${td} text-[11px] font-semibold pt-3" colspan="11">📄 Documentos cuyo valor en el kardex NO coincide con lo contabilizado en esta cuenta (de aquí sale la diferencia; "sin póliza" = entró al kardex y nunca llegó a la balanza):</td></tr>
+        <tr class="text-slate-500 text-[10px] border-b border-slate-800"><td class="${td}">Fecha</td><td class="${td}">Movimiento</td><td class="${td}">Documento</td><td class="${td}">Póliza</td>
+            <td class="${td} text-right" colspan="2">Kardex</td><td class="${td} text-right" colspan="2">Contabilizado</td><td class="${td} text-right" colspan="3">Diferencia</td></tr>
+        ${c.docs.map((d) => `<tr class="text-slate-300 text-[11px] border-b border-slate-900/60"><td class="${td} font-mono">${esc(d.fecha)}</td><td class="${td}">${esc(d.tipo)}</td>
+            <td class="${td} font-mono">${linkDoc(d.docId, d.folio)}</td><td class="${td} font-mono">${d.polizaId ? linkPoliza(d.polizaId) : '<span class="text-amber-400 font-semibold">sin póliza</span>'}</td>
+            <td class="${tdR}" colspan="2">${fmt(d.kardex)}</td><td class="${tdR}" colspan="2">${fmt(d.contab)}</td><td class="${tdR} ${d.dif < 0 ? 'text-rose-300' : 'text-emerald-300'}" colspan="3">${fmt(d.dif)}</td></tr>`).join('')}
+        <tr class="text-slate-400 text-[11px]"><td class="${td} text-right" colspan="10">Suma de las diferencias por documento</td><td class="${tdR}">${fmt(sumaDocs)}</td></tr>` : ''}
+        ${c.ajenas.length ? `<tr class="text-slate-400"><td class="${td} text-[11px] italic pt-3" colspan="11">Pólizas que movieron esta cuenta sin un movimiento de inventario detrás (ajustes manuales, deterioro, prorrateo…):</td></tr>
+        ${c.ajenas.map((a) => `<tr class="text-slate-400 text-[11px]"><td class="${td} font-mono">${esc(a.pol.fecha)}</td><td class="${td}">Póliza ${linkPoliza(a.pol.id)}</td>
+            <td class="${td}">${esc(a.pol.tipo || '')} ${esc(a.pol.numero || '')}</td><td class="${td}">${esc(a.pol.origen || 'manual')}</td>
+            <td class="${td}" colspan="6">${esc(a.concepto)}</td><td class="${tdR}">${fmt(a.neto)}</td></tr>`).join('')}
+        <tr class="text-slate-400 text-[11px]"><td class="${td} text-right" colspan="10">Suma de pólizas sin kardex</td><td class="${tdR}">${fmt(sumaAjenas)}</td></tr>` : ''}
+        ${(c.docs || []).length || c.ajenas.length ? `<tr class="font-semibold text-slate-200 text-[11px] border-t border-slate-700"><td class="${td} text-right" colspan="10">Documentos + pólizas sin kardex (debe ser la diferencia de arriba)</td><td class="${tdR}">${fmt(sumaDocs + sumaAjenas)}</td></tr>` : ''}`;
 }
 
 function pintar(res, { desde, hasta, visibles, kardex, cuadre, soloMov }) {
@@ -287,19 +343,7 @@ function pintar(res, { desde, hasta, visibles, kardex, cuadre, soloMov }) {
     }
     if (!n) { res.innerHTML = '<p class="text-slate-400">Sin movimientos ni saldo en ese periodo para los artículos elegidos.</p>'; return; }
 
-    const cuadreHtml = cuadre.map((c) => {
-        const ok = Math.abs(c.dif) < 0.5;
-        return `
-        <tr class="bg-slate-800/60"><td class="p-2 font-bold ${ok ? 'text-emerald-400' : 'text-amber-400'}" colspan="11">${ok ? '✅' : '⚠️'} Cuadre ${esc(c.cta.codigo)} · ${esc(c.cta.nombre)} al ${esc(hasta)}
-            <span class="font-normal text-[10px] text-slate-500 ml-2">${c.nArticulos} artículo(s) en esta cuenta${c.sinCuenta ? `, ${c.sinCuenta} sin cuenta asignada (se asumió)` : ''}</span></td></tr>
-        <tr class="text-slate-300"><td class="${td}" colspan="10">Suma del kardex valorizado de TODOS los artículos de la cuenta</td><td class="${tdR}">${fmt(c.kardexTotal)}</td></tr>
-        <tr class="text-slate-300"><td class="${td}" colspan="10">Saldo de la cuenta en la balanza (contabilizadas + canceladas con su reverso)</td><td class="${tdR}">${fmt(c.saldoBalanza)}</td></tr>
-        <tr class="font-semibold ${ok ? 'text-emerald-300' : 'text-amber-300'}"><td class="${td}" colspan="10">Diferencia (balanza − kardex)</td><td class="${tdR}">${fmt(c.dif)}</td></tr>
-        ${c.ajenas.length ? `<tr class="text-slate-400"><td class="${td} text-[11px] italic" colspan="11">Pólizas que movieron esta cuenta sin un movimiento de inventario detrás (ahí suele estar la diferencia):</td></tr>
-        ${c.ajenas.map((a) => `<tr class="text-slate-400 text-[11px]"><td class="${td} font-mono">${esc(a.pol.fecha)}</td><td class="${td}">Póliza ${linkPoliza(a.pol.id)}</td>
-            <td class="${td}">${esc(a.pol.tipo || '')} ${esc(a.pol.numero || '')}</td><td class="${td}">${esc(a.pol.origen || 'manual')}</td>
-            <td class="${td}" colspan="6">${esc(a.concepto)}</td><td class="${tdR}">${fmt(a.neto)}</td></tr>`).join('')}` : ''}`;
-    }).join('');
+    const cuadreHtml = cuadre.map((c) => filaCuadre(c, hasta)).join('');
 
     res.innerHTML = `
         <div class="flex flex-wrap gap-4 text-xs text-slate-400 mb-3">
@@ -326,3 +370,62 @@ function pintar(res, { desde, hasta, visibles, kardex, cuadre, soloMov }) {
         <p class="text-[10px] text-slate-500 mt-2">Valor = cantidad × costo unitario del movimiento en el kardex (incluye landed cost; las salidas van al costo PEPS con que salieron). El cuadre suma todos los artículos de cada cuenta aunque el filtro muestre solo algunos.</p>
         </div>`;
 }
+
+
+/**
+ * Subventana con el cuadre de UNA cuenta de inventario a una fecha (la usa Cierre de periodo): muestra los
+ * documentos y pólizas que explican la diferencia entre el kardex valorizado y la balanza.
+ */
+export async function abrirCuadreInventarioCuenta(codigoCuenta, hasta) {
+    const id = typeof window.idSubventana === 'function' ? window.idSubventana('cuadreInvCuenta') : 'cuadreInvCuenta';
+    document.getElementById(id)?.remove();
+    const z = typeof window.zSubventanaSiguiente === 'function' ? window.zSubventanaSiguiente() : 60;
+    const modal = document.createElement('div');
+    modal.id = id;
+    modal.className = 'fixed inset-0 flex items-center justify-center bg-slate-950/40 p-3';
+    modal.style.zIndex = z;
+    modal.innerHTML = `
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col">
+        <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-800">
+          <div class="font-semibold text-sky-300">🔎 Cuadre de inventario · ${esc(codigoCuenta)} al ${esc(hasta)}</div>
+          <button type="button" class="text-slate-400 hover:text-white text-xl leading-none px-2" aria-label="Cerrar" onclick="this.closest('.fixed').remove()">×</button>
+        </div>
+        <div class="p-4 overflow-auto flex-1 text-sm text-slate-300"><p class="text-slate-500">Consultando kardex y pólizas...</p></div>
+      </div>`;
+    document.body.appendChild(modal);
+    const cuerpo = modal.querySelector('.overflow-auto');
+    try {
+        await cargarCatalogos();
+        const cta = cuentasCache.find((c) => c.codigo === codigoCuenta);
+        if (!cta) throw new Error(`No encontré la cuenta ${codigoCuenta}.`);
+        const deCuenta = productosCache.filter((p) => p.cuentaId === cta.id);
+        const hastaISO = new Date(`${hasta}T23:59:59.999`).toISOString();
+        const [movs, reversos] = await Promise.all([traerMovimientos(deCuenta.map((p) => p.id), hastaISO), traerReversos()]);
+        const polizaDeMov = (m) => {
+            const pol = m.documentos?.poliza_id || null;
+            return (m.tipo_movimiento === 'cancelacion_recibo' && pol && reversos.get(Number(pol))) || pol;
+        };
+        const pols = await traerPolizasCuenta([cta.id], hasta, reversos);
+        const polizasConInventario = new Set(movs.map(polizaDeMov).filter(Boolean));
+        const signo = cta.naturaleza === 'A' ? -1 : 1;
+        let saldo = 0;
+        const ajenas = new Map();
+        pols.forEach((x) => {
+            const neto = (Number(x.cargo) || 0) - (Number(x.abono) || 0);
+            saldo += signo * neto;
+            if (!polizasConInventario.has(x.polizas.id)) {
+                if (!ajenas.has(x.polizas.id)) ajenas.set(x.polizas.id, { pol: x.polizas, concepto: x.concepto || x.polizas.concepto || '', neto: 0 });
+                ajenas.get(x.polizas.id).neto += neto;
+            }
+        });
+        const kardexTotal = movs.reduce((a, m) => { const q = Number(m.cantidad || 0); return a + Math.abs(q) * Number(m.costo_unitario || 0) * (q < 0 ? -1 : 1); }, 0);
+        const docs = conciliarDocumentos(cta.id, signo, movs, new Set(deCuenta.map((p) => p.id)), pols, polizaDeMov);
+        const c = { cta, docs, saldoBalanza: saldo, kardexTotal, dif: saldo - kardexTotal, ajenas: [...ajenas.values()].sort((a, b) => (a.pol.fecha < b.pol.fecha ? -1 : 1)),
+            sinCuenta: deCuenta.filter((p) => !p.cuentaAsignada).length, nArticulos: deCuenta.length };
+        cuerpo.innerHTML = `<div class="overflow-x-auto"><table class="w-full text-xs"><tbody>${filaCuadre(c, hasta)}</tbody></table></div>
+            <p class="text-[10px] text-slate-500 mt-3">Valor del kardex = cantidad × costo unitario del movimiento. Si un documento aparece "sin póliza", entró al inventario pero nunca se contabilizó: ábrelo y contabilízalo (o cancélalo si fue una prueba). Esta ventana no cambia nada.</p>`;
+    } catch (err) {
+        cuerpo.innerHTML = `<p class="text-rose-400 text-xs">No se pudo generar el cuadre.<br>${esc(err.message || err)}</p>`;
+    }
+}
+window.abrirCuadreInventarioCuenta = abrirCuadreInventarioCuenta;
