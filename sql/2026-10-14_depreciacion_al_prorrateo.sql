@@ -13,7 +13,7 @@
 --
 --  Qué deja:
 --    1. activos_fijos_centros — las etapas (centros de costo) donde se usa
---       cada máquina. Sin porcentajes: el reparto se calcula cada mes.
+--       cada máquina. Sin porcentajes: se reparte en partes iguales.
 --    2. activos_fijos_depreciaciones.prorrateo_estatus — 'no_aplica'
 --       (equipo de oficina o sin etapas), 'pendiente' o 'prorrateado'.
 --    3. gasto_aplicaciones.depreciacion_id — una aplicación puede venir de un
@@ -23,10 +23,8 @@
 --         prorrateo_calcular, prorrateo_aplicar, prorrateo_cancelar.
 --
 --  Cómo se reparte la depreciación de una máquina en un mes:
---    entre las etapas donde se usa, en proporción a las HORAS DE MANO DE OBRA
---    que tuvo cada etapa ese mes (el sistema registra horas de mano de obra
---    por etapa, no horas por máquina; es el mejor indicador de uso
---    disponible). Si ninguna de sus etapas tuvo horas, en partes iguales.
+--    en PARTES IGUALES entre las etapas que se marcan para esa máquina
+--    (decisión del usuario 2026-10-14: más simple que por horas de uso).
 --    Después es CIF FIJO de cada etapa: se aplica a las órdenes por horas
 --    contra la capacidad normal y lo no utilizado va a 503.98.
 --
@@ -54,7 +52,7 @@ create table if not exists public.activos_fijos_centros (
 create index if not exists idx_afc_activo on public.activos_fijos_centros(activo_id);
 
 comment on table public.activos_fijos_centros is
-  'Etapas (centros de costo) donde se usa una máquina. Su depreciación mensual se reparte entre ellas por horas de mano de obra del mes (ver prorrateo_calcular).';
+  'Etapas (centros de costo) donde se usa una máquina. Su depreciación mensual se reparte entre ellas en partes iguales (ver prorrateo_calcular).';
 
 alter table public.activos_fijos_centros enable row level security;
 drop policy if exists admin_all on public.activos_fijos_centros;
@@ -274,13 +272,8 @@ begin
              where g.gbase <> 'porcentaje_centros'
                 or not exists (select 1 from public.gasto_prorrateo_reglas r2 where r2.gasto_id = g.gid)
         ),
-        -- depreciación de maquinaria: entre las etapas donde se usa, por horas de MO del mes
-        horas_c as (
-            select h.centro_id, sum(h.horas) as horas
-              from public._horas_mo_periodo(v_ini, v_fin) h
-             group by h.centro_id
-        ),
-        dep_base as (
+        -- depreciación de maquinaria: en partes iguales entre las etapas marcadas para la máquina
+                dep_base as (
             select d.id as dep_id, d.monto as dmonto, a.id as activo_id, a.nombre as anombre, cc.codigo as dcuenta
               from public.activos_fijos_depreciaciones d
               join public.activos_fijos a on a.id = d.activo_id
@@ -291,21 +284,18 @@ begin
         ),
         dep_w as (
             select b.dep_id, b.dmonto, b.anombre, b.dcuenta, ac.centro_costo_id as centro_id,
-                   coalesce(hc.horas, 0) as horas,
-                   sum(coalesce(hc.horas, 0)) over (partition by b.dep_id) as horas_tot,
                    count(*) over (partition by b.dep_id) as n_centros
               from dep_base b
               join public.activos_fijos_centros ac on ac.activo_id = b.activo_id
-              left join horas_c hc on hc.centro_id = ac.centro_costo_id
         ),
         dep_s as (
             select w.*,
-                   round(w.dmonto * case when w.horas_tot > 0 then w.horas / w.horas_tot else 1.0 / w.n_centros end, 2) as s0,
-                   row_number() over (partition by w.dep_id order by w.horas desc, w.centro_id) as rn
+                   round(w.dmonto / w.n_centros, 2) as s0,
+                   row_number() over (partition by w.dep_id order by w.centro_id) as rn
               from dep_w w
         ),
         dep_slices as (
-            -- el centavo de redondeo se lo lleva la etapa con más horas: la suma es exactamente la depreciación
+            -- el centavo de redondeo se lo lleva la primera etapa: la suma es exactamente la depreciación
             select null::bigint as src_gasto_id, s.dep_id as src_dep_id,
                    'Depreciación ' || s.anombre as src_concepto, s.dcuenta as src_cuenta,
                    'fijo'::text as src_tipo, s.centro_id as src_centro,

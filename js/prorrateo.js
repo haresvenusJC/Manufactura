@@ -50,9 +50,9 @@ async function prCargar() {
     const periodo = `${mes}-01`;
     cuerpo.innerHTML = `<p class="text-slate-500 text-sm">Calculando ${mes}...</p>`;
 
-    let pool, corrida, calc, centros, areas, err;
+    let pool, corrida, calc, centros, areas, deps, err;
     try {
-        [pool, corrida, calc, centros, areas] = await Promise.all([
+        [pool, corrida, calc, centros, areas, deps] = await Promise.all([
             supabaseClient.from('gastos')
                 .select('id, concepto, subtotal, cif_tipo, prorrateo_estatus, cuenta_gasto:cuentas_contables!cuenta_gasto_id(codigo, nombre, cif_tipo)')
                 .eq('clasificacion', 'indirecto_produccion').eq('estatus', 'registrado')
@@ -61,6 +61,9 @@ async function prCargar() {
             supabaseClient.rpc('prorrateo_calcular', { p_periodo: periodo }),
             supabaseClient.from('centros_costo').select('id, codigo, nombre, capacidad_normal_horas').eq('tipo', 'produccion').eq('activo', true),
             supabaseClient.from('areas_fisicas').select('id, codigo, rol, m2, activo, centro_costo_id'),
+            // depreciación de maquinaria productiva del mes (requiere sql/2026-10-14; si falta, simplemente no hay filas)
+            supabaseClient.from('activos_fijos_depreciaciones').select('id, monto, prorrateo_estatus, activos_fijos(nombre)')
+                .eq('anio', Number(mes.slice(0, 4))).eq('mes', Number(mes.slice(5, 7))).in('prorrateo_estatus', ['pendiente', 'prorrateado']),
         ]);
         err = pool.error || calc.error;
     } catch (e) { err = e; }
@@ -72,7 +75,11 @@ async function prCargar() {
         return;
     }
 
-    const gastos = pool.data || [];
+    const depRows = ((deps && !deps.error && deps.data) || []).map(d => ({
+        id: 'dep' + d.id, concepto: 'Depreciación ' + (d.activos_fijos?.nombre || 'de maquinaria'), subtotal: d.monto,
+        cif_tipo: 'fijo', prorrateo_estatus: d.prorrateo_estatus, cuenta_gasto: { codigo: 'Activos fijos', cif_tipo: 'fijo' },
+    }));
+    const gastos = [...(pool.data || []), ...depRows];
     const cor = corrida && corrida.data ? corrida.data : null;
     const filas = calc.data || [];
     const pendientes = gastos.filter(g => g.prorrateo_estatus === 'pendiente');

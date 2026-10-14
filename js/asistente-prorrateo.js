@@ -347,6 +347,7 @@ function pintar(conservarScroll = false) {
     cuerpo.innerHTML = aviso + vista;
     cuerpo.scrollTop = scrollPrevio;
     if (S.paso === 'revision') cargarRevision();
+    if (S.paso === 'casos' && S.caso === 'depreciacion') cargarDeprec();
 }
 
 const msgEl = () => q('#apMsg');
@@ -762,13 +763,44 @@ function vCasos() {
 function vDeprec(c) {
     return `
       <h3 class="text-base font-semibold text-sky-300 mb-1">${c.i} ${c.n}</h3>
-      <p class="text-xs text-slate-400 mb-2">La depreciación se calcula en <b>Activos fijos</b> (línea recta, NIF C-6) y su póliza ya carga la cuenta <b>503.04 Depreciación de maquinaria y equipo</b>.</p>
-      <div class="border border-amber-800 bg-amber-950/20 rounded-xl p-3 text-xs text-amber-300">
-        <b>⚠ Pendiente detectado:</b> esa póliza se genera directo desde Activos fijos y <b>no pasa por Gastos</b>. El prorrateo solo lee los gastos capturados en Gastos como "Indirecto de fabricación", así que <b>hoy la depreciación de maquinaria NO se está repartiendo a las órdenes</b>.
-        <div class="mt-1 text-slate-300">Esto necesita un cambio en el módulo (cada máquina con su etapa y que su depreciación entre al prorrateo como CIF fijo). No lo toco desde aquí; queda como siguiente mejora para que lo apruebes.</div>
-      </div>
+      <p class="text-xs text-slate-400 mb-2">La depreciación se calcula en <b>Activos fijos</b> (línea recta, NIF C-6). La de la maquinaria productiva es costo indirecto de fabricación <b>fijo</b>: al hacer el prorrateo del mes se reparte <b>en partes iguales entre las etapas</b> donde marques que se usa la máquina, y de ahí a las órdenes por horas contra la capacidad normal.</p>
+      <ol class="list-decimal pl-5 text-xs text-slate-300 space-y-1 mb-3">
+        <li>En Activos fijos, da de alta la máquina eligiendo como cuenta de gasto <b>503.04 Depreciación de maquinaria y equipo</b>.</li>
+        <li>Marca las etapas donde se usa (ej. una llenadora: MEZ y ENV).</li>
+        <li>Cada mes, aplica la depreciación y luego el prorrateo: ya entra sola.</li>
+      </ol>
+      <div id="apDeprecCuerpo" class="text-xs text-slate-500">Revisando tus activos…</div>
       ${barraBotones(btn('caso-volver', '← Volver a los gastos', BTN_SEC))}`;
 }
+async function datosActivos() {
+    const [ac, et] = await Promise.all([
+        supabaseClient.from('activos_fijos').select('id, nombre, cuenta_depreciacion_gasto_id').eq('activo', true),
+        supabaseClient.from('activos_fijos_centros').select('activo_id, centro_costo_id'),
+    ]);
+    if (ac.error) return { error: ac.error.message, activos: [] };
+    const productivos = (ac.data || []).filter(a => ctaLbl(a.cuenta_depreciacion_gasto_id).startsWith('503.'));
+    const otros = (ac.data || []).length - productivos.length;
+    if (et.error) return { sinMigracion: true, activos: productivos, otros };
+    const porActivo = new Map();
+    (et.data || []).forEach(r => porActivo.set(r.activo_id, [...(porActivo.get(r.activo_id) || []), centroLbl(r.centro_costo_id)]));
+    return { activos: productivos.map(a => ({ ...a, etapas: porActivo.get(a.id) || [] })), otros };
+}
+async function cargarDeprec() {
+    const d = await datosActivos();
+    const el = q('#apDeprecCuerpo');
+    if (!el) return;
+    if (d.error) { el.innerHTML = `<span class="text-rose-400">${esc(d.error)}</span>`; return; }
+    if (d.sinMigracion) {
+        el.innerHTML = '<div class="border border-amber-800 bg-amber-950/20 rounded-lg p-2 text-amber-300">Falta correr <span class="font-mono">sql/2026-10-14_depreciacion_al_prorrateo.sql</span> en Supabase para que la depreciación entre al prorrateo.</div>';
+        return;
+    }
+    if (!d.activos.length) {
+        el.innerHTML = '<div class="border border-slate-800 rounded-lg p-2 text-slate-400">Hoy no tienes maquinaria productiva depreciándose en Activos fijos con cuenta 503.xx, así que no hay nada que repartir por este concepto. Cuando compres maquinaria, sigue los pasos de arriba.</div>';
+        return;
+    }
+    el.innerHTML = `<table class="w-full"><thead><tr class="text-left text-slate-500 border-b border-slate-800"><th class="p-1.5">Máquina</th><th class="p-1.5">Etapas donde se usa</th></tr></thead><tbody>${d.activos.map(a => `<tr class="border-b border-slate-900"><td class="p-1.5 text-slate-200">${esc(a.nombre)}</td><td class="p-1.5">${a.etapas.length ? `<span class="text-emerald-400">${esc(a.etapas.join(', '))}</span>` : '<span class="text-amber-400">⚠ sin etapas: no se prorratea</span>'}</td></tr>`).join('')}</tbody></table>`;
+}
+
 function vNoPror(c) {
     const l = ['Sueldos y comisiones de ventas y administración', 'Publicidad y propaganda', 'Honorarios y papelería de oficina', 'Fletes de venta (entrega al cliente)',
         'Almacenaje de producto terminado (NIF C-4: no es costo de producción)', 'Intereses, comisiones bancarias e impuestos', 'Gastos no deducibles'];
@@ -1039,11 +1071,12 @@ async function cargarRevision() {
     const ini = `${mes}-01`, fin = sigMes(ini);
     S.rev = { mes };
     const est = estadoPasos();
-    const [g, rt] = await Promise.all([
+    const [g, rt, act] = await Promise.all([
         supabaseClient.from('gastos')
             .select('id, concepto, subtotal, clasificacion, cif_tipo, prorrateo_estatus, cuenta_gasto:cuentas_contables!cuenta_gasto_id(codigo, cif_tipo)')
             .eq('estatus', 'registrado').gte('fecha', ini).lt('fecha', fin).limit(500),
         supabaseClient.from('registros_tiempo').select('id', { count: 'exact', head: true }).not('fin', 'is', null).gte('inicio', ini).lt('inicio', fin),
+        datosActivos(),
     ]);
     if (!q('#apRevCuerpo')) return;
     const gastos = g.data || [];
@@ -1052,6 +1085,12 @@ async function cargarRevision() {
     const mal = gastos.filter(x => x.cuenta_gasto?.codigo?.startsWith('503.') && x.cuenta_gasto.codigo !== '503.98' && x.clasificacion !== 'indirecto_produccion');
     const horas = rt.count || 0;
     const sinCap = S.centros.filter(c => !(Number(c.capacidad_normal_horas) > 0));
+    const sinEtapas = (act.activos || []).filter(a => !a.etapas || !a.etapas.length);
+    const depItem = act.sinMigracion && act.activos.length
+        ? '<div class="border border-amber-900 bg-amber-950/10 rounded-lg px-3 py-2 text-xs text-amber-300">⚠ Tienes maquinaria con cuenta 503.xx, pero falta correr <span class="font-mono">sql/2026-10-14_depreciacion_al_prorrateo.sql</span> para que su depreciación entre al prorrateo.</div>'
+        : (sinEtapas.length
+            ? `<div class="border border-amber-900 bg-amber-950/10 rounded-lg px-3 py-2 text-xs text-amber-300">⚠ Maquinaria sin etapas (su depreciación no se prorratea): ${sinEtapas.map(a => esc(a.nombre)).join(', ')}. Márcalas en Activos fijos.</div>`
+            : '');
     const item = (ok, t, paso) => `<div class="flex items-start justify-between gap-2 border border-slate-800 rounded-lg px-3 py-2 bg-slate-950"><div class="text-xs ${ok ? 'text-slate-300' : 'text-amber-400'}">${ok ? '✅' : '⚠'} ${t}</div>${!ok && paso ? btn('ir', 'Ir al paso', BTN_SEC + ' !py-1 !px-3 text-xs', `data-paso="${paso}"`) : ''}</div>`;
     const totInd = indirectos.reduce((s, x) => s + Number(x.subtotal || 0), 0);
     q('#apRevCuerpo').innerHTML = `
@@ -1062,7 +1101,7 @@ async function cargarRevision() {
       ${item(horas > 0, horas > 0 ? `Hay ${horas} registro(s) de tiempo de producción en ${mes} (de ahí salen las horas de mano de obra).` : `No hay registros de tiempo cerrados en ${mes}: sin horas trabajadas no hay a quién repartirle el CIF. Se capturan en la app Orden de trabajo.`)}
       ${item(sinTipo.length === 0, sinTipo.length ? `${sinTipo.length} gasto(s) indirecto(s) de ${mes} sin tipo fijo/variable (se tratarán como variables): ${sinTipo.slice(0, 5).map(x => esc(x.concepto)).join(', ')}.` : `Gastos indirectos de ${mes}: ${indirectos.length} por ${money(totInd)}, todos con tipo fijo/variable.`)}
       ${item(mal.length === 0, mal.length ? `${mal.length} gasto(s) están en cuentas 503.xx pero NO marcados como "Indirecto de fabricación", así que no entran al prorrateo: ${mal.slice(0, 5).map(x => esc(x.concepto)).join(', ')}.` : 'No hay gastos en cuentas 503.xx sin clasificar como indirectos.')}
-      <div class="border border-amber-900 bg-amber-950/10 rounded-lg px-3 py-2 text-xs text-amber-300">⚠ La depreciación de maquinaria (503.04) sale de Activos fijos y hoy no pasa por Gastos: no entra a este prorrateo. Ver el caso "Depreciación de maquinaria" en el paso 4.</div>
+      ${depItem}
       <div class="border border-slate-800 rounded-xl p-3 bg-slate-950">
         <div class="font-semibold text-slate-100 mb-2">Simulación de una regla de reparto</div>
         <div class="flex flex-wrap items-end gap-3">

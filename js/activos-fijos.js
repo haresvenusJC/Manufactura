@@ -2,6 +2,7 @@ import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
 import { linkDoc, linkPoliza } from './enlaces-reporte.js';
+import { ordenarCentrosProduccion } from './centros-costo.js';
 
 // =====================================================================
 //  Activos fijos y depreciación (NIF C-6, línea recta): catálogo de
@@ -16,7 +17,11 @@ const hoyISO = () => new Date().toISOString().slice(0, 10);
 const afOrden = crearOrdenTabla('id', 'desc');
 
 let afCuentas = [];
+let afCentros = [];          // etapas de producción (para repartir la depreciación al CIF)
+let afTieneEtapas = false;   // false si falta correr sql/2026-10-14_depreciacion_al_prorrateo.sql
+let afEtapasPorActivo = new Map();
 let afActivoEditId = null;
+const esCuentaCif = (id) => String(afCuentas.find((c) => c.id === Number(id))?.codigo || '').startsWith('503.');
 
 export async function cargarModuloActivosFijos() {
     const cont = document.getElementById('contenedorActivosFijos');
@@ -25,13 +30,19 @@ export async function cargarModuloActivosFijos() {
     try {
         const { data } = await supabaseClient.from('cuentas_contables').select('id, codigo, nombre, tipo').eq('afectable', true).eq('activa', true).order('codigo');
         afCuentas = data || [];
+        const [ce, et] = await Promise.all([
+            supabaseClient.from('centros_costo').select('id, codigo, nombre').eq('tipo', 'produccion').eq('activo', true),
+            supabaseClient.from('activos_fijos_centros').select('id').limit(1),
+        ]);
+        afCentros = ordenarCentrosProduccion(ce.data || []);
+        afTieneEtapas = !et.error;
     } catch (e) {
         cont.innerHTML = `<p class="text-rose-400 text-xs">Error al cargar catálogos: ${e.message || e}</p>`;
         return;
     }
 
     const optsActivo = afCuentas.filter((c) => c.tipo === 'activo').map((c) => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
-    const optsGasto = afCuentas.filter((c) => c.tipo === 'gasto').map((c) => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
+    const optsGasto = afCuentas.filter((c) => c.tipo === 'gasto' || (c.tipo === 'costo' && String(c.codigo).startsWith('503.'))).map((c) => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
 
     cont.innerHTML = `
     <div class="space-y-5">
@@ -56,6 +67,13 @@ export async function cargarModuloActivosFijos() {
             <select id="afCtaGasto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">Selecciona...</option>${optsGasto}</select></div>
           <div><label class="block text-xs text-slate-400 mb-1">Cuenta de depreciación acumulada</label>
             <select id="afCtaAcumulada" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">Selecciona...</option>${optsActivo}</select></div>
+          <div id="afEtapasWrap" class="md:col-span-3 hidden border border-slate-800 rounded-lg p-3 bg-slate-900/40">
+            <div class="text-xs text-slate-300 font-medium mb-1">¿En qué etapas se usa esta máquina?</div>
+            <div class="text-[11px] text-slate-500 mb-2">Su depreciación mensual es costo indirecto de fabricación (CIF fijo): al hacer el prorrateo del mes se reparte en <b>partes iguales</b> entre las etapas que marques y de ahí a las órdenes de producción. Si no marcas ninguna, no se prorratea.</div>
+            ${afTieneEtapas
+                ? `<div class="flex flex-wrap gap-4">${afCentros.map((c) => `<label class="flex items-center gap-1.5 text-xs text-slate-200"><input type="checkbox" class="afEtapaChk accent-emerald-500" value="${c.id}"> ${esc(c.codigo)} · ${esc(c.nombre)}</label>`).join('') || '<span class="text-xs text-amber-400">No hay etapas de producción: créalas en Centros de costo.</span>'}</div>`
+                : '<div class="text-xs text-amber-400">Falta correr <span class="font-mono">sql/2026-10-14_depreciacion_al_prorrateo.sql</span> en Supabase para poder asignar etapas.</div>'}
+          </div>
           <div class="md:col-span-3"><label class="block text-xs text-slate-400 mb-1">Notas</label>
             <input type="text" id="afNotas" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
         </div>
@@ -97,10 +115,16 @@ export async function cargarModuloActivosFijos() {
     document.getElementById('afGuardar').onclick = afGuardarActivo;
     document.getElementById('afCancelarEdicion').onclick = afResetForm;
     document.getElementById('afCalcular').onclick = afCalcularDepreciacion;
+    document.getElementById('afCtaGasto').addEventListener('change', afMostrarEtapas);
 
     await afRenderLista();
     await afRenderHistorial();
     montarGuia(cont, 'activos-fijos');
+}
+
+function afMostrarEtapas() {
+    const wrap = document.getElementById('afEtapasWrap');
+    if (wrap) wrap.classList.toggle('hidden', !esCuentaCif(document.getElementById('afCtaGasto').value));
 }
 
 function afResetForm() {
@@ -116,6 +140,8 @@ function afResetForm() {
     document.getElementById('afCtaGasto').value = '';
     document.getElementById('afCtaAcumulada').value = '';
     document.getElementById('afNotas').value = '';
+    document.querySelectorAll('.afEtapaChk').forEach((c) => { c.checked = false; });
+    afMostrarEtapas();
     document.getElementById('afGuardar').textContent = 'Guardar activo';
     document.getElementById('afCancelarEdicion').classList.add('hidden');
 }
@@ -143,15 +169,30 @@ async function afGuardarActivo() {
     };
 
     try {
-        let error;
+        let error, activoId = afActivoEditId;
         if (afActivoEditId) {
             ({ error } = await supabaseClient.from('activos_fijos').update(payload).eq('id', afActivoEditId));
         } else {
-            ({ error } = await supabaseClient.from('activos_fijos').insert([payload]));
+            const ins = await supabaseClient.from('activos_fijos').insert([payload]).select('id').single();
+            error = ins.error; activoId = ins.data?.id;
         }
         if (error) throw error;
-        msg.textContent = afActivoEditId ? 'Activo actualizado.' : 'Activo guardado.';
-        msg.className = 'text-xs mt-2 text-emerald-400';
+        // etapas donde se usa (solo si la cuenta de gasto es 503.xx y la migración está corrida)
+        let sinEtapas = false;
+        if (afTieneEtapas && activoId) {
+            const marcadas = esCuentaCif(payload.cuenta_depreciacion_gasto_id)
+                ? [...document.querySelectorAll('.afEtapaChk:checked')].map((c) => Number(c.value)) : [];
+            const del = await supabaseClient.from('activos_fijos_centros').delete().eq('activo_id', activoId);
+            if (del.error) throw del.error;
+            if (marcadas.length) {
+                const ins2 = await supabaseClient.from('activos_fijos_centros').insert(marcadas.map((c) => ({ activo_id: activoId, centro_costo_id: c })));
+                if (ins2.error) throw ins2.error;
+            }
+            sinEtapas = esCuentaCif(payload.cuenta_depreciacion_gasto_id) && !marcadas.length;
+        }
+        msg.textContent = (afActivoEditId ? 'Activo actualizado.' : 'Activo guardado.')
+            + (sinEtapas ? ' ⚠ Sin etapas: su depreciación NO se repartirá al prorrateo hasta que las marques.' : '');
+        msg.className = 'text-xs mt-2 ' + (sinEtapas ? 'text-amber-400' : 'text-emerald-400');
         afResetForm();
         await afRenderLista();
     } catch (err) {
@@ -165,9 +206,17 @@ async function afRenderLista() {
     try {
         const { data, error } = await supabaseClient
             .from('activos_fijos')
-            .select('id, nombre, categoria, fecha_adquisicion, costo_adquisicion, valor_residual, vida_util_meses, activo, fecha_baja')
+            .select('id, nombre, categoria, fecha_adquisicion, costo_adquisicion, valor_residual, vida_util_meses, activo, fecha_baja, cuenta_depreciacion_gasto_id')
             .order('id', { ascending: false });
         if (error) throw error;
+        afEtapasPorActivo = new Map();
+        if (afTieneEtapas) {
+            const { data: et } = await supabaseClient.from('activos_fijos_centros').select('activo_id, centro_costo_id');
+            (et || []).forEach((r) => {
+                const cod = afCentros.find((c) => c.id === r.centro_costo_id)?.codigo || ('#' + r.centro_costo_id);
+                afEtapasPorActivo.set(r.activo_id, [...(afEtapasPorActivo.get(r.activo_id) || []), cod]);
+            });
+        }
         if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin activos fijos registrados.</p>'; return; }
 
         aplicarOrden(afOrden, data, (a, campo) => {
@@ -185,7 +234,7 @@ async function afRenderLista() {
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
               <th class="p-2">Acción</th>${thOrden(afOrden, 'nombre', 'Nombre')}<th class="p-2">Categoría</th>
               ${thOrden(afOrden, 'fecha', 'Adquisición')}${thOrden(afOrden, 'costo', 'Costo', 'text-right justify-end')}
-              <th class="p-2 text-right">Vida útil</th><th class="p-2">Estatus</th>
+              <th class="p-2 text-right">Vida útil</th><th class="p-2">Etapas (CIF)</th><th class="p-2">Estatus</th>
             </tr></thead>
             <tbody>
               ${data.map((a) => `
@@ -199,6 +248,9 @@ async function afRenderLista() {
                   <td class="p-2 whitespace-nowrap text-slate-400">${a.fecha_adquisicion || ''}</td>
                   <td class="p-2 text-right font-mono">${money(a.costo_adquisicion)}</td>
                   <td class="p-2 text-right font-mono text-slate-400">${a.vida_util_meses}</td>
+                  <td class="p-2 text-xs">${esCuentaCif(a.cuenta_depreciacion_gasto_id)
+                      ? ((afEtapasPorActivo.get(a.id) || []).length ? `<span class="text-emerald-400">${esc(afEtapasPorActivo.get(a.id).join(', '))}</span>` : (afTieneEtapas ? '<span class="text-amber-400" title="Sin etapas no se prorratea">⚠ sin etapas</span>' : '<span class="text-slate-500">—</span>'))
+                      : '<span class="text-slate-600">no aplica</span>'}</td>
                   <td class="p-2">${a.activo ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-emerald-300 bg-emerald-950/40">activo</span>' : `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-slate-400 bg-slate-800">de baja${a.fecha_baja ? ' ' + a.fecha_baja : ''}</span>`}</td>
                 </tr>`).join('')}
             </tbody>
@@ -225,6 +277,13 @@ window.afEditar = async (id) => {
     document.getElementById('afCtaGasto').value = a.cuenta_depreciacion_gasto_id || '';
     document.getElementById('afCtaAcumulada').value = a.cuenta_depreciacion_acumulada_id || '';
     document.getElementById('afNotas').value = a.notas || '';
+    document.querySelectorAll('.afEtapaChk').forEach((c) => { c.checked = false; });
+    if (afTieneEtapas) {
+        const { data: et } = await supabaseClient.from('activos_fijos_centros').select('centro_costo_id').eq('activo_id', id);
+        const ids = new Set((et || []).map((r) => r.centro_costo_id));
+        document.querySelectorAll('.afEtapaChk').forEach((c) => { c.checked = ids.has(Number(c.value)); });
+    }
+    afMostrarEtapas();
     document.getElementById('afGuardar').textContent = 'Actualizar activo';
     document.getElementById('afCancelarEdicion').classList.remove('hidden');
     document.getElementById('afNombre').scrollIntoView({ behavior: 'smooth', block: 'start' });

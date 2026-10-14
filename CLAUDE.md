@@ -6,6 +6,18 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `sql/2026-10-14_depreciacion_al_prorrateo.sql` (nuevo, **NO corrido**), `js/activos-fijos.js`, `js/prorrateo.js`, `js/asistente-prorrateo.js`, `version.json`, `CLAUDE.md`.
+  **La depreciación de la maquinaria productiva entra al prorrateo del CIF** (pedido del usuario 2026-10-14: "considera poner esa necesidad de compra de maquinaria para tenerlo resuelto"; hoy no tiene maquinaria por
+  depreciar, es para cuando compre). Hallazgos: `depreciacion_aplicar` cargaba 503.04 con póliza propia sin crear un gasto, así que el prorrateo (solo lee `gastos`) no la repartía; y el selector "cuenta de gasto"
+  de Activos fijos solo listaba tipo `gasto`, no 503.xx (`costo`). **Decisión del usuario:** una máquina se usa en varias etapas y el reparto es en **PARTES IGUALES entre las etapas que se marquen** (descartó por
+  horas de uso). Migración (funciones reescritas COMPLETAS): tabla `activos_fijos_centros` (activo ↔ etapas), `activos_fijos_depreciaciones.prorrateo_estatus` (no_aplica/pendiente/prorrateado),
+  `gasto_aplicaciones.depreciacion_id` (gasto_id ya no es obligatorio; exactamente uno de los dos), y `depreciacion_aplicar`, `depreciacion_cancelar` (no deja si ya se prorrateó), `prorrateo_calcular` (se recrea:
+  agrega `depreciacion_id`; la depreciación es CIF fijo de cada etapa, partes iguales con el centavo a la primera etapa), `prorrateo_aplicar` y `prorrateo_cancelar`. Solo entran máquinas con cuenta 503.xx y etapas;
+  equipo de oficina (601.xx) o sin etapas = 'no_aplica'. Contabilidad: Cargo 503.04/Abono 153.xx al depreciar; Cargo 115.03 (o 503.98 si no se utilizó)/Abono 503.04 al prorratear (NIF C-4/C-6). Probada en Postgres local
+  (3 etapas: 333.34/333.33/333.33, póliza cuadra, cancelaciones, 2 corridas de la migración). Activos fijos: el selector ya incluye 503.xx, bloque "¿En qué etapas se usa?" (checkboxes), columna "Etapas (CIF)" con ⚠ si falta.
+  Prorrateo de gastos: las depreciaciones del mes aparecen en la tabla de gastos indirectos como "Depreciación <máquina>" (fijo). El asistente: el caso Depreciación ya no es solo advertencia (explica los pasos y lista las máquinas con o sin etapas)
+  y la Revisión avisa solo si hay maquinaria sin etapas o falta la migración. Sin la migración todo degrada (no hay selector de etapas, no hay filas de depreciación). Pendiente: **correr el SQL en Supabase**, subir con "comitea" y probar
+  con una máquina de prueba (alta con 503.04 y 2 etapas → aplicar depreciación → prorrateo).
 - Archivos tocados (lo último): `js/prorrateo.js`, `css/ui-moderno.css`, `index.html` (`?v=` de los 3 CSS), `version.json`, `CLAUDE.md`. **Asistente de prorrateo más llamativo (opción C elegida por el usuario):** banner grande
   con degradado del acento del tema ("¿No sabes por dónde empezar?", lista de lo que falta, botón blanco "▶ Empezar el asistente" con pulso) + botón del encabezado con degradado y pulso; cuando no falta nada
   el banner se reduce a una línea "todo completo ✅ · Abrir" y se apaga el pulso. Reemplaza el aviso ámbar anterior. Clases `.pr-asist-*`/`.pr-pulso` al final de `ui-moderno.css` (solo esta pantalla;
@@ -20,8 +32,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
   503.12 Refacciones, 503.13 Limpieza y sanitización, 503.14 Control de calidad externo, 503.15 Residuos, 503.16 Telecomunicaciones. `prorrateo.js` gana: aviso "Antes de aplicar, revisa" con atajo al paso del
   asistente, y tabla "Por etapa" (horas reales, capacidad, utilización, CIF aplicado y no utilizado por centro) — **corrige** que las tarjetas leían solo la primera fila del cálculo (con SURT/MEZ/ENV mezclaba/mostraba un centro).
   Probado en Chromium con Supabase simulado (los 5 pasos, 6 casos, guardado y simulación); falta probarlo con la base real y con Tailwind/estilos (no cargan en este entorno).
-  **Hallazgo SIN corregir:** la depreciación de Activos fijos (503.04) se contabiliza con póliza directa y NO pasa por Gastos, así que el prorrateo (que solo lee `gastos` indirectos) hoy no la reparte;
-  requiere decidir con el usuario cómo meterla (etapa por activo + entrada al pool como CIF fijo). Pendiente: probar con Ctrl+Shift+R, subir con "comitea".
+  (El hallazgo de la depreciación quedó resuelto en la entrada siguiente.) Pendiente: probar con Ctrl+Shift+R, subir con "comitea".
 - Archivos tocados (lo último): `css/ui-moderno.css`, `index.html` (`?v=`), `version.json`. **Encabezado unificado, PASO 2** (el usuario pidió ir por pasos: paso 1 = altura + título fijo; paso 2 = píldora): el cuadro "Asistente — … / 📖 Manual"
   (`.asist-panel`) pasa a ser en TODAS las pantallas y temas la píldora "Ayuda" arriba a la derecha (popover al abrir), con las reglas de `main section.vista-seccion:not(#view-bienvenida) .asist-panel`
   (antes solo `#contenedorPagosProveedor`). Sin HTML/JS/SQL. Pendiente: probar con Ctrl+Shift+R en varias pantallas (Pedidos de venta, Gastos, Pólizas…); vigilar choques con el botón "📖 Cómo llenar esta pantalla" a la derecha del título.
