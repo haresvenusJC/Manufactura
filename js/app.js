@@ -393,3 +393,6 @@ function arrancarPagina() {
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', arrancarPagina);
 else arrancarPagina();
+
+// Marca el <body> cuando la página se desplazó: el título fijo de cada pantalla solo se pinta opaco entonces (css/ui-moderno.css, "ENCABEZADO UNIFICADO").
+window.addEventListener('scroll', () => document.body.classList.toggle('pagina-desplazada', window.scrollY > 2), { passive: true });
