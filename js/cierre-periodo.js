@@ -74,7 +74,7 @@ function cpPintarResultado() {
     if (d.listo_para_cerrar) {
         resultado.innerHTML = `
           <div class="bg-emerald-950/40 border border-emerald-800 rounded-xl p-4">
-            <p class="text-emerald-300 font-semibold text-sm capitalize">✅ ${esc(titulo)} está limpio — no hay pendientes contables.</p>
+            <p class="text-emerald-300 font-semibold text-sm">✅ ${esc(titulo.charAt(0).toUpperCase() + titulo.slice(1))} está limpio — no hay pendientes contables.</p>
             <button type="button" id="cpBtnCerrar" class="mt-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-4 py-2 rounded-lg cursor-pointer">🔒 Cerrar periodo</button>
           </div>`;
         document.getElementById('cpBtnCerrar').addEventListener('click', () => cpCerrar(false));
@@ -83,19 +83,19 @@ function cpPintarResultado() {
 
     resultado.innerHTML = `
       <div class="bg-amber-950/30 border border-amber-800 rounded-xl p-4">
-        <p class="text-amber-300 font-semibold text-sm mb-3 capitalize">⚠ ${esc(titulo)} tiene ${d.candados.length} pendiente(s) contable(s):</p>
+        <p class="text-amber-300 font-semibold text-sm mb-3">⚠ ${esc(titulo.charAt(0).toUpperCase() + titulo.slice(1))} tiene ${d.candados.length} pendiente(s) contable(s):</p>
         <div class="space-y-2 mb-4">
           ${d.candados.map((c) => `
-            <details class="bg-slate-950/60 border border-slate-800 rounded-lg">
-              <summary class="px-3 py-2 text-xs text-slate-200 cursor-pointer flex justify-between items-center gap-3">
-                <span>${esc(c.descripcion)}</span>
-                <span class="text-slate-500 shrink-0">${esc(c.cantidad)}</span>
+            <details class="bg-slate-950 border border-slate-700 rounded-lg">
+              <summary class="px-3 py-2.5 text-sm text-slate-100 cursor-pointer flex justify-between items-center gap-3">
+                <span class="font-medium">${esc(c.descripcion)}${Array.isArray(c.detalle) && c.detalle.length ? ' <span class="text-xs font-normal text-sky-400 whitespace-nowrap">· ver detalle ▾</span>' : ''}</span>
+                <span class="shrink-0 min-w-[1.75rem] text-center text-xs font-bold text-white bg-amber-600 rounded-full px-2 py-0.5">${esc(c.cantidad)}</span>
               </summary>
-              <div class="px-3 pb-2 text-[11px] text-slate-400 overflow-x-auto">
+              <div class="px-3 pb-3 overflow-x-auto">
                 ${Array.isArray(c.detalle) && c.detalle.length
-                    ? `<table class="w-full mt-1"><tbody>${c.detalle.map((fila) => `
-                        <tr class="border-t border-slate-800">${Object.entries(fila).map(([k, v]) => `<td class="py-1 pr-4 whitespace-nowrap">${esc(k)}: <span class="text-slate-300">${esc(v ?? '—')}</span></td>`).join('')}</tr>`).join('')}</tbody></table>`
-                    : '<p class="italic text-slate-500">Sin detalle.</p>'}
+                    ? `<div class="mt-1 space-y-1.5">${c.detalle.map((fila) => `
+                        <div class="flex flex-wrap gap-x-5 gap-y-1 border-t border-slate-700 pt-1.5 text-xs">${Object.entries(fila).map(([k, v]) => `<span><span class="text-slate-400">${esc(String(k).replace(/_/g, ' '))}:</span> <span class="text-slate-100 font-medium">${esc(v ?? '—')}</span></span>`).join('')}</div>`).join('')}</div>`
+                    : '<p class="italic text-sm text-slate-400 mt-1">Sin detalle.</p>'}
               </div>
             </details>`).join('')}
         </div>

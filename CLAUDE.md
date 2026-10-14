@@ -6,6 +6,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/cierre-periodo.js`, `version.json`, `CLAUDE.md`. **Cierre de periodo — pendientes ilegibles** (captura del usuario en Claro Ice): las tarjetas de cada pendiente usaban
+  `bg-slate-950/60`, variante que `tema-base.css` NO remapea (solo `/80` y `/50`), así que quedaban gris oscuro con texto oscuro. Ahora usan `bg-slate-950`/`border-slate-700` (remapeados en todos los temas),
+  texto más grande, conteo como pastilla ámbar, "· ver detalle ▾" y el detalle en renglones con etiqueta y valor (sin guiones bajos); el título ya no usa `capitalize` ("Septiembre de 2026 tiene…").
+  **Aviso general:** cualquier `bg-slate-950/NN` con NN distinto de 50/80 se ve mal en los temas claros — buscar otros usos si aparece el mismo síntoma. Sin SQL. Pendiente: verlo en el navegador (Ctrl+Shift+R) y subir con "comitea".
 - Archivos tocados (lo último): `sql/2026-10-14_depreciacion_al_prorrateo.sql` (nuevo, **YA corrido por el usuario 2026-10-14**), `js/activos-fijos.js`, `js/prorrateo.js`, `js/asistente-prorrateo.js`, `version.json`, `CLAUDE.md`.
   **La depreciación de la maquinaria productiva entra al prorrateo del CIF** (pedido del usuario 2026-10-14: "considera poner esa necesidad de compra de maquinaria para tenerlo resuelto"; hoy no tiene maquinaria por
   depreciar, es para cuando compre). Hallazgos: `depreciacion_aplicar` cargaba 503.04 con póliza propia sin crear un gasto, así que el prorrateo (solo lee `gastos`) no la repartía; y el selector "cuenta de gasto"
