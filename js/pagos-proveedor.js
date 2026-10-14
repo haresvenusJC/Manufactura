@@ -483,7 +483,7 @@ function cxpWireFiltrosEncabezado(panel) {
             e.stopPropagation();
             const abrir = menu.classList.contains('hidden');
             cxpCerrarMenusFiltro();
-            if (abrir) { menu.classList.remove('hidden'); const i = menu.querySelector('input'); if (i) setTimeout(() => i.focus(), 0); }
+            if (abrir) { menu.classList.remove('hidden'); const r = btn.getBoundingClientRect(); menu.style.position = 'fixed'; menu.style.top = (r.bottom + 2) + 'px'; menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - menu.offsetWidth - 8)) + 'px'; menu.style.zIndex = '60'; const i = menu.querySelector('input'); if (i) setTimeout(() => i.focus(), 0); }
         };
     };
     toggle('cxpThDoc', 'cxpDocMenu');
