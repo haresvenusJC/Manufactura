@@ -781,3 +781,14 @@ main section.vista-seccion:not(#view-bienvenida) .asist-panel:has(.asist-body:no
     50% { box-shadow: 0 0 0 10px transparent; }
 }
 @media (prefers-reduced-motion: reduce) { .pr-pulso { animation: none; } .pr-asist-btn:hover, .pr-asist-cta:hover { transform: none; } }
+
+/* LOTES — encabezado fijo y solo las filas se desplazan (como Cuentas por pagar) */
+#view-lotes > div:first-child:has(> h2) { padding-right: 0; }
+#view-lotes > div:nth-child(2) > p { margin-bottom: .5rem; }
+@media (min-width: 1024px) {
+    #view-lotes:not(.hidden) { display: flex; flex-direction: column; height: calc(100vh - 1.125rem - 1.5rem); }
+    #view-lotes > div:nth-child(2) { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: .75rem; }
+    #contenedorExistenciasLote { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    #contenedorExistenciasLote > .lotes-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+    #contenedorExistenciasLote .lotes-scroll thead { position: sticky; top: 0; z-index: 5; }
+}

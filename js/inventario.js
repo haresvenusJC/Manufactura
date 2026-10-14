@@ -274,29 +274,29 @@ async function renderizarTablaLotes(contenedorLotes) {
     const totalPaginas = Math.ceil(totalRegistros / porPaginaLotes) || 1;
 
     let htmlLotes = `
-        <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl mb-4 flex flex-wrap gap-4 items-center justify-between">
-            <div class="flex flex-wrap items-center gap-3">
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1">Desde:</label>
-                    <input type="date" id="filtroFechaInicio" value="${fechaInicioFiltro}" class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500">
+        <div class="bg-slate-900 border border-slate-800 px-3 py-2 rounded-xl mb-2 flex flex-wrap gap-x-4 gap-y-1 items-center justify-between lotes-filtros">
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <div class="flex items-center gap-1.5">
+                    <label class="text-xs text-slate-400 whitespace-nowrap">Desde:</label>
+                    <input type="date" id="filtroFechaInicio" value="${fechaInicioFiltro}" class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-500">
                 </div>
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1">Hasta:</label>
-                    <input type="date" id="filtroFechaFin" value="${fechaFinFiltro}" class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500">
+                <div class="flex items-center gap-1.5">
+                    <label class="text-xs text-slate-400 whitespace-nowrap">Hasta:</label>
+                    <input type="date" id="filtroFechaFin" value="${fechaFinFiltro}" class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-500">
                 </div>
-                <div class="relative">
-                    <label class="block text-xs text-slate-400 mb-1">Producto (SKU o nombre):</label>
-                    <input type="text" id="filtroLoteProducto" value="${escLote(filtroProductoLotes)}" placeholder="🔍 Escribe para buscar…" autocomplete="off" onkeydown="if(event.key==='Enter') window.aplicarFiltroFechasLotes()" class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-1.5 w-52 focus:outline-none focus:border-indigo-500">
+                <div class="relative flex items-center gap-1.5">
+                    <label class="text-xs text-slate-400 whitespace-nowrap">Producto (SKU o nombre):</label>
+                    <input type="text" id="filtroLoteProducto" value="${escLote(filtroProductoLotes)}" placeholder="🔍 Escribe para buscar…" autocomplete="off" onkeydown="if(event.key==='Enter') window.aplicarFiltroFechasLotes()" class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1 w-52 focus:outline-none focus:border-indigo-500">
                     <div id="sugLoteProducto" class="hidden absolute left-0 right-0 top-full mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl max-h-60 overflow-y-auto z-30"></div>
                 </div>
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1">N.º de lote:</label>
-                    <input type="text" id="filtroLoteNumero" value="${escLote(filtroNumeroLote)}" placeholder="Ej. AL1541" onkeydown="if(event.key==='Enter') window.aplicarFiltroFechasLotes()" class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-1.5 w-36 focus:outline-none focus:border-indigo-500">
+                <div class="flex items-center gap-1.5">
+                    <label class="text-xs text-slate-400 whitespace-nowrap">N.º de lote:</label>
+                    <input type="text" id="filtroLoteNumero" value="${escLote(filtroNumeroLote)}" placeholder="Ej. AL1541" onkeydown="if(event.key==='Enter') window.aplicarFiltroFechasLotes()" class="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1 w-36 focus:outline-none focus:border-indigo-500">
                 </div>
-                <label class="flex items-center gap-1.5 text-xs text-slate-300 pt-5 cursor-pointer"><input type="checkbox" id="filtroLoteConExistencia" class="accent-indigo-500" ${filtroSoloConExistencia ? 'checked' : ''}> Solo con existencia</label>
-                <div class="flex items-end h-full pt-5">
-                    <button type="button" onclick="window.aplicarFiltroFechasLotes()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-4 py-1.5 rounded-lg transition font-medium shadow-sm">Filtrar</button>
-                    <button type="button" onclick="window.limpiarFiltroFechasLotes()" class="ml-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-3 py-1.5 rounded-lg transition border border-slate-700">Limpiar</button>
+                <label class="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer"><input type="checkbox" id="filtroLoteConExistencia" class="accent-indigo-500" ${filtroSoloConExistencia ? 'checked' : ''}> Solo con existencia</label>
+                <div class="flex items-center">
+                    <button type="button" onclick="window.aplicarFiltroFechasLotes()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1 rounded-lg transition font-medium shadow-sm">Filtrar</button>
+                    <button type="button" onclick="window.limpiarFiltroFechasLotes()" class="ml-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-3 py-1 rounded-lg transition border border-slate-700">Limpiar</button>
                 </div>
             </div>
             <div class="text-xs text-slate-400 font-mono">Total partidas: <span class="text-indigo-400 font-bold">${totalRegistros}</span></div>
@@ -307,11 +307,11 @@ async function renderizarTablaLotes(contenedorLotes) {
         htmlLotes += `<div class="bg-slate-950 border border-slate-800 p-6 rounded-xl text-center text-slate-500 text-sm">No se encontraron lotes con esos filtros.</div>`;
     } else {
         htmlLotes += `
-            <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-950">
+            <div class="lotes-scroll overflow-x-auto border border-slate-800 rounded-xl bg-slate-950">
                 <table class="w-full text-left text-sm text-slate-300">
                     <thead class="bg-slate-900 text-indigo-400 border-b border-slate-800 text-xs uppercase">
                         <tr>
-                            <th class="p-3 text-left">Acción</th>
+                            <th class="px-3 py-2 text-left">Acción</th>
                             ${thOrden(invLotesOrden, 'lote', 'Lote / Ref')}
                             ${thOrden(invLotesOrden, 'producto', 'Insumo / Producto')}
                             ${thOrden(invLotesOrden, 'tipo', 'Tipo')}
@@ -329,16 +329,16 @@ async function renderizarTablaLotes(contenedorLotes) {
 
             htmlLotes += `
                 <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition">
-                    <td class="p-3 whitespace-nowrap">
-                        <button type="button" onclick="window.verDetalleLoteMovimiento(${l.id})" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 text-xs px-2.5 py-1 rounded-lg border border-slate-700 transition font-medium">🔍 Documento</button>
-                        <button type="button" onclick="window.registrarDeterioroLote(${l.id}, '${String(l.numero_lote || 'S/N').replace(/'/g, "\\'")}', ${Number(l.costo_unitario || 0)})" title="Castigar el costo del lote por caducidad, daño u obsolescencia (NIF C-4: costo o valor neto de realización, el menor)" class="bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs px-2.5 py-1 rounded-lg border border-slate-700 transition font-medium ml-1">📉 Deterioro</button>
+                    <td class="px-3 py-1 whitespace-nowrap">
+                        <button type="button" onclick="window.verDetalleLoteMovimiento(${l.id})" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 text-xs px-2 py-0.5 rounded-lg border border-slate-700 transition font-medium">🔍 Documento</button>
+                        <button type="button" onclick="window.registrarDeterioroLote(${l.id}, '${String(l.numero_lote || 'S/N').replace(/'/g, "\\'")}', ${Number(l.costo_unitario || 0)})" title="Castigar el costo del lote por caducidad, daño u obsolescencia (NIF C-4: costo o valor neto de realización, el menor)" class="bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs px-2 py-0.5 rounded-lg border border-slate-700 transition font-medium ml-1">📉 Deterioro</button>
                     </td>
-                    <td class="p-3 font-mono text-xs text-indigo-300">#${l.id} - ${l.numero_lote || 'S/N'}</td>
-                    <td class="p-3 font-medium text-slate-100">${nombreProd}${l.productos?.sku ? `<span class="block text-[10px] font-mono text-slate-500">${escLote(l.productos.sku)}</span>` : ''}</td>
-                    <td class="p-3 text-xs uppercase text-slate-400">${tipoProd}</td>
-                    <td class="p-3 font-mono text-amber-300 font-semibold">${l.stock_actual}</td>
-                    <td class="p-3 font-mono text-slate-300">$${Number(l.costo_unitario || 0).toFixed(2)}</td>
-                    <td class="p-3 text-xs text-slate-400">${fechaIng}</td>
+                    <td class="px-3 py-1 font-mono text-xs text-indigo-300">#${l.id} - ${l.numero_lote || 'S/N'}</td>
+                    <td class="px-3 py-1 font-medium text-slate-100">${nombreProd}${l.productos?.sku ? `<span class="block text-[10px] font-mono text-slate-500">${escLote(l.productos.sku)}</span>` : ''}</td>
+                    <td class="px-3 py-1 text-xs uppercase text-slate-400">${tipoProd}</td>
+                    <td class="px-3 py-1 font-mono text-amber-300 font-semibold">${l.stock_actual}</td>
+                    <td class="px-3 py-1 font-mono text-slate-300">$${Number(l.costo_unitario || 0).toFixed(2)}</td>
+                    <td class="px-3 py-1 text-xs text-slate-400">${fechaIng}</td>
                 </tr>
             `;
         });
