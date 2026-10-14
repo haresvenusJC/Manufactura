@@ -61,8 +61,15 @@ export const SECCIONES = [
             { v: 'bancos-tesoreria', t: 'Bancos y Tesorería', d: 'Catálogo de cuentas bancarias, conciliación de sus movimientos y un flujo proyectado simple (saldo + por cobrar − por pagar).' },
             { v: 'nomina', t: 'Nómina', d: 'Cálculo y contabilización de sueldos, IMSS/INFONAVIT e ISR.' },
             { v: 'activos-fijos', t: 'Activos fijos', d: 'Catálogo de activos fijos y su depreciación mensual en línea recta (NIF C-6), con póliza e historial por mes.' },
-            { v: 'prorrateo', t: 'Prorrateo de gastos', d: 'Reparto mensual del CIF a las órdenes y a la capacidad no utilizada.' },
             { v: 'tareas', t: 'Tareas contables', d: 'Pendientes automáticos de finanzas: nómina en borrador por autorizar, recordatorio de pre-ejecutar nómina.', extra: "{departamento:'contable'}" },
+        ],
+    },
+    {
+        grupo: 'Costos y prorrateo', ancla: 'costos-prorrateo', items: [
+            { v: 'centros-costo', t: 'Centros de costo', d: 'Las 3 etapas SURT / MEZ / ENV y su capacidad normal en horas de mano de obra al mes.', cfg: true },
+            { v: 'areas-prorrateo', t: 'Áreas y bases de prorrateo', d: 'm², carga eléctrica (kW) y personas por área. De aquí salen los % con que se reparten renta, luz y servicios.', cfg: true },
+            { v: 'reparto-plantillas', t: 'Reparto de gastos compartidos', d: 'Plantillas por cuenta o proveedor: qué base usar y a qué cuenta de oficina va la parte de no producción.', cfg: true },
+            { v: 'prorrateo', t: 'Prorrateo de gastos', d: 'Reparto mensual del CIF a las órdenes y a la capacidad no utilizada.' },
         ],
     },
     {
@@ -71,9 +78,6 @@ export const SECCIONES = [
             { v: 'plan-cuentas', t: 'Plan de cuentas', d: 'Catálogo de cuentas (Código Agrupador SAT). En las 503.xx se marca fijo o variable.', cfg: true },
             { v: 'reportes-contables', t: 'Reportes contables', d: 'Balanza de comprobación, estado de resultados, saldos por cuenta.' },
             { v: 'cierre-periodo', t: 'Cierre de periodo', d: 'Revisa pendientes contables del mes (documentos, gastos, nóminas, cobros, pagos, auditorías, pólizas descuadradas) antes de cerrarlo; permite reabrirlo si hace falta corregir algo.' },
-            { v: 'centros-costo', t: 'Centros de costo', d: 'Las 3 etapas SURT / MEZ / ENV y su capacidad normal en horas de mano de obra al mes.', cfg: true },
-            { v: 'areas-prorrateo', t: 'Áreas y bases de prorrateo', d: 'm², carga eléctrica (kW) y personas por área. De aquí salen los % con que se reparten renta, luz y servicios.', cfg: true },
-            { v: 'reparto-plantillas', t: 'Reparto de gastos compartidos', d: 'Plantillas por cuenta o proveedor: qué base usar y a qué cuenta de oficina va la parte de no producción.', cfg: true },
             { v: 'isr', t: 'Tabla ISR', d: 'Tarifas de retención de ISR sobre sueldos (Art. 96 LISR) y subsidio.', cfg: true },
         ],
     },

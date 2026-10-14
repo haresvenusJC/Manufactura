@@ -3,7 +3,7 @@ import { montarGuia } from './asistente-contable.js';
 import { abrirAsistenteProrrateo } from './asistente-prorrateo.js';
 
 // =====================================================================
-// Contabilidad · Prorrateo de gastos indirectos de fabricación (CIF)
+// Costos y prorrateo · Prorrateo de gastos indirectos de fabricación (CIF)
 //   Fase 2/3 de costos de producción. Elige un mes: junta el CIF
 //   pendiente, calcula la distribución a las órdenes por horas de mano
 //   de obra (fijo contra capacidad normal, variable contra horas reales)

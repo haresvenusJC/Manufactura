@@ -405,7 +405,7 @@ function valsCentro(c) {
 }
 function vCentros() {
     if (fase() === 'r') return rCentros();
-    if (!S.centros.length) return `<p class="text-amber-400">No hay centros de costo de producción activos. Créalos primero en Contabilidad → Centros de costo.</p>`;
+    if (!S.centros.length) return `<p class="text-amber-400">No hay centros de costo de producción activos. Créalos primero en Costos y prorrateo → Centros de costo.</p>`;
     return `
       <h3 class="text-base font-semibold text-sky-300 mb-1">1 · Tu planta</h3>
       <p class="text-xs text-slate-400 mb-3">La <b>capacidad normal</b> es cuántas horas de mano de obra produce una etapa en un mes normal. Con ella el sistema sabe si un mes fue flojo: lo que no se aprovechó no se le carga a los pocos lotes que sí saliste a producir. Responde por cada etapa:</p>
@@ -753,7 +753,7 @@ function vCasos() {
                   <div class="text-[11px] text-slate-500 mt-0.5">${c.d}</div></button>`;
             }).join('')}
           </div>
-          ${tip('Cada regla queda como una plantilla en Contabilidad → Reparto de gastos compartidos; al capturar el gasto en Gastos con esa cuenta, el sistema propone la plantilla solo.')}`;
+          ${tip('Cada regla queda como una plantilla en Costos y prorrateo → Reparto de gastos compartidos; al capturar el gasto en Gastos con esa cuenta, el sistema propone la plantilla solo.')}`;
     }
     const c = CASOS.find(x => x.id === S.caso);
     if (c.info === 'deprec') return vDeprec(c);
