@@ -1666,6 +1666,13 @@ Documento de almacén. Sin folio propio: pagos, cobros, nómina, auditoría.
 
 ## Pendiente
 
+- **PARA MAÑANA (2026-10-15) — pendientes anotados el 2026-10-14 (el usuario los revisa al iniciar):**
+  1. **REDISEÑAR Requisiciones de compra** (captura del usuario con anotaciones): (a) la captura de la requisición ("Nueva requisición de compra": fecha, notas, producto/cantidad/unidad/proveedor sugerido, partidas, "Guardar requisición") la hace un **solicitante distinto de Compras** — moverla fuera de la pantalla de Compras (¿pantalla/menú propio del solicitante, con su Tarea?); (b) Compras queda con la lista de requisiciones para revisar/autorizar y con **órdenes de compra directas** cuando ella misma necesite algo (la ODC formal manual `window.reqAutorizar(null)` ya existe); (c) revisar **botones de "nuevo", validaciones y cancelaciones** de ese flujo (qué puede cancelar quién, qué se valida al guardar). Sin código todavía: falta plan y aprobación.
+  2. **Validación del % de anticipo en la ODC formal** (captura: el campo "% ANTICIPO" aceptó **600**): debe limitar a 0–100 (pantalla en `js/requisiciones-compra.js`/`reqAutorizar`; y en `odc_generar` en la base, que hoy calcula el monto con ese %). Revisar también que el monto de anticipo no exceda el total estimado.
+  3. **Cuadre de inventario 115.01** (Cierre de periodo, dif −4,437.94): el usuario debe abrir "🔎 Ver qué documentos explican la diferencia de 115.01" y revisar los documentos listados (probable: compras en el kardex sin póliza, ej. FAA-88296, docs 40/41).
+  4. **Probar en la app real (Ctrl+Shift+R):** encabezado/título fijo/píldora "Ayuda" en varias pantallas; Cuentas por pagar con solo filas desplazables y menús de filtro sin cortarse; **Lotes** compacto; modal "Pagar anticipo" (scroll + botón visible) con ODC-000009; filtro Desde/Hasta con año tecleado.
+  5. **Decisión abierta:** si el esquema "solo las filas se desplazan" (título/filtros/encabezados fijos) se extiende a otras tablas largas (hoy solo Cuentas por pagar y Lotes).
+  6. Los demás pendientes de abajo siguen vigentes (probar prorrateo con una máquina de prueba, `sql/2026-10-12_odc_generar.sql` ya corrido o no según el usuario, Fresh start sin autorizar, etc.).
 - **PARA MAÑANA (2026-10-13) — ODC en una sola operación: correr, subir y probar.** Código ya hecho en la carpeta local, NO subido a GitHub.
   (1) Correr `sql/2026-10-12_odc_generar.sql` en Supabase → SQL Editor (crea `odc_generar` y reescribe `pagar_anticipo_oc` restituyendo el candado
   ×1.30 que `…07d` había perdido). (2) Decir "comitea" para subir `js/requisiciones-compra.js`, `js/ordenes-compra.js`, el SQL, `version.json` y
