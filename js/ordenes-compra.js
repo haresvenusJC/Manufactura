@@ -411,6 +411,7 @@ async function ocRenderLista() {
                   const anticipoDisp = anticiposPorOc.get(o.id) || 0;
                   const recibido = o.estatus === 'recibida';
                   const pagado = (o.estatus === 'recibida' || o.estatus === 'recibida_parcial') && !ocsConSaldo.has(o.id);
+                  const anticipado = !pagado && !recibido && o.estatus !== 'cancelada' && total > 0 && anticipoDisp >= Math.round(total * 1.16 * 100) / 100 - 0.01;
                   return `
                     <tr class="border-b border-slate-900">
                       <td class="p-2 whitespace-nowrap">
@@ -424,7 +425,7 @@ async function ocRenderLista() {
                       <td class="p-2 font-mono text-slate-400">${pct}%</td>
                       <td class="p-2"><div class="flex flex-col gap-1 items-start">
                         <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${recibido ? 'text-emerald-300 bg-emerald-950/40' : 'text-slate-400 bg-slate-800'}">${recibido ? 'RECIBIDO' : 'NO RECIBIDO'}</span>
-                        <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${pagado ? 'text-emerald-300 bg-emerald-950/40' : 'text-slate-400 bg-slate-800'}">${pagado ? 'PAGADO' : 'NO PAGADO'}</span>
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${pagado || anticipado ? 'text-emerald-300 bg-emerald-950/40' : 'text-slate-400 bg-slate-800'}">${pagado ? 'PAGADO' : anticipado ? 'ANTICIPO PAGADO' : 'NO PAGADO'}</span>
                         ${o.estatus === 'cancelada' ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-rose-300 bg-rose-950/40">CANCELADA</span>' : ''}
                       </div></td>
                     </tr>`;
@@ -541,6 +542,7 @@ async function renderVistaOC(o, cuerpo) {
     }
     // Historia de pagos de esta ODC: anticipos (antes de recibir) + pagos de sus recepciones.
     let historiaPagosHtml = '';
+    let antPagadoOc = 0;
     try {
         const { data: docsOc } = await supabaseClient.from('documentos').select('id, folio').eq('orden_compra_id', o.id).eq('tipo_movimiento', 'entrada_compra');
         const idsDoc = (docsOc || []).map((d) => d.id);
@@ -554,22 +556,25 @@ async function renderVistaOC(o, cuerpo) {
         ].sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || '')) || a.id - b.id);
         if (movs.length) {
             const sumAnt = (rA.data || []).reduce((t, a) => t + Number(a.monto || 0), 0);
-            const difAnt = Number(o.anticipo_monto) > 0 && sumAnt > 0 ? Math.round((Number(o.anticipo_monto) - sumAnt) * 100) / 100 : 0;
+            antPagadoOc = sumAnt;
+            const difAnt = sumAnt > 0 ? Math.round((Number(o.anticipo_monto || 0) - sumAnt) * 100) / 100 : 0;
             historiaPagosHtml = `
         <div class="mb-4 border-t border-slate-800 pt-3">
             <span class="block text-[10px] text-slate-500 mb-1">Historia de pagos</span>
             <table class="w-full text-xs text-slate-300"><tbody>
                 ${movs.map((m) => `<tr class="border-b border-slate-800/60"><td class="py-1 pr-2 whitespace-nowrap text-slate-400">${esc(m.fecha || '')}</td><td class="py-1 pr-2">${esc(m.concepto)}${m.referencia ? ` <span class="text-slate-500">· ${esc(m.referencia)}</span>` : ''}</td><td class="py-1 pr-2 text-right font-mono">${money(m.monto)}</td><td class="py-1 text-right">${m.poliza_id ? linkPoliza(m.poliza_id, 'text-xs font-mono text-emerald-400 hover:underline') : ''}</td></tr>`).join('')}
                 <tr><td colspan="2" class="py-1 pr-2 text-right text-slate-400">Pagado</td><td class="py-1 pr-2 text-right font-mono font-semibold text-emerald-300">${money(movs.reduce((t, m) => t + m.monto, 0))}</td><td></td></tr>
+                ${Math.max(0, Math.round((totalEst * 1.16 - movs.reduce((t, m) => t + m.monto, 0)) * 100) / 100) > 0.009 && o.condicion_pago ? `<tr><td colspan="2" class="py-1 pr-2 text-right text-slate-400">Pendiente</td><td class="py-1 pr-2 text-right font-mono text-amber-300">${money(totalEst * 1.16 - movs.reduce((t, m) => t + m.monto, 0))}</td><td></td></tr>` : ''}
             </tbody></table>
             ${Math.abs(difAnt) > 0.009 ? `<p class="text-[11px] text-amber-300 mt-1">Anticipo pactado ${money(o.anticipo_monto)} · pagado ${money(sumAnt)} · diferencia ${money(Math.abs(difAnt))}${difAnt > 0 ? ' (se suma al saldo por pagar al recibir)' : ' (pagado de más)'}.</p>` : ''}
         </div>`;
         }
     } catch (_) { /* sin historia de pagos: no se pinta */ }
 
+    const antCubierto = !pagado && !recibido && o.estatus !== 'cancelada' && totalEst > 0 && antPagadoOc >= Math.round(totalEst * 1.16 * 100) / 100 - 0.01;
     const estatusHtml = `<div class="flex gap-1">
         <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${recibido ? 'text-emerald-300 bg-emerald-950/40' : 'text-slate-400 bg-slate-800'}">${recibido ? 'RECIBIDO' : 'NO RECIBIDO'}</span>
-        <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${pagado ? 'text-emerald-300 bg-emerald-950/40' : 'text-slate-400 bg-slate-800'}">${pagado ? 'PAGADO' : 'NO PAGADO'}</span>
+        <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${pagado || antCubierto ? 'text-emerald-300 bg-emerald-950/40' : 'text-slate-400 bg-slate-800'}">${pagado ? 'PAGADO' : antCubierto ? 'ANTICIPO PAGADO' : 'NO PAGADO'}</span>
         ${o.estatus === 'cancelada' ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-rose-300 bg-rose-950/40">CANCELADA</span>' : ''}
     </div>`;
 
@@ -2071,6 +2076,7 @@ function rmOcultarModal() {
     const wrap = document.getElementById('rmModalWrap');
     if (wrap) wrap.remove();
 }
+window.rmOcultarModal = rmOcultarModal;
 
 // ---- Editar las líneas de una recepción ya capturada (solo admin: esta
 //      pantalla completa solo la usa el usuario autenticado, el operador

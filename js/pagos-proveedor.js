@@ -330,7 +330,7 @@ function cxpPintarDocumentos() {
             ${filtrados.length ? filtrados.map((x) => {
                 const pre = esAbierto && cxpPreOcCache && x.tipo === 'compra' && Number(x.orden_compra_id) === Number(cxpPreOcCache);
                 const vencida = esVencida(x);
-                const polizasPago = (x.estatus_cxp === 'pagado' || x.estatus_cxp === 'anticipado') ? cxpPagosDe(x).map((p) => p.poliza_id).filter(Boolean) : [];
+                const polizasPago = (x.estatus_cxp === 'pagado' || x.estatus_cxp === 'anticipado') ? (cxpPagosDe(x).length ? cxpPagosDe(x) : (x.orden_compra_id ? cxpHistorialOc(x.orden_compra_id).movs : [])).map((p) => p.poliza_id).filter(Boolean) : [];
                 const abierto = x.estatus_cxp === 'pendiente';
                 return `
                 <tr class="border-b border-slate-900 ${x.estatus_cxp === 'cancelado' ? 'opacity-60' : ''}" data-poliza="${x.poliza_id || ''}" data-tipo="${x.tipo}" data-id="${x.id}" data-saldo="${x.saldo}" data-total="${x.total || 0}" data-oc-id="${x.orden_compra_id || ''}" data-prov="${x.proveedor_id || ''}" data-prov-nombre="${esc(x.proveedor_nombre || '—')}" data-folio="${esc(x.folio || '#' + x.id)}">
@@ -347,7 +347,7 @@ function cxpPintarDocumentos() {
                   <td class="p-2 text-xs">${x.tipo === 'oc' && abierto ? `<span class="text-slate-400" title="Lo que Compras pactó en la ODC">${esc(x.textoPactado || '')}</span>`
                       // Pagada: solo la póliza del PAGO (BAN-/VAE-…); la del recibo se ve con el botón "Ver".
                       : polizasPago.length ? `<div class="flex flex-col gap-0.5">${polizasPago.map((pid) => `<span>${linkPoliza(pid, 'text-xs font-mono text-emerald-400 hover:underline')}</span>`).join('')}</div>`
-                      : `<span>${linkPoliza(x.poliza_id, 'text-xs font-mono text-sky-400 hover:underline')} <span class="text-slate-600">recibo</span></span>`}</td>
+                      : `<span>${linkPoliza(x.poliza_id, 'text-xs font-mono text-sky-400 hover:underline')}</span>`}</td>
                   <td class="p-2 text-right">${abierto && (esAbierto || cxpFiltro === 'todas')
                       ? `<button type="button" class="cxp-pagar-fila inline-block w-[72px] text-center text-xs bg-sky-600 hover:bg-sky-500 text-white font-medium py-1.5 rounded-lg">Pagar</button>${(cxpPagosDe(x).length || (x.orden_compra_id && cxpHistorialOc(x.orden_compra_id).movs.length)) ? '<button type="button" class="cxp-ver-fila block ml-auto mt-0.5 text-[10px] text-slate-400 hover:text-sky-300 underline">ver pagos</button>' : ''}`
                       : !abierto ? `<button type="button" class="cxp-ver-fila inline-block w-[72px] text-center text-xs bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600 font-medium py-1.5 rounded-lg">Ver</button>` : ''}</td>
