@@ -1001,7 +1001,7 @@ window.reqAutorizar = async (id) => {
         `<option value="${p.id}" ${p.id === provSugerido ? 'selected' : ''}>${esc(p.nombre)}${p.rfc ? ' — ' + esc(p.rfc) : ''}</option>`).join('');
     const optMon = reqMonedas.map((m) => `<option value="${m.id}">${esc(m.codigo)}</option>`).join('');
     const optForma = '<option value="">— sin definir —</option>' + formas.map((f) => `<option value="${esc(f.clave)}">${esc(f.clave)} · ${esc(f.descripcion)}</option>`).join('');
-    const optDias = DIAS_CREDITO_ODC.map((d) => `<option value="${d}">${d} días</option>`).join('');
+    const optDias = '<option value="" hidden>— (contado)</option>' + DIAS_CREDITO_ODC.map((d) => `<option value="${d}">${d} días</option>`).join('');
     const inp = 'w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2 text-sm text-slate-100';
     const lbl = 'block text-[11px] text-slate-400 mb-1';
     const card = 'bg-slate-950 border border-slate-800 rounded-xl p-4';
@@ -1029,7 +1029,8 @@ window.reqAutorizar = async (id) => {
               <div><span class="block text-[10px] text-slate-500 uppercase">Solicitada por</span><span class="text-slate-100">${esc(r.solicitada_por || '—')}</span></div>
               <div><span class="block text-[10px] text-slate-500 uppercase">Fecha de solicitud</span><span class="text-slate-100">${esc(r.fecha || '—')}</span></div>
               <div><span class="block text-[10px] text-slate-500 uppercase">Origen</span><span class="text-slate-100">${esc(r.origen || 'manual')}</span></div>
-            </div>`}
+            </div>
+            <div class="mt-2 max-w-xs"><label class="${lbl}">Solicitado por · informativo</label><select data-f="solicitante" class="${inp}">${optEmp}</select></div>`}
           </div>
 
           <div class="${card}">
@@ -1192,6 +1193,9 @@ window.reqAutorizar = async (id) => {
             b.className = 'flex-1 text-xs font-semibold py-2 rounded-md ' + (on ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200');
         });
         f('dias').disabled = condicion !== 'credito';
+        // Contado: no hay plazo — se muestra "— (contado)" en vez de un plazo que no aplica.
+        if (condicion !== 'credito') f('dias').value = '';
+        else if (!f('dias').value) f('dias').value = '30';
         recalcular();
     };
     modal.querySelectorAll('[data-cond]').forEach((b) => { b.onclick = () => { condicion = b.dataset.cond; pintarCondicion(); }; });
@@ -1202,7 +1206,13 @@ window.reqAutorizar = async (id) => {
         if (f('chkAnt').checked && condicion === 'credito' && f('antPct').value === '100') f('antPct').value = '50';
         recalcular();
     };
-    f('antPct').oninput = recalcular;
+    // % de anticipo: nunca más de 100 (ni menos de 1) — se corrige al teclear, no solo al confirmar.
+    f('antPct').oninput = () => {
+        const v = parseFloat(f('antPct').value);
+        if (v > 100) f('antPct').value = '100';
+        else if (v < 0) f('antPct').value = '1';
+        recalcular();
+    };
 
     // ---- Vigencia ----
     const revisarVigencia = () => {
@@ -1222,7 +1232,7 @@ window.reqAutorizar = async (id) => {
         f('email').value = p.email || '';
         condicion = p.condicion_pago === 'credito' ? 'credito' : 'contado';
         const d = Number(p.dias_credito || 0);
-        f('dias').value = String(DIAS_CREDITO_ODC.includes(d) ? d : 30);
+        f('dias').value = condicion === 'credito' ? String(DIAS_CREDITO_ODC.includes(d) ? d : 30) : '';
         if (p.forma_pago && [...f('forma').options].some((o) => o.value === p.forma_pago)) f('forma').value = p.forma_pago;
         pintarCondicion();
         for (const l of lineas) {
@@ -1307,6 +1317,11 @@ window.reqAutorizar = async (id) => {
     pintarPartidas();
     pintarCondicion();
     if (f('proveedor').value) prellenar();
+    // Solicitante: si la requisición trae un nombre que coincide con un empleado, ya viene elegido.
+    if (!manual && r.solicitada_por && f('solicitante')) {
+        const emp = empleados.find((e) => String(e.nombre || '').trim().toLowerCase() === String(r.solicitada_por).trim().toLowerCase());
+        if (emp) f('solicitante').value = String(emp.id);
+    }
 
     // ---- Confirmar ----
     f('ok').onclick = async () => {
@@ -1339,7 +1354,7 @@ window.reqAutorizar = async (id) => {
                     proveedor_id: proveedorId,
                     fecha_esperada: f('fechaEsp').value || null,
                     moneda_id: f('moneda').value ? Number(f('moneda').value) : null,
-                    solicitante_empleado_id: manual && f('solicitante').value ? Number(f('solicitante').value) : null,
+                    solicitante_empleado_id: f('solicitante')?.value ? Number(f('solicitante').value) : null,
                     notas: f('notas').value.trim() || null,
                     ...(esExtranjera() && f('tc').value ? {
                         tipo_cambio: Number(f('tc').value),

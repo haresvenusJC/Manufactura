@@ -25,6 +25,9 @@ const app = () => document.getElementById('app');
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const money = (n) => Number(n || 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
+// 'AAAA-MM-DD' -> 'DD/MM/AAAA' sin pasar por Date (new Date('2026-10-21') es UTC y mostraba el día anterior).
+const fmtFechaIso = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v || '')); return m ? `${m[3]}/${m[2]}/${m[1]}` : '—'; };
+
 function guardarSesion(s) {
     sesion = s;
     try { sessionStorage.setItem(KEY, JSON.stringify(s)); } catch (e) { /* modo privado */ }
@@ -171,7 +174,7 @@ async function pantallaFormulario() {
     const selOc = document.getElementById('prOc');
     const { data: ocs, error } = await supabaseClient
         .from('v_recibo_ocs')
-        .select('id, folio, proveedor_nombre, fecha_esperada, estatus, partidas, unidades_totales, total_estimado')
+        .select('id, folio, proveedor_nombre, fecha, fecha_esperada, estatus, partidas, unidades_totales, total_estimado')
         .order('fecha_esperada', { ascending: true });
     if (error) {
         selOc.innerHTML = `<option value="">— (error al cargar) —</option>`;
@@ -316,9 +319,10 @@ function pintarResumenOc(oc) {
         <div class="bg-slate-900 border border-sky-800 rounded-xl p-3 text-xs space-y-1">
             <p><span class="text-slate-500">Orden seleccionada:</span> <span class="text-sky-400 font-bold">${esc(oc.folio || '#' + oc.id)}</span></p>
             <p><span class="text-slate-500">Proveedor:</span> <span class="text-slate-200">${esc(oc.proveedor_nombre || 's/proveedor')}</span></p>
-            <p><span class="text-slate-500">Fecha:</span> <span class="text-slate-200">${oc.fecha_esperada ? new Date(oc.fecha_esperada).toLocaleDateString('es-MX') : '—'}</span></p>
+            <p><span class="text-slate-500">Fecha de la orden:</span> <span class="text-slate-200">${fmtFechaIso(oc.fecha)}</span></p>
+            <p><span class="text-slate-500">Entrega esperada:</span> <span class="text-slate-200">${fmtFechaIso(oc.fecha_esperada)}</span></p>
             <p><span class="text-slate-500">Partidas:</span> <span class="text-slate-200">${oc.partidas} partida${Number(oc.partidas) === 1 ? '' : 's'} — ${oc.unidades_totales} unidades</span></p>
-            <p><span class="text-slate-500">Total (estimado):</span> <span class="text-emerald-400 font-bold">${money(oc.total_estimado)}</span></p>
+            <p><span class="text-slate-500">Total (estimado, sin IVA):</span> <span class="text-emerald-400 font-bold">${money(oc.total_estimado)}</span></p>
         </div>`;
 }
 

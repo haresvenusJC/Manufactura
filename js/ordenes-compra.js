@@ -9,7 +9,7 @@ import { obtenerInfoProveedorProducto } from './info-proveedor-producto.js';
 import { opcionesPresentacionHtml, sugerirPresetPorUnidadCfdi } from './presentaciones-proveedor.js';
 import './trazabilidad.js';
 import { convertirEnBuscador } from './buscador-select.js';
-import { etiquetaPoliza } from './enlaces-reporte.js';
+import { etiquetaPoliza, linkPoliza } from './enlaces-reporte.js';
 
 // =====================================================================
 //  Órdenes de compra + Recibo de mercancía  (Fase 1: captura y recepción
@@ -539,6 +539,34 @@ async function renderVistaOC(o, cuerpo) {
             pagado = !(cxp && cxp.length);
         } catch (_) { pagado = false; /* si la vista no existe, no afirmar "pagado" de más */ }
     }
+    // Historia de pagos de esta ODC: anticipos (antes de recibir) + pagos de sus recepciones.
+    let historiaPagosHtml = '';
+    try {
+        const { data: docsOc } = await supabaseClient.from('documentos').select('id, folio').eq('orden_compra_id', o.id).eq('tipo_movimiento', 'entrada_compra');
+        const idsDoc = (docsOc || []).map((d) => d.id);
+        const [rA, rP] = await Promise.all([
+            supabaseClient.from('pagos_proveedor_aplicaciones').select('monto, pagos_proveedor!inner ( id, fecha, referencia, estatus, poliza_id )').eq('tipo', 'anticipo_oc').eq('orden_compra_id', o.id).eq('pagos_proveedor.estatus', 'registrado'),
+            idsDoc.length ? supabaseClient.from('pagos_proveedor_aplicaciones').select('monto, documento_id, pagos_proveedor!inner ( id, fecha, referencia, estatus, poliza_id )').eq('tipo', 'compra').in('documento_id', idsDoc).eq('pagos_proveedor.estatus', 'registrado') : Promise.resolve({ data: [] }),
+        ]);
+        const movs = [
+            ...(rA.data || []).map((a) => ({ ...a.pagos_proveedor, monto: Number(a.monto || 0), concepto: 'Anticipo' })),
+            ...(rP.data || []).map((a) => ({ ...a.pagos_proveedor, monto: Number(a.monto || 0), concepto: 'Pago de ' + (docsOc.find((d) => d.id === a.documento_id)?.folio || 'recepción') })),
+        ].sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || '')) || a.id - b.id);
+        if (movs.length) {
+            const sumAnt = (rA.data || []).reduce((t, a) => t + Number(a.monto || 0), 0);
+            const difAnt = Number(o.anticipo_monto) > 0 && sumAnt > 0 ? Math.round((Number(o.anticipo_monto) - sumAnt) * 100) / 100 : 0;
+            historiaPagosHtml = `
+        <div class="mb-4 border-t border-slate-800 pt-3">
+            <span class="block text-[10px] text-slate-500 mb-1">Historia de pagos</span>
+            <table class="w-full text-xs text-slate-300"><tbody>
+                ${movs.map((m) => `<tr class="border-b border-slate-800/60"><td class="py-1 pr-2 whitespace-nowrap text-slate-400">${esc(m.fecha || '')}</td><td class="py-1 pr-2">${esc(m.concepto)}${m.referencia ? ` <span class="text-slate-500">· ${esc(m.referencia)}</span>` : ''}</td><td class="py-1 pr-2 text-right font-mono">${money(m.monto)}</td><td class="py-1 text-right">${m.poliza_id ? linkPoliza(m.poliza_id, 'text-xs font-mono text-emerald-400 hover:underline') : ''}</td></tr>`).join('')}
+                <tr><td colspan="2" class="py-1 pr-2 text-right text-slate-400">Pagado</td><td class="py-1 pr-2 text-right font-mono font-semibold text-emerald-300">${money(movs.reduce((t, m) => t + m.monto, 0))}</td><td></td></tr>
+            </tbody></table>
+            ${Math.abs(difAnt) > 0.009 ? `<p class="text-[11px] text-amber-300 mt-1">Anticipo pactado ${money(o.anticipo_monto)} · pagado ${money(sumAnt)} · diferencia ${money(Math.abs(difAnt))}${difAnt > 0 ? ' (se suma al saldo por pagar al recibir)' : ' (pagado de más)'}.</p>` : ''}
+        </div>`;
+        }
+    } catch (_) { /* sin historia de pagos: no se pinta */ }
+
     const estatusHtml = `<div class="flex gap-1">
         <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${recibido ? 'text-emerald-300 bg-emerald-950/40' : 'text-slate-400 bg-slate-800'}">${recibido ? 'RECIBIDO' : 'NO RECIBIDO'}</span>
         <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${pagado ? 'text-emerald-300 bg-emerald-950/40' : 'text-slate-400 bg-slate-800'}">${pagado ? 'PAGADO' : 'NO PAGADO'}</span>
@@ -565,6 +593,7 @@ async function renderVistaOC(o, cuerpo) {
                 ${o.forma_pago ? `<span class="block text-[11px] text-slate-400">Forma de pago: ${esc(o.forma_pago)}</span>` : ''}
                 ${o.anticipo_pct ? `<span class="block text-[11px] text-slate-400">Anticipo comprometido: ${Number(o.anticipo_pct)}% = ${money(o.anticipo_monto)} (lo paga Finanzas antes de recibir)</span>` : '<span class="block text-[11px] text-slate-400">Sin anticipo</span>'}</div>` : ''}
         </div>` : ''}
+        ${historiaPagosHtml}
         ${o.notas ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Notas de la orden</span><p class="text-xs text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5">${esc(o.notas)}</p></div>` : ''}
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-xs text-slate-300">
@@ -1032,6 +1061,12 @@ export async function cargarModuloReciboMercancia() {
             .order('id', { ascending: false });
         if (error) throw error;
         ocs = data || [];
+        // Lo pactado por Compras (forma de pago, contado/crédito) para precargar la recepción; tolera que la migración de la ODC formal no esté corrida.
+        try {
+            const { data: pact } = await supabaseClient.from('ordenes_compra').select('id, condicion_pago, forma_pago').in('id', ocs.map((o) => o.id));
+            const m = new Map((pact || []).map((x) => [x.id, x]));
+            ocs.forEach((o) => { const x = m.get(o.id); if (x) { o.condicion_pago = x.condicion_pago; o.forma_pago = x.forma_pago; } });
+        } catch (_) { /* sin condiciones pactadas */ }
     } catch (err) {
         const m = err?.message || String(err);
         cont.innerHTML = /does not exist|schema cache|could not find/i.test(m)
@@ -1203,7 +1238,14 @@ export async function cargarModuloReciboMercancia() {
     });
 
     const selOc = document.getElementById('rmOC');
-    selOc.onchange = () => { rmRenderDetalle(ocs.find(o => o.id === Number(selOc.value))); rmAvisoRecepcionesPrevias(); };
+    selOc.onchange = () => {
+        const ocSel = ocs.find(o => o.id === Number(selOc.value));
+        rmRenderDetalle(ocSel); rmAvisoRecepcionesPrevias();
+        // Forma y método de pago SAT: lo pactado en la ODC (03 transferencia…; contado = PUE, crédito = PPD), no un valor por defecto.
+        const fijar = (id, v) => { const el = document.getElementById(id); if (!el || !v) return; el.value = v; el.buscadorRefrescar?.(); };
+        if (ocSel?.forma_pago) fijar('rmFormaPago', ocSel.forma_pago);
+        if (ocSel?.condicion_pago) fijar('rmMetodoPago', ocSel.condicion_pago === 'credito' ? 'PPD' : 'PUE');
+    };
 
     if (!rmSinContab) {
         const rc = () => {
