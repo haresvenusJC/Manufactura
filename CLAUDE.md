@@ -6,6 +6,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/contabilidad.js`, `version.json`, `CLAUDE.md`. **Reportes contables: las pestañas (Balanza, Estado de resultados, Balance general, Auxiliares…) van ARRIBA y los filtros (Desde/Hasta/Generar/Exportar) debajo** (pedido del usuario 2026-10-15, antes estaba al revés). Solo cambió el orden en `cargarModuloReportesContables`; ids intactos. Pendiente: verlo en el navegador.
+
 - Archivos tocados (lo último): `css/ui-moderno.css`, `js/requisiciones-compra.js`, `index.html`, `version.json`, `CLAUDE.md`. **Listas a pantalla completa — diseño estándar** (pedido del usuario 2026-10-15, capturas de Requisiciones y
   Cuentas por pagar): (1) el marco de la lista llega hasta el borde inferior de la ventana (`<main>` baja su relleno inferior a .5rem con `:has()` y la sección mide `100vh − 1.125rem − .5rem`; antes quedaba un hueco de ~1.5rem y,
   por la regla genérica de tablas de la otra sesión, `max-height: calc(100vh − 15rem)` en las demás); (2) título/Ayuda/filtros/encabezado fijos y solo las filas se desplazan POR DEBAJO, sin barra horizontal (`overflow-x:hidden`,
