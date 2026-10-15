@@ -83,24 +83,27 @@ function reqMoqDe(productoId) {
     return m > 0 ? m : 0;
 }
 
-// Aviso de MOQ de una partida (se repinta solo en .req-moq, sin tocar los demás campos).
+// Celda "MOQ" de una partida (columna propia; se repinta con la tabla). Muestra el MOQ del producto en su unidad, lo compara con la
+// cantidad solicitada y, si la cantidad queda POR DEBAJO del MOQ, avisa que la compra puede ser más difícil o no ejecutable por las
+// políticas de venta del proveedor.
 function reqHtmlMoq(p, i) {
-    if (!p.productoId) return '';
+    if (!p.productoId) return '<span class="text-slate-600">—</span>';
     const moq = reqMoqDe(p.productoId);
     const u = esc(p.unidadNombre || '');
     const cant = Number(p.cantidad || 0);
     if (!moq) {
-        return `<div class="mt-1 text-[10px] text-amber-300">⚠ Sin MOQ capturado — el proveedor tal vez no venda solo lo que pide la orden.
+        return `<div class="text-[10px] text-amber-300">⚠ Sin MOQ capturado
             <span class="block mt-1"><input type="number" step="any" min="0" placeholder="MOQ (${u})" class="req-part-moq w-24 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-right font-mono text-slate-100">
-            <button type="button" onclick="window.reqGuardarMoq(${i})" class="ml-1 bg-sky-800 hover:bg-sky-700 text-white rounded px-2 py-0.5 cursor-pointer">Guardar MOQ</button></span></div>`;
+            <button type="button" onclick="window.reqGuardarMoq(${i})" class="mt-1 bg-sky-800 hover:bg-sky-700 text-white rounded px-2 py-0.5 cursor-pointer">Guardar MOQ</button></span></div>`;
     }
     const necesita = p.necesario != null && p.necesario < moq ? ` La orden necesita ${formatoNum(p.necesario)} ${u}.` : '';
+    const valor = `<div class="font-mono text-slate-100">${formatoNum(moq)} <span class="text-[10px] text-slate-500 font-sans">${u}</span></div>`;
     if (cant < moq) {
-        return `<div class="mt-1 text-[10px] text-amber-300">⚠ MOQ ${formatoNum(moq)} ${u}: pides ${formatoNum(cant)}.${necesita}
-            <button type="button" onclick="window.reqPedirMoq(${i})" class="ml-1 bg-amber-800 hover:bg-amber-700 text-white rounded px-2 py-0.5 cursor-pointer">Pedir ${formatoNum(moq)}</button></div>`;
+        return `${valor}<div class="mt-1 text-[10px] text-amber-300 text-left">⚠ Solicitas ${formatoNum(cant)}, menos que el MOQ.${necesita} La compra puede ser más difícil o no ejecutable por las políticas de venta del proveedor.
+            <button type="button" onclick="window.reqPedirMoq(${i})" class="mt-1 bg-amber-800 hover:bg-amber-700 text-white rounded px-2 py-0.5 cursor-pointer">Pedir ${formatoNum(moq)}</button></div>`;
     }
     const sobra = Number((cant - (p.necesario != null ? p.necesario : cant)).toFixed(4));
-    return `<div class="mt-1 text-[10px] text-emerald-400">✓ MOQ ${formatoNum(moq)} ${u}${necesita && sobra > 0 ? ` —${necesita} Sobran ${formatoNum(sobra)} ${u} (quedan en stock).` : ''}</div>`;
+    return `${valor}<div class="mt-1 text-[10px] text-emerald-400">✓ Cumple${necesita && sobra > 0 ? ` —${necesita} Sobran ${formatoNum(sobra)} ${u} (quedan en stock).` : ''}</div>`;
 }
 const formatoNum = (n) => Number(Number(n).toFixed(4)).toLocaleString('es-MX', { maximumFractionDigits: 4 });
 
@@ -175,19 +178,19 @@ export async function cargarModuloRequisicionesCompra() {
               <select id="reqProdUnidad" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${optUni}</select></div>
             <div class="lg:w-56"><label class="block text-[11px] text-slate-400 mb-1">Proveedor sugerido</label>
               <select id="reqProdProveedor" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${optProv}</select></div>
+            <div class="lg:self-end"><button type="button" id="reqAddPartida" class="w-full lg:w-auto bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-5 py-2 rounded-lg text-xs">Solicitar</button></div>
           </div>
           <div id="reqInfoProveedor" class="hidden mt-2 text-[11px] text-slate-300 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2"></div>
-          <button type="button" id="reqAddPartida" class="mt-2 w-full lg:w-auto lg:px-6 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium py-1.5 rounded-lg text-xs">＋ Agregar partida</button>
         </div>
 
         <div class="overflow-x-auto border border-slate-800 rounded-lg mb-3">
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-              <th class="p-2">Mi catálogo (interno)</th><th class="p-2 text-right">Cantidad</th>
+              <th class="p-2">Mi catálogo (interno)</th><th class="p-2 text-right">Cantidad</th><th class="p-2 text-right">MOQ</th>
               <th class="p-2">Datos del proveedor (para la OC)</th>
               <th class="p-2 text-right">Costo est.</th><th class="p-2 text-right">Importe</th><th class="p-2"></th>
             </tr></thead>
-            <tbody id="reqPartidasBody"><tr><td colspan="6" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr></tbody>
+            <tbody id="reqPartidasBody"><tr><td colspan="7" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr></tbody>
           </table>
         </div>
         <button type="button" id="reqGuardar" class="bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-2.5 rounded-lg text-sm">Crear</button>
@@ -470,7 +473,7 @@ async function reqActualizarInfoProveedor() {
 function reqRenderPartidas() {
     const b = document.getElementById('reqPartidasBody');
     if (!reqPartidasTemp.length) {
-        b.innerHTML = '<tr><td colspan="6" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr>';
+        b.innerHTML = '<tr><td colspan="7" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr>';
         return;
     }
     b.innerHTML = reqPartidasTemp.map((p, i) => {
@@ -481,12 +484,13 @@ function reqRenderPartidas() {
             <td class="p-2 text-slate-100">
                 ${esc(p.nombre)}${p.productoId ? '' : ' <span class="text-[10px] text-amber-400">(nuevo)</span>'}
                 ${p.skuInterno ? `<span class="block text-[10px] text-slate-500 font-mono">SKU ${esc(p.skuInterno)}</span>` : ''}
-                <div class="req-moq">${reqHtmlMoq(p, i)}</div>
             </td>
             <td class="p-2 text-right">
-                <input type="number" step="any" min="0" class="req-part-cant w-20 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-right font-mono text-slate-100" value="${p.cantidad}">
+                <!-- La cantidad se captura arriba; para cambiarla, quita la partida con ✕ y vuelve a solicitarla. -->
+                <span class="req-part-cant font-mono text-slate-100">${formatoNum(p.cantidad)}</span>
                 <span class="block text-[10px] text-slate-500 font-normal">${esc(p.unidadNombre || '')}</span>
             </td>
+            <td class="p-2 text-right align-top">${reqHtmlMoq(p, i)}</td>
             <td class="p-2 text-slate-400 text-[11px]">
                 ${p.proveedorNombre ? `<span class="text-slate-300">${esc(p.proveedorNombre)}</span>` : '<span class="italic text-slate-600">sin proveedor sugerido</span>'}
                 ${tieneDatosProv ? `<span class="block">${p.skuProveedor ? `SKU proveedor: <span class="font-mono">${esc(p.skuProveedor)}</span>` : ''}</span>
@@ -494,33 +498,32 @@ function reqRenderPartidas() {
                     ${p.unidadProveedor ? `<span class="block">Unidad: ${esc(p.unidadProveedor)}${p.factorConversion ? ` (×${p.factorConversion})` : ''}</span>` : ''}`
                     : (p.proveedorNombre ? '<span class="block italic text-slate-600">sin claves capturadas para este proveedor</span>' : '')}
             </td>
-            <td class="p-2 text-right"><input type="number" step="any" min="0" class="req-part-costo w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-right font-mono text-slate-100" value="${Number(p.costo || 0)}"></td>
+            <td class="p-2 text-right whitespace-nowrap"><span class="relative inline-block">
+                <span class="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none">$</span>
+                <input type="number" step="0.0001" min="0" title="Hasta 4 decimales (diezmilésimas)" class="req-part-costo w-28 bg-slate-900 border border-slate-800 rounded pl-5 pr-2 py-1 text-right font-mono text-slate-100" value="${Number(p.costo || 0)}">
+            </span></td>
             <td class="p-2 text-right font-mono req-part-importe">${money(importe)}</td>
-            <td class="p-2 text-right"><button type="button" onclick="window.reqQuitarPartida(${i})" class="text-rose-400 hover:text-rose-300 text-xs px-2 py-1 bg-rose-950/40 rounded border border-rose-900/50">✕</button></td>
+            <td class="p-2 text-right whitespace-nowrap">
+                <button type="button" onclick="window.reqQuitarPartida(${i})" class="text-rose-400 hover:text-rose-300 text-xs px-2 py-1 bg-rose-950/40 rounded border border-rose-900/50">✕</button>
+            </td>
         </tr>`;
     }).join('');
 
     b.querySelectorAll('tr[data-idx]').forEach((tr) => {
         const i = Number(tr.dataset.idx);
-        const cantInp = tr.querySelector('.req-part-cant');
         const costoInp = tr.querySelector('.req-part-costo');
         const importeCelda = tr.querySelector('.req-part-importe');
         const actualizarImporte = () => {
-            const c = parseFloat(cantInp.value) || 0;
             const co = parseFloat(costoInp.value) || 0;
-            importeCelda.textContent = money(c * co);
+            importeCelda.textContent = money(Number(reqPartidasTemp[i].cantidad || 0) * co);
         };
-        cantInp.addEventListener('input', actualizarImporte);
+        // El costo estimado admite hasta 4 decimales (diezmilésimas); el importe se muestra a 2.
         costoInp.addEventListener('input', actualizarImporte);
-        cantInp.addEventListener('change', () => {
-            reqPartidasTemp[i].cantidad = parseFloat(cantInp.value) || 0;
-            const caja = tr.querySelector('.req-moq');
-            if (caja) caja.innerHTML = reqHtmlMoq(reqPartidasTemp[i], i);
-        });
-        costoInp.addEventListener('change', () => { reqPartidasTemp[i].costo = parseFloat(costoInp.value) || 0; });
+        costoInp.addEventListener('change', () => { reqPartidasTemp[i].costo = Math.round((parseFloat(costoInp.value) || 0) * 10000) / 10000; });
     });
 }
 window.reqQuitarPartida = (i) => { reqPartidasTemp.splice(i, 1); reqRenderPartidas(); };
+
 
 async function reqGuardarRequisicion() {
     const msg = document.getElementById('reqMsg');

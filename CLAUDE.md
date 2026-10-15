@@ -6,6 +6,21 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/requisiciones-compra.js`, `version.json`, `CLAUDE.md`. **Requisición: MOQ pasa a COLUMNA y se quita ✎** (pedido del usuario 2026-10-15). (1) Se quitó el botón ✎ de cada partida
+  (y `reqEditarPartida`/`reqCostoRetorno`): para cambiar algo se quita la partida con ✕ y se vuelve a "Solicitar". (2) Nueva columna **MOQ** en la tabla de partidas (`reqHtmlMoq`): muestra el MOQ del producto con su unidad
+  y lo analiza contra la cantidad solicitada — cantidad MENOR al MOQ → advertencia "puede ser más difícil o no ejecutable por las políticas de venta del proveedor" + botón "Pedir X"; cumple → "✓ Cumple" (y sobrante si
+  la orden necesitaba menos); sin MOQ → campo "Guardar MOQ" como antes. Interpretación a confirmar con el usuario: pidió advertir "en caso de ser igual o superior al MOQ"; se implementó para cantidad INFERIOR al MOQ
+  (lo que realmente complica la compra). Sin SQL. Pendiente: confirmar la interpretación y probar en el navegador.
+- Archivos tocados (lo último): `js/requisiciones-compra.js`, `version.json`, `CLAUDE.md`. **Formulario "Nueva requisición de compra" — anotaciones del usuario (captura 2026-10-15):** (1) el botón "＋ Agregar partida" (debajo) pasó
+  al final de la fila de captura con el nombre **"Solicitar"** (mismo `#reqAddPartida`, misma lógica: agrega la partida); (2) la **cantidad ya no se edita en la tabla** (solo se muestra con su unidad): se captura/edita arriba;
+  para cambiar una partida ya agregada hay un botón **✎** que la regresa a la fila de captura (producto, cantidad, unidad y proveedor) y conserva su costo estimado (`reqEditarPartida`, `reqCostoRetorno`); "Pedir MOQ"
+  sigue ajustando la cantidad; (3) **costo estimado**: símbolo "$" dentro del campo, `step=0.0001` (hasta diezmilésimas, redondeado a 4 decimales al guardar), importe a 2 decimales. **Sin resolver:** el usuario encerró en rojo
+  el bloque "producto · SKU · ✓ MOQ" de la tabla sin escribir qué quería (¿encabezado "Mi catálogo (interno)"? ¿SKU cortado? ¿aviso MOQ?) — preguntar. Pendiente: subir con "comitea".
+- Archivos tocados (lo último): `js/subventanas-movibles.js`, `version.json`, `CLAUDE.md`. **Controles de ventana estilo macOS/iOS** (pedido del usuario 2026-10-15): el botón "⤢" y el "×" de las subventanas se reemplazan por un
+  semáforo a la IZQUIERDA de la barra de título — rojo = cerrar (dispara el × que cada ventana ya trae, que queda oculto, para no saltarse su limpieza; si no tiene, usa su botón "Cerrar" o quita el overlay), amarillo = minimizar
+  (deja solo la barra de título; otro clic restaura y regresa el alto) y verde = maximizar/restaurar (la lógica de siempre). Glifos ✕ − + al pasar el cursor, 13 px (18 px en táctil). Un solo lugar (`agregarSemaforo`), sin tocar
+  módulos; se inyecta su propio `<style id="sv-semaforo-css">` con `!important` porque `ui-moderno.css` fuerza botones 3D/esquinas. Probado en Edge headless (3 puntos, × original oculto, minimizar/restaurar, rojo dispara el
+  cierre original, maximizar 724 px / restaurar 600 px). Pendiente: subir con "comitea" y revisar en varias ventanas (documento, póliza, BOM, requisición) que el × original se encontró y que no quedó doble cierre.
 - Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`, `version.json`, `CLAUDE.md`. **Corrección: la lista de Requisiciones no desplazaba** (captura del usuario): la regla de recorte de esquinas
   `.overflow-x-auto.border:not(.overflow-y-auto):not([class*="max-h-"]) { overflow-y: hidden }` (especificidad 0,4,0) ganaba a `.lista-completa div:has(> table)` y congelaba las filas; el overflow-y del contenedor de la
   tabla en `lista-completa` ahora lleva `!important`. Cuentas por pagar y Lotes no estaban afectados (su contenedor no trae `overflow-x-auto`). `?v=` CSS → `20261015220000`. Lección: al probar un cambio de diseño de lista, verificar
@@ -1663,7 +1678,7 @@ Documento de almacén. Sin folio propio: pagos, cobros, nómina, auditoría.
     mueve por su cuenta. Fondo: `bg-slate-950/40`, sin `backdrop-blur`.
   - **Siempre estirables (esquina) y maximizables/restaurables** (a petición del usuario 2026-09-25): manija en la
     esquina inferior derecha para estirar el panel a mano (ancho y alto libres, con mínimo), y botón "⤢" en la
-    barra de título que maximiza (casi pantalla completa) y restaura el tamaño original con el mismo botón ("⤡").
+    barra de título que maximiza (casi pantalla completa) y restaura el tamaño original con el mismo botón ("⤡"). **Desde 2026-10-15 esos controles son un semáforo estilo macOS a la izquierda del título: rojo cierra, amarillo minimiza, verde maximiza/restaura (`agregarSemaforo`, `js/subventanas-movibles.js`).**
     Mismo mecanismo automático que "movibles" (`js/subventanas-movibles.js`, sin tocar cada módulo): el tamaño
     original de cada panel se guarda la primera vez que se toca (estirón o maximizar) y "Restaurar" siempre
     regresa a ESE, aunque de por medio haya habido un estirón a mano. Las subventanas flotantes que se

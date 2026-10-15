@@ -3,8 +3,8 @@
 //  TODAS las subventanas (convención de CLAUDE.md):
 //   - se arrastran desde su barra de título, con mouse o con el dedo.
 //   - se estiran desde una manija en la esquina inferior derecha.
-//   - un botón ⤢ en la barra de título las maximiza (casi pantalla
-//     completa) y las restaura a su tamaño original.
+//   - un semáforo estilo macOS/iOS a la izquierda de la barra de título: rojo cierra, amarillo minimiza (deja solo la barra), verde maximiza (casi pantalla
+//     completa) y restaura al tamaño original.
 //   - Ctrl/Cmd + clic en el enlace/botón que la abre: abre una instancia
 //     aparte en vez de reusar/reemplazar la que ya esté abierta
 //     (window.idSubventana, ver abajo).
@@ -89,30 +89,121 @@ function alternarMaximizado(panel, boton) {
         });
         e.maximizada = true;
     }
-    boton.textContent = e.maximizada ? '⤡' : '⤢';
-    boton.title = e.maximizada ? 'Restaurar tamaño' : 'Maximizar';
+    if (boton) boton.title = e.maximizada ? 'Restaurar tamaño' : 'Maximizar';
 }
 
-// Fila de título real (para el botón de maximizar): casi todas usan
+// Fila de título real (para el semáforo): casi todas usan
 // "flex justify-between" en su barra de título — más confiable que el
 // "asa" de abajo, que a veces termina siendo solo el texto del título.
 function filaTitulo(panel, asa) {
     return panel.querySelector(':scope > .flex.justify-between, :scope .flex.justify-between') || asa || panel;
 }
 
-function agregarBotonMaximizar(panel, asa) {
-    if (panel.querySelector('[data-subventana-maximizar]')) return;
+// ---- Semáforo estilo macOS/iOS: cerrar (rojo) · minimizar (amarillo) · maximizar/restaurar (verde) ----
+// Se coloca a la IZQUIERDA de la barra de título. "Cerrar" dispara el botón × que la subventana ya trae
+// (así sigue corriendo su propia limpieza) y lo oculta; si no tiene, cierra con "Cerrar" o quita el overlay.
+// "Minimizar" deja solo la barra de título (se vuelve a pulsar para restaurar).
+const TEXTOS_CERRAR = new Set(['×', '✕', '✖', '✗', 'x', 'X']);
+
+function inyectarEstiloSemaforo() {
+    if (document.getElementById('sv-semaforo-css')) return;
+    const st = document.createElement('style');
+    st.id = 'sv-semaforo-css';
+    st.textContent = `
+.sv-semaforo { display:inline-flex; align-items:center; gap:8px; margin-right:12px; flex-shrink:0; }
+.sv-semaforo button.sv-dot { width:13px !important; height:13px !important; min-width:13px; padding:0 !important; margin:0 !important;
+    border:0 !important; border-radius:50% !important; background-image:none !important; box-shadow:inset 0 0 0 .5px rgba(0,0,0,.28) !important;
+    transform:none !important; filter:none !important; text-shadow:none !important; cursor:pointer; position:relative; font-size:0; }
+.sv-semaforo button.sv-dot:hover { transform:none !important; filter:brightness(1.08) !important; }
+.sv-semaforo button.sv-dot::after { content:attr(data-g); position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font:700 9px/1 -apple-system, "Segoe UI", sans-serif; color:rgba(0,0,0,.62); opacity:0; }
+.sv-semaforo:hover button.sv-dot::after { opacity:1; }
+.sv-rojo { background-color:#ff5f57 !important; } .sv-amarillo { background-color:#febc2e !important; } .sv-verde { background-color:#28c840 !important; }
+@media (pointer:coarse) { .sv-semaforo button.sv-dot { width:18px !important; height:18px !important; min-width:18px; } .sv-semaforo { gap:10px; } }`;
+    document.head.appendChild(st);
+}
+
+// Oculta todo lo que no sea la barra de título (los "hermanos" de ella y de sus ancestros dentro del panel).
+function ocultarCuerpo(panel, fila) {
+    const ocultos = [];
+    let a = fila;
+    while (a && a !== panel) {
+        const p = a.parentElement;
+        if (!p) break;
+        [...p.children].forEach((s) => {
+            if (s !== a && !s.hasAttribute('data-subventana-resize')) { ocultos.push([s, s.style.display]); s.style.display = 'none'; }
+        });
+        a = p;
+    }
+    return ocultos;
+}
+
+function alternarMinimizado(panel, fila, punto) {
+    const e = baselineDe(panel);
+    const manija = panel.querySelector(':scope > [data-subventana-resize]');
+    if (!e.minimizada) {
+        e.alto = { height: panel.style.height, maxHeight: panel.style.maxHeight, minHeight: panel.style.minHeight };
+        e.ocultos = ocultarCuerpo(panel, fila);
+        panel.style.height = 'auto'; panel.style.maxHeight = 'none'; panel.style.minHeight = '0';
+        if (manija) manija.style.display = 'none';
+        e.minimizada = true;
+    } else {
+        (e.ocultos || []).forEach(([el, d]) => { el.style.display = d; });
+        e.ocultos = [];
+        panel.style.height = e.alto?.height ?? ''; panel.style.maxHeight = e.alto?.maxHeight ?? ''; panel.style.minHeight = e.alto?.minHeight ?? '';
+        if (manija) manija.style.display = '';
+        e.minimizada = false;
+    }
+    if (punto) punto.title = e.minimizada ? 'Restaurar' : 'Minimizar';
+}
+
+function cerrarSubventana(panel, fila, original) {
+    if (original && original.isConnected) { original.click(); return; }
+    const cerrar = [...panel.querySelectorAll('button')].find((b) => /^cerrar$/i.test(b.textContent.trim().replace(/^[^\wÁ-ú]+/, '')));
+    if (cerrar) { cerrar.click(); return; }
+    (panel.closest('.fixed.inset-0') || panel).remove();
+}
+
+function agregarSemaforo(panel, asa) {
+    if (panel.querySelector('.sv-semaforo')) return;
+    inyectarEstiloSemaforo();
     const fila = filaTitulo(panel, asa);
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.setAttribute('data-subventana-maximizar', '');
-    btn.setAttribute('data-no-arrastre', '');
-    btn.title = 'Maximizar';
-    btn.textContent = '⤢';
-    btn.className = 'text-slate-400 hover:text-slate-200 text-sm font-bold px-1.5 shrink-0';
-    btn.addEventListener('click', (e) => { e.stopPropagation(); alternarMaximizado(panel, btn); });
-    if (fila.children.length) fila.insertBefore(btn, fila.lastElementChild);
-    else fila.appendChild(btn);
+    // El × original de la barra de título: se conserva (oculto) para disparar su propia limpieza.
+    const originales = [...fila.querySelectorAll('button')].filter((b) => !b.closest('.sv-semaforo') && TEXTOS_CERRAR.has(b.textContent.trim()));
+    const original = originales.length ? originales[originales.length - 1] : null;
+    if (original) original.style.display = 'none';
+
+    const grupo = document.createElement('div');
+    grupo.className = 'sv-semaforo';
+    grupo.setAttribute('data-no-arrastre', '');
+    const punto = (clase, glifo, titulo) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = `sv-dot ${clase}`;
+        b.dataset.g = glifo;
+        b.title = titulo;
+        b.setAttribute('aria-label', titulo);
+        b.setAttribute('data-no-arrastre', '');
+        return b;
+    };
+    const rojo = punto('sv-rojo', '✕', 'Cerrar');
+    const amarillo = punto('sv-amarillo', '−', 'Minimizar');
+    const verde = punto('sv-verde', '+', 'Maximizar');
+    rojo.addEventListener('click', (ev) => { ev.stopPropagation(); cerrarSubventana(panel, fila, original); });
+    amarillo.addEventListener('click', (ev) => { ev.stopPropagation(); alternarMinimizado(panel, fila, amarillo); });
+    verde.addEventListener('click', (ev) => { ev.stopPropagation(); alternarMaximizado(panel, verde); });
+    grupo.append(rojo, amarillo, verde);
+
+    // El semáforo y el título quedan juntos a la izquierda (la fila reparte con justify-between).
+    const primero = fila.firstElementChild;
+    if (primero && fila.classList.contains('justify-between')) {
+        const envoltorio = document.createElement('div');
+        envoltorio.className = 'flex items-center min-w-0';
+        fila.insertBefore(envoltorio, primero);
+        envoltorio.append(grupo, primero);
+    } else {
+        fila.insertBefore(grupo, fila.firstChild);
+    }
 }
 
 // Manija en la esquina inferior derecha para estirar el panel a mano.
@@ -137,7 +228,7 @@ function prepararPanel(panel) {
     if (asa.children.length > 1) asa = asa.firstElementChild;
     asa.setAttribute('data-subventana-asa', '');
     asa.title = asa.title || 'Arrastra para mover la ventana';
-    agregarBotonMaximizar(panel, asa);
+    agregarSemaforo(panel, asa);
     agregarManijaResize(panel);
 }
 
