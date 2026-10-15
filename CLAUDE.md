@@ -6,6 +6,11 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/estado-vacio.js` (nuevo), `js/app.js`, `version.json`, `CLAUDE.md`. **Estado vacío estándar** (pedido del usuario 2026-10-15, con su ilustración de documentos): en TODA lista sin registros se
+  muestra la ilustración (dos hojas: la trasera con el color de acento del tema —antes dorada—, la frontal blanca con pliegue y renglones) y debajo el mismo mensaje que ya existía. Sin tocar cada módulo: `estado-vacio.js`
+  (importado en `app.js`) detecta con un MutationObserver los avisos "Sin …" / "No hay …" / "No se encontr…" (elemento sin hijos p/td/div, en `text-slate-500`, que NO sea pista chica `text-xs`/`text-[11px]`, cursiva ni de
+  partidas de formulario, ni dentro de listas desplegables) y les antepone el SVG. Excluir uno: `data-sin-ilustracion`. Probado en Edge headless (aviso p y td ilustrados; cursiva, text-xs, partidas y menús no).
+  Pendiente: subir con "comitea" y revisar en pantallas reales qué avisos quedaron sin ilustración (los chicos/cursiva se dejaron fuera a propósito) y si el tamaño (92×100 px) es el deseado.
 - Archivos tocados (lo último): `js/contabilidad.js`, `version.json`, `CLAUDE.md`. **Reportes contables → Auxiliar de cuentas contables: el título y el subtítulo (cuenta, periodo, N movimientos) ya NO se van al desplazar** (pedido del usuario 2026-10-15): estaban DENTRO del contenedor que se desplaza (`#rcTabla` con `overflow-x-auto`), así que subían con las filas y solo el `thead` quedaba fijo. Ahora el título queda fuera y solo la tabla va en su propio contenedor con scroll. Revisadas las demás pantallas con el mismo patrón (encabezado dentro del contenedor desplazable): ninguna otra lo tenía (las demás tablas de Reportes contables, Auxiliar de inventarios y de Anticipos empiezan con la tabla). **Regla para pantallas nuevas:** el título/subtítulo/filtros van FUERA del contenedor `overflow-*`; dentro solo la tabla. Pendiente: verlo en el navegador.
 
 - Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`, `version.json`, `CLAUDE.md`. **Clase `lista-completa` (diseño estándar de listado reutilizable):** el esquema de "lista a pantalla completa" ya no depende de
@@ -1494,6 +1499,7 @@ Documento de almacén. Sin folio propio: pagos, cobros, nómina, auditoría.
 - `buscador-productos.js` — `montarBuscadorProductos()`: input con sugerencias de productos (SKU o nombre) mientras se escribe.
 - `buscador-select.js` — convierte un `<select>` largo en un buscador con teclado, sin cambiar su comportamiento (se refresca solo si el código cambia su valor u opciones).
 - `pagos-compras.js` — Compras → Pagos a proveedores: CONSULTA (solo lectura) de pagos ya hechos, mes actual por default, proveedor, paginado en servidor, columna "Mercancía" (por recibir/parcial/recibida) y 🖨️ comprobante; sin botón Cancelar (eso es de Finanzas).
+- `estado-vacio.js` — ilustración (hojas con el acento del tema) + mensaje en toda lista vacía, detectado solo (avisos "Sin …"/"No hay …"); sin tocar módulos.
 - `buscador-auto.js` — aplica ese buscador solo a los selects de listas largas (proveedor, cliente, cuenta contable, insumo, orden) detectándolos al aparecer en pantalla; la lista está en `POR_ID`/`POR_SELECTOR`. Para sumar uno, agregarlo ahí.
 - `catalogo.js` — dos pantallas separadas: `cargarModuloAltaArticulo` ("Alta de artículo", solo el
   formulario: alta/edición por nombre, clasificación, BOM) y `cargarModuloCatalogoKardex` ("Catálogo y
