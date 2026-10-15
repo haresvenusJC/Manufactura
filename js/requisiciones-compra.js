@@ -676,9 +676,9 @@ async function reqRenderLista() {
         cont.innerHTML = `
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-xs text-slate-300 table-fixed">
-            <colgroup><col style="width:11%"><col style="width:9%"><col style="width:24%"><col style="width:12%"><col style="width:16%"><col style="width:9%"><col style="width:10%"><col style="width:9%"></colgroup>
+            <colgroup><col style="width:11%"><col style="width:9%"><col style="width:14%"><col style="width:12%"><col style="width:22%"><col style="width:10%"><col style="width:11%"><col style="width:11%"></colgroup>
             <thead class="bg-slate-900 text-slate-400"><tr>
-              ${thOrden(reqListaOrden, 'folio', 'Folio')}${thOrden(reqListaOrden, 'fecha', 'Fecha')}<th class="p-3 text-left">Acción</th><th class="p-3 text-left">Antecedentes</th><th class="p-3">Partidas</th>
+              ${thOrden(reqListaOrden, 'folio', 'Requisición')}${thOrden(reqListaOrden, 'fecha', 'Fecha')}<th class="p-3 text-left leading-tight">Orden de<br>Compra</th><th class="p-3 text-left">Antecedentes</th><th class="p-3">Partidas</th>
               ${thOrden(reqListaOrden, 'total', 'Total est.', 'text-right justify-end')}<th class="p-3 relative">
                 <button type="button" id="reqThEst" class="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 font-semibold normal-case tracking-normal"><span>Estatus${reqFiltro === 'todas' ? '' : ` <span class="text-[10px] font-normal">· ${esc(REQ_FILTROS.find(f => f.v === reqFiltro)?.t || '')}</span>`}</span><span class="text-sm">▼</span></button>
                 <div id="reqEstMenu" class="hidden bg-slate-800 border border-slate-600 rounded-lg p-2 shadow-2xl normal-case font-normal w-44">
@@ -709,7 +709,7 @@ async function reqRenderLista() {
                       <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${REQ_ESTATUS[r.estatus] || 'text-slate-400 bg-slate-800'}">${esc(reqEstLabel(r.estatus))}</span></td>
                       <td class="p-2 text-slate-500 text-[11px]">${r.origen === 'stock_bajo_minimo' ? 'Stock bajo mínimo' : 'Manual'}</td>
                     </tr>
-                    ${(r.estatus === 'rechazada' || r.estatus === 'cancelada') && r.motivo_rechazo ? `<tr class="border-b border-slate-900"><td colspan="2"></td><td colspan="6" class="p-2 pt-0 text-[11px] ${r.estatus === 'cancelada' ? 'text-amber-400/80' : 'text-rose-400/80'}">Motivo: ${esc(r.motivo_rechazo)}</td></tr>` : ''}
+                    ${r.estatus === 'rechazada' && r.motivo_rechazo ? `<tr class="border-b border-slate-900"><td colspan="2"></td><td colspan="6" class="p-2 pt-0 text-[11px] ${r.estatus === 'cancelada' ? 'text-amber-400/80' : 'text-rose-400/80'}">Motivo: ${esc(r.motivo_rechazo)}</td></tr>` : ''}
               `).join('')}
             </tbody>
           </table>

@@ -6,6 +6,14 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/requisiciones-compra.js`, `version.json`, `CLAUDE.md`. **Requisiciones: encabezados.** Columna "Folio" → **"Requisición"**; columna "Acción" → **"Orden de Compra"** en dos líneas
+  (muestra solo el folio de la ODC; anchos 11/9/14/12/22/10/11/11 %). **Pendiente de decisión del usuario ("al rato reviso"):** las requisiciones pendientes guardan en esa misma celda sus botones
+  (Autorizar/Editar/Rechazar/Cancelar), que con la columna angosta se acomodan en dos renglones bajo un encabezado "Orden de Compra" — opciones: (1) columna aparte "Acciones" solo para pendientes,
+  (2) un solo botón "⋯" que despliega las 4 acciones, (3) dejarlo así.
+- Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`, `js/requisiciones-compra.js`, `version.json`, `CLAUDE.md`. **Botones menos biselados** (pedido del usuario 2026-10-15, capturas del "Crear"): botones de color
+  (verde/azul/índigo/rojo/ámbar) con volumen discreto — canto de 1 px (antes 2 px), brillo del degradado .08 (antes .24), brillo superior .16 (antes .45), sombra proyectada más corta, sin `text-shadow`, y al pasar el
+  cursor sube 1 px (antes 2 px) con menos brillo; botones neutros (`bg-slate-800/700`) igual de suaves. Aplica a todos los temas con botones 3D (los temas "Mac"/Claro Ice ya eran planos). `?v=` de los 3 CSS
+  en `index.html` → `20261015143000`. Además: en Requisiciones, las canceladas ya no muestran la fila "Motivo: …" debajo (se conserva en el detalle; las rechazadas sí la muestran). Pendiente: subir con "comitea".
 - Archivos tocados (lo último): `index.html`, `js/requisiciones-compra.js`, `js/pagos-proveedor.js`, `version.json`, `CLAUDE.md`. **Requisiciones de compra: encabezado y tabla** (pedido del usuario 2026-10-15,
   con mockup): título en singular "Requisición de Compra" + botón verde **"Crear"** separado del título (mismo tamaño que el mockup, `px-6 py-2 -my-1` para no alterar la altura de la fila fija); el formulario "Nueva
   requisición de compra" ya no vive arriba de la lista: es una subventana (`#reqNuevaWrap`, ids intactos) que abre "Crear" (`window.reqAbrirNueva`), se abre sola si se llega con partidas precargadas (Tareas,
