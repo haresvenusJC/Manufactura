@@ -6,7 +6,7 @@
     <title>Hares de México - Control de Inventarios y Producción</title>
     <link rel="icon" type="image/svg+xml" href="img/HARES_icono_tinta.svg">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="css/tema-base.css?v=20261015190000">
+    <link rel="stylesheet" href="css/tema-base.css?v=20261015200000">
     <style>
         .hidden { display: none !important; }
         summary { list-style: none; }
@@ -130,8 +130,8 @@
     <!-- Solo para el tema "Claro Ice" (data-theme="claro-ice"); los demás temas siguen con Inter. -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
     <!-- Capa visual moderna (radios, botones, campos, tablas). Usa las variables del tema de arriba. -->
-    <link rel="stylesheet" href="css/ui-moderno.css?v=20261015190000">
-    <link rel="stylesheet" href="css/bienvenida.css?v=20261015190000">
+    <link rel="stylesheet" href="css/ui-moderno.css?v=20261015200000">
+    <link rel="stylesheet" href="css/bienvenida.css?v=20261015200000">
     <script>
         /* aplica el tema guardado antes de pintar, para que no haya parpadeo */
         (function () {
@@ -501,7 +501,7 @@
             </section>
 
             <!-- Vista: Lotes (antes "Existencias y Lotes Detallados" dentro de Stock General). Lo llena cargarInventarioCompleto() por id. -->
-            <section id="view-lotes" class="vista-seccion hidden space-y-4">
+            <section id="view-lotes" class="vista-seccion lista-completa hidden space-y-4">
                 <div class="flex items-center justify-between gap-2 flex-wrap">
                     <h2 class="text-xl font-bold text-sky-400">Lotes</h2>
                     <button type="button" onclick="window.abrirManual('#m-inventario', 'Stock General y Lotes')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
@@ -536,7 +536,7 @@
             </section>
 
             <!-- Vista: Requisiciones de compra -->
-            <section id="view-requisiciones-compra" class="vista-seccion hidden space-y-4">
+            <section id="view-requisiciones-compra" class="vista-seccion lista-completa hidden space-y-4">
                 <div class="flex items-center gap-4 flex-wrap">
                     <h2 class="text-xl font-bold text-emerald-400">Requisición de Compra</h2>
                     <button type="button" onclick="window.reqAbrirNueva && window.reqAbrirNueva()" class="bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-2 -my-1 rounded-lg text-sm cursor-pointer">Crear</button>
@@ -732,7 +732,7 @@
             </section>
 
             <!-- Vista: Contabilidad - Cuentas por pagar -->
-            <section id="view-pagos-proveedor" class="vista-seccion hidden space-y-4">
+            <section id="view-pagos-proveedor" class="vista-seccion lista-completa hidden space-y-4">
                 <h2 class="text-xl font-bold text-sky-400">Contabilidad · Cuentas por pagar</h2>
                 <div id="contenedorPagosProveedor">Cargando cuentas por pagar...</div>
             </section>

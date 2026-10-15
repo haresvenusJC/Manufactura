@@ -6,6 +6,11 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`, `version.json`, `CLAUDE.md`. **Clase `lista-completa` (diseño estándar de listado reutilizable):** el esquema de "lista a pantalla completa" ya no depende de
+  nombres de pantalla — se activa agregando `lista-completa` a la `<section class="vista-seccion …">` en `index.html` (hoy: Requisición de Compra, Cuentas por pagar, Lotes). **Contrato:** título (con Ayuda) → opcional
+  filtros/tarjetas → UN solo contenedor con la tabla (table-fixed, sin barra horizontal). **Efecto:** marco hasta el borde inferior, encabezado fijo y solo las filas se desplazan, el marco no se encoge vacío. Se borraron las reglas
+  por pantalla (`#view-pagos-proveedor`, `#view-lotes`, `#reqLista`, `#cxpPanelDocumentos`…); la regla genérica de tablas (`max-height: calc(100vh − 15rem)`) ya excluye `.lista-completa *`. Para rediseñar otra pantalla:
+  mover sus formularios largos a una subventana con botón "Crear" (como Requisiciones), dejar una sola tabla y añadir la clase. Pendiente: subir con "comitea" y revisar las 3 pantallas (deben verse igual que antes).
 - Archivos tocados (lo último): `js/contabilidad.js`, `version.json`, `CLAUDE.md`. **Reportes contables: las pestañas (Balanza, Estado de resultados, Balance general, Auxiliares…) van ARRIBA y los filtros (Desde/Hasta/Generar/Exportar) debajo** (pedido del usuario 2026-10-15, antes estaba al revés). Solo cambió el orden en `cargarModuloReportesContables`; ids intactos. Pendiente: verlo en el navegador.
 
 - Archivos tocados (lo último): `css/ui-moderno.css`, `js/requisiciones-compra.js`, `index.html`, `version.json`, `CLAUDE.md`. **Listas a pantalla completa — diseño estándar** (pedido del usuario 2026-10-15, capturas de Requisiciones y
@@ -1583,6 +1588,7 @@ Documento de almacén. Sin folio propio: pagos, cobros, nómina, auditoría.
   columnas y filas que se muestran (filtrar/paginar en el servidor); (4) catálogos grandes (productos, cuentas) solo donde se usen,
   y cacheados si se reutilizan; (5) no repetir una consulta que ya se hizo en la misma pantalla. Ejemplo ya corregido: Órdenes de
   compra tardaba en abrir por cargar todo el catálogo de productos y encadenar 5-6 consultas (2026-10-12).
+- **Pantalla de listado = clase `lista-completa`** (2026-10-15): para que una pantalla tenga el diseño estándar (marco hasta el borde inferior, encabezado fijo, solo las filas se desplazan, no se encoge vacía) basta agregar la clase `lista-completa` a su `<section class="vista-seccion …">` en `index.html` y cumplir el contrato: título (con Ayuda) → opcional filtros/tarjetas → un solo contenedor con la tabla (`table-fixed`, sin barra horizontal). Los formularios largos de captura van en una subventana con botón "Crear" (ver Requisición de Compra). Reglas en `css/ui-moderno.css` (bloque "LISTAS A PANTALLA COMPLETA").
 - **Selects** siempre desde la tabla real de Supabase, nunca hardcodeados.
 - **Migraciones SQL**: idempotentes (`if not exists`, `create or replace`), envueltas en `begin;`/`commit;`.
   Nunca se edita una ya corrida — se agrega una nueva. Se pegan a mano en Supabase → SQL Editor.
@@ -1727,6 +1733,14 @@ Documento de almacén. Sin folio propio: pagos, cobros, nómina, auditoría.
 
 ## Pendiente
 
+- **PEDIDOS DE VENTA — aplicar el "patrón Requisición de Compra" cuando el usuario lo pida (no antes; él dijo "espérame", 2026-10-15).** Receta (así se hizo en `js/requisiciones-compra.js` + `index.html`, commits 912c4d1…51368c4):
+  (1) encabezado en `index.html`: `<h2>` en SINGULAR ("Pedido de Venta") + botón verde "Crear" separado (`bg-emerald-500 … px-6 py-2 -my-1 rounded-lg text-sm`, `onclick="window.pvAbrirNuevo && window.pvAbrirNuevo()"`), sin el botón "Cómo llenar esta pantalla"
+  (la píldora "Ayuda" ya trae el Manual — Pedidos de venta ya lo tiene quitado); (2) el formulario "Nuevo pedido de venta" (hoy siempre visible arriba de la lista, `js/pedidos-venta.js` ~L91-126, con "Guardar pedido de venta" `#pvGuardar`) se envuelve en
+  `#pvNuevoWrap` = `hidden fixed inset-0 bg-slate-950/40 z-50 justify-center items-start overflow-y-auto p-3` con panel `w-full max-w-5xl my-2 bg-slate-950 border … rounded-xl p-4 shadow-2xl`, barra de título con ✕, los IDs de los campos NO
+  cambian (para no tocar la lógica de guardado/reservas); se MONTA en `document.body` al cargar el módulo (quitando antes el anterior) para que no lo recorte el contenedor; botón de guardar → "Crear"; abre (`classList.remove('hidden'); add('flex')`) con "Crear"
+  y solo si llega con datos precargados; al guardar sin "siguiente paso" se cierra y muestra toast (`reqToast`); (3) quitar el subtítulo "Pedidos de venta" sobre la tabla y el `space-y-5` del contenedor; (4) tabla: `table-fixed` + `<colgroup>` con anchos que sumen 100 %,
+  encabezados en formato título (sin `uppercase`, `th` con `p-3`), chips de estatus en singular con Mayúscula inicial (helper tipo `reqEstLabel`), acciones por fila en un menú "⋯" si ocupan mucho; (5) agregar la clase `lista-completa` a `<section id="view-pedidos-venta">`;
+  (6) NO tocar validaciones de stock/reservas ni el detalle `pvAbrirDetalle`; (7) subir `?v=` del CSS solo si se toca CSS. Reglas generales en la convención "Pantalla de listado = clase `lista-completa`" (Convenciones).
 - **Alta de equipos / Activos fijos — IMPLEMENTADA (2026-10-15), falta correr el SQL y dar de alta los equipos.** Ver "Última sesión". Pasos del usuario: respaldo → correr `sql/2026-10-15_equipos_unificados.sql` (borra las cargas viejas) → Prorrateo de gastos → "Asistente de llenado" → paso 3 · Luz y dar de alta los equipos reales de cada área (incluida la Oficina). Queda abierto: si iluminación/clima de oficina deben ser obligatorios (hoy solo avisa).
 - **PARA MAÑANA (2026-10-15) — pendientes anotados el 2026-10-14 (el usuario los revisa al iniciar):**
   1. **REDISEÑAR Requisiciones de compra** (captura del usuario con anotaciones): (a) la captura de la requisición ("Nueva requisición de compra": fecha, notas, producto/cantidad/unidad/proveedor sugerido, partidas, "Guardar requisición") la hace un **solicitante distinto de Compras** — moverla fuera de la pantalla de Compras (¿pantalla/menú propio del solicitante, con su Tarea?); (b) Compras queda con la lista de requisiciones para revisar/autorizar y con **órdenes de compra directas** cuando ella misma necesite algo (la ODC formal manual `window.reqAutorizar(null)` ya existe); (c) revisar **botones de "nuevo", validaciones y cancelaciones** de ese flujo (qué puede cancelar quién, qué se valida al guardar). Sin código todavía: falta plan y aprobación.
