@@ -63,3 +63,39 @@ export function aplicarOrden(estado, arr, valores) {
     });
     return arr;
 }
+
+// ---- Filtro de ESTATUS en el encabezado de la columna (menú ▼), mismo patrón que Cuentas por pagar ----
+// opciones: [{ v, t, n? }] (n = conteo opcional) · actual: valor elegido · porDefecto: valor que no se anota junto al título.
+// El menú se posiciona fijo al abrir para que el scroll de la tabla no lo recorte; un solo listener global lo cierra al tocar fuera / Escape.
+export function thFiltroEstatus(id, opciones, actual, porDefecto = null, titulo = 'Estatus') {
+    const sel = opciones.find((o) => o.v === actual);
+    const nota = sel && actual !== porDefecto && actual !== 'todas' ? ` <span class="text-[10px] font-normal">· ${sel.t}</span>` : '';
+    return `<th class="p-2 relative">
+      <button type="button" id="${id}Th" class="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 font-semibold normal-case tracking-normal"><span>${titulo}${nota}</span><span class="text-sm">▼</span></button>
+      <div id="${id}Menu" class="hidden bg-slate-800 border border-slate-600 rounded-lg p-2 shadow-2xl normal-case font-normal w-52">
+        ${opciones.map((o) => `<button type="button" data-est="${o.v}" class="flt-est-opt flex items-center justify-between gap-3 w-full text-left text-xs px-2 py-1.5 rounded ${o.v === actual ? 'text-sky-400 font-semibold' : 'text-slate-200 hover:bg-slate-700'}"><span>${o.t}</span>${o.n !== undefined ? `<span class="text-slate-500 font-mono">${o.n}</span>` : ''}</button>`).join('')}
+      </div>
+    </th>`;
+}
+function cerrarMenusFiltroEstatus() { document.querySelectorAll('[id$="Menu"].flt-menu-abierto').forEach((m) => { m.classList.add('hidden'); m.classList.remove('flt-menu-abierto'); }); }
+if (typeof document !== 'undefined' && !window.__fltEstListener) {
+    window.__fltEstListener = true;
+    document.addEventListener('click', (e) => { if (!e.target.closest('.flt-menu-abierto, [id$="Th"]')) cerrarMenusFiltroEstatus(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrarMenusFiltroEstatus(); });
+}
+export function wireFiltroEstatus(contenedor, id, onElegir) {
+    const btn = contenedor.querySelector(`#${id}Th`), menu = contenedor.querySelector(`#${id}Menu`);
+    if (!btn || !menu) return;
+    btn.onclick = (e) => {
+        e.stopPropagation();
+        const abrir = menu.classList.contains('hidden');
+        cerrarMenusFiltroEstatus();
+        if (abrir) {
+            menu.classList.remove('hidden'); menu.classList.add('flt-menu-abierto');
+            const r = btn.getBoundingClientRect();
+            menu.style.position = 'fixed'; menu.style.top = (r.bottom + 2) + 'px';
+            menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - menu.offsetWidth - 8)) + 'px'; menu.style.zIndex = '60';
+        }
+    };
+    menu.querySelectorAll('.flt-est-opt').forEach((b) => { b.onclick = () => { cerrarMenusFiltroEstatus(); onElegir(b.dataset.est); }; });
+}

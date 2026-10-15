@@ -2,7 +2,7 @@ import { supabaseClient } from './supabase.js';
 import { siguienteFolio } from './folios.js';
 import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 import { generarRequisicionFaltantes, requisicionesDePedido, ordenesDePedido } from './produccion.js';
-import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden, thFiltroEstatus, wireFiltroEstatus } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
 import { registrarSalidaMultiPartida } from './salidas.js';
 import './trazabilidad.js';   // window.abrirSeguimientoPedido (seguimiento del pedido)
@@ -129,7 +129,6 @@ export async function cargarModuloPedidosVenta() {
 
       <div>
         <h3 class="text-md font-semibold text-slate-300 mb-2">Pedidos de venta</h3>
-        <div id="pvFiltros" class="flex flex-wrap gap-2 mb-2"></div>
         <div id="pvLista" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-500">Cargando...</div>
       </div>
     </div>`;
@@ -242,15 +241,8 @@ async function pvGuardarPedido() {
     }
 }
 
-function pvPintarFiltros() {
-    const cont = document.getElementById('pvFiltros');
-    if (!cont) return;
-    cont.innerHTML = PV_FILTROS.map((f) => {
-        const on = f.v === pvFiltro;
-        return `<button type="button" class="pv-filtro-btn text-xs px-3 py-1.5 rounded-lg border transition ${on ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'}" data-filtro="${f.v}">${f.t}</button>`;
-    }).join('');
-    cont.querySelectorAll('.pv-filtro-btn').forEach((b) => { b.onclick = () => { pvFiltro = b.dataset.filtro; pvPintarFiltros(); pvRenderLista(); }; });
-}
+// Los botones de filtro se quitaron: el filtro de estatus vive en el encabezado de la columna Estatus.
+function pvPintarFiltros() {}
 
 async function pvRenderLista() {
     const cont = document.getElementById('pvLista');
@@ -270,9 +262,7 @@ async function pvRenderLista() {
         if (error && /cantidad_reservada/i.test(error.message || '')) ({ data, error } = await consultaLista(0));
         if (error) throw error;
         const puedeRecalcular = !!(data && data.some((p) => (p.pedidos_venta_detalle || []).some((d) => d.apartar !== undefined)));
-        if (!data || !data.length) { cont.innerHTML = `<p class="text-slate-500 text-sm">Sin pedidos en "${PV_FILTROS.find((f) => f.v === pvFiltro)?.t.toLowerCase()}".</p>`; return; }
-
-        data.forEach((p) => {
+        (data || []).forEach((p) => {
             const det = p.pedidos_venta_detalle || [];
             p._total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.precio_unitario || 0), 0);
             const ped = det.reduce((a, d) => a + Number(d.cantidad || 0), 0);
@@ -296,10 +286,11 @@ async function pvRenderLista() {
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
               ${thOrden(pvListaOrden, 'folio', 'Folio')}<th class="p-2">Cliente</th>${thOrden(pvListaOrden, 'fecha', 'Fecha')}
-              ${thOrden(pvListaOrden, 'total', 'Total', 'text-right justify-end')}<th class="p-2">Surtido</th>${thOrden(pvListaOrden, 'estatus', 'Estatus')}
+              ${thOrden(pvListaOrden, 'total', 'Total', 'text-right justify-end')}<th class="p-2">Surtido</th>${thFiltroEstatus('pvEst', PV_FILTROS, pvFiltro, 'pendiente')}
             </tr></thead>
             <tbody>
-              ${data.map((p) => `
+              ${!data || !data.length ? `<tr><td colspan="6" class="p-4 text-center text-slate-500 text-sm">Sin pedidos en "${PV_FILTROS.find((f) => f.v === pvFiltro)?.t.toLowerCase()}".</td></tr>` : ''}
+              ${(data || []).map((p) => `
                 <tr class="border-b border-slate-900">
                   <td class="p-2"><button type="button" onclick="window.pvAbrirDetalle(${p.id})" class="font-mono text-emerald-300 hover:underline text-left">${esc(p.folio || '#' + p.id)}</button></td>
                   <td class="p-2">${esc(p.clientes?.nombre || '—')}</td>
@@ -312,6 +303,7 @@ async function pvRenderLista() {
           </table>
         </div>`;
         wireOrdenTabla(cont, pvListaOrden, pvRenderLista);
+        wireFiltroEstatus(cont, 'pvEst', (v) => { pvFiltro = v; pvRenderLista(); });
         const btnRecalc = cont.querySelector('#pvRecalcularTodo');
         if (btnRecalc) btnRecalc.onclick = async () => {
             btnRecalc.disabled = true;

@@ -1,6 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { montarGuia } from './asistente-contable.js';
-import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden, thFiltroEstatus, wireFiltroEstatus } from './orden-tabla.js';
 import { linkDoc, linkPoliza, etiquetaPoliza } from './enlaces-reporte.js';
 import { imprimirHtml, marcaDeEstatus } from './impresion.js';
 
@@ -136,11 +136,7 @@ function cxcPintarDocumentos() {
         }
     });
 
-    const pills = CXC_FILTROS.map((f) => {
-        const n = f.v === 'todas' ? porFechaCli.length : (conteos[f.v] || 0);
-        const on = f.v === cxcFiltro;
-        return `<button type="button" class="cxc-filtro-btn text-xs px-3 py-1.5 rounded-lg border transition ${on ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'}" data-filtro="${f.v}">${f.t} <span class="opacity-70">(${n})</span></button>`;
-    }).join('');
+    const opcionesEst = CXC_FILTROS.map((f) => ({ v: f.v, t: f.t, n: f.v === 'todas' ? porFechaCli.length : (conteos[f.v] || 0) }));
 
     const clientesUnicos = new Map();
     cxcCache.forEach((x) => { if (x.cliente_id && !clientesUnicos.has(x.cliente_id)) clientesUnicos.set(x.cliente_id, x.cliente_nombre || `#${x.cliente_id}`); });
@@ -169,19 +165,19 @@ function cxcPintarDocumentos() {
           <select id="cxcFiltroCliente" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100">${optCliente}</select></div>
         <button type="button" id="cxcLimpiarFiltros" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-lg">Limpiar</button>
       </div>
-      <div class="flex flex-wrap gap-2 mb-3">${pills}</div>
       ${fueraRango.length ? `<div class="mb-3 text-xs text-amber-300 bg-amber-950/30 border border-amber-800 rounded-lg px-3 py-2">⚠ Hay ${fueraRango.length} ventas pendientes fuera del rango de fechas (saldo ${money(fueraRango.reduce((a, x) => a + Number(x.saldo || 0), 0))}). <button type="button" id="cxcVerFueraRango" class="underline hover:text-amber-200">Ver todas las fechas</button></div>` : ''}
-      ${filtrados.length ? `
       <div class="overflow-x-auto border border-slate-800 rounded-lg">
         <table class="w-full text-left text-xs text-slate-300">
           <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-            ${esPendiente ? '<th class="p-2"><input type="checkbox" id="cxcAll" class="accent-emerald-500"></th>' : '<th class="p-2">Estatus</th>'}
+            ${esPendiente ? '<th class="p-2"><input type="checkbox" id="cxcAll" class="accent-emerald-500"></th>' : ''}
             ${thOrden(cxcOrden, 'folio', 'Folio')}${thOrden(cxcOrden, 'cliente', 'Cliente')}${thOrden(cxcOrden, 'fecha', 'Fecha')}
             ${thOrden(cxcOrden, 'total', 'Total', 'text-right justify-end')}${thOrden(cxcOrden, 'cobrado', 'Cobrado', 'text-right justify-end')}${thOrden(cxcOrden, 'saldo', 'Saldo', 'text-right justify-end')}
+            ${thFiltroEstatus('cxcEst', opcionesEst, cxcFiltro, 'pendiente')}
             <th class="p-2">Póliza / Recibo</th>
             ${esPendiente ? '<th class="p-2">Monto a cobrar</th>' : ''}
           </tr></thead>
           <tbody id="cxcBody">
+            ${filtrados.length ? '' : `<tr><td colspan="${esPendiente ? 9 : 7}" class="p-4 text-center text-slate-500 text-sm">No hay ventas en "${CXC_FILTROS.find((f) => f.v === cxcFiltro)?.t.toLowerCase()}" con los filtros de fecha/cliente elegidos.</td></tr>`}
             ${filtrados.map((x) => {
                 const verPoliza = x.poliza_id
                     ? `<button type="button" onclick="window.verPolizaDeDocumento(${x.poliza_id}, '${x.fecha || ''}')" class="text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold border border-emerald-700 px-2 py-1 rounded cursor-pointer"><span data-pol-id="${x.poliza_id}">póliza…</span></button>`
@@ -189,15 +185,14 @@ function cxcPintarDocumentos() {
                 const verDoc = `<button type="button" onclick="window.abrirDetalleDocumentoGlobal(${x.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded cursor-pointer">Ver venta</button>`;
                 return `
                 <tr class="border-b border-slate-900 ${x.estatus_cxc === 'cancelado' ? 'opacity-60' : ''}" data-id="${x.id}" data-saldo="${x.saldo}">
-                  ${esPendiente
-                      ? `<td class="p-2 text-center"><input type="checkbox" class="cxc-chk accent-emerald-500 w-4 h-4"></td>`
-                      : `<td class="p-2">${estatusBadge(x)}</td>`}
+                  ${esPendiente ? `<td class="p-2 text-center"><input type="checkbox" class="cxc-chk accent-emerald-500 w-4 h-4"></td>` : ''}
                   <td class="p-2">${linkDoc(x.id, x.folio || '#' + x.id, 'font-mono text-slate-200')}</td>
                   <td class="p-2">${esc(x.cliente_nombre || '—')}</td>
                   <td class="p-2 whitespace-nowrap text-slate-400">${x.fecha || ''}</td>
                   <td class="p-2 text-right font-mono">${money(x.total)}</td>
                   <td class="p-2 text-right font-mono text-slate-500">${money(x.cobrado)}</td>
                   <td class="p-2 text-right font-mono text-amber-300">${money(x.saldo)}</td>
+                  <td class="p-2">${estatusBadge(x) || '<span class="text-[10px] text-amber-300 font-semibold">PENDIENTE</span>'}</td>
                   <td class="p-2"><div class="flex flex-col gap-1">${verPoliza}${verDoc}</div></td>
                   ${esPendiente ? `<td class="p-2"><input type="number" step="0.01" min="0" class="cxc-monto w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-right font-mono text-slate-100" value="${Number(x.saldo).toFixed(2)}"></td>` : ''}
                 </tr>`;
@@ -205,18 +200,15 @@ function cxcPintarDocumentos() {
           </tbody>
         </table>
       </div>
-      ${esPendiente ? `
+      ${esPendiente && filtrados.length ? `
       <div class="flex items-center justify-between mt-3">
         <span class="text-sm text-slate-300">Total a cobrar: <span id="cxcTotalCobrar" class="font-mono text-emerald-400 font-semibold">$0.00</span></span>
         <button type="button" id="cxcRegistrar" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-5 py-2.5 rounded-lg text-sm">Registrar cobro</button>
       </div>` : ''}
-      ` : `<p class="text-slate-500 text-sm">No hay ventas en "${CXC_FILTROS.find((f) => f.v === cxcFiltro)?.t.toLowerCase()}" con los filtros de fecha/cliente elegidos.</p>`}
       <p id="cxcMsg" class="text-xs mt-2 min-h-[1rem]"></p>
     `;
 
-    panel.querySelectorAll('.cxc-filtro-btn').forEach((b) => {
-        b.onclick = () => { cxcFiltro = b.dataset.filtro; cxcPintarDocumentos(); };
-    });
+    wireFiltroEstatus(panel, 'cxcEst', (v) => { cxcFiltro = v; cxcPintarDocumentos(); });
     document.getElementById('cxcDesde').onchange = (e) => { cxcDesde = e.target.value; cxcPintarDocumentos(); };
     document.getElementById('cxcHasta').onchange = (e) => { cxcHasta = e.target.value; cxcPintarDocumentos(); };
     document.getElementById('cxcFiltroCliente').onchange = (e) => { cxcClienteId = e.target.value; cxcPintarDocumentos(); };

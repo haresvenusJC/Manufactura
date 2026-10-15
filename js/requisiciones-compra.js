@@ -1,6 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { siguienteFolio } from './folios.js';
-import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden, thFiltroEstatus, wireFiltroEstatus } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
 import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 import { obtenerInfoProveedorProducto } from './info-proveedor-producto.js';
@@ -585,30 +585,6 @@ async function reqGuardarRequisicion() {
 // Los botones de filtro se quitaron: el filtro de estatus vive en el encabezado de la columna Estatus (menú, como Cuentas por pagar).
 function reqPintarFiltros() {}
 
-// Menú de filtro de Estatus en el encabezado (mismo patrón que Cuentas por pagar: posición fija para que no lo recorte el scroll de la tabla).
-function reqCerrarMenuEstatus() { const m = document.getElementById('reqEstMenu'); if (m) m.classList.add('hidden'); }
-if (typeof document !== 'undefined' && !window.__reqMenuListener) {
-    window.__reqMenuListener = true;
-    document.addEventListener('click', (e) => { if (!e.target.closest('#reqEstMenu, #reqThEst')) reqCerrarMenuEstatus(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') reqCerrarMenuEstatus(); });
-}
-function reqWireMenuEstatus(cont) {
-    const btn = cont.querySelector('#reqThEst'), menu = cont.querySelector('#reqEstMenu');
-    if (!btn || !menu) return;
-    btn.onclick = (e) => {
-        e.stopPropagation();
-        const abrir = menu.classList.contains('hidden');
-        reqCerrarMenuEstatus();
-        if (abrir) {
-            menu.classList.remove('hidden');
-            const r = btn.getBoundingClientRect();
-            menu.style.position = 'fixed'; menu.style.top = (r.bottom + 2) + 'px';
-            menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - menu.offsetWidth - 8)) + 'px'; menu.style.zIndex = '60';
-        }
-    };
-    menu.querySelectorAll('.req-est-opt').forEach((b) => { b.onclick = () => { reqFiltro = b.dataset.est; reqRenderLista(); }; });
-}
-
 async function reqRenderLista() {
     const cont = document.getElementById('reqLista');
     cont.innerHTML = '<p class="text-slate-500 text-sm">Cargando...</p>';
@@ -642,12 +618,7 @@ async function reqRenderLista() {
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
               ${thOrden(reqListaOrden, 'folio', 'Folio')}${thOrden(reqListaOrden, 'fecha', 'Fecha')}<th class="p-2 text-left">Acción</th><th class="p-2 text-left">Antecedentes</th><th class="p-2">Partidas</th>
-              ${thOrden(reqListaOrden, 'total', 'Total est.', 'text-right justify-end')}<th class="p-2 relative">
-                <button type="button" id="reqThEst" class="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 font-semibold normal-case tracking-normal"><span>Estatus${reqFiltro === 'todas' ? '' : ` <span class="text-[10px] font-normal">· ${esc(REQ_FILTROS.find(f => f.v === reqFiltro)?.t || '')}</span>`}</span><span class="text-sm">▼</span></button>
-                <div id="reqEstMenu" class="hidden bg-slate-800 border border-slate-600 rounded-lg p-2 shadow-2xl normal-case font-normal w-44">
-                  ${REQ_FILTROS.map(f => `<button type="button" data-est="${f.v}" class="req-est-opt block w-full text-left text-xs px-2 py-1.5 rounded ${f.v === reqFiltro ? 'text-sky-400 font-semibold' : 'text-slate-200 hover:bg-slate-700'}">${f.t}</button>`).join('')}
-                </div>
-              </th><th class="p-2">Origen</th>
+              ${thOrden(reqListaOrden, 'total', 'Total est.', 'text-right justify-end')}${thFiltroEstatus('reqEst', REQ_FILTROS, reqFiltro, 'pendiente')}<th class="p-2">Origen</th>
             </tr></thead>
             <tbody>
               ${!data || !data.length ? `<tr><td colspan="8" class="p-4 text-center text-slate-500 text-sm">Sin requisiciones en "${esc(REQ_FILTROS.find(f => f.v === reqFiltro)?.t.toLowerCase() || '')}".</td></tr>` : ''}
@@ -678,7 +649,7 @@ async function reqRenderLista() {
           </table>
         </div>`;
         wireOrdenTabla(cont, reqListaOrden, reqRenderLista);
-        reqWireMenuEstatus(cont);
+        wireFiltroEstatus(cont, 'reqEst', (v) => { reqFiltro = v; reqRenderLista(); });
     } catch (err) {
         const m = err?.message || String(err);
         cont.innerHTML = TABLA_FALTA.test(m)
