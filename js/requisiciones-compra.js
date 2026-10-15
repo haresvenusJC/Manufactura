@@ -628,12 +628,14 @@ async function reqRenderLista() {
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-              <th class="p-2 text-left">Acción</th>${thOrden(reqListaOrden, 'folio', 'Folio')}<th class="p-2">Partidas</th>${thOrden(reqListaOrden, 'fecha', 'Fecha')}
+              ${thOrden(reqListaOrden, 'folio', 'Folio')}${thOrden(reqListaOrden, 'fecha', 'Fecha')}<th class="p-2 text-left">Acción</th><th class="p-2 text-left">Antecedentes</th><th class="p-2">Partidas</th>
               ${thOrden(reqListaOrden, 'total', 'Total est.', 'text-right justify-end')}${thOrden(reqListaOrden, 'estatus', 'Estatus')}<th class="p-2">Origen</th>
             </tr></thead>
             <tbody>
               ${data.map(r => `
                     <tr class="border-b border-slate-900">
+                      <td class="p-2"><button type="button" onclick="window.abrirDetalleReq(${r.id})" class="font-mono text-emerald-300 hover:underline hover:text-emerald-200 text-left">${esc(r.folio || '#' + r.id)}</button></td>
+                      <td class="p-2 whitespace-nowrap text-slate-400">${r.fecha || ''}</td>
                       <td class="p-2 whitespace-nowrap">
                         ${r.estatus === 'pendiente' ? `
                             <button type="button" onclick="window.reqAutorizar(${r.id})" class="text-[11px] bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-1 rounded">Autorizar</button>
@@ -642,18 +644,16 @@ async function reqRenderLista() {
                             <button type="button" onclick="window.reqCancelar(${r.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-2 py-1 rounded ml-1">Cancelar</button>
                         ` : (r.orden_compra_id ? `
                             <button type="button" onclick="window.verDetalleOC(${r.orden_compra_id})" class="text-[11px] font-mono text-emerald-300 hover:underline">${esc(r.ordenes_compra?.folio || 'OC #' + r.orden_compra_id)}</button>
-                            <button type="button" onclick="window.abrirAntecedentesOC(${r.orden_compra_id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded ml-1">🔗 Antecedentes</button>
                             ${r.estatus === 'autorizada' && r.ordenes_compra?.estatus === 'cancelada' ? `<button type="button" onclick="window.reqSincronizarCancelacion(${r.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-2 py-1 rounded ml-1" title="La orden de compra de esta requisición ya está cancelada">⚠ Marcar cancelada</button>` : ''}
                         ` : '')}
                       </td>
-                      <td class="p-2"><button type="button" onclick="window.abrirDetalleReq(${r.id})" class="font-mono text-emerald-300 hover:underline hover:text-emerald-200 text-left">${esc(r.folio || '#' + r.id)}</button></td>
+                      <td class="p-2 whitespace-nowrap">${r.orden_compra_id ? `<button type="button" onclick="window.abrirAntecedentesOC(${r.orden_compra_id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded">🔗 Antecedentes</button>` : ''}</td>
                       <td class="p-2 text-slate-300 max-w-xs truncate" title="${esc(r._resumen)}">${esc(r._resumen) || '—'}</td>
-                      <td class="p-2 whitespace-nowrap text-slate-400">${r.fecha || ''}</td>
                       <td class="p-2 text-right font-mono">${money(r._total)}</td>
                       <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${REQ_ESTATUS[r.estatus] || 'text-slate-400 bg-slate-800'}">${esc(r.estatus)}</span></td>
                       <td class="p-2 text-slate-500 text-[11px]">${r.origen === 'stock_bajo_minimo' ? 'Stock bajo mínimo' : 'Manual'}</td>
                     </tr>
-                    ${(r.estatus === 'rechazada' || r.estatus === 'cancelada') && r.motivo_rechazo ? `<tr class="border-b border-slate-900"><td></td><td colspan="6" class="p-2 pt-0 text-[11px] ${r.estatus === 'cancelada' ? 'text-amber-400/80' : 'text-rose-400/80'}">Motivo: ${esc(r.motivo_rechazo)}</td></tr>` : ''}
+                    ${(r.estatus === 'rechazada' || r.estatus === 'cancelada') && r.motivo_rechazo ? `<tr class="border-b border-slate-900"><td colspan="2"></td><td colspan="6" class="p-2 pt-0 text-[11px] ${r.estatus === 'cancelada' ? 'text-amber-400/80' : 'text-rose-400/80'}">Motivo: ${esc(r.motivo_rechazo)}</td></tr>` : ''}
               `).join('')}
             </tbody>
           </table>
