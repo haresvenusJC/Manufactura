@@ -75,6 +75,7 @@ export const SECCIONES = [
     },
     {
         grupo: 'Contabilidad › Costos y prorrateo', ancla: 'costos-prorrateo', items: [
+            { js: "window.abrirAsistenteProrrateo('inicio')", t: '🧭 Asistente de llenado', d: 'Guía paso a paso (planta → áreas → luz y equipos → tus gastos → revisión): va llenando estas tablas por ti y solo guarda cuando confirmas. Empieza aquí.' },
             { v: 'centros-costo', t: 'Centros de costo', d: 'Las 3 etapas SURT / MEZ / ENV y su capacidad normal en horas de mano de obra al mes.', cfg: true },
             { v: 'areas-prorrateo', t: 'Áreas y bases de prorrateo', d: 'm², carga eléctrica (kW) y personas por área. De aquí salen los % con que se reparten renta, luz y servicios.', cfg: true },
             { v: 'reparto-plantillas', t: 'Reparto de gastos compartidos', d: 'Plantillas por cuenta o proveedor: qué base usar y a qué cuenta de oficina va la parte de no producción.', cfg: true },
@@ -122,7 +123,7 @@ export function cargarModuloIndice() {
     const chip = (s) => `<a href="#idx-${s.ancla}" class="text-[11px] px-2.5 py-1 rounded-full border ${s.config ? 'border-amber-700 text-amber-300' : 'border-slate-700 text-slate-300'} hover:bg-slate-800 whitespace-nowrap">${esc(s.grupo)}</a>`;
 
     const card = (it) => `
-      <button type="button" onclick="window.loadView('${it.v}'${it.extra ? ', ' + it.extra : ''})"
+      <button type="button" onclick="${it.js ? it.js : `window.loadView('${it.v}'${it.extra ? ', ' + it.extra : ''})`}"
         class="text-left bg-slate-950 border ${it.cfg ? 'border-amber-800/50' : 'border-slate-800'} rounded-xl p-3 hover:border-sky-600 hover:bg-slate-900 transition group">
         <div class="flex items-center justify-between gap-2">
           <span class="text-sm font-semibold text-slate-100">${esc(it.t)}</span>

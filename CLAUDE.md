@@ -6,6 +6,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `index.html`, `js/indice.js`, `version.json`, `CLAUDE.md`. **"🧭 Asistente de llenado" es ahora la PRIMERA entrada del submenú Contabilidad → Costos y prorrateo** (pedido del usuario 2026-10-15: como el asistente llena las tablas de Centros de costo, Áreas y Reparto, debe ir antes que ellas): abre la subventana (`window.abrirAsistenteProrrateo('inicio')`) desde cualquier pantalla; también primera tarjeta del Índice (las tarjetas aceptan `js:` en vez de `v:`). El botón dentro de Prorrateo de gastos se queda. Pendiente: verlo en el navegador (Ctrl+Shift+R).
+
 - Archivos tocados (lo último): `index.html`, `js/indice.js`, `js/asistente-prorrateo.js`, `manual-costos-produccion.html`, `guia-costos-produccion.html`, `version.json`, `CLAUDE.md`. **Menú: "Costos y prorrateo" ya no es grupo propio sino un SUBMENÚ dentro de Contabilidad** (pedido del usuario 2026-10-15): Contabilidad = Pólizas · Plan de cuentas · ▼ Costos y prorrateo (Centros de costo → Áreas y bases de prorrateo → Reparto de gastos compartidos → Prorrateo de gastos) · Reportes contables · Cierre de periodo · Tabla ISR (el menú vuelve a 9 grupos). El Índice lo muestra como grupo "Contabilidad › Costos y prorrateo". Títulos de pantalla siguen "Costos y prorrateo · …"; rutas de manual, guía y asistente: "Menú → Contabilidad → Costos y prorrateo → …". Sin SQL. Pendiente: verlo en el navegador (Ctrl+Shift+R).
 
 - Archivos tocados (lo último): `js/requisiciones-compra.js`, `version.json`, `CLAUDE.md`. Requisiciones: se quitó el subtítulo "Requisiciones de compra" sobre la tabla y el `space-y-5` del contenedor (el
