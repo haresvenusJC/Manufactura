@@ -200,6 +200,11 @@ export async function cargarModuloRequisicionesCompra() {
       </div>
     </div>`;
 
+    // La subventana de captura se monta a nivel de <body>: dentro del contenedor de la lista (que ahora llena la pantalla y recorta lo
+    // que se sale) quedaba cortada. Se quita la anterior si ya existía (el módulo se vuelve a cargar cada vez que se entra a la pantalla).
+    document.querySelectorAll('#reqNuevaWrap').forEach((w) => { if (!cont.contains(w)) w.remove(); });
+    const wrapNueva = cont.querySelector('#reqNuevaWrap');
+    if (wrapNueva) document.body.appendChild(wrapNueva);
     document.getElementById('reqFecha').value = hoyISO();
 
     reqWireFormulario();

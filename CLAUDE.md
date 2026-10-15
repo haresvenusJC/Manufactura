@@ -6,6 +6,12 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `css/ui-moderno.css`, `js/requisiciones-compra.js`, `index.html`, `version.json`, `CLAUDE.md`. **Listas a pantalla completa — diseño estándar** (pedido del usuario 2026-10-15, capturas de Requisiciones y
+  Cuentas por pagar): (1) el marco de la lista llega hasta el borde inferior de la ventana (`<main>` baja su relleno inferior a .5rem con `:has()` y la sección mide `100vh − 1.125rem − .5rem`; antes quedaba un hueco de ~1.5rem y,
+  por la regla genérica de tablas de la otra sesión, `max-height: calc(100vh − 15rem)` en las demás); (2) título/Ayuda/filtros/encabezado fijos y solo las filas se desplazan POR DEBAJO, sin barra horizontal (`overflow-x:hidden`,
+  columnas `table-fixed`); (3) el marco NO se encoge con pocas filas o vacío (`flex:1`; el aviso "Sin requisiciones…" va dentro); (4) la subventana "Nueva requisición de compra" se monta en `<body>` (dentro del contenedor
+  quedaba recortada). Aplica a **Requisiciones, Cuentas por pagar y Lotes** (selector común al final de `ui-moderno.css`). Las demás tablas siguen con la regla genérica (`max-height: calc(100vh − 15rem)`); extender el
+  esquema a otras pantallas de listado queda por decidir con el usuario. `?v=` CSS → `20261015190000`. Pendiente: subir con "comitea" y revisar en el navegador (Ctrl+Shift+R): hueco inferior, lista vacía, ventana flotante.
 - Archivos tocados (lo último): `index.html`, `version.json`, `CLAUDE.md`. El botón **🧭 Índice** del menú lateral pasó del principio al final, debajo de Configuración (pedido del usuario 2026-10-15). Pendiente: verlo en el navegador.
 
 - Archivos tocados (lo último): `index.html`, `js/indice.js`, `version.json`, `CLAUDE.md`. Se quitó el emoji 🧭 de la entrada "Asistente de llenado" del submenú Costos y prorrateo y de su tarjeta del Índice (pedido del usuario 2026-10-15); el botón dentro de Prorrateo de gastos conserva el suyo. Pendiente: verlo en el navegador.

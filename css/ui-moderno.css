@@ -732,7 +732,7 @@ body.pagina-desplazada main section.vista-seccion:not(#view-bienvenida) > div:fi
 /* Cuentas por pagar (pantalla de escritorio): título, píldora, tarjetas, filtros y ENCABEZADOS de la tabla quedan fijos; solo las filas se desplazan
    (barra vertical propia) y la barra "Pagar selección" queda siempre a la vista abajo. */
 @media (min-width: 1024px) {
-    #view-pagos-proveedor:not(.hidden) { display: flex; flex-direction: column; height: calc(100vh - 1.125rem - 1.5rem); }
+    #view-pagos-proveedor:not(.hidden) { display: flex; flex-direction: column; height: calc(100vh - 1.125rem - .5rem); }
     #contenedorPagosProveedor { flex: 1; min-height: 0; display: flex; flex-direction: column; }
     #contenedorPagosProveedor > .space-y-4 { flex: 1; min-height: 0; display: flex; flex-direction: column; }
     #cxpPanelDocumentos { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -795,7 +795,7 @@ main section.vista-seccion:not(#view-bienvenida) .asist-panel:has(.asist-body:no
 #view-lotes > div:first-child:has(> h2) { padding-right: 0; }
 #view-lotes > div:nth-child(2) > p { margin-bottom: .5rem; }
 @media (min-width: 1024px) {
-    #view-lotes:not(.hidden) { display: flex; flex-direction: column; height: calc(100vh - 1.125rem - 1.5rem); }
+    #view-lotes:not(.hidden) { display: flex; flex-direction: column; height: calc(100vh - 1.125rem - .5rem); }
     #view-lotes > div:nth-child(2) { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: .75rem; }
     #contenedorExistenciasLote { flex: 1; min-height: 0; display: flex; flex-direction: column; }
     #contenedorExistenciasLote > .lotes-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
@@ -812,4 +812,19 @@ main section.vista-seccion:not(#view-bienvenida) .asist-panel:has(.asist-body:no
     main section.vista-seccion :is(.overflow-x-auto, .overflow-auto):has(> table):not(.lotes-scroll):not(.tabla-sin-fijar):not(#cxpPanelDocumentos > div) > table > thead {
         position: sticky; top: 0; z-index: 5; background-color: var(--bg-1);
     }
+}
+
+/* LISTAS A PANTALLA COMPLETA — diseño estándar (pedido del usuario 2026-10-15) para Requisiciones, Cuentas por pagar y Lotes:
+   el marco de la lista llega hasta el borde inferior de la ventana (relleno inferior de <main> a .5rem), título/filtros/encabezados de tabla quedan
+   fijos y solo las filas se desplazan por debajo de ellos; el marco NO se encoge si hay pocas filas o ninguna (el aviso "Sin registros" va dentro).
+   Sin barra horizontal en la lista (las columnas usan table-fixed). */
+@media (min-width: 1024px) {
+    #app > main:has(> :is(#view-requisiciones-compra, #view-pagos-proveedor, #view-lotes):not(.hidden)) { padding-bottom: .5rem; }
+    #view-requisiciones-compra:not(.hidden) { display: flex; flex-direction: column; height: calc(100vh - 1.125rem - .5rem); }
+    #contenedorRequisicionesCompra { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    #contenedorRequisicionesCompra > div:not(.asist-panel) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    #contenedorRequisicionesCompra > div:not(.asist-panel) > div { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    #reqLista { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    #reqLista > div:has(> table) { flex: 1; min-height: 0; max-height: none; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
+    #reqLista > div:has(> table) > table > thead { position: sticky; top: 0; z-index: 5; background-color: var(--bg-1); }
 }
