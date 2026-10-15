@@ -7,7 +7,8 @@ const afcOrden = crearOrdenTabla();
 
 // =====================================================================
 // Costos y prorrateo · Áreas y bases de prorrateo (pre-herramienta)
-//   Declara m², carga eléctrica (kW) y nº de personas por área. De aquí
+//   Declara m² y nº de personas por área; la carga eléctrica (kW) viene de los
+//   equipos dados de alta en Activos fijos (panel de solo consulta). De aquí
 //   se derivan los % de reparto de gastos compartidos (Nivel 1:
 //   producción vs no producción · Nivel 2: SURT/MEZ/ENV), en vez de
 //   teclearlos a mano.
@@ -29,7 +30,6 @@ const hint = (t) => `<span class="hint" tabindex="0" role="note" aria-label="${e
 
 const estado = { areas: [], cargas: [], kw: {}, bases: [], centros: [] };
 let areaEditId = null;
-let cargaEditId = null;
 let cargaAreaSel = null;
 
 export async function cargarModuloAreasProrrateo() {
@@ -54,7 +54,7 @@ export async function cargarModuloAreasProrrateo() {
 
     cont.innerHTML = `
     <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
-      <p class="text-xs text-slate-400 max-w-2xl">Declara las <span class="text-slate-300">áreas físicas</span> de la instalación con sus m², su carga eléctrica y su gente. Los % con que se reparten renta, energía y servicios se calculan de aquí — actualiza una vez y todos los repartos se recalculan.</p>
+      <p class="text-xs text-slate-400 max-w-2xl">Declara las <span class="text-slate-300">áreas físicas</span> de la instalación con sus m², su gente y, vía los equipos de Activos fijos, su carga eléctrica. Los % con que se reparten renta, energía y servicios se calculan de aquí — actualiza una vez y todos los repartos se recalculan.</p>
       <div class="shrink-0 flex gap-2">
         <a href="${GUIA_URL}" target="_blank" rel="noopener" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg whitespace-nowrap">▶ Guía</a>
         <a href="${MANUAL_URL}" target="_blank" rel="noopener" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg whitespace-nowrap">📖 Manual</a>
@@ -126,7 +126,7 @@ function afCablear() {
 async function recargar() {
     const [areas, cargas, kw, bases] = await Promise.all([
         supabaseClient.from('areas_fisicas').select('*').order('codigo'),
-        supabaseClient.from('areas_fisicas_cargas').select('*').order('id'),
+        supabaseClient.from('activos_fijos').select('id, nombre, area_id, tipo_carga, potencia_kw, cantidad, factor_uso, depreciable').eq('activo', true).not('area_id', 'is', null).order('id'),
         supabaseClient.from('v_areas_carga').select('*'),
         supabaseClient.from('v_bases_prorrateo').select('*'),
     ]);
@@ -264,97 +264,65 @@ function pintarCargas() {
     if (!estado.areas.length) { cont.innerHTML = ''; return; }
     if (!estado.areas.some(a => a.id === cargaAreaSel)) cargaAreaSel = estado.areas[0].id;
     const area = estado.areas.find(a => a.id === cargaAreaSel);
+    const kwDe = (e) => Number(e.potencia_kw || 0) * Number(e.cantidad || 1) * Number(e.factor_uso || 1);
     const cargas = estado.cargas.filter(c => c.area_id === cargaAreaSel);
-    const totalKw = cargas.reduce((s, c) => s + c.kw_unitario * c.cantidad * c.factor_uso, 0);
+    const totalKw = cargas.reduce((s, c) => s + kwDe(c), 0);
 
     aplicarOrden(afcOrden, cargas, (c, campo) => {
         switch (campo) {
-            case 'descripcion': return (c.descripcion || '').toLowerCase();
-            case 'tipo': return (TIPO_CARGA[c.tipo] || c.tipo || '').toLowerCase();
-            case 'kw_unit': return Number(c.kw_unitario || 0);
+            case 'descripcion': return (c.nombre || '').toLowerCase();
+            case 'tipo': return (TIPO_CARGA[c.tipo_carga] || c.tipo_carga || '').toLowerCase();
+            case 'kw_unit': return Number(c.potencia_kw || 0);
             case 'cantidad': return Number(c.cantidad || 0);
             case 'f_uso': return Number(c.factor_uso || 0);
-            case 'kw_efect': return c.kw_unitario * c.cantidad * c.factor_uso;
+            case 'kw_efect': return kwDe(c);
             default: return c.id;
         }
     });
 
     cont.innerHTML = `
       <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <h3 class="text-md font-semibold text-sky-400">Cargas eléctricas${hint('Los equipos, luminarias y clima de cada área. kW efectivo = kW unitario × cantidad × factor de uso. La suma es el kW instalado del área para la base de energía.')}</h3>
-        <select id="afCargaArea" class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100">
-          ${estado.areas.map(a => `<option value="${a.id}"${a.id === cargaAreaSel ? ' selected' : ''}>${esc(a.codigo)} · ${esc(a.nombre)}</option>`).join('')}
-        </select>
+        <h3 class="text-md font-semibold text-sky-400">Cargas eléctricas${hint('Los equipos, luminarias y clima de cada área, tomados de Activos fijos. kW efectivo = kW unitario × cantidad × factor de uso. La suma es el kW instalado del área para la base de energía.')}</h3>
+        <div class="flex items-center gap-2">
+          <select id="afCargaArea" class="bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100">
+            ${estado.areas.map(a => `<option value="${a.id}"${a.id === cargaAreaSel ? ' selected' : ''}>${esc(a.codigo)} · ${esc(a.nombre)}</option>`).join('')}
+          </select>
+          <button type="button" id="afIrActivos" class="bg-sky-600 hover:bg-sky-500 text-white font-medium py-1.5 px-3 rounded-lg text-xs cursor-pointer">Dar de alta equipos en Activos fijos</button>
+        </div>
       </div>
-      ${area && area.kwh_mensual != null ? `<p class="text-[11px] text-amber-400 mb-2">Esta área tiene kWh medido (${fnum(area.kwh_mensual)} kWh/mes); las cargas de abajo son informativas, la base kW usa el medido.</p>` : ''}
+      <p class="text-[11px] text-slate-500 mb-2">Solo consulta: todo equipo se da de alta y se corrige en <b>Activos fijos</b> (con su área, potencia y si es Depreciable o No depreciable). También puedes darlos de alta con el Asistente de llenado de Prorrateo de gastos, paso 3 · Luz.</p>
+      ${area && area.kwh_mensual != null ? `<p class="text-[11px] text-amber-400 mb-2">Esta área tiene kWh medido (${fnum(area.kwh_mensual)} kWh/mes); los equipos de abajo son informativos, la base kW usa el medido.</p>` : ''}
       <div class="overflow-x-auto">
       <table class="w-full text-xs whitespace-nowrap">
         <thead><tr class="text-left text-slate-500 border-b border-slate-800">
-          ${thOrden(afcOrden, 'descripcion', 'Descripción')}${thOrden(afcOrden, 'tipo', 'Tipo')}
+          ${thOrden(afcOrden, 'descripcion', 'Equipo')}${thOrden(afcOrden, 'tipo', 'Tipo')}
           ${thOrden(afcOrden, 'kw_unit', 'kW unit.', 'text-right justify-end')}${thOrden(afcOrden, 'cantidad', 'Cant.', 'text-right justify-end')}${thOrden(afcOrden, 'f_uso', 'F. uso', 'text-right justify-end')}
-          ${thOrden(afcOrden, 'kw_efect', 'kW efect.', 'text-right justify-end')}<th class="p-2"></th>
+          ${thOrden(afcOrden, 'kw_efect', 'kW efect.', 'text-right justify-end')}<th class="p-2">Depreciación</th>
         </tr></thead>
         <tbody>
           ${cargas.length ? cargas.map(c => `
             <tr class="border-b border-slate-900">
-              <td class="p-2 text-slate-300">${esc(c.descripcion)}</td>
-              <td class="p-2 text-slate-400">${TIPO_CARGA[c.tipo] || c.tipo}</td>
-              <td class="p-2 text-right font-mono text-slate-300">${fnum(c.kw_unitario, 3)}</td>
+              <td class="p-2 text-slate-300">${esc(c.nombre)}</td>
+              <td class="p-2 text-slate-400">${TIPO_CARGA[c.tipo_carga] || c.tipo_carga || '—'}</td>
+              <td class="p-2 text-right font-mono text-slate-300">${c.potencia_kw == null ? '—' : fnum(c.potencia_kw, 3)}</td>
               <td class="p-2 text-right font-mono text-slate-300">${c.cantidad}</td>
               <td class="p-2 text-right font-mono text-slate-400">${fnum(c.factor_uso, 2)}</td>
-              <td class="p-2 text-right font-mono text-emerald-400">${fnum(c.kw_unitario * c.cantidad * c.factor_uso, 3)}</td>
-              <td class="p-2 text-right whitespace-nowrap">
-                <button type="button" class="afc-edit text-sky-400 hover:underline" data-id="${c.id}">Editar</button>
-                <button type="button" class="afc-del text-rose-400 hover:underline ml-2" data-id="${c.id}">Borrar</button>
-              </td>
-            </tr>`).join('') : `<tr><td colspan="7" class="p-2 text-slate-500 italic">Sin cargas en esta área.</td></tr>`}
+              <td class="p-2 text-right font-mono text-emerald-400">${fnum(kwDe(c), 3)}</td>
+              <td class="p-2 text-slate-400">${c.depreciable ? 'Depreciable' : 'No depreciable'}</td>
+            </tr>`).join('') : `<tr><td colspan="7" class="p-2 text-slate-500 italic">Sin equipos dados de alta en esta área: pesará 0 en el reparto de luz.</td></tr>`}
         </tbody>
         <tfoot><tr class="border-t-2 border-slate-700 text-slate-200">
           <td class="p-2 font-semibold" colspan="5">kW instalado del área</td>
           <td class="p-2 text-right font-mono text-emerald-400">${fnum(totalKw, 3)}</td><td></td>
         </tr></tfoot>
       </table>
-      </div>
-
-      <form id="afCargaForm" class="grid grid-cols-2 sm:grid-cols-6 gap-2 mt-4 items-end">
-        <div class="col-span-2"><label class="block text-[10px] text-slate-400 mb-1">Descripción <span class="text-rose-400">*</span></label>
-          <input type="text" id="afcDesc" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100" required></div>
-        <div><label class="block text-[10px] text-slate-400 mb-1">Tipo</label>
-          <select id="afcTipo" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100">
-            ${Object.entries(TIPO_CARGA).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
-          </select></div>
-        <div><label class="block text-[10px] text-slate-400 mb-1">kW unit.${hint('Potencia de placa del equipo, en kW. Si viene en HP: 1 HP ≈ 0.746 kW. Si viene en W: divídelo entre 1000.')}</label>
-          <input type="number" min="0" step="0.001" id="afcKw" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 text-right font-mono" required></div>
-        <div><label class="block text-[10px] text-slate-400 mb-1">Cantidad</label>
-          <input type="number" min="1" step="1" id="afcCant" value="1" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 text-right font-mono"></div>
-        <div><label class="block text-[10px] text-slate-400 mb-1">F. uso${hint('Fracción del tiempo/carga que el equipo demanda de verdad. 1 = siempre a plena carga. Un túnel de vapor que enciende 3 h de un turno de 10: ~0.30.')}</label>
-          <input type="number" min="0.01" max="1" step="0.01" id="afcFu" value="1" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100 text-right font-mono"></div>
-        <div class="col-span-2 sm:col-span-6 flex gap-2">
-          <button type="submit" id="afcGuardar" class="bg-sky-600 hover:bg-sky-500 text-white font-medium py-2 px-4 rounded-lg text-xs cursor-pointer">Agregar carga</button>
-          <button type="button" id="afcCancelar" class="hidden text-xs text-slate-400 hover:text-slate-200 px-2">Cancelar edición</button>
-          <span id="afcMsg" class="text-xs self-center"></span>
-        </div>
-      </form>`;
+      </div>`;
 
     document.getElementById('afCargaArea').addEventListener('change', (e) => {
-        cargaAreaSel = Number(e.target.value); cargaEditId = null; pintarCargas();
+        cargaAreaSel = Number(e.target.value); pintarCargas();
     });
-    document.getElementById('afCargaForm').addEventListener('submit', afGuardarCarga);
-    document.getElementById('afcCancelar').addEventListener('click', () => { cargaEditId = null; pintarCargas(); });
+    document.getElementById('afIrActivos').addEventListener('click', () => window.loadView && window.loadView('activos-fijos'));
     wireOrdenTabla(cont, afcOrden, pintarCargas);
-    cont.querySelectorAll('.afc-del').forEach(b => b.addEventListener('click', () => afBorrarCarga(Number(b.dataset.id))));
-    cont.querySelectorAll('.afc-edit').forEach(b => b.addEventListener('click', () => {
-        const c = estado.cargas.find(x => x.id === Number(b.dataset.id));
-        if (!c) return;
-        cargaEditId = c.id;
-        document.getElementById('afcDesc').value = c.descripcion;
-        document.getElementById('afcTipo').value = c.tipo;
-        document.getElementById('afcKw').value = c.kw_unitario;
-        document.getElementById('afcCant').value = c.cantidad;
-        document.getElementById('afcFu').value = c.factor_uso;
-        document.getElementById('afcGuardar').textContent = 'Guardar cambios';
-        document.getElementById('afcCancelar').classList.remove('hidden');
-    }));
 }
 
 function afResetForm() {
@@ -423,43 +391,4 @@ function afCargarEnForm(a) {
     document.getElementById('afNuevo').classList.remove('hidden');
     document.getElementById('afMsg').textContent = '';
     document.getElementById('afForm').scrollIntoView({ block: 'nearest' });
-}
-
-async function afGuardarCarga(e) {
-    e.preventDefault();
-    const $ = (id) => document.getElementById(id);
-    const msg = $('afcMsg');
-    msg.className = 'text-xs self-center'; msg.textContent = '';
-    const row = {
-        area_id: cargaAreaSel,
-        tipo: $('afcTipo').value,
-        descripcion: $('afcDesc').value.trim(),
-        kw_unitario: num($('afcKw').value),
-        cantidad: Math.max(1, Math.round(num($('afcCant').value, 1))),
-        factor_uso: Math.min(1, Math.max(0.01, num($('afcFu').value, 1))),
-    };
-    if (!row.descripcion) { msg.textContent = 'Falta la descripción.'; msg.className = 'text-xs text-rose-400 self-center'; return; }
-    try {
-        $('afcGuardar').disabled = true;
-        let error;
-        if (cargaEditId) ({ error } = await supabaseClient.from('areas_fisicas_cargas').update(row).eq('id', cargaEditId));
-        else ({ error } = await supabaseClient.from('areas_fisicas_cargas').insert([row]));
-        if (error) throw error;
-        cargaEditId = null;
-        await recargar();
-    } catch (err) {
-        msg.textContent = err.message || String(err);
-        msg.className = 'text-xs text-rose-400 self-center';
-    } finally {
-        const b = document.getElementById('afcGuardar');
-        if (b) b.disabled = false;
-    }
-}
-
-async function afBorrarCarga(id) {
-    if (!confirm('¿Borrar esta carga eléctrica?')) return;
-    const { error } = await supabaseClient.from('areas_fisicas_cargas').delete().eq('id', id);
-    if (error) { alert(error.message || String(error)); return; }
-    if (cargaEditId === id) cargaEditId = null;
-    await recargar();
 }

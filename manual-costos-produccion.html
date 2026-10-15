@@ -510,7 +510,7 @@ Lovlub Chocolate 60 Gr:  $51,676.49 × 37.5% = $19,378.68</div>
 
     <ol class="steps">
       <li><strong>Abre la pantalla</strong>
-        <p>Menú → <span class="path">Costos y prorrateo → Áreas y bases de prorrateo</span>. Ya vienen sembradas las áreas de la planta (Almacén Insumos, Surtido MP, Cosméticos, Lotificación, Envasado, Acondicionamiento) más <strong>Oficina</strong>, y los equipos conocidos con un kW <em>placeholder</em>.</p></li>
+        <p>Menú → <span class="path">Costos y prorrateo → Áreas y bases de prorrateo</span>. Ya vienen sembradas las áreas de la planta (Almacén Insumos, Surtido MP, Cosméticos, Lotificación, Envasado, Acondicionamiento) más <strong>Oficina</strong>. Los equipos <strong>no</strong> se capturan aquí: se dan de alta en Activos fijos.</p></li>
 
       <li><strong>Cada área tiene un rol</strong>
         <div class="tbl"><table class="fieldguide">
@@ -528,8 +528,8 @@ Lovlub Chocolate 60 Gr:  $51,676.49 × 37.5% = $19,378.68</div>
       </li>
 
       <li><strong>Captura la carga eléctrica (kW)</strong>
-        <p>En el panel <strong>Cargas eléctricas por área</strong> agrega cada equipo con su <strong>kW de placa</strong>, la <strong>cantidad</strong> y un <strong>factor de uso</strong> (fracción del tiempo que de verdad trabaja: un túnel de vapor que enciende 3 h de un turno de 10 → 0.30). La suma es el kW instalado del área.</p>
-        <p>Si un área tiene submedidor, pon el <strong>kWh medido al mes</strong> en el área y ese dato manda sobre el cálculo de las cargas.</p>
+        <p>Todo equipo (máquinas, iluminación, clima) se <strong>da de alta en Activos fijos</strong> con su <strong>área</strong>, su <strong>potencia de placa</strong> (kW, HP o W), la <strong>cantidad</strong> y un <strong>factor de uso</strong> (fracción del tiempo que de verdad trabaja: un túnel de vapor que enciende 3 h de un turno de 10 → 0.30), y la etiqueta <strong>Depreciable / No depreciable</strong>. La forma más fácil: el <strong>Asistente de llenado</strong> de Prorrateo de gastos, paso 3 · Luz, que te pide todo eso y lo registra en Activos fijos; no deja guardar el paso si una área de producción sin submedidor no tiene equipos dados de alta. El panel <strong>Cargas eléctricas</strong> de esta pantalla solo los muestra.</p>
+        <p>Si un área tiene submedidor, pon el <strong>kWh medido al mes</strong> en el área y ese dato manda sobre el cálculo de los equipos.</p>
       </li>
 
       <li><strong>Revisa el tablero</strong>
@@ -538,13 +538,13 @@ Lovlub Chocolate 60 Gr:  $51,676.49 × 37.5% = $19,378.68</div>
     </ol>
 
     <div class="callout warn">
-      <span class="lbl">Los kW vienen con valores placeholder</span>
-      <p>La migración sembró un kW aproximado de cada equipo para que el módulo arranque, pero <strong>revísalos contra la placa real</strong>. Y agrega la carga de la <strong>Oficina</strong> (equipos de cómputo, iluminación, minisplit): sin ella, un recibo de luz repartido por kW dejaría el 100% en producción.</p>
+      <span class="lbl">Empieza con 0 kW hasta que des de alta los equipos</span>
+      <p>Las cargas de ejemplo con kW <em>placeholder</em> se borraron (migración <code>2026-10-15_equipos_unificados.sql</code>): cada equipo se da de alta con la <strong>placa real</strong>. No olvides la <strong>Oficina</strong> (equipos de cómputo, iluminación, minisplit): sin ella, un recibo de luz repartido por kW dejaría el 100% en producción.</p>
     </div>
 
     <div class="callout tec">
       <span class="lbl">Para contabilidad</span>
-      <p>Tablas <code>areas_fisicas</code> y <code>areas_fisicas_cargas</code>. La vista <code>v_bases_prorrateo</code> devuelve, por base, la fracción de cada área: <code>m² del área / Σ m²</code>, <code>kW efectivo / Σ kW</code> (<code>kW efectivo = kw_unitario × cantidad × factor_uso</code>, o el <code>kwh_mensual</code> si hay submedidor), y lo mismo para personas.</p>
+      <p>Tablas <code>areas_fisicas</code> y <code>activos_fijos</code> (la vista <code>v_areas_carga</code> suma los equipos vigentes de cada área; <code>areas_fisicas_cargas</code> quedó sin uso). La vista <code>v_bases_prorrateo</code> devuelve, por base, la fracción de cada área: <code>m² del área / Σ m²</code>, <code>kW efectivo / Σ kW</code> (<code>kW efectivo = potencia_kw × cantidad × factor_uso</code>, o el <code>kwh_mensual</code> si hay submedidor), y lo mismo para personas.</p>
     </div>
   </section>
 
@@ -1179,6 +1179,7 @@ costo total del granel              1,958.65
 
     <h4 id="m-activos-fijos">Activos fijos <span style="font-weight:400;font-size:.7em;color:var(--mut)">(menú: Finanzas)</span></h4>
     <p><strong>Para qué sirve.</strong> Llevar el catálogo de tu maquinaria, equipo y vehículos, y calcular su depreciación mensual en línea recta (NIF C-6) — cuánto valen en libros y cuánto gasto de depreciación cae cada mes.</p>
+    <p><strong>Todo equipo se da de alta aquí</strong> (también el que solo consume luz): nombre, área donde está, potencia de placa, cantidad, factor de uso y la etiqueta <strong>Depreciable</strong> (pide costo, vida útil y cuentas; genera depreciación) o <strong>No depreciable</strong> (solo se controla: de ahí sale la carga eléctrica del área para el prorrateo de la luz). El Asistente de llenado de Prorrateo de gastos (paso 3 · Luz) te ayuda a darlos de alta. Requiere <code>sql/2026-10-15_equipos_unificados.sql</code>.</p>
     <p><strong>Pasos.</strong> Da de alta el activo: costo de adquisición, valor residual (lo que valdría al final de su vida útil — puede ser 0), vida útil en meses, y sus 3 cuentas (de activo, de gasto de depreciación, y de depreciación acumulada — esta última es nueva: <code>153.01</code> maquinaria, <code>153.02</code> equipo de cómputo). En "Depreciación del mes" elige año y mes, "Calcular" (vista previa, no aplica nada) y si cuadra, "Aplicar" — genera UNA póliza con todos los activos de ese mes. "Cancelar" desde el historial revierte esa póliza. "Dar de baja" un activo (pide fecha y motivo) lo saca de los cálculos futuros.</p>
     <p><strong>Errores comunes.</strong> Confundir el orden: aplica primero Nómina y Prorrateo, y la depreciación antes del <a href="#m-cierre-periodo">Cierre de periodo</a> del mes. Dar de baja un activo sin revisar antes cuánto le quedaba por depreciar.</p>
 
@@ -1303,7 +1304,7 @@ Cierre de orden (consumo):  Cargo cuenta del producto (115.04 / 115.02 si es gra
         <tr><td class="m">orden_produccion_procesos.centro_costo_id</td><td>Foto del centro al crear la orden (trigger <code>trg_opp_hereda_centro</code>).</td></tr>
         <tr><td class="m">_horas_mo_periodo</td><td>Agrupa las horas de <code>registros_tiempo</code> por (orden, centro del proceso) en el mes.</td></tr>
         <tr><td class="m">gasto_prorrateo_reglas</td><td>% (de fábrica) por centro, congelado al capturar cuando <code>base_prorrateo = porcentaje_centros</code>.</td></tr>
-        <tr><td class="m">areas_fisicas, areas_fisicas_cargas</td><td>Declaración física: m², kW (por cargas con factor de uso), personas y rol (producción / no producción) por área.</td></tr>
+        <tr><td class="m">areas_fisicas, activos_fijos</td><td>Declaración física: m², kW (de los equipos dados de alta en Activos fijos, con factor de uso), personas y rol (producción / no producción) por área.</td></tr>
         <tr><td class="m">v_areas_carga, v_bases_prorrateo</td><td>kW efectivo por área; y la fracción de cada área por base (m² / kW / personas).</td></tr>
         <tr><td class="m">reparto_plantillas, reparto_plantilla_lineas</td><td>Por cuenta o proveedor: qué base usar y a qué cuenta 601.xx va la parte de oficina.</td></tr>
         <tr><td class="m">_reparto_resolver(plantilla, subtotal)</td><td>Resuelve una plantilla contra v_bases_prorrateo → filas de producción (una por centro) + de no producción (una por cuenta).</td></tr>

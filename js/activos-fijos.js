@@ -21,6 +21,11 @@ let afCentros = [];          // etapas de producción (para repartir la deprecia
 let afTieneEtapas = false;   // false si falta correr sql/2026-10-14_depreciacion_al_prorrateo.sql
 let afEtapasPorActivo = new Map();
 let afActivoEditId = null;
+let afAreas = [];            // áreas físicas (dónde está cada equipo)
+let afNuevo = false;         // false si falta correr sql/2026-10-15_equipos_unificados.sql
+const UNIDAD_KW = { kW: 1, HP: 0.746, W: 0.001 };
+const TIPOS_CARGA = [['equipo', 'Equipo'], ['clima', 'Clima / HVAC'], ['iluminacion', 'Iluminación'], ['otro', 'Otro']];
+const afIdCuenta = (cod) => afCuentas.find((c) => c.codigo === cod)?.id || '';
 const esCuentaCif = (id) => String(afCuentas.find((c) => c.id === Number(id))?.codigo || '').startsWith('503.');
 
 export async function cargarModuloActivosFijos() {
@@ -30,12 +35,16 @@ export async function cargarModuloActivosFijos() {
     try {
         const { data } = await supabaseClient.from('cuentas_contables').select('id, codigo, nombre, tipo').eq('afectable', true).eq('activa', true).order('codigo');
         afCuentas = data || [];
-        const [ce, et] = await Promise.all([
+        const [ce, et, nu, ar] = await Promise.all([
             supabaseClient.from('centros_costo').select('id, codigo, nombre').eq('tipo', 'produccion').eq('activo', true),
             supabaseClient.from('activos_fijos_centros').select('id').limit(1),
+            supabaseClient.from('activos_fijos').select('depreciable').limit(1),
+            supabaseClient.from('areas_fisicas').select('id, codigo, nombre').eq('activo', true).order('codigo'),
         ]);
         afCentros = ordenarCentrosProduccion(ce.data || []);
         afTieneEtapas = !et.error;
+        afNuevo = !nu.error && !ar.error;
+        afAreas = ar.data || [];
     } catch (e) {
         cont.innerHTML = `<p class="text-rose-400 text-xs">Error al cargar catálogos: ${e.message || e}</p>`;
         return;
@@ -53,8 +62,26 @@ export async function cargarModuloActivosFijos() {
             <input type="text" id="afNombre" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
           <div><label class="block text-xs text-slate-400 mb-1">Categoría</label>
             <input type="text" id="afCategoria" placeholder="Ej. Maquinaria" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Fecha de adquisición</label>
+          <div><label class="block text-xs text-slate-400 mb-1">Fecha de alta / adquisición</label>
             <input type="date" id="afFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+          ${afNuevo ? `
+          <div><label class="block text-xs text-slate-400 mb-1">Área donde está <span class="text-rose-400">*</span></label>
+            <select id="afArea" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">Selecciona...</option>${afAreas.map((a) => `<option value="${a.id}">${esc(a.codigo)} · ${esc(a.nombre)}</option>`).join('')}</select></div>
+          <div><label class="block text-xs text-slate-400 mb-1">Tipo de carga</label>
+            <select id="afTipoCarga" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${TIPOS_CARGA.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></div>
+          <div><label class="block text-xs text-slate-400 mb-1">Potencia de placa (por unidad) <span class="text-rose-400">*</span> <span class="text-slate-600">· 0 si no usa electricidad</span></label>
+            <div class="flex gap-1"><input type="number" step="any" min="0" id="afPot" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+              <select id="afPotU" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option>kW</option><option>HP</option><option>W</option></select></div></div>
+          <div><label class="block text-xs text-slate-400 mb-1">Cantidad de piezas iguales</label>
+            <input type="number" step="1" min="1" id="afCant" value="1" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+          <div><label class="block text-xs text-slate-400 mb-1">Factor de uso <span class="text-slate-600">· 1 = siempre a plena carga</span></label>
+            <input type="number" step="0.01" min="0.01" max="1" id="afFu" value="1" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+          <div class="md:col-span-3 border border-slate-800 rounded-lg p-3 bg-slate-900/40">
+            <div class="text-xs text-slate-300 font-medium mb-1">¿Este equipo se deprecia? <span class="text-rose-400">*</span></div>
+            <label class="flex items-start gap-2 text-xs text-slate-200 mb-1"><input type="radio" name="afDep" value="si" class="mt-0.5"> <span><b>Depreciable</b> — lo compraste y vale dinero que se va desgastando (maquinaria, equipo de cómputo). Pide costo y vida útil; cada mes genera su póliza de depreciación.</span></label>
+            <label class="flex items-start gap-2 text-xs text-slate-200"><input type="radio" name="afDep" value="no" class="mt-0.5"> <span><b>No depreciable</b> — solo quieres controlarlo (dónde está y cuánta luz usa): equipo ya depreciado, de bajo valor o que no se activa. No genera depreciación.</span></label>
+          </div>` : ''}
+          <div id="afDepWrap" class="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-3 ${afNuevo ? 'hidden' : ''}">
           <div><label class="block text-xs text-slate-400 mb-1">Costo de adquisición</label>
             <input type="number" step="any" min="0" id="afCosto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
           <div><label class="block text-xs text-slate-400 mb-1">Valor residual</label>
@@ -67,6 +94,7 @@ export async function cargarModuloActivosFijos() {
             <select id="afCtaGasto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">Selecciona...</option>${optsGasto}</select></div>
           <div><label class="block text-xs text-slate-400 mb-1">Cuenta de depreciación acumulada</label>
             <select id="afCtaAcumulada" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">Selecciona...</option>${optsActivo}</select></div>
+          </div>
           <div id="afEtapasWrap" class="md:col-span-3 hidden border border-slate-800 rounded-lg p-3 bg-slate-900/40">
             <div class="text-xs text-slate-300 font-medium mb-1">¿En qué etapas se usa esta máquina?</div>
             <div class="text-[11px] text-slate-500 mb-2">Su depreciación mensual es costo indirecto de fabricación (CIF fijo): al hacer el prorrateo del mes se reparte en <b>partes iguales</b> entre las etapas que marques y de ahí a las órdenes de producción. Si no marcas ninguna, no se prorratea.</div>
@@ -116,15 +144,30 @@ export async function cargarModuloActivosFijos() {
     document.getElementById('afCancelarEdicion').onclick = afResetForm;
     document.getElementById('afCalcular').onclick = afCalcularDepreciacion;
     document.getElementById('afCtaGasto').addEventListener('change', afMostrarEtapas);
+    document.querySelectorAll('input[name="afDep"]').forEach((r) => r.addEventListener('change', afMostrarDep));
 
     await afRenderLista();
     await afRenderHistorial();
     montarGuia(cont, 'activos-fijos');
 }
 
+const afEsDep = () => !afNuevo || document.querySelector('input[name="afDep"]:checked')?.value === 'si';
+
 function afMostrarEtapas() {
     const wrap = document.getElementById('afEtapasWrap');
-    if (wrap) wrap.classList.toggle('hidden', !esCuentaCif(document.getElementById('afCtaGasto').value));
+    if (wrap) wrap.classList.toggle('hidden', !afEsDep() || !esCuentaCif(document.getElementById('afCtaGasto').value));
+}
+
+// Muestra el bloque de costo/vida/cuentas solo si el equipo es depreciable y precarga las cuentas de siempre
+function afMostrarDep() {
+    if (!afNuevo) return;
+    const dep = afEsDep();
+    document.getElementById('afDepWrap').classList.toggle('hidden', !dep);
+    if (dep) {
+        const pon = (id, cod) => { const el = document.getElementById(id); if (el && !el.value) el.value = afIdCuenta(cod); };
+        pon('afCtaActivo', '152.01'); pon('afCtaGasto', '503.04'); pon('afCtaAcumulada', '153.01');
+    }
+    afMostrarEtapas();
 }
 
 function afResetForm() {
@@ -141,6 +184,16 @@ function afResetForm() {
     document.getElementById('afCtaAcumulada').value = '';
     document.getElementById('afNotas').value = '';
     document.querySelectorAll('.afEtapaChk').forEach((c) => { c.checked = false; });
+    if (afNuevo) {
+        document.getElementById('afArea').value = '';
+        document.getElementById('afTipoCarga').value = 'equipo';
+        document.getElementById('afPot').value = '';
+        document.getElementById('afPotU').value = 'kW';
+        document.getElementById('afCant').value = '1';
+        document.getElementById('afFu').value = '1';
+        document.querySelectorAll('input[name="afDep"]').forEach((r) => { r.checked = false; });
+    }
+    afMostrarDep();
     afMostrarEtapas();
     document.getElementById('afGuardar').textContent = 'Guardar activo';
     document.getElementById('afCancelarEdicion').classList.add('hidden');
@@ -151,22 +204,47 @@ async function afGuardarActivo() {
     const nombre = document.getElementById('afNombre').value.trim();
     const costo = parseFloat(document.getElementById('afCosto').value) || 0;
     const vidaUtil = parseInt(document.getElementById('afVidaUtil').value) || 0;
-    if (!nombre) { msg.textContent = 'El nombre es obligatorio.'; msg.className = 'text-xs mt-2 text-rose-400'; return; }
-    if (costo <= 0) { msg.textContent = 'El costo de adquisición debe ser mayor a 0.'; msg.className = 'text-xs mt-2 text-rose-400'; return; }
-    if (vidaUtil <= 0) { msg.textContent = 'La vida útil debe ser mayor a 0 meses.'; msg.className = 'text-xs mt-2 text-rose-400'; return; }
+    const dep = afEsDep();
+    const falla = (t) => { msg.textContent = t; msg.className = 'text-xs mt-2 text-rose-400'; };
+    if (!nombre) return falla('El nombre es obligatorio.');
+    if (afNuevo) {
+        if (!document.getElementById('afArea').value) return falla('Elige el área donde está el equipo.');
+        if (document.getElementById('afPot').value === '' || !(parseFloat(document.getElementById('afPot').value) >= 0)) return falla('Captura la potencia de placa (pon 0 si no usa electricidad).');
+        if (!(parseInt(document.getElementById('afCant').value) >= 1)) return falla('La cantidad debe ser al menos 1.');
+        const fu = parseFloat(document.getElementById('afFu').value);
+        if (!(fu > 0 && fu <= 1)) return falla('El factor de uso debe estar entre 0.01 y 1.');
+        if (!document.querySelector('input[name="afDep"]:checked')) return falla('Indica si el equipo es Depreciable o No depreciable.');
+    }
+    if (dep) {
+        if (costo <= 0) return falla('El costo de adquisición debe ser mayor a 0.');
+        if (vidaUtil <= 0) return falla('La vida útil debe ser mayor a 0 meses.');
+        if (afNuevo && !(document.getElementById('afCtaActivo').value && document.getElementById('afCtaGasto').value && document.getElementById('afCtaAcumulada').value)) {
+            return falla('Un equipo depreciable necesita sus tres cuentas (activo, gasto de depreciación y depreciación acumulada).');
+        }
+    }
 
     const payload = {
         nombre,
         categoria: document.getElementById('afCategoria').value.trim() || null,
         fecha_adquisicion: document.getElementById('afFecha').value || hoyISO(),
-        costo_adquisicion: costo,
-        valor_residual: parseFloat(document.getElementById('afResidual').value) || 0,
-        vida_util_meses: vidaUtil,
-        cuenta_activo_id: document.getElementById('afCtaActivo').value ? parseInt(document.getElementById('afCtaActivo').value) : null,
-        cuenta_depreciacion_gasto_id: document.getElementById('afCtaGasto').value ? parseInt(document.getElementById('afCtaGasto').value) : null,
-        cuenta_depreciacion_acumulada_id: document.getElementById('afCtaAcumulada').value ? parseInt(document.getElementById('afCtaAcumulada').value) : null,
+        costo_adquisicion: dep ? costo : null,
+        valor_residual: dep ? (parseFloat(document.getElementById('afResidual').value) || 0) : 0,
+        vida_util_meses: dep ? vidaUtil : null,
+        cuenta_activo_id: dep && document.getElementById('afCtaActivo').value ? parseInt(document.getElementById('afCtaActivo').value) : null,
+        cuenta_depreciacion_gasto_id: dep && document.getElementById('afCtaGasto').value ? parseInt(document.getElementById('afCtaGasto').value) : null,
+        cuenta_depreciacion_acumulada_id: dep && document.getElementById('afCtaAcumulada').value ? parseInt(document.getElementById('afCtaAcumulada').value) : null,
         notas: document.getElementById('afNotas').value.trim() || null,
     };
+    if (afNuevo) {
+        Object.assign(payload, {
+            depreciable: dep,
+            area_id: parseInt(document.getElementById('afArea').value),
+            tipo_carga: document.getElementById('afTipoCarga').value,
+            potencia_kw: Math.round(parseFloat(document.getElementById('afPot').value) * (UNIDAD_KW[document.getElementById('afPotU').value] || 1) * 1000) / 1000,
+            cantidad: parseInt(document.getElementById('afCant').value),
+            factor_uso: parseFloat(document.getElementById('afFu').value),
+        });
+    }
 
     try {
         let error, activoId = afActivoEditId;
@@ -180,7 +258,7 @@ async function afGuardarActivo() {
         // etapas donde se usa (solo si la cuenta de gasto es 503.xx y la migración está corrida)
         let sinEtapas = false;
         if (afTieneEtapas && activoId) {
-            const marcadas = esCuentaCif(payload.cuenta_depreciacion_gasto_id)
+            const marcadas = dep && esCuentaCif(payload.cuenta_depreciacion_gasto_id)
                 ? [...document.querySelectorAll('.afEtapaChk:checked')].map((c) => Number(c.value)) : [];
             const del = await supabaseClient.from('activos_fijos_centros').delete().eq('activo_id', activoId);
             if (del.error) throw del.error;
@@ -188,7 +266,7 @@ async function afGuardarActivo() {
                 const ins2 = await supabaseClient.from('activos_fijos_centros').insert(marcadas.map((c) => ({ activo_id: activoId, centro_costo_id: c })));
                 if (ins2.error) throw ins2.error;
             }
-            sinEtapas = esCuentaCif(payload.cuenta_depreciacion_gasto_id) && !marcadas.length;
+            sinEtapas = dep && esCuentaCif(payload.cuenta_depreciacion_gasto_id) && !marcadas.length;
         }
         msg.textContent = (afActivoEditId ? 'Activo actualizado.' : 'Activo guardado.')
             + (sinEtapas ? ' ⚠ Sin etapas: su depreciación NO se repartirá al prorrateo hasta que las marques.' : '');
@@ -206,7 +284,7 @@ async function afRenderLista() {
     try {
         const { data, error } = await supabaseClient
             .from('activos_fijos')
-            .select('id, nombre, categoria, fecha_adquisicion, costo_adquisicion, valor_residual, vida_util_meses, activo, fecha_baja, cuenta_depreciacion_gasto_id')
+            .select('id, nombre, categoria, fecha_adquisicion, costo_adquisicion, valor_residual, vida_util_meses, activo, fecha_baja, cuenta_depreciacion_gasto_id' + (afNuevo ? ', depreciable, area_id, potencia_kw, cantidad, factor_uso' : ''))
             .order('id', { ascending: false });
         if (error) throw error;
         afEtapasPorActivo = new Map();
@@ -234,6 +312,7 @@ async function afRenderLista() {
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
               <th class="p-2">Acción</th>${thOrden(afOrden, 'nombre', 'Nombre')}<th class="p-2">Categoría</th>
               ${thOrden(afOrden, 'fecha', 'Adquisición')}${thOrden(afOrden, 'costo', 'Costo', 'text-right justify-end')}
+              ${afNuevo ? '<th class="p-2">Área</th><th class="p-2 text-right">kW efect.</th><th class="p-2">Depreciación</th>' : ''}
               <th class="p-2 text-right">Vida útil</th><th class="p-2">Etapas (CIF)</th><th class="p-2">Estatus</th>
             </tr></thead>
             <tbody>
@@ -246,9 +325,13 @@ async function afRenderLista() {
                   <td class="p-2 text-slate-100">${esc(a.nombre)}</td>
                   <td class="p-2 text-slate-400">${esc(a.categoria || '—')}</td>
                   <td class="p-2 whitespace-nowrap text-slate-400">${a.fecha_adquisicion || ''}</td>
-                  <td class="p-2 text-right font-mono">${money(a.costo_adquisicion)}</td>
-                  <td class="p-2 text-right font-mono text-slate-400">${a.vida_util_meses}</td>
-                  <td class="p-2 text-xs">${esCuentaCif(a.cuenta_depreciacion_gasto_id)
+                  <td class="p-2 text-right font-mono">${a.costo_adquisicion == null ? '—' : money(a.costo_adquisicion)}</td>
+                  ${afNuevo ? `
+                  <td class="p-2 whitespace-nowrap">${a.area_id ? esc(afAreas.find((x) => x.id === a.area_id)?.codigo || '#' + a.area_id) : '<span class="text-amber-400" title="Sin área no cuenta para la luz">⚠ sin área</span>'}</td>
+                  <td class="p-2 text-right font-mono text-slate-400">${a.potencia_kw == null ? '<span class="text-amber-400" title="Sin potencia no cuenta para la luz">⚠</span>' : (Number(a.potencia_kw) * Number(a.cantidad || 1) * Number(a.factor_uso || 1)).toLocaleString('es-MX', { maximumFractionDigits: 3 })}</td>
+                  <td class="p-2">${a.depreciable ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-sky-300 bg-sky-950/40">Depreciable</span>' : '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-slate-300 bg-slate-800">No depreciable</span>'}</td>` : ''}
+                  <td class="p-2 text-right font-mono text-slate-400">${a.vida_util_meses ?? '—'}</td>
+                  <td class="p-2 text-xs">${(afNuevo && !a.depreciable) ? '<span class="text-slate-600">no aplica</span>' : esCuentaCif(a.cuenta_depreciacion_gasto_id)
                       ? ((afEtapasPorActivo.get(a.id) || []).length ? `<span class="text-emerald-400">${esc(afEtapasPorActivo.get(a.id).join(', '))}</span>` : (afTieneEtapas ? '<span class="text-amber-400" title="Sin etapas no se prorratea">⚠ sin etapas</span>' : '<span class="text-slate-500">—</span>'))
                       : '<span class="text-slate-600">no aplica</span>'}</td>
                   <td class="p-2">${a.activo ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-emerald-300 bg-emerald-950/40">activo</span>' : `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-slate-400 bg-slate-800">de baja${a.fecha_baja ? ' ' + a.fecha_baja : ''}</span>`}</td>
@@ -277,6 +360,16 @@ window.afEditar = async (id) => {
     document.getElementById('afCtaGasto').value = a.cuenta_depreciacion_gasto_id || '';
     document.getElementById('afCtaAcumulada').value = a.cuenta_depreciacion_acumulada_id || '';
     document.getElementById('afNotas').value = a.notas || '';
+    if (afNuevo) {
+        document.getElementById('afArea').value = a.area_id || '';
+        document.getElementById('afTipoCarga').value = a.tipo_carga || 'equipo';
+        document.getElementById('afPot').value = a.potencia_kw ?? '';
+        document.getElementById('afPotU').value = 'kW';
+        document.getElementById('afCant').value = a.cantidad || 1;
+        document.getElementById('afFu').value = a.factor_uso ?? 1;
+        document.querySelectorAll('input[name="afDep"]').forEach((r) => { r.checked = r.value === (a.depreciable ? 'si' : 'no'); });
+        document.getElementById('afDepWrap').classList.toggle('hidden', !a.depreciable);
+    }
     document.querySelectorAll('.afEtapaChk').forEach((c) => { c.checked = false; });
     if (afTieneEtapas) {
         const { data: et } = await supabaseClient.from('activos_fijos_centros').select('centro_costo_id').eq('activo_id', id);

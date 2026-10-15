@@ -6,15 +6,15 @@ import { ordenarCentrosProduccion } from './centros-costo.js';
 //   Subventana con 5 pasos en el orden en que dependen unos de otros:
 //     1 Tu planta (centros de costo y capacidad normal)
 //     2 Áreas físicas (m² y personas)
-//     3 Luz (submedidor o equipos → kW)
+//     3 Luz (submedidor o equipos → kW; los equipos se dan de alta en Activos fijos)
 //     4 Tus gastos (casos prácticos: renta, luz, agua, mantenimiento,
 //       fumigación, calibraciones…) → crea la plantilla de reparto
 //     5 Revisión del mes y simulación
 //   Regla: cada paso pregunta, MUESTRA UN RESUMEN de lo que va a guardar y
 //   solo escribe en la base cuando el usuario confirma.
-//   No usa tablas ni funciones nuevas: escribe en centros_costo,
-//   areas_fisicas(+_cargas), reparto_plantillas(+_lineas) y, si hace falta,
-//   cuentas_contables (cuentas 503.xx nuevas y su cif_tipo).
+//   Escribe en centros_costo, areas_fisicas, activos_fijos(+_centros) (equipos del
+//   paso 3; requiere sql/2026-10-15_equipos_unificados.sql), reparto_plantillas(+_lineas)
+//   y, si hace falta, cuentas_contables (cuentas 503.xx nuevas y su cif_tipo).
 // =====================================================================
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -248,17 +248,18 @@ async function cargarBase() {
     const [ce, ar, ca, kw, ct, pl, bs] = await Promise.all([
         supabaseClient.from('centros_costo').select('*').eq('tipo', 'produccion').eq('activo', true),
         supabaseClient.from('areas_fisicas').select('*').order('codigo'),
-        supabaseClient.from('areas_fisicas_cargas').select('*').order('id'),
+        supabaseClient.from('activos_fijos').select('id, nombre, area_id, tipo_carga, potencia_kw, cantidad, factor_uso, depreciable').eq('activo', true).not('area_id', 'is', null).order('id'),
         supabaseClient.from('v_areas_carga').select('*'),
         supabaseClient.from('cuentas_contables').select('id, codigo, nombre, tipo, nivel, afectable, activa, cif_tipo').eq('activa', true).order('codigo'),
         supabaseClient.from('reparto_plantillas').select('*').order('id'),
         supabaseClient.from('v_bases_prorrateo').select('*'),
     ]);
-    const err = ce.error || ar.error || ca.error || kw.error || ct.error || pl.error || bs.error;
+    S.sinEquipos = !!ca.error;   // falta sql/2026-10-15_equipos_unificados.sql
+    const err = ce.error || ar.error || kw.error || ct.error || pl.error || bs.error;
     if (err) throw err;
     S.centros = ordenarCentrosProduccion(ce.data || []);
     S.areas = ar.data || [];
-    S.cargas = ca.data || [];
+    S.equipos = ca.data || [];
     S.kw = {};
     (kw.data || []).forEach(r => { S.kw[r.area_id] = Number(r.kw_efectivo || 0); });
     S.cuentas = ct.data || [];
@@ -286,7 +287,7 @@ export async function abrirAsistenteProrrateo(paso = 'inicio', onCerrar = null) 
 
     S = {
         modal, paso: 'inicio', fase: {}, aviso: null, onCerrar,
-        centros: [], areas: [], cargas: [], kw: {}, cuentas: [], plantillas: [], bases: [], proveedores: null,
+        centros: [], areas: [], equipos: [], sinEquipos: false, kw: {}, cuentas: [], plantillas: [], bases: [], proveedores: null,
         borr: {}, filasAreas: null, luz: null, caso: null, resp: {}, R: null, sel: {}, rev: null,
     };
     modal.addEventListener('click', onClick);
@@ -371,7 +372,7 @@ function vInicio() {
     const filas = [
         ['centros', '1', 'Tu planta: etapas y capacidad', 'Cuántas personas trabajan en cada etapa (SURT, MEZ, ENV…) y cuántas horas al mes es lo normal.', 'Va primero: el prorrateo compara las horas realmente trabajadas contra esta capacidad para saber cuánto CIF fijo se aplica y cuánto es "capacidad no utilizada".'],
         ['areas', '2', 'Áreas físicas', 'Cada área con sus m², su gente y a qué etapa pertenece (o si es oficina).', 'Va segundo: de aquí salen los porcentajes de renta, agua, vigilancia, internet… y el reparto "planta vs oficina".'],
-        ['luz', '3', 'Luz', 'Si cada área tiene submedidor, o qué equipos tiene y cuánto consumen.', 'Va tercero: la luz se reparte por carga eléctrica, no por espacio.'],
+        ['luz', '3', 'Luz', 'Si cada área tiene submedidor, o qué equipos tiene: los das de alta aquí mismo en Activos fijos (potencia, área y si se deprecian).', 'Va tercero: la luz se reparte por carga eléctrica, no por espacio.'],
         ['casos', '4', 'Tus gastos', 'Casos prácticos: renta, luz, agua, mantenimiento, fumigación, calibraciones… Te hago preguntas y creo la regla de reparto de cada uno.', 'Va cuarto: usa todo lo anterior para calcular los porcentajes.'],
         ['revision', '5', 'Revisión y simulación', 'Qué falta antes de prorratear el mes, y una simulación con un monto de ejemplo.', 'Al final: confirma que todo quedó completo.'],
     ];
@@ -608,55 +609,107 @@ const EQUIPOS_SUG = [
     ['Túnel de termoencogido / vapor', 'equipo'], ['Etiquetadora', 'equipo'], ['Banda transportadora', 'equipo'],
     ['Sistema de agua purificada (ósmosis)', 'equipo'], ['Refrigerador de materia prima', 'equipo'], ['Iluminación', 'iluminacion'],
 ];
-function kwFila(f) { return num(f.v) * ({ kW: 1, HP: 0.746, W: 0.001 }[f.u] || 1) * Math.max(1, num(f.c, 1)) * Math.min(1, Math.max(0.01, num(f.f, 1))); }
+const UNID_KW = { kW: 1, HP: 0.746, W: 0.001 };
+const TIPOS_CARGA = [['equipo', 'Equipo'], ['clima', 'Clima / HVAC'], ['iluminacion', 'Iluminación'], ['otro', 'Otro']];
+const hoyISO = () => new Date().toISOString().slice(0, 10);
+
+function kwFila(f) { return num(f.v) * (UNID_KW[f.u] || 1) * Math.max(1, num(f.c, 1)) * Math.min(1, Math.max(0.01, num(f.f, 1))); }
+const idCuenta = (cod) => ctaPorCodigo(cod)?.id || '';
+// Equipos ya dados de alta en Activos fijos en un área (vigentes)
+const equiposDe = (areaId) => S.equipos.filter(e => e.area_id === areaId);
+const kwEquipo = (e) => Number(e.potencia_kw || 0) * Number(e.cantidad || 1) * Number(e.factor_uso || 1);
+const primeraPalabra = (t) => (String(t).toLowerCase().match(/[a-záéíóúñü]{4,}/) || [''])[0];
+
+function nuevoEquipo(areaId, d = '', t = 'equipo') {
+    const a = S.areas.find(x => x.id === Number(areaId));
+    return {
+        d, t, v: '', u: 'kW', c: 1, f: 1, dep: '', fecha: hoyISO(),
+        costo: '', res: 0, vida: '', ca: idCuenta('152.01'), cg: idCuenta('503.04'), cd: idCuenta('153.01'),
+        et: a?.centro_costo_id ? [a.centro_costo_id] : [],
+    };
+}
 function initLuz() {
     S.luz = {};
     S.areas.filter(a => a.activo).forEach(a => {
         S.luz[a.id] = { modo: a.kwh_mensual != null ? 'submedidor' : 'equipos', kwh: a.kwh_mensual ?? '', nuevas: [] };
     });
 }
+const optsCuenta = (tipo, sel) => {
+    const lista = S.cuentas.filter(c => c.afectable && (tipo === 'gasto' ? (c.tipo === 'gasto' || c.codigo.startsWith('503.')) : c.tipo === 'activo'));
+    return `<option value="">Selecciona…</option>` + lista.map(c => `<option value="${c.id}"${Number(sel) === c.id ? ' selected' : ''}>${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
+};
+// Una tarjeta de alta de equipo (borrador). Todo se guarda en Activos fijos al confirmar.
+function htmlBorradorEquipo(a, f, i) {
+    const k = `${a.id}_${i}`;
+    return `
+    <div class="border border-sky-900 bg-sky-950/10 rounded-xl p-3" data-luz-fila="${i}">
+      <div class="flex flex-wrap items-end gap-2">
+        <label class="text-[11px] text-slate-400">¿Qué equipo es?<input class="${INPUT} block w-56 text-xs lz-d" placeholder="Ej. Llenadora de pistón" value="${esc(f.d)}"></label>
+        <label class="text-[11px] text-slate-400">Tipo<select class="${INPUT} block text-xs lz-t">${TIPOS_CARGA.map(([v, l]) => `<option value="${v}"${f.t === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label class="text-[11px] text-slate-400">Potencia de placa<span class="flex gap-1"><input type="number" min="0" step="0.001" class="${INPUT} w-24 text-right font-mono text-xs lz-v" placeholder="0 si no usa luz" value="${f.v}"><select class="${INPUT} text-xs lz-u">${['kW', 'HP', 'W'].map(u => `<option${f.u === u ? ' selected' : ''}>${u}</option>`).join('')}</select></span></label>
+        <label class="text-[11px] text-slate-400">Piezas iguales<input type="number" min="1" step="1" class="${INPUT} block w-16 text-right font-mono text-xs lz-c" value="${f.c}"></label>
+        <label class="text-[11px] text-slate-400" title="Fracción del tiempo que realmente demanda (1 = siempre a plena carga)">Uso (0.01–1)<input type="number" min="0.01" max="1" step="0.01" class="${INPUT} block w-16 text-right font-mono text-xs lz-f" value="${f.f}"></label>
+        <label class="text-[11px] text-slate-400">Fecha de alta<input type="date" class="${INPUT} block text-xs lz-fecha" value="${f.fecha}"></label>
+        <button type="button" data-act="luz-del" data-area="${a.id}" data-i="${i}" class="text-rose-400 text-xs hover:underline pb-2">Quitar</button>
+      </div>
+      <div class="mt-2 text-[11px] text-slate-300 font-medium">¿Este equipo se deprecia?</div>
+      <div class="flex flex-wrap gap-4 mt-1 text-xs">
+        <label class="flex items-start gap-1.5 max-w-xs"><input type="radio" class="mt-0.5 lz-dep" name="apEqDep_${k}" value="si" data-eqdep ${f.dep === 'si' ? 'checked' : ''}> <span><b>Depreciable</b> — lo compraste y se desgasta (maquinaria). Pide costo y vida útil.</span></label>
+        <label class="flex items-start gap-1.5 max-w-xs"><input type="radio" class="mt-0.5 lz-dep" name="apEqDep_${k}" value="no" data-eqdep ${f.dep === 'no' ? 'checked' : ''}> <span><b>No depreciable</b> — solo lo controlas (dónde está y cuánta luz usa).</span></label>
+      </div>
+      ${f.dep === 'si' ? `
+      <div class="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 border-t border-slate-800 pt-2">
+        <label class="text-[11px] text-slate-400">Costo de adquisición<input type="number" min="0" step="0.01" class="${INPUT} block w-full text-right font-mono text-xs lz-costo" value="${f.costo}"></label>
+        <label class="text-[11px] text-slate-400">Valor residual<input type="number" min="0" step="0.01" class="${INPUT} block w-full text-right font-mono text-xs lz-res" value="${f.res}"></label>
+        <label class="text-[11px] text-slate-400">Vida útil (meses)<input type="number" min="1" step="1" class="${INPUT} block w-full text-right font-mono text-xs lz-vida" placeholder="Ej. 120" value="${f.vida}"></label>
+        <div></div>
+        <label class="text-[11px] text-slate-400">Cuenta de activo<select class="${INPUT} block w-full text-xs lz-ca">${optsCuenta('activo', f.ca)}</select></label>
+        <label class="text-[11px] text-slate-400">Cuenta de gasto de depreciación<select class="${INPUT} block w-full text-xs lz-cg">${optsCuenta('gasto', f.cg)}</select></label>
+        <label class="text-[11px] text-slate-400">Depreciación acumulada<select class="${INPUT} block w-full text-xs lz-cd">${optsCuenta('activo', f.cd)}</select></label>
+        <div class="text-[11px] text-slate-400">¿En qué etapas se usa?
+          <div class="flex flex-wrap gap-x-3 gap-y-1 mt-1">${S.centros.map(c => `<label class="flex items-center gap-1 text-xs text-slate-200"><input type="checkbox" class="lz-et accent-emerald-500" value="${c.id}" ${f.et.includes(c.id) ? 'checked' : ''}> ${esc(c.codigo)}</label>`).join('')}</div></div>
+      </div>
+      <div class="text-[10px] text-slate-500 mt-1">Su depreciación mensual es CIF fijo: se reparte en partes iguales entre las etapas marcadas (se precargó la etapa de esta área).</div>` : ''}
+      ${f.dep === '' ? '<div class="text-[10px] text-amber-400 mt-1">Elige si es Depreciable o No depreciable para poder guardarlo.</div>' : ''}
+    </div>`;
+}
 function vLuz() {
     if (fase() === 'r') return rLuz();
+    if (S.sinEquipos) return `<h3 class="text-base font-semibold text-sky-300 mb-1">3 · Luz</h3><div class="border border-amber-800 bg-amber-950/20 rounded-lg p-3 text-amber-300 text-xs">Falta correr <span class="font-mono">sql/2026-10-15_equipos_unificados.sql</span> en Supabase (los equipos ahora se dan de alta en Activos fijos). Córrelo y vuelve a abrir el asistente.</div>`;
     if (!S.luz) initLuz();
     const act = S.areas.filter(a => a.activo);
     if (!act.length) return `<p class="text-amber-400">Primero captura las áreas (paso 2).</p>`;
     return `
       <h3 class="text-base font-semibold text-sky-300 mb-1">3 · Luz</h3>
-      <p class="text-xs text-slate-400 mb-1">La luz se reparte según cuánta electricidad consume cada área. Para cada una dime: <b>¿tiene su propio medidor (submedidor)?</b> Si no, captura sus equipos con la potencia de la placa.</p>
-      <p class="text-xs text-slate-500 mb-3">Mejor todas las áreas con el mismo método: mezclar áreas con medidor (kWh reales) y áreas por equipos (kW de placa) distorsiona la comparación.</p>
+      <p class="text-xs text-slate-400 mb-1">La luz se reparte según cuánta electricidad consume cada área. Para cada una dime: <b>¿tiene su propio medidor (submedidor)?</b> Si no, <b>da de alta aquí mismo sus equipos</b>: quedan registrados en <b>Activos fijos</b> (con su potencia, su área y si se deprecian) y de ahí sale la carga eléctrica.</p>
+      <p class="text-xs text-slate-500 mb-3">No puedo guardar el paso si un área de producción sin submedidor no tiene al menos un equipo dado de alta (una luminaria también cuenta: usa el tipo Iluminación).</p>
       <div class="space-y-3">
         ${act.map(a => {
             const L = S.luz[a.id];
-            const exist = S.cargas.filter(c => c.area_id === a.id);
+            const exist = equiposDe(a.id);
+            const textos = [...exist.map(e => e.nombre), ...L.nuevas.map(f => f.d)].map(t => String(t).toLowerCase());
             return `
             <div class="border border-slate-800 rounded-xl p-3 bg-slate-950" data-luz-area="${a.id}">
               <div class="font-semibold text-slate-100">${esc(a.codigo)} · ${esc(a.nombre)} <span class="text-xs font-normal text-slate-500">${a.rol === 'produccion' ? 'producción' : 'oficina'}</span></div>
               <div class="flex flex-wrap gap-4 mt-2 text-xs">
-                <label class="flex items-center gap-1"><input type="radio" name="apLuzModo_${a.id}" value="equipos" data-luzmodo ${L.modo === 'equipos' ? 'checked' : ''}> No tiene medidor propio → capturo sus equipos</label>
+                <label class="flex items-center gap-1"><input type="radio" name="apLuzModo_${a.id}" value="equipos" data-luzmodo ${L.modo === 'equipos' ? 'checked' : ''}> No tiene medidor propio → doy de alta sus equipos</label>
                 <label class="flex items-center gap-1"><input type="radio" name="apLuzModo_${a.id}" value="submedidor" data-luzmodo ${L.modo === 'submedidor' ? 'checked' : ''}> Sí tiene submedidor</label>
               </div>
               ${L.modo === 'submedidor' ? `
                 <label class="block text-xs text-slate-400 mt-2">¿Cuántos kWh consume al mes? (de los últimos recibos o lecturas)
                   <input type="number" min="0" step="0.01" class="${INPUT} w-40 mt-1 text-right font-mono" data-kwh value="${L.kwh}"></label>`
               : `
-                ${exist.length ? `<div class="mt-2 text-[11px] text-slate-500">Ya capturados (${exist.length}): ${exist.map(c => esc(c.descripcion)).join(', ')} → <b class="text-emerald-400">${fnum(S.kw[a.id] || 0, 3)} kW</b>. Se editan en Áreas y bases de prorrateo.</div>` : `<div class="mt-2 text-[11px] text-amber-400">Esta área no tiene equipos capturados: pesará 0 en el reparto de luz.</div>`}
-                ${L.nuevas.length ? `<div class="mt-2 space-y-1">${L.nuevas.map((f, i) => `
-                  <div class="flex flex-wrap items-center gap-1" data-luz-fila="${i}">
-                    <input class="${INPUT} w-48 text-xs lz-d" placeholder="Equipo" value="${esc(f.d)}">
-                    <select class="${INPUT} text-xs lz-t">${[['equipo', 'Equipo'], ['clima', 'Clima / HVAC'], ['iluminacion', 'Iluminación'], ['otro', 'Otro']].map(([v, l]) => `<option value="${v}"${f.t === v ? ' selected' : ''}>${l}</option>`).join('')}</select>
-                    <input type="number" min="0" step="0.001" class="${INPUT} w-20 text-right font-mono text-xs lz-v" placeholder="Potencia" value="${f.v}">
-                    <select class="${INPUT} text-xs lz-u">${['kW', 'HP', 'W'].map(u => `<option${f.u === u ? ' selected' : ''}>${u}</option>`).join('')}</select>
-                    <span class="text-[11px] text-slate-500">×</span>
-                    <input type="number" min="1" step="1" class="${INPUT} w-14 text-right font-mono text-xs lz-c" title="Cantidad" value="${f.c}">
-                    <span class="text-[11px] text-slate-500">uso</span>
-                    <input type="number" min="0.01" max="1" step="0.01" class="${INPUT} w-16 text-right font-mono text-xs lz-f" title="Fracción del tiempo que realmente demanda (1 = siempre a plena carga)" value="${f.f}">
-                    <button type="button" data-act="luz-del" data-area="${a.id}" data-i="${i}" class="text-rose-400 text-xs hover:underline">Quitar</button>
-                  </div>`).join('')}
+                ${exist.length ? `
+                <div class="mt-2 text-[11px] text-slate-500">Ya dados de alta en Activos fijos (${exist.length}) → <b class="text-emerald-400">${fnum(S.kw[a.id] || 0, 3)} kW</b>:</div>
+                <ul class="mt-1 text-xs text-slate-300 space-y-0.5">${exist.map(e => `<li>✅ ${esc(e.nombre)} <span class="text-slate-500">· ${e.potencia_kw == null ? 'sin potencia' : fnum(kwEquipo(e), 3) + ' kW'} · ${e.depreciable ? 'Depreciable' : 'No depreciable'}</span></li>`).join('')}</ul>
+                <div class="text-[10px] text-slate-600 mt-1">Para corregir uno, edítalo en Activos fijos.</div>`
+                : `<div class="mt-2 text-[11px] text-amber-400">❌ Esta área todavía no tiene equipos dados de alta.</div>`}
+                ${L.nuevas.length ? `<div class="mt-2 space-y-2">${L.nuevas.map((f, i) => htmlBorradorEquipo(a, f, i)).join('')}
                   <div class="text-[11px] text-slate-500">Potencia: la de la placa del equipo (HP × 0.746 = kW). Uso: fracción del tiempo que realmente demanda (un túnel de vapor que enciende 3 h de un turno de 10 ≈ 0.30).</div></div>` : ''}
                 <div class="mt-2 flex flex-wrap gap-1 items-center">
-                  ${btn('luz-add', '＋ Agregar equipo', BTN_SEC + ' !py-1 !px-3 text-xs', `data-area="${a.id}"`)}
-                  <span class="text-[10px] text-slate-600">Sugeridos:</span>
-                  ${EQUIPOS_SUG.map(([d], i) => `<button type="button" data-act="luz-sug" data-area="${a.id}" data-i="${i}" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-0.5 rounded-full">${esc(d)}</button>`).join('')}
+                  ${btn('luz-add', '＋ Dar de alta un equipo', BTN_SEC + ' !py-1 !px-3 text-xs', `data-area="${a.id}"`)}
+                  <span class="text-[10px] text-slate-600">Equipos típicos (✅ = ya hay uno parecido):</span>
+                  ${EQUIPOS_SUG.map(([d], i) => `<button type="button" data-act="luz-sug" data-area="${a.id}" data-i="${i}" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-0.5 rounded-full">${textos.some(t => t.includes(primeraPalabra(d))) ? '✅ ' : ''}${esc(d)}</button>`).join('')}
                 </div>`}
             </div>`;
         }).join('')}
@@ -671,17 +724,60 @@ function leerLuzDOM() {
         if (modo) L.modo = modo.value;
         const kwh = el.querySelector('[data-kwh]');
         if (kwh) L.kwh = kwh.value;
-        L.nuevas = [...el.querySelectorAll('[data-luz-fila]')].map(r => ({
-            d: r.querySelector('.lz-d').value.trim(), t: r.querySelector('.lz-t').value, v: r.querySelector('.lz-v').value,
-            u: r.querySelector('.lz-u').value, c: r.querySelector('.lz-c').value, f: r.querySelector('.lz-f').value,
-        }));
+        const previos = L.nuevas;
+        L.nuevas = [...el.querySelectorAll('[data-luz-fila]')].map((r, i) => {
+            const g = (c) => r.querySelector(c);
+            const prev = previos[i] || {};
+            // el bloque de depreciación solo existe en pantalla si eligió "Depreciable": si no está, conserva lo precargado
+            const val = (c, campo, def = '') => (g(c) ? g(c).value : (prev[campo] ?? def));
+            const tieneDep = !!g('.lz-ca');
+            return {
+                d: val('.lz-d', 'd').trim(), t: val('.lz-t', 't', 'equipo'), v: val('.lz-v', 'v'), u: val('.lz-u', 'u', 'kW'), c: val('.lz-c', 'c', 1), f: val('.lz-f', 'f', 1),
+                dep: r.querySelector('.lz-dep:checked')?.value || '', fecha: val('.lz-fecha', 'fecha') || hoyISO(),
+                costo: val('.lz-costo', 'costo'), res: val('.lz-res', 'res', 0), vida: val('.lz-vida', 'vida'),
+                ca: val('.lz-ca', 'ca'), cg: val('.lz-cg', 'cg'), cd: val('.lz-cd', 'cd'),
+                et: tieneDep ? [...r.querySelectorAll('.lz-et:checked')].map(c => Number(c.value)) : (prev.et || []),
+            };
+        });
     });
+}
+// null si el borrador está completo; si no, qué le falta
+function errorEquipo(f) {
+    if (!f.d) return 'falta el nombre del equipo';
+    if (f.v === '' || !(num(f.v, -1) >= 0)) return 'falta la potencia de placa (pon 0 si no usa electricidad)';
+    if (!(num(f.c) >= 1)) return 'las piezas iguales deben ser al menos 1';
+    if (!(num(f.f) > 0 && num(f.f) <= 1)) return 'el uso debe estar entre 0.01 y 1';
+    if (!f.dep) return 'indica si es Depreciable o No depreciable';
+    if (f.dep === 'si') {
+        if (!(num(f.costo) > 0)) return 'como es depreciable falta el costo de adquisición';
+        if (!(num(f.vida) > 0)) return 'como es depreciable falta la vida útil en meses';
+        if (!f.ca || !f.cg || !f.cd) return 'como es depreciable faltan sus tres cuentas (activo, gasto y depreciación acumulada)';
+        if (String(ctaLbl(f.cg)).startsWith('503.') && !f.et.length) return 'marca en qué etapas se usa (si no, su depreciación no se prorratea)';
+    }
+    return null;
+}
+// Un renglón del borrador cuenta si el usuario empezó a llenarlo
+const tocado = (f) => !!(f.d || f.v !== '' || f.dep);
+// Errores que impiden guardar el paso
+function erroresLuz() {
+    const err = [];
+    for (const a of S.areas.filter(x => x.activo)) {
+        const L = S.luz[a.id];
+        if (L.modo === 'submedidor') { if (!(num(L.kwh) > 0)) err.push(`${a.codigo}: captura los kWh del submedidor.`); continue; }
+        for (const f of L.nuevas.filter(tocado)) {
+            const e = errorEquipo(f);
+            if (e) err.push(`${a.codigo} · ${f.d || 'equipo sin nombre'}: ${e}.`);
+        }
+        const enCurso = L.nuevas.filter(tocado);
+        if (a.rol === 'produccion' && !enCurso.length && equiposDe(a.id).length === 0) err.push(`${a.codigo}: da de alta al menos un equipo en Activos fijos (o marca que tiene submedidor). Si solo hay luminarias, usa el tipo Iluminación.`);
+    }
+    return err;
 }
 function luzCalc() {
     const act = S.areas.filter(a => a.activo);
     const filas = act.map(a => {
         const L = S.luz[a.id];
-        const nuevasValidas = L.modo === 'equipos' ? L.nuevas.filter(f => f.d && num(f.v) > 0) : [];
+        const nuevasValidas = L.modo === 'equipos' ? L.nuevas.filter(f => tocado(f) && !errorEquipo(f)) : [];
         const kw = L.modo === 'submedidor' ? num(L.kwh) : (S.kw[a.id] || 0) + nuevasValidas.reduce((s, f) => s + kwFila(f), 0);
         return { a, L, kw, nuevasValidas };
     });
@@ -695,21 +791,25 @@ function rLuz() {
     const avisos = [];
     if (mezcla) avisos.push('Mezclas áreas con submedidor (kWh) y áreas por equipos (kW): la comparación se distorsiona. Mide todas con el mismo método.');
     filas.filter(x => x.kw === 0).forEach(x => avisos.push(`${x.a.codigo} quedó en 0: no pesará en el reparto de luz.`));
+    const nuevos = filas.reduce((s, x) => s + x.nuevasValidas.length, 0);
     return `
       <h3 class="text-base font-semibold text-sky-300 mb-1">3 · Resumen antes de guardar</h3>
       ${avisos.length ? `<div class="mb-3 space-y-1">${avisos.map(a => `<div class="text-xs text-amber-400">⚠ ${esc(a)}</div>`).join('')}</div>` : ''}
       <div class="overflow-x-auto"><table class="w-full text-xs">
-        <thead><tr class="text-left text-slate-500 border-b border-slate-800"><th class="p-2">Área</th><th class="p-2">Método</th><th class="p-2 text-right">Consumo base</th><th class="p-2 text-right">% de la luz</th><th class="p-2">Se agrega</th></tr></thead>
+        <thead><tr class="text-left text-slate-500 border-b border-slate-800"><th class="p-2">Área</th><th class="p-2">Método</th><th class="p-2 text-right">Consumo base</th><th class="p-2 text-right">% de la luz</th><th class="p-2">Se da de alta en Activos fijos</th></tr></thead>
         <tbody>${filas.map(x => `<tr class="border-b border-slate-900">
           <td class="p-2 font-mono text-slate-200">${esc(x.a.codigo)}</td>
           <td class="p-2">${x.L.modo === 'submedidor' ? 'Submedidor' : 'Equipos'}</td>
           <td class="p-2 text-right font-mono">${fnum(x.kw, 3)} ${x.L.modo === 'submedidor' ? 'kWh' : 'kW'}</td>
           <td class="p-2 text-right font-mono text-slate-400">${tot ? pct(x.kw / tot) : '—'}</td>
-          <td class="p-2 text-slate-400">${x.nuevasValidas.length ? x.nuevasValidas.map(f => esc(f.d)).join(', ') : '—'}</td></tr>`).join('')}</tbody>
+          <td class="p-2 text-slate-400">${x.nuevasValidas.length ? x.nuevasValidas.map(f => `${esc(f.d)} <span class="text-slate-600">(${f.dep === 'si' ? 'depreciable · ' + money(num(f.costo)) : 'no depreciable'})</span>`).join('<br>') : '—'}</td></tr>`).join('')}</tbody>
         <tfoot><tr class="border-t-2 border-slate-700"><td class="p-2 font-semibold" colspan="3">Producción vs oficina</td><td class="p-2 text-right font-mono text-emerald-400">${tot ? pct(prod / tot) : '—'} producción</td><td></td></tr></tfoot></table></div>
+      ${nuevos ? tip(`Se darán de alta ${nuevos} equipo(s) en Activos fijos. Los depreciables empezarán a depreciarse desde su fecha de alta (aplica la depreciación en Activos fijos → Depreciación del mes).`) : ''}
       ${barraBotones(btn('volver', '← Corregir', BTN_SEC), btn('luz-guardar', '✅ Confirmar y guardar', BTN_OK))}`;
 }
 async function guardarLuz() {
+    const errores = erroresLuz();
+    if (errores.length) throw new Error(errores[0]);
     const { filas } = luzCalc();
     for (const x of filas) {
         const nuevoKwh = x.L.modo === 'submedidor' ? num(x.L.kwh) : null;
@@ -718,14 +818,26 @@ async function guardarLuz() {
             const { error } = await supabaseClient.from('areas_fisicas').update({ kwh_mensual: nuevoKwh }).eq('id', x.a.id);
             if (error) throw error;
         }
-        if (x.nuevasValidas.length) {
-            const rows = x.nuevasValidas.map(f => ({
-                area_id: x.a.id, tipo: f.t, descripcion: f.d,
-                kw_unitario: Math.round(num(f.v) * ({ kW: 1, HP: 0.746, W: 0.001 }[f.u] || 1) * 1000) / 1000,
+        for (const f of x.nuevasValidas) {
+            const dep = f.dep === 'si';
+            const row = {
+                nombre: f.d, categoria: dep ? 'Maquinaria y equipo' : 'Equipo controlado', fecha_adquisicion: f.fecha || hoyISO(),
+                depreciable: dep, area_id: x.a.id, tipo_carga: f.t,
+                potencia_kw: Math.round(num(f.v) * (UNID_KW[f.u] || 1) * 1000) / 1000,
                 cantidad: Math.max(1, Math.round(num(f.c, 1))), factor_uso: Math.min(1, Math.max(0.01, num(f.f, 1))),
-            }));
-            const { error } = await supabaseClient.from('areas_fisicas_cargas').insert(rows);
-            if (error) throw error;
+                costo_adquisicion: dep ? num(f.costo) : null, valor_residual: dep ? num(f.res) : 0, vida_util_meses: dep ? Math.round(num(f.vida)) : null,
+                cuenta_activo_id: dep ? Number(f.ca) : null, cuenta_depreciacion_gasto_id: dep ? Number(f.cg) : null,
+                cuenta_depreciacion_acumulada_id: dep ? Number(f.cd) : null,
+            };
+            const ins = await supabaseClient.from('activos_fijos').insert([row]).select('id').single();
+            if (ins.error) throw ins.error;
+            if (dep && f.et.length) {
+                const et = await supabaseClient.from('activos_fijos_centros').insert(f.et.map(c => ({ activo_id: ins.data.id, centro_costo_id: c })));
+                if (et.error) {
+                    await supabaseClient.from('activos_fijos').delete().eq('id', ins.data.id);
+                    throw new Error('No se pudieron guardar las etapas de ' + f.d + ': ' + et.error.message + ' (¿falta sql/2026-10-14_depreciacion_al_prorrateo.sql?)');
+                }
+            }
         }
     }
     S.luz = null;
@@ -765,8 +877,8 @@ function vDeprec(c) {
       <h3 class="text-base font-semibold text-sky-300 mb-1">${c.i} ${c.n}</h3>
       <p class="text-xs text-slate-400 mb-2">La depreciación se calcula en <b>Activos fijos</b> (línea recta, NIF C-6). La de la maquinaria productiva es costo indirecto de fabricación <b>fijo</b>: al hacer el prorrateo del mes se reparte <b>en partes iguales entre las etapas</b> donde marques que se usa la máquina, y de ahí a las órdenes por horas contra la capacidad normal.</p>
       <ol class="list-decimal pl-5 text-xs text-slate-300 space-y-1 mb-3">
-        <li>En Activos fijos, da de alta la máquina eligiendo como cuenta de gasto <b>503.04 Depreciación de maquinaria y equipo</b>.</li>
-        <li>Marca las etapas donde se usa (ej. una llenadora: MEZ y ENV).</li>
+        <li>Da de alta la máquina en el <b>paso 3 · Luz</b> de este asistente (o en Activos fijos): elígela <b>Depreciable</b> y pon su costo y vida útil; la cuenta de gasto es <b>503.04 Depreciación de maquinaria y equipo</b>.</li>
+        <li>Marca las etapas donde se usa (ej. una llenadora: MEZ y ENV). Si es <b>No depreciable</b> solo cuenta para la luz y no genera depreciación.</li>
         <li>Cada mes, aplica la depreciación y luego el prorrateo: ya entra sola.</li>
       </ol>
       <div id="apDeprecCuerpo" class="text-xs text-slate-500">Revisando tus activos…</div>
@@ -1181,14 +1293,19 @@ async function onClick(e) {
             await conGuardado(guardarAreas, '✅ Áreas guardadas.', () => { S.paso = 'luz'; S.luz = null; pintar(); });
             return;
 
-        case 'luz-add': leerLuzDOM(); S.luz[b.dataset.area].nuevas.push({ d: '', t: 'equipo', v: '', u: 'kW', c: 1, f: 1 }); pintar(true); return;
+        case 'luz-add': leerLuzDOM(); S.luz[b.dataset.area].nuevas.push(nuevoEquipo(b.dataset.area)); pintar(true); return;
         case 'luz-sug': {
             leerLuzDOM();
             const [d, t] = EQUIPOS_SUG[Number(b.dataset.i)];
-            S.luz[b.dataset.area].nuevas.push({ d, t, v: '', u: 'kW', c: 1, f: 1 }); pintar(true); return;
+            S.luz[b.dataset.area].nuevas.push(nuevoEquipo(b.dataset.area, d, t)); pintar(true); return;
         }
         case 'luz-del': leerLuzDOM(); S.luz[b.dataset.area].nuevas.splice(Number(b.dataset.i), 1); pintar(true); return;
-        case 'luz-resumen': leerLuzDOM(); setFase('r'); pintar(); return;
+        case 'luz-resumen': {
+            leerLuzDOM();
+            const errores = erroresLuz();
+            if (errores.length) { msg('err', errores.length > 1 ? `${errores[0]} (y ${errores.length - 1} más por completar)` : errores[0]); return; }
+            setFase('r'); pintar(); return;
+        }
         case 'luz-guardar':
             await conGuardado(guardarLuz, '✅ Datos de luz guardados.', () => { S.paso = 'casos'; S.caso = null; pintar(); });
             return;
@@ -1226,7 +1343,7 @@ function onChange(e) {
         pintar(true);
         return;
     }
-    if (t.matches('[data-luzmodo]')) { leerLuzDOM(); pintar(true); return; }
+    if (t.matches('[data-luzmodo]') || t.matches('[data-eqdep]')) { leerLuzDOM(); pintar(true); return; }
     if (t.id === 'apRevMes') { cargarRevision(); return; }
 }
 
