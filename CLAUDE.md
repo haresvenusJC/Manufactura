@@ -6,6 +6,11 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/requisiciones-compra.js`, `css/ui-moderno.css`, `index.html`, `version.json`, `CLAUDE.md`. **Requisiciones: columna "Orden de Compra" solo con folios + acciones en "⋯"** (pedido del usuario
+  2026-10-15): se quitó la fila "Motivo: …" de rechazadas y canceladas (el motivo se conserva en el detalle); "Orden de Compra" (encabezado y celdas centrados) solo lleva el folio de la ODC; las acciones de una
+  pendiente (Autorizar/Editar/Rechazar/Cancelar) y "Marcar cancelada" pasaron a una columna nueva "Acciones" con botón "⋯" que despliega un menú (`reqMostrarMenuAcciones`, `#reqAccMenu`). **Botones:** esquinas
+  de 12 px en vez de píldora (`border-radius: var(--r-sm)` para todo `button` salvo `.text-left`/`.w-full`; los temas Mac y Claro Ice ya tenían las suyas) y bisel casi plano (brillo .04/.10, canto 1 px, sombra corta).
+  `?v=` CSS → `20261015160000`. Pendiente: que el usuario revise cómo quedó la forma de los botones/chips en varias pantallas y decida si el menú "⋯" se queda o prefiere botones visibles.
 - Archivos tocados (lo último): `js/requisiciones-compra.js`, `version.json`, `CLAUDE.md`. **Requisiciones: encabezados.** Columna "Folio" → **"Requisición"**; columna "Acción" → **"Orden de Compra"** en dos líneas
   (muestra solo el folio de la ODC; anchos 11/9/14/12/22/10/11/11 %). **Pendiente de decisión del usuario ("al rato reviso"):** las requisiciones pendientes guardan en esa misma celda sus botones
   (Autorizar/Editar/Rechazar/Cancelar), que con la columna angosta se acomodan en dos renglones bajo un encabezado "Orden de Compra" — opciones: (1) columna aparte "Acciones" solo para pendientes,
