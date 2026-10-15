@@ -110,8 +110,8 @@ function inyectarEstiloSemaforo() {
     const st = document.createElement('style');
     st.id = 'sv-semaforo-css';
     st.textContent = `
-.sv-semaforo { display:inline-flex; align-items:center; gap:8px; margin-right:12px; flex-shrink:0; }
-.sv-semaforo button.sv-dot { width:13px !important; height:13px !important; min-width:13px; padding:0 !important; margin:0 !important;
+.sv-semaforo { display:inline-flex; align-items:center; align-self:center; gap:9px; margin:0 12px 0 0; line-height:1; flex-shrink:0; }
+.sv-semaforo button.sv-dot { width:15px !important; height:15px !important; min-width:15px; padding:0 !important; margin:0 !important;
     border:0 !important; border-radius:50% !important; background-image:none !important; box-shadow:inset 0 0 0 .5px rgba(0,0,0,.28) !important;
     transform:none !important; filter:none !important; text-shadow:none !important; cursor:pointer; position:relative; font-size:0; }
 .sv-semaforo button.sv-dot:hover { transform:none !important; filter:brightness(1.08) !important; }
@@ -119,7 +119,7 @@ function inyectarEstiloSemaforo() {
     font:700 9px/1 -apple-system, "Segoe UI", sans-serif; color:rgba(0,0,0,.62); opacity:0; }
 .sv-semaforo:hover button.sv-dot::after { opacity:1; }
 .sv-rojo { background-color:#ff5f57 !important; } .sv-amarillo { background-color:#febc2e !important; } .sv-verde { background-color:#28c840 !important; }
-@media (pointer:coarse) { .sv-semaforo button.sv-dot { width:18px !important; height:18px !important; min-width:18px; } .sv-semaforo { gap:10px; } }`;
+@media (pointer:coarse) { .sv-semaforo button.sv-dot { width:21px !important; height:21px !important; min-width:21px; } .sv-semaforo { gap:11px; } }`;
     document.head.appendChild(st);
 }
 
@@ -192,18 +192,12 @@ function agregarSemaforo(panel, asa) {
     rojo.addEventListener('click', (ev) => { ev.stopPropagation(); cerrarSubventana(panel, fila, original); });
     amarillo.addEventListener('click', (ev) => { ev.stopPropagation(); alternarMinimizado(panel, fila, amarillo); });
     verde.addEventListener('click', (ev) => { ev.stopPropagation(); alternarMaximizado(panel, verde); });
-    grupo.append(rojo, amarillo, verde);
+    grupo.append(verde, amarillo, rojo);
 
-    // El semáforo y el título quedan juntos a la izquierda (la fila reparte con justify-between).
-    const primero = fila.firstElementChild;
-    if (primero && fila.classList.contains('justify-between')) {
-        const envoltorio = document.createElement('div');
-        envoltorio.className = 'flex items-center min-w-0';
-        fila.insertBefore(envoltorio, primero);
-        envoltorio.append(grupo, primero);
-    } else {
-        fila.insertBefore(grupo, fila.firstChild);
-    }
+    // El semáforo va a la DERECHA de la barra de título, en el orden verde · amarillo · rojo (pedido del usuario 2026-10-15).
+    grupo.style.margin = '0 0 0 12px';
+    fila.style.alignItems = 'center';
+    fila.appendChild(grupo);
 }
 
 // Manija en la esquina inferior derecha para estirar el panel a mano.

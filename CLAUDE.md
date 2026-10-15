@@ -6,6 +6,7 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/requisiciones-compra.js`, `js/subventanas-movibles.js`, `version.json`, `CLAUDE.md`. **Ajustes 2026-10-15 (3 pedidos del usuario):** (1) buscador de producto de la requisición con teclado: ↓/↑ mueven, Enter elige y pasa a Cantidad, Esc cierra; (2) costo estimado se muestra con 4 decimales (`425.0000`) desde que se agrega la partida y al editarlo; (3) el semáforo de las subventanas pasó a la DERECHA de la barra de título en el orden verde · amarillo · rojo, 15 % más grande (15 px; 21 px táctil), centrado con el título. Confirmado por el usuario: la advertencia de MOQ es para cantidad MENOR al MOQ. Pendiente: probar en el navegador (Ctrl+Shift+R) en varias subventanas.
 - Archivos tocados (lo último): `js/requisiciones-compra.js`, `version.json`, `CLAUDE.md`. **Requisición: MOQ pasa a COLUMNA y se quita ✎** (pedido del usuario 2026-10-15). (1) Se quitó el botón ✎ de cada partida
   (y `reqEditarPartida`/`reqCostoRetorno`): para cambiar algo se quita la partida con ✕ y se vuelve a "Solicitar". (2) Nueva columna **MOQ** en la tabla de partidas (`reqHtmlMoq`): muestra el MOQ del producto con su unidad
   y lo analiza contra la cantidad solicitada — cantidad MENOR al MOQ → advertencia "puede ser más difícil o no ejecutable por las políticas de venta del proveedor" + botón "Pedir X"; cumple → "✓ Cumple" (y sobrante si

@@ -375,6 +375,31 @@ function reqWireFormulario() {
             };
         });
     });
+    // Teclado en la lista de sugerencias: ↓/↑ mueven la selección, Enter elige (y pasa a Cantidad), Esc cierra.
+    let reqSugIdx = -1;
+    const reqSugItems = () => [...sug.querySelectorAll('.req-sug')];
+    const reqSugMarcar = (i) => {
+        const items = reqSugItems();
+        if (!items.length) { reqSugIdx = -1; return; }
+        reqSugIdx = (i + items.length) % items.length;
+        items.forEach((el, k) => {
+            const on = k === reqSugIdx;
+            el.classList.toggle('bg-emerald-600', on);
+            el.classList.toggle('text-white', on);
+            if (on) el.scrollIntoView({ block: 'nearest' });
+        });
+    };
+    inp.addEventListener('input', () => { reqSugIdx = -1; });
+    inp.addEventListener('keydown', (e) => {
+        const abierta = !sug.classList.contains('hidden') && reqSugItems().length;
+        if (e.key === 'ArrowDown' && abierta) { e.preventDefault(); reqSugMarcar(reqSugIdx + 1); }
+        else if (e.key === 'ArrowUp' && abierta) { e.preventDefault(); reqSugMarcar(reqSugIdx < 0 ? -1 : reqSugIdx - 1); }
+        else if (e.key === 'Enter' && abierta) {
+            e.preventDefault();
+            reqSugItems()[reqSugIdx < 0 ? 0 : reqSugIdx].click();
+            document.getElementById('reqProdCant')?.focus();
+        } else if (e.key === 'Escape' && abierta) { e.preventDefault(); e.stopPropagation(); sug.classList.add('hidden'); }
+    });
     document.addEventListener('click', (e) => {
         if (!inp.contains(e.target) && !sug.contains(e.target)) sug.classList.add('hidden');
     });
@@ -500,7 +525,7 @@ function reqRenderPartidas() {
             </td>
             <td class="p-2 text-right whitespace-nowrap"><span class="relative inline-block">
                 <span class="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none">$</span>
-                <input type="number" step="0.0001" min="0" title="Hasta 4 decimales (diezmilésimas)" class="req-part-costo w-28 bg-slate-900 border border-slate-800 rounded pl-5 pr-2 py-1 text-right font-mono text-slate-100" value="${Number(p.costo || 0)}">
+                <input type="number" step="0.0001" min="0" title="Hasta 4 decimales (diezmilésimas)" class="req-part-costo w-28 bg-slate-900 border border-slate-800 rounded pl-5 pr-2 py-1 text-right font-mono text-slate-100" value="${Number(p.costo || 0).toFixed(4)}">
             </span></td>
             <td class="p-2 text-right font-mono req-part-importe">${money(importe)}</td>
             <td class="p-2 text-right whitespace-nowrap">
@@ -519,7 +544,7 @@ function reqRenderPartidas() {
         };
         // El costo estimado admite hasta 4 decimales (diezmilésimas); el importe se muestra a 2.
         costoInp.addEventListener('input', actualizarImporte);
-        costoInp.addEventListener('change', () => { reqPartidasTemp[i].costo = Math.round((parseFloat(costoInp.value) || 0) * 10000) / 10000; });
+        costoInp.addEventListener('change', () => { const v = Math.round((parseFloat(costoInp.value) || 0) * 10000) / 10000; reqPartidasTemp[i].costo = v; costoInp.value = v.toFixed(4); });
     });
 }
 window.reqQuitarPartida = (i) => { reqPartidasTemp.splice(i, 1); reqRenderPartidas(); };
