@@ -5,7 +5,7 @@ import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-
 const ccOrden = crearOrdenTabla('codigo');
 
 // =====================================================================
-// Contabilidad · Centros de costo (Costos de producción — Fase 1)
+// Costos y prorrateo · Centros de costo (Costos de producción — Fase 1)
 //   Áreas para acumular y prorratear gastos. Cada centro guarda su
 //   CAPACIDAD NORMAL en horas de mano de obra al mes: el número que se
 //   usa (capacidad_normal_horas, editable) y las variables del cálculo

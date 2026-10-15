@@ -184,11 +184,11 @@
         <tbody>
           <tr><td>Proveedores</td><td class="path">Catálogos → Proveedores</td><td>Una vez por proveedor (o alta rápida desde el XML al capturar el gasto)</td></tr>
           <tr><td>Plan de cuentas</td><td class="path">Contabilidad → Plan de cuentas</td><td>Se revisa una vez; se ajusta rara vez</td></tr>
-          <tr><td>Centros de costo</td><td class="path">Contabilidad → Centros de costo</td><td>Ya vienen creados los 3; solo ajustas su capacidad al inicio y la revisas 1–2 veces al año</td></tr>
-          <tr><td>Áreas y bases de prorrateo</td><td class="path">Contabilidad → Áreas y bases de prorrateo</td><td>Una vez al inicio: m², kW y personas por área. Se actualiza si cambia la planta</td></tr>
-          <tr><td>Reparto de gastos compartidos</td><td class="path">Contabilidad → Reparto de gastos compartidos</td><td>Una vez: define cómo se parte cada gasto compartido (renta, luz…)</td></tr>
+          <tr><td>Centros de costo</td><td class="path">Contabilidad → Costos y prorrateo → Centros de costo</td><td>Ya vienen creados los 3; solo ajustas su capacidad al inicio y la revisas 1–2 veces al año</td></tr>
+          <tr><td>Áreas y bases de prorrateo</td><td class="path">Contabilidad → Costos y prorrateo → Áreas y bases de prorrateo</td><td>Una vez al inicio: m², kW y personas por área. Se actualiza si cambia la planta</td></tr>
+          <tr><td>Reparto de gastos compartidos</td><td class="path">Contabilidad → Costos y prorrateo → Reparto de gastos compartidos</td><td>Una vez: define cómo se parte cada gasto compartido (renta, luz…)</td></tr>
           <tr><td>Gastos</td><td class="path">Finanzas → Gastos</td><td>Cada factura de gasto (con lector de XML y asistente)</td></tr>
-          <tr><td>Prorrateo de gastos</td><td class="path">Contabilidad → Prorrateo de gastos</td><td>Una vez al mes, después del cierre</td></tr>
+          <tr><td>Prorrateo de gastos</td><td class="path">Contabilidad → Costos y prorrateo → Prorrateo de gastos</td><td>Una vez al mes, después del cierre</td></tr>
         </tbody>
       </table>
     </div>
@@ -374,7 +374,7 @@
 
     <ol class="steps">
       <li><strong>Abre la pantalla</strong>
-        <p>Menú → <span class="path">Contabilidad → Centros de costo</span>. Verás los tres centros (más <code>PROD</code>) ya en la lista. Dale <strong>Editar</strong> a cada uno de los tres para ajustar su capacidad.</p></li>
+        <p>Menú → <span class="path">Contabilidad → Costos y prorrateo → Centros de costo</span>. Verás los tres centros (más <code>PROD</code>) ya en la lista. Dale <strong>Editar</strong> a cada uno de los tres para ajustar su capacidad.</p></li>
 
       <li><strong>Datos de identificación (ya vienen llenos)</strong>
         <div class="tbl"><table class="fieldguide">
@@ -510,7 +510,7 @@ Lovlub Chocolate 60 Gr:  $51,676.49 × 37.5% = $19,378.68</div>
 
     <ol class="steps">
       <li><strong>Abre la pantalla</strong>
-        <p>Menú → <span class="path">Contabilidad → Áreas y bases de prorrateo</span>. Ya vienen sembradas las áreas de la planta (Almacén Insumos, Surtido MP, Cosméticos, Lotificación, Envasado, Acondicionamiento) más <strong>Oficina</strong>. Los equipos <strong>no</strong> se capturan aquí: se dan de alta en Activos fijos.</p></li>
+        <p>Menú → <span class="path">Contabilidad → Costos y prorrateo → Áreas y bases de prorrateo</span>. Ya vienen sembradas las áreas de la planta (Almacén Insumos, Surtido MP, Cosméticos, Lotificación, Envasado, Acondicionamiento) más <strong>Oficina</strong>. Los equipos <strong>no</strong> se capturan aquí: se dan de alta en Activos fijos.</p></li>
 
       <li><strong>Cada área tiene un rol</strong>
         <div class="tbl"><table class="fieldguide">
@@ -555,7 +555,7 @@ Lovlub Chocolate 60 Gr:  $51,676.49 × 37.5% = $19,378.68</div>
 
     <ol class="steps">
       <li><strong>Abre la pantalla</strong>
-        <p>Menú → <span class="path">Contabilidad → Reparto de gastos compartidos</span>. Ya vienen sembradas 5 plantillas típicas: renta (m²), energía (kW), agua (m²), vigilancia (m²), internet/teléfono (personas).</p></li>
+        <p>Menú → <span class="path">Contabilidad → Costos y prorrateo → Reparto de gastos compartidos</span>. Ya vienen sembradas 5 plantillas típicas: renta (m²), energía (kW), agua (m²), vigilancia (m²), internet/teléfono (personas).</p></li>
 
       <li><strong>Qué lleva cada plantilla</strong>
         <div class="tbl"><table class="fieldguide">
@@ -690,7 +690,7 @@ Cargo  119.01  IVA acreditable pend. de pago               6,400.00
     <h2><span class="n">5</span>Parte 5 — Fin de mes: el prorrateo</h2>
     <p class="lead">Una vez al mes, después de haber capturado todos los gastos y cerrado las órdenes de producción del mes, repartes el CIF entre lo que se produjo. Es un botón, pero primero revisas lo que va a hacer.</p>
 
-    <p><strong>🧭 ¿Primera vez o no sabes qué falta llenar?</strong> En Contabilidad → Prorrateo de gastos pulsa el botón <strong>"Asistente de llenado"</strong>. Te guía en el orden correcto — (1) tu planta: personas y capacidad normal de cada etapa, (2) áreas: m² y personas, (3) luz: submedidor o equipos, (4) tus gastos: renta, luz, agua, gas, internet, mantenimiento, piezas, fumigación, monitoreo ambiental, calibraciones, limpieza, vigilancia, supervisión, insumos, calidad y residuos, (5) revisión del mes con simulación — y en cada paso te muestra un <strong>resumen de lo que va a guardar</strong>; solo guarda cuando confirmas.</p>
+    <p><strong>🧭 ¿Primera vez o no sabes qué falta llenar?</strong> En Contabilidad → Costos y prorrateo → Prorrateo de gastos pulsa el botón <strong>"Asistente de llenado"</strong>. Te guía en el orden correcto — (1) tu planta: personas y capacidad normal de cada etapa, (2) áreas: m² y personas, (3) luz: submedidor o equipos, (4) tus gastos: renta, luz, agua, gas, internet, mantenimiento, piezas, fumigación, monitoreo ambiental, calibraciones, limpieza, vigilancia, supervisión, insumos, calidad y residuos, (5) revisión del mes con simulación — y en cada paso te muestra un <strong>resumen de lo que va a guardar</strong>; solo guarda cuando confirmas.</p>
 
     <p>El motor hace este cálculo <strong>por centro de costo</strong>. Para explicar cada dato con números reales, todo lo de abajo sigue el mismo ejemplo continuo de la Parte 3 — <strong>Michelle Carrera</strong> y <strong>Sol Lipa</strong> rotando entre las tres etapas —, el mes <strong><code>2026-09</code></strong>, centro <strong><code>ENV</code> · Envasado</strong> (capacidad normal <strong>159.25 h</strong>, se trabajaron <strong>120 h</strong> reales = <strong>75.4% de utilización</strong>, en dos órdenes: <strong>Lovlub Bubblegum 60 Gr</strong> con 75 h y <strong>Lovlub Chocolate 60 Gr</strong> con 45 h). <code>SURT</code> y <code>MEZ</code> se calculan igual, cada uno con sus propios números.</p>
 
