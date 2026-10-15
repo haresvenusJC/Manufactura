@@ -52,6 +52,8 @@ const REQ_FILTROS = [
     { v: 'todas', t: 'Todas' },
 ];
 
+// Texto de estatus en una sola convención (Mayúscula inicial, singular): Pendiente / Autorizada / Rechazada / Cancelada.
+const reqEstLabel = (e) => ({ pendiente: 'Pendiente', autorizada: 'Autorizada', rechazada: 'Rechazada', cancelada: 'Cancelada' }[e] || (e ? e.charAt(0).toUpperCase() + e.slice(1) : ''));
 const REQ_ESTATUS = {
     pendiente: 'text-amber-300 bg-amber-950/40',
     autorizada: 'text-emerald-300 bg-emerald-950/40',
@@ -146,8 +148,13 @@ export async function cargarModuloRequisicionesCompra() {
 
     cont.innerHTML = `
     <div class="space-y-5">
-      <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
-        <h3 class="text-md font-semibold text-emerald-400 mb-3">Nueva requisición de compra</h3>
+      <!-- El formulario de captura vive en una subventana que abre el botón "Crear" del encabezado (window.reqAbrirNueva). -->
+      <div id="reqNuevaWrap" class="hidden fixed inset-0 bg-slate-950/40 z-50 justify-center items-start overflow-y-auto p-3">
+      <div class="w-full max-w-5xl my-2 bg-slate-950 border border-slate-800 rounded-xl p-4 shadow-2xl">
+        <div class="flex items-center justify-between gap-3 mb-3">
+          <h3 class="text-md font-semibold text-emerald-400">Nueva requisición de compra</h3>
+          <button type="button" id="reqNuevaCerrar" class="text-slate-400 hover:text-slate-100 text-xl leading-none" title="Cerrar">&times;</button>
+        </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:flex lg:flex-wrap gap-3 mb-3">
           <div class="lg:w-52"><label class="block text-xs text-slate-400 mb-1">Fecha</label>
             <input type="date" id="reqFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
@@ -183,8 +190,9 @@ export async function cargarModuloRequisicionesCompra() {
             <tbody id="reqPartidasBody"><tr><td colspan="6" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr></tbody>
           </table>
         </div>
-        <button type="button" id="reqGuardar" class="w-full lg:w-auto lg:px-10 bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg text-sm">Guardar requisición</button>
+        <button type="button" id="reqGuardar" class="bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-2.5 rounded-lg text-sm">Crear</button>
         <p id="reqMsg" class="text-xs mt-2 min-h-[1rem]"></p>
+      </div>
       </div>
 
       <div>
@@ -196,10 +204,36 @@ export async function cargarModuloRequisicionesCompra() {
     document.getElementById('reqFecha').value = hoyISO();
 
     reqWireFormulario();
+    document.getElementById('reqNuevaCerrar').onclick = reqCerrarNueva;
     await reqAplicarPreseleccion();
+    // Si se llegó con partidas precargadas (Tareas, Producción, Pedidos), la captura se abre sola para que se vean.
+    if (reqPartidasTemp.length) reqAbrirNueva();
     reqPintarFiltros();
     await reqRenderLista();
     montarGuia(cont, 'requisiciones-compra');
+}
+
+// Abre / cierra la subventana de captura ("Crear" del encabezado). Los campos conservan sus ids: solo cambia dónde viven.
+function reqAbrirNueva() {
+    const w = document.getElementById('reqNuevaWrap');
+    if (!w) return;
+    w.classList.remove('hidden'); w.classList.add('flex');
+    setTimeout(() => document.getElementById('reqProdInput')?.focus(), 0);
+}
+function reqCerrarNueva() {
+    const w = document.getElementById('reqNuevaWrap');
+    if (!w) return;
+    w.classList.remove('flex'); w.classList.add('hidden');
+}
+window.reqAbrirNueva = reqAbrirNueva;
+
+// Aviso breve (esquina inferior derecha) cuando la subventana de captura se cierra sola tras guardar.
+function reqToast(texto) {
+    const t = document.createElement('div');
+    t.className = 'fixed bottom-6 right-6 z-[70] bg-emerald-600 text-white text-sm font-medium px-4 py-3 rounded-lg shadow-2xl';
+    t.textContent = texto;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3500);
 }
 
 // Preselección al entrar desde Tareas ("📝 Generar requisición" en
@@ -563,8 +597,10 @@ async function reqGuardarRequisicion() {
             reqPedido = null;
             const texto = `Requisición ${req.folio} guardada, pendiente de autorización.`;
             if (!reqOfrecerSiguientePaso(msg, texto)) {
-                msg.textContent = texto;
-                msg.className = 'text-xs mt-2 text-emerald-400';
+                // Guardada y sin siguiente paso que ofrecer: la subventana se cierra y la lista (ya refrescada) la muestra.
+                msg.textContent = '';
+                reqCerrarNueva();
+                reqToast(texto);
             }
         } else {
             msg.textContent = `Requisición ${req.folio} guardada. Cargué la del siguiente proveedor — revisa y guarda esta también.`;
@@ -584,6 +620,31 @@ async function reqGuardarRequisicion() {
 
 // Los botones de filtro se quitaron: el filtro de estatus vive en el encabezado de la columna Estatus (menú, como Cuentas por pagar).
 function reqPintarFiltros() {}
+
+// Menú "⋯" de acciones por requisición (las acciones ya no ocupan la columna "Orden de Compra", que solo lleva el folio de la ODC).
+function reqCerrarMenuAcciones() { document.getElementById('reqAccMenu')?.remove(); }
+if (typeof document !== 'undefined' && !window.__reqAccListener) {
+    window.__reqAccListener = true;
+    document.addEventListener('click', (e) => { if (!e.target.closest('#reqAccMenu, .req-acc-btn')) reqCerrarMenuAcciones(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') reqCerrarMenuAcciones(); });
+}
+function reqMostrarMenuAcciones(btn) {
+    reqCerrarMenuAcciones();
+    const id = Number(btn.dataset.id);
+    const items = btn.dataset.est === 'pendiente'
+        ? [['Autorizar', 'reqAutorizar', 'text-emerald-300'], ['✏ Editar', 'reqEditar', 'text-sky-300'], ['Rechazar', 'reqRechazar', 'text-rose-300'], ['Cancelar', 'reqCancelar', 'text-amber-300']]
+        : (btn.dataset.occanc === '1' ? [['⚠ Marcar cancelada', 'reqSincronizarCancelacion', 'text-amber-300']] : []);
+    if (!items.length) return;
+    const r = btn.getBoundingClientRect();
+    const m = document.createElement('div');
+    m.id = 'reqAccMenu';
+    m.className = 'fixed z-[60] bg-slate-800 border border-slate-600 rounded-lg p-1 shadow-2xl min-w-[9rem]';
+    m.style.top = Math.min(r.bottom + 4, window.innerHeight - items.length * 34 - 16) + 'px';
+    m.style.left = Math.max(8, r.right - 150) + 'px';
+    m.innerHTML = items.map(([t, fn, c]) => `<button type="button" data-fn="${fn}" class="block w-full text-left text-xs px-3 py-2 rounded hover:bg-slate-700 ${c}">${t}</button>`).join('');
+    m.querySelectorAll('button').forEach((b) => { b.onclick = () => { reqCerrarMenuAcciones(); window[b.dataset.fn]?.(id); }; });
+    document.body.appendChild(m);
+}
 
 // Menú de filtro de Estatus en el encabezado (mismo patrón que Cuentas por pagar: posición fija para que no lo recorte el scroll de la tabla).
 function reqCerrarMenuEstatus() { const m = document.getElementById('reqEstMenu'); if (m) m.classList.add('hidden'); }
@@ -639,46 +700,38 @@ async function reqRenderLista() {
 
         cont.innerHTML = `
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
-          <table class="w-full text-left text-xs text-slate-300">
-            <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
-              ${thOrden(reqListaOrden, 'folio', 'Folio')}${thOrden(reqListaOrden, 'fecha', 'Fecha')}<th class="p-2 text-left">Acción</th><th class="p-2 text-left">Antecedentes</th><th class="p-2">Partidas</th>
-              ${thOrden(reqListaOrden, 'total', 'Total est.', 'text-right justify-end')}<th class="p-2 relative">
+          <table class="w-full text-left text-xs text-slate-300 table-fixed">
+            <colgroup><col style="width:11%"><col style="width:9%"><col style="width:12%"><col style="width:12%"><col style="width:22%"><col style="width:10%"><col style="width:11%"><col style="width:8%"><col style="width:5%"></colgroup>
+            <thead class="bg-slate-900 text-slate-400"><tr>
+              ${thOrden(reqListaOrden, 'folio', 'Requisición')}${thOrden(reqListaOrden, 'fecha', 'Fecha')}<th class="p-3 text-center leading-tight">Orden de<br>Compra</th><th class="p-3 text-left">Antecedentes</th><th class="p-3">Partidas</th>
+              ${thOrden(reqListaOrden, 'total', 'Total est.', 'text-right justify-end')}<th class="p-3 relative">
                 <button type="button" id="reqThEst" class="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 font-semibold normal-case tracking-normal"><span>Estatus${reqFiltro === 'todas' ? '' : ` <span class="text-[10px] font-normal">· ${esc(REQ_FILTROS.find(f => f.v === reqFiltro)?.t || '')}</span>`}</span><span class="text-sm">▼</span></button>
                 <div id="reqEstMenu" class="hidden bg-slate-800 border border-slate-600 rounded-lg p-2 shadow-2xl normal-case font-normal w-44">
                   ${REQ_FILTROS.map(f => `<button type="button" data-est="${f.v}" class="req-est-opt block w-full text-left text-xs px-2 py-1.5 rounded ${f.v === reqFiltro ? 'text-sky-400 font-semibold' : 'text-slate-200 hover:bg-slate-700'}">${f.t}</button>`).join('')}
                 </div>
-              </th><th class="p-2">Origen</th>
+              </th><th class="p-3">Origen</th><th class="p-3 text-center">Acciones</th>
             </tr></thead>
             <tbody>
-              ${!data || !data.length ? `<tr><td colspan="8" class="p-4 text-center text-slate-500 text-sm">Sin requisiciones en "${esc(REQ_FILTROS.find(f => f.v === reqFiltro)?.t.toLowerCase() || '')}".</td></tr>` : ''}
+              ${!data || !data.length ? `<tr><td colspan="9" class="p-4 text-center text-slate-500 text-sm">Sin requisiciones en "${esc(REQ_FILTROS.find(f => f.v === reqFiltro)?.t.toLowerCase() || '')}".</td></tr>` : ''}
               ${(data || []).map(r => `
                     <tr class="border-b border-slate-900">
                       <td class="p-2"><button type="button" onclick="window.abrirDetalleReq(${r.id})" class="font-mono text-emerald-300 hover:underline hover:text-emerald-200 text-left">${esc(r.folio || '#' + r.id)}</button></td>
                       <td class="p-2 whitespace-nowrap text-slate-400">${r.fecha || ''}</td>
-                      <td class="p-2 whitespace-nowrap">
-                        ${r.estatus === 'pendiente' ? `
-                            <button type="button" onclick="window.reqAutorizar(${r.id})" class="text-[11px] bg-emerald-700 hover:bg-emerald-600 text-white px-2 py-1 rounded">Autorizar</button>
-                            <button type="button" onclick="window.reqEditar(${r.id})" class="text-[11px] bg-sky-800 hover:bg-sky-700 text-sky-200 border border-sky-700 px-2 py-1 rounded ml-1">✏ Editar</button>
-                            <button type="button" onclick="window.reqRechazar(${r.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded ml-1">Rechazar</button>
-                            <button type="button" onclick="window.reqCancelar(${r.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-2 py-1 rounded ml-1">Cancelar</button>
-                        ` : (r.orden_compra_id ? `
-                            <button type="button" onclick="window.verDetalleOC(${r.orden_compra_id})" class="text-[11px] font-mono text-emerald-300 hover:underline">${esc(r.ordenes_compra?.folio || 'OC #' + r.orden_compra_id)}</button>
-                            ${r.estatus === 'autorizada' && r.ordenes_compra?.estatus === 'cancelada' ? `<button type="button" onclick="window.reqSincronizarCancelacion(${r.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 px-2 py-1 rounded ml-1" title="La orden de compra de esta requisición ya está cancelada">⚠ Marcar cancelada</button>` : ''}
-                        ` : '')}
-                      </td>
+                      <td class="p-2 text-center">${r.orden_compra_id ? `<button type="button" onclick="window.verDetalleOC(${r.orden_compra_id})" class="text-[11px] font-mono text-emerald-300 hover:underline">${esc(r.ordenes_compra?.folio || 'OC #' + r.orden_compra_id)}</button>` : ''}</td>
                       <td class="p-2 whitespace-nowrap">${r.orden_compra_id ? `<button type="button" onclick="window.abrirAntecedentesOC(${r.orden_compra_id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded">🔗 Antecedentes</button>` : ''}</td>
                       <td class="p-2 text-slate-300 max-w-xs truncate" title="${esc(r._resumen)}">${esc(r._resumen) || '—'}</td>
                       <td class="p-2 text-right font-mono">${money(r._total)}</td>
-                      <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${REQ_ESTATUS[r.estatus] || 'text-slate-400 bg-slate-800'}">${esc(r.estatus)}</span></td>
+                      <td class="p-2"><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${REQ_ESTATUS[r.estatus] || 'text-slate-400 bg-slate-800'}">${esc(reqEstLabel(r.estatus))}</span></td>
                       <td class="p-2 text-slate-500 text-[11px]">${r.origen === 'stock_bajo_minimo' ? 'Stock bajo mínimo' : 'Manual'}</td>
+                      <td class="p-2 text-center">${r.estatus === 'pendiente' || (r.estatus === 'autorizada' && r.ordenes_compra?.estatus === 'cancelada') ? `<button type="button" class="req-acc-btn text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-2.5 py-1 rounded" data-id="${r.id}" data-est="${r.estatus}" data-occanc="${r.ordenes_compra?.estatus === 'cancelada' ? 1 : 0}" title="Acciones">⋯</button>` : ''}</td>
                     </tr>
-                    ${(r.estatus === 'rechazada' || r.estatus === 'cancelada') && r.motivo_rechazo ? `<tr class="border-b border-slate-900"><td colspan="2"></td><td colspan="6" class="p-2 pt-0 text-[11px] ${r.estatus === 'cancelada' ? 'text-amber-400/80' : 'text-rose-400/80'}">Motivo: ${esc(r.motivo_rechazo)}</td></tr>` : ''}
               `).join('')}
             </tbody>
           </table>
         </div>`;
         wireOrdenTabla(cont, reqListaOrden, reqRenderLista);
         reqWireMenuEstatus(cont);
+        cont.querySelectorAll('.req-acc-btn').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); reqMostrarMenuAcciones(b); }; });
     } catch (err) {
         const m = err?.message || String(err);
         cont.innerHTML = TABLA_FALTA.test(m)
@@ -771,7 +824,7 @@ async function abrirDetalleReq(id) {
         cuerpo.innerHTML = `
             <div class="grid grid-cols-2 gap-3 mb-4 text-sm">
                 <div><span class="block text-[10px] text-slate-500">Fecha</span><span class="text-slate-300">${r.fecha || '—'}</span></div>
-                <div><span class="block text-[10px] text-slate-500">Estatus</span><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${REQ_ESTATUS[r.estatus] || 'text-slate-400 bg-slate-800'}">${esc(r.estatus)}</span></div>
+                <div><span class="block text-[10px] text-slate-500">Estatus</span><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${REQ_ESTATUS[r.estatus] || 'text-slate-400 bg-slate-800'}">${esc(reqEstLabel(r.estatus))}</span></div>
                 <div><span class="block text-[10px] text-slate-500">Origen</span><span class="text-slate-300">${r.origen === 'stock_bajo_minimo' ? 'Stock bajo mínimo' : 'Manual'}</span></div>
             </div>
             ${r.notas ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Notas</span><p class="text-xs text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5">${esc(r.notas)}</p></div>` : ''}

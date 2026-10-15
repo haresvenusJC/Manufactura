@@ -316,7 +316,7 @@ function cxpPintarDocumentos() {
       <div class="border border-slate-800 rounded-lg">
         <table class="w-full text-left text-xs text-slate-300 table-fixed">
           <colgroup><col style="width:44px"><col style="width:13%"><col style="width:20%"><col style="width:9%"><col style="width:9%"><col style="width:10%"><col style="width:10%"><col style="width:11%"><col style="width:18%"><col style="width:92px"></colgroup>
-          <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
+          <thead class="bg-slate-900 text-slate-400"><tr>
             <th class="p-3">${esAbierto ? '<input type="checkbox" id="cxpAll" class="accent-emerald-500">' : ''}</th>
             ${thDoc}
             ${thProv}
