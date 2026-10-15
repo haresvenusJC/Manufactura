@@ -6,6 +6,10 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`, `version.json`, `CLAUDE.md`. **Corrección: la lista de Requisiciones no desplazaba** (captura del usuario): la regla de recorte de esquinas
+  `.overflow-x-auto.border:not(.overflow-y-auto):not([class*="max-h-"]) { overflow-y: hidden }` (especificidad 0,4,0) ganaba a `.lista-completa div:has(> table)` y congelaba las filas; el overflow-y del contenedor de la
+  tabla en `lista-completa` ahora lleva `!important`. Cuentas por pagar y Lotes no estaban afectados (su contenedor no trae `overflow-x-auto`). `?v=` CSS → `20261015220000`. Lección: al probar un cambio de diseño de lista, verificar
+  que SÍ se desplaza con más filas que el alto visible.
 - Archivos tocados (lo último): `js/estado-vacio.js` (nuevo), `js/app.js`, `version.json`, `CLAUDE.md`. **Estado vacío estándar** (pedido del usuario 2026-10-15, con su ilustración de documentos): en TODA lista sin registros se
   muestra la ilustración (dos hojas: la trasera con el color de acento del tema —antes dorada—, la frontal blanca con pliegue y renglones) y debajo el mismo mensaje que ya existía. Sin tocar cada módulo: `estado-vacio.js`
   (importado en `app.js`) detecta con un MutationObserver los avisos "Sin …" / "No hay …" / "No se encontr…" (elemento sin hijos p/td/div, en `text-slate-500`, que NO sea pista chica `text-xs`/`text-[11px]`, cursiva ni de
