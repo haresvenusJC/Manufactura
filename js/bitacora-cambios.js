@@ -270,7 +270,7 @@ function detalleHtml(r) {
         const cambios = cambiosDe(r);
         if (cambios.length) {
             return `
-            <table class="w-full text-[11px] border border-slate-800 rounded">
+            <div class="overflow-x-auto"><table class="w-full text-[11px] border border-slate-800 rounded">
               <thead class="text-slate-500"><tr><th class="p-1.5 text-left">Campo</th><th class="p-1.5 text-left">Antes</th><th class="p-1.5 text-left">Después</th></tr></thead>
               <tbody>
                 ${cambios.map(([k, a, b]) => `
@@ -280,7 +280,7 @@ function detalleHtml(r) {
                   <td class="p-1.5 font-mono text-emerald-300/80 break-all">${esc(corto(b, 300))}</td>
                 </tr>`).join('')}
               </tbody>
-            </table>`;
+            </table></div>`;
         }
     }
     const datos = r.accion === 'DELETE' ? r.datos_antes : r.datos_despues;

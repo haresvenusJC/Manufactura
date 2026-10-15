@@ -266,7 +266,7 @@ async function ccListar() {
     });
 
     cont.innerHTML = `
-      <table class="w-full text-xs">
+      <div class="overflow-x-auto"><table class="w-full text-xs">
         <thead><tr class="text-left text-slate-500 border-b border-slate-800">
           ${thOrden(ccOrden, 'codigo', 'Código')}${thOrden(ccOrden, 'nombre', 'Nombre')}${thOrden(ccOrden, 'tipo', 'Tipo')}
           ${thOrden(ccOrden, 'cap_normal', 'Cap. normal (h/mes)', 'text-right justify-end')}${thOrden(ccOrden, 'sugerido', 'Sugerido', 'text-right justify-end')}
@@ -289,7 +289,7 @@ async function ccListar() {
             </tr>`;
           }).join('')}
         </tbody>
-      </table>
+      </table></div>
       <p class="text-[10px] text-slate-500 mt-2">⚠ capacidad en 0 = el prorrateo de la Fase 2 no podrá aislar la capacidad ociosa. ≠ la sugerida difiere &gt;15% de la que usas — revísala.</p>`;
 
     cont.querySelectorAll('.cc-edit').forEach(b => b.addEventListener('click', () => ccCargarEnForm(rows.find(r => r.id === Number(b.dataset.id)))));
