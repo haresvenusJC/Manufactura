@@ -6,16 +6,13 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
-<<<<<<< HEAD
 - Archivos tocados (lo último): `js/contabilidad.js`, `version.json`, `CLAUDE.md`. **Reportes contables → Auxiliar de cuentas contables: el título y el subtítulo (cuenta, periodo, N movimientos) ya NO se van al desplazar** (pedido del usuario 2026-10-15): estaban DENTRO del contenedor que se desplaza (`#rcTabla` con `overflow-x-auto`), así que subían con las filas y solo el `thead` quedaba fijo. Ahora el título queda fuera y solo la tabla va en su propio contenedor con scroll. Revisadas las demás pantallas con el mismo patrón (encabezado dentro del contenedor desplazable): ninguna otra lo tenía (las demás tablas de Reportes contables, Auxiliar de inventarios y de Anticipos empiezan con la tabla). **Regla para pantallas nuevas:** el título/subtítulo/filtros van FUERA del contenedor `overflow-*`; dentro solo la tabla. Pendiente: verlo en el navegador.
 
-=======
 - Archivos tocados (lo último): `css/ui-moderno.css`, `index.html`, `version.json`, `CLAUDE.md`. **Clase `lista-completa` (diseño estándar de listado reutilizable):** el esquema de "lista a pantalla completa" ya no depende de
   nombres de pantalla — se activa agregando `lista-completa` a la `<section class="vista-seccion …">` en `index.html` (hoy: Requisición de Compra, Cuentas por pagar, Lotes). **Contrato:** título (con Ayuda) → opcional
   filtros/tarjetas → UN solo contenedor con la tabla (table-fixed, sin barra horizontal). **Efecto:** marco hasta el borde inferior, encabezado fijo y solo las filas se desplazan, el marco no se encoge vacío. Se borraron las reglas
   por pantalla (`#view-pagos-proveedor`, `#view-lotes`, `#reqLista`, `#cxpPanelDocumentos`…); la regla genérica de tablas (`max-height: calc(100vh − 15rem)`) ya excluye `.lista-completa *`. Para rediseñar otra pantalla:
   mover sus formularios largos a una subventana con botón "Crear" (como Requisiciones), dejar una sola tabla y añadir la clase. Pendiente: subir con "comitea" y revisar las 3 pantallas (deben verse igual que antes).
->>>>>>> origin/main
 - Archivos tocados (lo último): `js/contabilidad.js`, `version.json`, `CLAUDE.md`. **Reportes contables: las pestañas (Balanza, Estado de resultados, Balance general, Auxiliares…) van ARRIBA y los filtros (Desde/Hasta/Generar/Exportar) debajo** (pedido del usuario 2026-10-15, antes estaba al revés). Solo cambió el orden en `cargarModuloReportesContables`; ids intactos. Pendiente: verlo en el navegador.
 
 - Archivos tocados (lo último): `css/ui-moderno.css`, `js/requisiciones-compra.js`, `index.html`, `version.json`, `CLAUDE.md`. **Listas a pantalla completa — diseño estándar** (pedido del usuario 2026-10-15, capturas de Requisiciones y
