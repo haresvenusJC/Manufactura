@@ -148,6 +148,16 @@ h2.text-xl {
     box-shadow: var(--sh-1);
 }
 .fixed > .bg-slate-900.border, .fixed.bg-slate-900.border { box-shadow: var(--sh-2); }
+/* Subventanas (ventanas flotantes): borde y sombra con MÁS contraste para que se distingan del fondo (pedido del usuario 2026-10-15).
+   Cubre las dos formas que usa la app: overlay `fixed inset-0` con el panel como primer hijo, y panel `fixed rounded-2xl` flotante. */
+.fixed.inset-0 > .border,
+.fixed.rounded-2xl.border {
+    border-color: var(--bd-2) !important;
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--acc) 42%, transparent),
+        var(--sh-2),
+        0 0 40px -12px color-mix(in srgb, var(--acc) 45%, transparent);
+}
 
 /* ---------- Botones: píldora con volumen 3D ---------- */
 button {

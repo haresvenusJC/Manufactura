@@ -147,7 +147,7 @@ export async function cargarModuloRequisicionesCompra() {
     const optUni = '<option value="">Unidad...</option>' + reqUnidades.map(u => `<option value="${u.id}">${esc(u.nombre)}</option>`).join('');
 
     cont.innerHTML = `
-    <div class="space-y-5">
+    <div>
       <!-- El formulario de captura vive en una subventana que abre el botón "Crear" del encabezado (window.reqAbrirNueva). -->
       <div id="reqNuevaWrap" class="hidden fixed inset-0 bg-slate-950/40 z-50 justify-center items-start overflow-y-auto p-3">
       <div class="w-full max-w-5xl my-2 bg-slate-950 border border-slate-800 rounded-xl p-4 shadow-2xl">
@@ -196,7 +196,6 @@ export async function cargarModuloRequisicionesCompra() {
       </div>
 
       <div>
-        <h3 class="text-md font-semibold text-slate-300 mb-2">Requisiciones de compra</h3>
         <div id="reqLista" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-500">Cargando...</div>
       </div>
     </div>`;
