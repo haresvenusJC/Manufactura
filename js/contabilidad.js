@@ -2028,11 +2028,12 @@ function rcAuxPintar() {
 
     const rango = rcEsc(r.cuentaLabel);
     res.innerHTML = `
-        <div id="rcTabla" class="overflow-x-auto">
+        <div id="rcTabla">
             <div class="mb-3">
                 <p class="text-sm font-bold text-slate-200">Auxiliar de cuentas contables</p>
                 <p class="text-[11px] text-slate-500">${rango} · Del ${rcEsc(r.desde)} al ${rcEsc(r.hasta)} · Pólizas contabilizadas + canceladas con su reverso · ${bloques.length} cuenta(s), ${nMovs} movimiento(s)</p>
             </div>
+            <div class="overflow-x-auto">
             <table class="w-full text-left text-[11px] text-slate-300">
                 <thead class="bg-slate-900 text-sky-400 uppercase border-b border-slate-800 sticky top-0">
                     <tr><th class="p-2">Fecha</th><th class="p-2">Póliza</th><th class="p-2">Concepto</th><th class="p-2">Origen</th>
@@ -2049,6 +2050,7 @@ function rcAuxPintar() {
                     </tr>` : ''}
                 </tbody>
             </table>
+            </div>
         </div>
         <p class="text-[11px] text-slate-500 mt-2">El saldo corre en la naturaleza de cada cuenta (deudora: cargos − abonos; acreedora: abonos − cargos); entre paréntesis, si es contrario. Haz clic en una póliza para ver su detalle. Una póliza cancelada se sigue mostrando junto con su reverso (contra-asiento): entre las dos quedan en cero, así el rastro no se pierde y nada se resta dos veces.</p>`;
     rcCablearDesglose();

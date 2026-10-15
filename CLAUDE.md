@@ -6,6 +6,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/contabilidad.js`, `version.json`, `CLAUDE.md`. **Reportes contables → Auxiliar de cuentas contables: el título y el subtítulo (cuenta, periodo, N movimientos) ya NO se van al desplazar** (pedido del usuario 2026-10-15): estaban DENTRO del contenedor que se desplaza (`#rcTabla` con `overflow-x-auto`), así que subían con las filas y solo el `thead` quedaba fijo. Ahora el título queda fuera y solo la tabla va en su propio contenedor con scroll. Revisadas las demás pantallas con el mismo patrón (encabezado dentro del contenedor desplazable): ninguna otra lo tenía (las demás tablas de Reportes contables, Auxiliar de inventarios y de Anticipos empiezan con la tabla). **Regla para pantallas nuevas:** el título/subtítulo/filtros van FUERA del contenedor `overflow-*`; dentro solo la tabla. Pendiente: verlo en el navegador.
+
 - Archivos tocados (lo último): `js/contabilidad.js`, `version.json`, `CLAUDE.md`. **Reportes contables: las pestañas (Balanza, Estado de resultados, Balance general, Auxiliares…) van ARRIBA y los filtros (Desde/Hasta/Generar/Exportar) debajo** (pedido del usuario 2026-10-15, antes estaba al revés). Solo cambió el orden en `cargarModuloReportesContables`; ids intactos. Pendiente: verlo en el navegador.
 
 - Archivos tocados (lo último): `css/ui-moderno.css`, `js/requisiciones-compra.js`, `index.html`, `version.json`, `CLAUDE.md`. **Listas a pantalla completa — diseño estándar** (pedido del usuario 2026-10-15, capturas de Requisiciones y
