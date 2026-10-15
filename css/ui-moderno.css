@@ -729,16 +729,7 @@ body.pagina-desplazada main section.vista-seccion:not(#view-bienvenida) > div:fi
 }
 /* La tabla de "Documentos por pagar" se ve con mucho aire: encabezado más compacto (sin tocar thOrden(), que es compartido por otras pantallas — solo aquí, con más especificidad). */
 #contenedorPagosProveedor table thead th { padding-top: .5rem !important; padding-bottom: .5rem !important; }
-/* Cuentas por pagar (pantalla de escritorio): título, píldora, tarjetas, filtros y ENCABEZADOS de la tabla quedan fijos; solo las filas se desplazan
-   (barra vertical propia) y la barra "Pagar selección" queda siempre a la vista abajo. */
-@media (min-width: 1024px) {
-    #view-pagos-proveedor:not(.hidden) { display: flex; flex-direction: column; height: calc(100vh - 1.125rem - .5rem); }
-    #contenedorPagosProveedor { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-    #contenedorPagosProveedor > .space-y-4 { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-    #cxpPanelDocumentos { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-    #cxpPanelDocumentos > div:has(> table) { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-    #cxpPanelDocumentos > div:has(> table) thead { position: sticky; top: 0; z-index: 5; }
-}
+/* Cuentas por pagar usa el diseño estándar `lista-completa` (ver al final de este archivo). */
 main section.vista-seccion:not(#view-bienvenida) .asist-panel {
     position: absolute; top: 0; right: 0; z-index: 30;
     width: auto; min-width: 0; margin: 0;
@@ -794,37 +785,32 @@ main section.vista-seccion:not(#view-bienvenida) .asist-panel:has(.asist-body:no
 /* LOTES — encabezado fijo y solo las filas se desplazan (como Cuentas por pagar) */
 #view-lotes > div:first-child:has(> h2) { padding-right: 0; }
 #view-lotes > div:nth-child(2) > p { margin-bottom: .5rem; }
-@media (min-width: 1024px) {
-    #view-lotes:not(.hidden) { display: flex; flex-direction: column; height: calc(100vh - 1.125rem - .5rem); }
-    #view-lotes > div:nth-child(2) { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: .75rem; }
-    #contenedorExistenciasLote { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-    #contenedorExistenciasLote > .lotes-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-    #contenedorExistenciasLote .lotes-scroll thead { position: sticky; top: 0; z-index: 5; }
-}
+@media (min-width: 1024px) { #view-lotes > div:nth-child(2) { padding: .75rem; } }
 
 /* TABLAS DE DATOS EN TODAS LAS PANTALLAS — encabezado fijo y solo las filas se desplazan (≥1024 px).
    Aplica a toda tabla dentro de un contenedor con scroll (overflow-x-auto / overflow-auto) de una pantalla (no a subventanas ni impresión).
    Cuentas por pagar y Lotes ya tienen su propio esquema (flex a pantalla completa) y se excluyen. Para excluir una tabla: clase `tabla-sin-fijar` en su contenedor. */
 @media screen and (min-width: 1024px) {
-    main section.vista-seccion :is(.overflow-x-auto, .overflow-auto):has(> table):not(.lotes-scroll):not(.tabla-sin-fijar):not(#cxpPanelDocumentos > div) {
+    main section.vista-seccion :is(.overflow-x-auto, .overflow-auto):has(> table):not(.lotes-scroll):not(.tabla-sin-fijar):not(#cxpPanelDocumentos > div):not(.lista-completa *) {
         max-height: calc(100vh - 15rem); overflow-y: auto; overscroll-behavior: contain;
     }
-    main section.vista-seccion :is(.overflow-x-auto, .overflow-auto):has(> table):not(.lotes-scroll):not(.tabla-sin-fijar):not(#cxpPanelDocumentos > div) > table > thead {
+    main section.vista-seccion :is(.overflow-x-auto, .overflow-auto):has(> table):not(.lotes-scroll):not(.tabla-sin-fijar):not(#cxpPanelDocumentos > div):not(.lista-completa *) > table > thead {
         position: sticky; top: 0; z-index: 5; background-color: var(--bg-1);
     }
 }
 
-/* LISTAS A PANTALLA COMPLETA — diseño estándar (pedido del usuario 2026-10-15) para Requisiciones, Cuentas por pagar y Lotes:
-   el marco de la lista llega hasta el borde inferior de la ventana (relleno inferior de <main> a .5rem), título/filtros/encabezados de tabla quedan
-   fijos y solo las filas se desplazan por debajo de ellos; el marco NO se encoge si hay pocas filas o ninguna (el aviso "Sin registros" va dentro).
-   Sin barra horizontal en la lista (las columnas usan table-fixed). */
+/* LISTAS A PANTALLA COMPLETA — clase `lista-completa` (diseño estándar, pedido del usuario 2026-10-15).
+   Para activarlo en una pantalla: agregar `lista-completa` a su <section class="vista-seccion …"> en index.html. Contrato de la pantalla:
+   título (con Ayuda) → opcional filtros/tarjetas → UN solo contenedor con la tabla (ese es el que se desplaza).
+   Efecto: el marco de la lista llega al borde inferior de la ventana; título/filtros/encabezado de tabla quedan fijos y solo las filas se
+   desplazan por debajo (sin barra horizontal; usar table-fixed); el marco no se encoge con pocas filas o vacío (el aviso va dentro).
+   Pantallas que ya lo usan: Requisición de Compra, Cuentas por pagar, Lotes. */
 @media (min-width: 1024px) {
-    #app > main:has(> :is(#view-requisiciones-compra, #view-pagos-proveedor, #view-lotes):not(.hidden)) { padding-bottom: .5rem; }
-    #view-requisiciones-compra:not(.hidden) { display: flex; flex-direction: column; height: calc(100vh - 1.125rem - .5rem); }
-    #contenedorRequisicionesCompra { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-    #contenedorRequisicionesCompra > div:not(.asist-panel) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-    #contenedorRequisicionesCompra > div:not(.asist-panel) > div { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-    #reqLista { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-    #reqLista > div:has(> table) { flex: 1; min-height: 0; max-height: none; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
-    #reqLista > div:has(> table) > table > thead { position: sticky; top: 0; z-index: 5; background-color: var(--bg-1); }
+    #app > main:has(> .lista-completa:not(.hidden)) { padding-bottom: .5rem; }
+    .lista-completa:not(.hidden) { display: flex; flex-direction: column; height: calc(100vh - 1.125rem - .5rem); }
+    /* todo ancestro de la tabla rellena el alto disponible */
+    .lista-completa div:has(table) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    /* el contenedor directo de la tabla es lo único que se desplaza */
+    .lista-completa div:has(> table) { flex: 1; min-height: 0; max-height: none; display: block; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
+    .lista-completa div:has(> table) > table > thead { position: sticky; top: 0; z-index: 5; background-color: var(--bg-1); }
 }
