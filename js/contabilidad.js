@@ -360,7 +360,6 @@ export async function cargarModuloPolizas() {
 
     cont.innerHTML = `
     <div class="space-y-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-xl p-1 flex flex-wrap gap-1" id="rcTabs"></div>
         <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl flex flex-wrap items-end gap-3">
             <div><label class="block text-[11px] text-slate-400 mb-1">Desde</label>
                 <input type="date" id="polDesde" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
@@ -2084,6 +2083,7 @@ export async function cargarModuloReportesContables() {
 
     cont.innerHTML = `
     <div class="space-y-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-1 flex flex-wrap gap-1" id="rcTabs"></div>
         <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl flex flex-wrap items-end gap-3">
             <div><label class="block text-[11px] text-slate-400 mb-1">Desde</label>
                 <input type="date" id="rcDesde" class="bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
