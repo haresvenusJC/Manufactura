@@ -205,7 +205,7 @@
                                     class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-800 text-slate-300 transition shrink-0" style="cursor: pointer;">
                                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" class="w-5 h-5"><path d="M3 5.5h14M3 10h14M3 14.5h14"/></svg>
                             </button>
-                            <div class="text-[15px] font-bold text-sky-400 whitespace-nowrap">Hares de México</div>
+                            <button type="button" onclick="window.loadView('bienvenida')" title="Ir a Inicio" class="text-[15px] font-bold text-sky-400 whitespace-nowrap hover:text-sky-300 transition" style="cursor: pointer;">Hares de México</button>
                         </div>
                         <button type="button" id="btnFijarNav" onclick="window.fijarSidebar()" title="Fijar menú abierto"
                                 class="w-8 h-8 items-center justify-center rounded-lg hover:bg-slate-800 text-slate-500 transition shrink-0" style="cursor: pointer;">
@@ -224,7 +224,7 @@
                 <hr class="border-slate-800">
                 <ul class="space-y-1" style="list-style: none; padding: 0;">
 
-                    <li><button onclick="window.loadView('bienvenida')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-sky-300 transition text-sm font-semibold flex items-center gap-2" style="cursor: pointer;"><span>🏠 Inicio</span></button></li>
+                    
                     <li><button onclick="window.loadView('indice')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-sky-300 transition text-sm font-semibold flex items-center gap-2" style="cursor: pointer;"><span>🧭 Índice</span></button></li>
 
                     <!-- Catálogos (antes "Datos Maestros") -->
