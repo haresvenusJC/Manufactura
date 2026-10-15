@@ -6,7 +6,7 @@ const afOrden = crearOrdenTabla('codigo');
 const afcOrden = crearOrdenTabla();
 
 // =====================================================================
-// Costos y prorrateo · Áreas y bases de prorrateo (pre-herramienta)
+// Contabilidad · Áreas y bases de prorrateo (pre-herramienta)
 //   Declara m² y nº de personas por área; la carga eléctrica (kW) viene de los
 //   equipos dados de alta en Activos fijos (panel de solo consulta). De aquí
 //   se derivan los % de reparto de gastos compartidos (Nivel 1:

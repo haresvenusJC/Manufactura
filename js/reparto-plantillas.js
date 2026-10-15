@@ -6,7 +6,7 @@ import { ordenarCentrosProduccion } from './centros-costo.js';
 const rpOrden = crearOrdenTabla();
 
 // =====================================================================
-// Costos y prorrateo · Reparto de gastos compartidos (plantillas)
+// Contabilidad · Reparto de gastos compartidos (plantillas)
 //   Define, una vez por cuenta (o por proveedor), cómo se parte un gasto
 //   compartido: qué base usar (m² / kW / personas) y a qué cuenta de
 //   resultados va la parte de oficina. Los % se derivan de las áreas

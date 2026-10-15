@@ -379,7 +379,7 @@
 
   // ---------- pasos ----------
   var PASOS = [
-    { cap:'Centros de costo', screen:'centros', spot:'#s-cc-intro', winTitle:'Hares de México — Costos y prorrateo → Centros de costo',
+    { cap:'Centros de costo', screen:'centros', spot:'#s-cc-intro', winTitle:'Hares de México — Contabilidad → Centros de costo',
       t:'¿Qué es un centro de costo?',
       h:'<p>Un <strong>centro de costo</strong> es un área donde se acumulan gastos para después repartirlos (prorratearlos) a lo que produce. Aquí hay <strong>tres</strong>, uno por etapa: <code>SURT</code> Surtido de MP, <code>MEZ</code> Mezclado y <code>ENV</code> Envasado — ya creados por la migración. Cada proceso de una orden apunta al suyo, y así la renta, la luz y la depreciación caen donde de verdad se usó la planta. (<code>PROD</code> queda como comodín.)</p>' },
 
@@ -437,7 +437,7 @@
       h:'<p>El asiento del gasto <strong>no cambia</strong>: carga la <code>503.05</code> y abona proveedores o banco. El CIF todavía no toca el inventario — eso lo hace el prorrateo de fin de mes.</p>' },
 
     // ----- Prorrateo -----
-    { cap:'Prorrateo', screen:'prorrateo', spot:'#s-pr-mes', winTitle:'Hares de México — Costos y prorrateo → Prorrateo de gastos',
+    { cap:'Prorrateo', screen:'prorrateo', spot:'#s-pr-mes', winTitle:'Hares de México — Contabilidad → Prorrateo de gastos',
       t:'Fin de mes: elige el periodo',
       h:'<p>Una vez capturados todos los gastos indirectos del mes, entras aquí y eliges el mes. El sistema calcula la distribución <strong>sin escribir nada</strong> hasta que confirmes.</p><p>El motor lo hace <strong>por centro</strong>. Para no llenar la pantalla, aquí se sigue solo <code>ENV · Envasado</code>; SURT y MEZ funcionan igual.</p>' },
 

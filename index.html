@@ -319,20 +319,6 @@
                         </ul>
                     </li>
 
-                    <!-- Costos y prorrateo: configuración (planta → áreas → reparto) y, al final, la corrida mensual -->
-                    <li>
-                        <button onclick="window.toggleSubmenu('submenu-costos-prorrateo')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
-                            <span>Costos y prorrateo</span>
-                            <span id="flecha-costos-prorrateo" class="text-xs">▼</span>
-                        </button>
-                        <ul id="submenu-costos-prorrateo" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
-                            <li><button onclick="window.loadView('centros-costo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Centros de costo</button></li>
-                            <li><button onclick="window.loadView('areas-prorrateo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Áreas y bases de prorrateo</button></li>
-                            <li><button onclick="window.loadView('reparto-plantillas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Reparto de gastos compartidos</button></li>
-                            <li><button onclick="window.loadView('prorrateo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Prorrateo de gastos</button></li>
-                        </ul>
-                    </li>
-
                     <!-- Contabilidad y control (junta lo que antes era "Nómina y cierre de mes" sin nómina, "Fiscal" y "Configuración contable") -->
                     <li>
                         <button onclick="window.toggleSubmenu('submenu-contabilidad-control')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
@@ -342,6 +328,10 @@
                         <ul id="submenu-contabilidad-control" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
                             <li><button onclick="window.loadView('polizas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Pólizas</button></li>
                             <li><button onclick="window.loadView('plan-cuentas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Plan de cuentas</button></li>
+                            <li><button onclick="window.loadView('centros-costo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Centros de costo</button></li>
+                            <li><button onclick="window.loadView('areas-prorrateo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Áreas y bases de prorrateo</button></li>
+                            <li><button onclick="window.loadView('reparto-plantillas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Reparto de gastos compartidos</button></li>
+                            <li><button onclick="window.loadView('prorrateo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Prorrateo de gastos</button></li>
                             <li><button onclick="window.loadView('reportes-contables')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Reportes contables</button></li>
                             <li><button onclick="window.loadView('cierre-periodo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Cierre de periodo</button></li>
                             <li><button onclick="window.loadView('isr')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Tabla ISR</button></li>
@@ -683,7 +673,7 @@
 
             <!-- Vista: Contabilidad - Centros de costo -->
             <section id="view-centros-costo" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-sky-400">Costos y prorrateo · Centros de costo</h2>
+                <h2 class="text-xl font-bold text-sky-400">Contabilidad · Centros de costo</h2>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorCentrosCosto">Cargando...</div>
                 </div>
@@ -691,7 +681,7 @@
 
             <!-- Vista: Contabilidad - Áreas y bases de prorrateo -->
             <section id="view-areas-prorrateo" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-sky-400">Costos y prorrateo · Áreas y bases de prorrateo</h2>
+                <h2 class="text-xl font-bold text-sky-400">Contabilidad · Áreas y bases de prorrateo</h2>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorAreasProrrateo">Cargando...</div>
                 </div>
@@ -699,7 +689,7 @@
 
             <!-- Vista: Contabilidad - Reparto de gastos compartidos -->
             <section id="view-reparto-plantillas" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-sky-400">Costos y prorrateo · Reparto de gastos compartidos</h2>
+                <h2 class="text-xl font-bold text-sky-400">Contabilidad · Reparto de gastos compartidos</h2>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorRepartoPlantillas">Cargando...</div>
                 </div>
@@ -715,7 +705,7 @@
 
             <!-- Vista: Contabilidad - Prorrateo de gastos -->
             <section id="view-prorrateo" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-sky-400">Costos y prorrateo · Prorrateo de gastos indirectos</h2>
+                <h2 class="text-xl font-bold text-sky-400">Contabilidad · Prorrateo de gastos indirectos</h2>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorProrrateo">Cargando...</div>
                 </div>
