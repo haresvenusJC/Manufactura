@@ -6,6 +6,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `index.html`, `version.json`, `CLAUDE.md`. El botón **🧭 Índice** del menú lateral pasó del principio al final, debajo de Configuración (pedido del usuario 2026-10-15). Pendiente: verlo en el navegador.
+
 - Archivos tocados (lo último): `index.html`, `js/indice.js`, `version.json`, `CLAUDE.md`. Se quitó el emoji 🧭 de la entrada "Asistente de llenado" del submenú Costos y prorrateo y de su tarjeta del Índice (pedido del usuario 2026-10-15); el botón dentro de Prorrateo de gastos conserva el suyo. Pendiente: verlo en el navegador.
 
 - Archivos tocados (lo último): `index.html`, `js/indice.js`, `version.json`, `CLAUDE.md`. **"🧭 Asistente de llenado" es ahora la PRIMERA entrada del submenú Contabilidad → Costos y prorrateo** (pedido del usuario 2026-10-15: como el asistente llena las tablas de Centros de costo, Áreas y Reparto, debe ir antes que ellas): abre la subventana (`window.abrirAsistenteProrrateo('inicio')`) desde cualquier pantalla; también primera tarjeta del Índice (las tarjetas aceptan `js:` en vez de `v:`). El botón dentro de Prorrateo de gastos se queda. Pendiente: verlo en el navegador (Ctrl+Shift+R).
