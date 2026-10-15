@@ -535,9 +535,9 @@
 
             <!-- Vista: Requisiciones de compra -->
             <section id="view-requisiciones-compra" class="vista-seccion hidden space-y-4">
-                <div class="flex items-center justify-between gap-2 flex-wrap">
-                    <h2 class="text-xl font-bold text-emerald-400">Requisiciones de Compra</h2>
-                    <button type="button" onclick="window.abrirManual('#m-requisiciones-compra', 'Requisiciones de compra')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                <div class="flex items-center gap-4 flex-wrap">
+                    <h2 class="text-xl font-bold text-emerald-400">Requisición de Compra</h2>
+                    <button type="button" onclick="window.reqAbrirNueva && window.reqAbrirNueva()" class="bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-2 -my-1 rounded-lg text-sm cursor-pointer">Crear</button>
                 </div>
                 <div id="contenedorRequisicionesCompra">Cargando módulo de requisiciones de compra...</div>
             </section>
@@ -571,7 +571,6 @@
             <section id="view-pedidos-venta" class="vista-seccion hidden space-y-4">
                 <div class="flex items-center justify-between gap-2 flex-wrap">
                     <h2 class="text-xl font-bold text-sky-400">Pedidos de Venta</h2>
-                    <button type="button" onclick="window.abrirManual('#m-pedidos-venta', 'Pedidos de venta')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
                 </div>
                 <div id="contenedorPedidosVenta">Cargando módulo de pedidos de venta...</div>
             </section>
@@ -580,7 +579,6 @@
             <section id="view-devoluciones" class="vista-seccion hidden space-y-4">
                 <div class="flex items-center justify-between gap-2 flex-wrap">
                     <h2 class="text-xl font-bold text-sky-400">Devoluciones</h2>
-                    <button type="button" onclick="window.abrirManual('#m-devoluciones', 'Devoluciones')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
                 </div>
                 <div id="contenedorDevoluciones">Cargando módulo de devoluciones...</div>
             </section>
@@ -629,7 +627,6 @@
             <section id="view-bitacora-cambios" class="vista-seccion hidden space-y-4">
                 <div class="flex items-center justify-between gap-2 flex-wrap">
                     <h2 class="text-xl font-bold text-sky-400">Bitácora de Cambios</h2>
-                    <button type="button" onclick="window.abrirManual('#m-bitacora-cambios', 'Bitácora de cambios')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
                 </div>
                 <div id="contenedorBitacora">Cargando módulo...</div>
             </section>
@@ -672,7 +669,6 @@
             <section id="view-importador-claves-proveedor" class="vista-seccion hidden space-y-4">
                 <div class="flex items-center justify-between gap-2 flex-wrap">
                     <h2 class="text-xl font-bold text-sky-400">Importar Claves de Proveedor (XML)</h2>
-                    <button type="button" onclick="window.abrirManual('#m-importador-claves-proveedor', 'Importar claves de proveedor')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
                 </div>
                 <div id="contenedorImportadorClavesProveedor">Cargando módulo...</div>
             </section>
@@ -729,7 +725,6 @@
             <section id="view-activos-fijos" class="vista-seccion hidden space-y-4">
                 <div class="flex items-center justify-between gap-2 flex-wrap">
                     <h2 class="text-xl font-bold text-sky-400">Activos Fijos</h2>
-                    <button type="button" onclick="window.abrirManual('#m-activos-fijos', 'Activos fijos')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
                 </div>
                 <div id="contenedorActivosFijos">Cargando módulo...</div>
             </section>
@@ -750,7 +745,6 @@
             <section id="view-bancos-tesoreria" class="vista-seccion hidden space-y-4">
                 <div class="flex items-center justify-between gap-2 flex-wrap">
                     <h2 class="text-xl font-bold text-sky-400">Bancos y Tesorería</h2>
-                    <button type="button" onclick="window.abrirManual('#m-bancos-tesoreria', 'Bancos y Tesorería')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
                 </div>
                 <div id="contenedorBancosTesoreria">Cargando módulo...</div>
             </section>
