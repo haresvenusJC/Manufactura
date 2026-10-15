@@ -26,12 +26,14 @@ export async function cargarModuloProrrateo() {
     if (!cont) return;
     cont.innerHTML = `
       <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
-        <div>
-          <label class="block text-[11px] text-slate-400 mb-1">Mes a prorratear</label>
-          <input type="month" id="prMes" value="${mesActualISO()}" class="bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+        <div class="flex flex-wrap items-end gap-3">
+          <div>
+            <label class="block text-[11px] text-slate-400 mb-1">Mes a prorratear</label>
+            <input type="month" id="prMes" value="${mesActualISO()}" class="bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+          </div>
+          <button type="button" id="prAsistente" class="pr-asist-btn">&#129517; Asistente de llenado</button>
         </div>
         <span class="flex flex-wrap gap-2 items-center">
-          <button type="button" id="prAsistente" class="pr-asist-btn">&#129517; Asistente de llenado</button>
           <a href="${GUIA_URL}" target="_blank" rel="noopener" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg whitespace-nowrap">&#9654; Guia interactiva</a>
           <a href="${MANUAL_URL}" target="_blank" rel="noopener" class="text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg whitespace-nowrap">Manual &#8599;</a>
         </span>
