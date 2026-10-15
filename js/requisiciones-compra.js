@@ -189,7 +189,6 @@ export async function cargarModuloRequisicionesCompra() {
 
       <div>
         <h3 class="text-md font-semibold text-slate-300 mb-2">Requisiciones de compra</h3>
-        <div id="reqFiltros" class="flex flex-wrap gap-2 mb-2"></div>
         <div id="reqLista" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-500">Cargando...</div>
       </div>
     </div>`;
@@ -583,16 +582,31 @@ async function reqGuardarRequisicion() {
     }
 }
 
-function reqPintarFiltros() {
-    const cont = document.getElementById('reqFiltros');
-    if (!cont) return;
-    cont.innerHTML = REQ_FILTROS.map(f => {
-        const on = f.v === reqFiltro;
-        return `<button type="button" class="req-filtro-btn text-xs px-3 py-1.5 rounded-lg border transition ${on ? 'bg-sky-600 border-sky-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800'}" data-filtro="${f.v}">${f.t}</button>`;
-    }).join('');
-    cont.querySelectorAll('.req-filtro-btn').forEach(b => {
-        b.onclick = () => { reqFiltro = b.dataset.filtro; reqPintarFiltros(); reqRenderLista(); };
-    });
+// Los botones de filtro se quitaron: el filtro de estatus vive en el encabezado de la columna Estatus (menú, como Cuentas por pagar).
+function reqPintarFiltros() {}
+
+// Menú de filtro de Estatus en el encabezado (mismo patrón que Cuentas por pagar: posición fija para que no lo recorte el scroll de la tabla).
+function reqCerrarMenuEstatus() { const m = document.getElementById('reqEstMenu'); if (m) m.classList.add('hidden'); }
+if (typeof document !== 'undefined' && !window.__reqMenuListener) {
+    window.__reqMenuListener = true;
+    document.addEventListener('click', (e) => { if (!e.target.closest('#reqEstMenu, #reqThEst')) reqCerrarMenuEstatus(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') reqCerrarMenuEstatus(); });
+}
+function reqWireMenuEstatus(cont) {
+    const btn = cont.querySelector('#reqThEst'), menu = cont.querySelector('#reqEstMenu');
+    if (!btn || !menu) return;
+    btn.onclick = (e) => {
+        e.stopPropagation();
+        const abrir = menu.classList.contains('hidden');
+        reqCerrarMenuEstatus();
+        if (abrir) {
+            menu.classList.remove('hidden');
+            const r = btn.getBoundingClientRect();
+            menu.style.position = 'fixed'; menu.style.top = (r.bottom + 2) + 'px';
+            menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - menu.offsetWidth - 8)) + 'px'; menu.style.zIndex = '60';
+        }
+    };
+    menu.querySelectorAll('.req-est-opt').forEach((b) => { b.onclick = () => { reqFiltro = b.dataset.est; reqRenderLista(); }; });
 }
 
 async function reqRenderLista() {
@@ -607,9 +621,8 @@ async function reqRenderLista() {
         if (reqFiltro !== 'todas') q = q.eq('estatus', reqFiltro);
         const { data, error } = await q;
         if (error) throw error;
-        if (!data || !data.length) { cont.innerHTML = `<p class="text-slate-500 text-sm">Sin requisiciones en "${REQ_FILTROS.find(f => f.v === reqFiltro)?.t.toLowerCase()}".</p>`; return; }
 
-        data.forEach(r => {
+        (data || []).forEach(r => {
             const det = r.requisiciones_compra_detalle || [];
             r._total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_estimado || 0), 0);
             r._resumen = det.map(d => d.productos?.nombre || '(sin producto)').join(', ');
@@ -629,10 +642,16 @@ async function reqRenderLista() {
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
               ${thOrden(reqListaOrden, 'folio', 'Folio')}${thOrden(reqListaOrden, 'fecha', 'Fecha')}<th class="p-2 text-left">Acción</th><th class="p-2 text-left">Antecedentes</th><th class="p-2">Partidas</th>
-              ${thOrden(reqListaOrden, 'total', 'Total est.', 'text-right justify-end')}${thOrden(reqListaOrden, 'estatus', 'Estatus')}<th class="p-2">Origen</th>
+              ${thOrden(reqListaOrden, 'total', 'Total est.', 'text-right justify-end')}<th class="p-2 relative">
+                <button type="button" id="reqThEst" class="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 font-semibold normal-case tracking-normal"><span>Estatus${reqFiltro === 'todas' ? '' : ` <span class="text-[10px] font-normal">· ${esc(REQ_FILTROS.find(f => f.v === reqFiltro)?.t || '')}</span>`}</span><span class="text-sm">▼</span></button>
+                <div id="reqEstMenu" class="hidden bg-slate-800 border border-slate-600 rounded-lg p-2 shadow-2xl normal-case font-normal w-44">
+                  ${REQ_FILTROS.map(f => `<button type="button" data-est="${f.v}" class="req-est-opt block w-full text-left text-xs px-2 py-1.5 rounded ${f.v === reqFiltro ? 'text-sky-400 font-semibold' : 'text-slate-200 hover:bg-slate-700'}">${f.t}</button>`).join('')}
+                </div>
+              </th><th class="p-2">Origen</th>
             </tr></thead>
             <tbody>
-              ${data.map(r => `
+              ${!data || !data.length ? `<tr><td colspan="8" class="p-4 text-center text-slate-500 text-sm">Sin requisiciones en "${esc(REQ_FILTROS.find(f => f.v === reqFiltro)?.t.toLowerCase() || '')}".</td></tr>` : ''}
+              ${(data || []).map(r => `
                     <tr class="border-b border-slate-900">
                       <td class="p-2"><button type="button" onclick="window.abrirDetalleReq(${r.id})" class="font-mono text-emerald-300 hover:underline hover:text-emerald-200 text-left">${esc(r.folio || '#' + r.id)}</button></td>
                       <td class="p-2 whitespace-nowrap text-slate-400">${r.fecha || ''}</td>
@@ -659,6 +678,7 @@ async function reqRenderLista() {
           </table>
         </div>`;
         wireOrdenTabla(cont, reqListaOrden, reqRenderLista);
+        reqWireMenuEstatus(cont);
     } catch (err) {
         const m = err?.message || String(err);
         cont.innerHTML = TABLA_FALTA.test(m)
