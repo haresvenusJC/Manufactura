@@ -75,7 +75,7 @@ export const SECCIONES = [
     },
     {
         grupo: 'Contabilidad › Costos y prorrateo', ancla: 'costos-prorrateo', items: [
-            { js: "window.abrirAsistenteProrrateo('inicio')", t: '🧭 Asistente de llenado', d: 'Guía paso a paso (planta → áreas → luz y equipos → tus gastos → revisión): va llenando estas tablas por ti y solo guarda cuando confirmas. Empieza aquí.' },
+            { js: "window.abrirAsistenteProrrateo('inicio')", t: 'Asistente de llenado', d: 'Guía paso a paso (planta → áreas → luz y equipos → tus gastos → revisión): va llenando estas tablas por ti y solo guarda cuando confirmas. Empieza aquí.' },
             { v: 'centros-costo', t: 'Centros de costo', d: 'Las 3 etapas SURT / MEZ / ENV y su capacidad normal en horas de mano de obra al mes.', cfg: true },
             { v: 'areas-prorrateo', t: 'Áreas y bases de prorrateo', d: 'm², carga eléctrica (kW) y personas por área. De aquí salen los % con que se reparten renta, luz y servicios.', cfg: true },
             { v: 'reparto-plantillas', t: 'Reparto de gastos compartidos', d: 'Plantillas por cuenta o proveedor: qué base usar y a qué cuenta de oficina va la parte de no producción.', cfg: true },
