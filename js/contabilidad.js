@@ -2532,8 +2532,8 @@ window.rcVerPoliza = async function (polId) {
             <div class="rc-pol-cuerpo p-5 space-y-3 overflow-y-auto text-sm">
                 <div class="text-xs text-slate-400">
                     <span class="font-semibold text-slate-300">Concepto:</span> ${(pol.concepto || '—')}<br>
-                    <span class="font-semibold text-slate-300">Estatus:</span> <span class="${pol.estatus === 'contabilizada' ? 'text-emerald-400' : 'text-rose-400'}">${pol.estatus}</span>
-                    · <span class="font-semibold text-slate-300">Origen:</span> ${pol.origen || 'manual'}
+                    <span class="font-semibold text-slate-300">Estatus:</span> <span class="${pol.estatus === 'contabilizada' ? 'text-emerald-400' : 'text-rose-400'}">${capPrimera(pol.estatus)}</span>
+                    · <span class="font-semibold text-slate-300">Origen:</span> ${capPrimera(pol.origen || 'manual')}
                 </div>
                 <div class="overflow-x-auto border border-slate-800 rounded-lg">
                     <table class="w-full text-left text-[11px] text-slate-300">
@@ -2596,4 +2596,10 @@ function rcExportarCSV() {
     a.download = `${rcTab === 'balanza' ? 'balanza' : rcTab === 'balance' ? 'balance_general' : 'estado_resultados'}_${document.getElementById('rcHasta').value}.csv`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// Primera letra en mayúscula y guiones bajos como espacios (estatus/origen de la póliza: "contabilizada" → "Contabilizada").
+function capPrimera(t) {
+    const s = String(t ?? '').replace(/_/g, ' ');
+    return s.charAt(0).toUpperCase() + s.slice(1);
 }

@@ -164,6 +164,24 @@ function cerrarSubventana(panel, fila, original) {
     (panel.closest('.fixed.inset-0') || panel).remove();
 }
 
+// Un solo control para cerrar: el punto rojo del semáforo hace lo mismo que el botón "Cerrar" del pie, así que ese
+// botón se oculta (sigue en el DOM: el punto rojo lo dispara si la ventana no trae su propio ×). Se vuelve a barrer
+// cuando la ventana cambia de contenido (muchas cargan su cuerpo después de abrirse).
+const ES_CERRAR = (b) => /^cerrar$/i.test(b.textContent.trim().replace(/^[^\wÁ-ú]+/, ''));
+function ocultarCerrarRedundante(panel) {
+    panel.querySelectorAll('button').forEach((b) => {
+        if (b.closest('.sv-semaforo') || b.hasAttribute('data-sv-oculto') || !ES_CERRAR(b)) return;
+        b.setAttribute('data-sv-oculto', '');
+        b.style.display = 'none';
+    });
+}
+function vigilarCerrarRedundante(panel) {
+    ocultarCerrarRedundante(panel);
+    let t = null;
+    new MutationObserver(() => { clearTimeout(t); t = setTimeout(() => ocultarCerrarRedundante(panel), 60); })
+        .observe(panel, { childList: true, subtree: true });
+}
+
 function agregarSemaforo(panel, asa) {
     if (panel.querySelector('.sv-semaforo')) return;
     inyectarEstiloSemaforo();
@@ -228,6 +246,7 @@ function prepararPanel(panel) {
     asa.setAttribute('data-subventana-asa', '');
     asa.title = asa.title || 'Arrastra para mover la ventana';
     agregarSemaforo(panel, asa);
+    vigilarCerrarRedundante(panel);
     agregarManijaResize(panel);
 }
 

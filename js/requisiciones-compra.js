@@ -733,7 +733,7 @@ async function reqRenderLista() {
         cont.innerHTML = `
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-xs text-slate-300 table-fixed">
-            <colgroup><col style="width:11%"><col style="width:9%"><col style="width:12%"><col style="width:12%"><col style="width:22%"><col style="width:10%"><col style="width:11%"><col style="width:8%"><col style="width:5%"></colgroup>
+            <colgroup><col style="width:11%"><col style="width:9%"><col style="width:10%"><col style="width:11%"><col style="width:21%"><col style="width:10%"><col style="width:11%"><col style="width:8%"><col style="width:9%"></colgroup>
             <thead class="bg-slate-900 text-slate-400"><tr>
               ${thOrden(reqListaOrden, 'folio', 'Requisición')}${thOrden(reqListaOrden, 'fecha', 'Fecha')}<th class="p-3 text-center leading-tight">Orden de<br>Compra</th><th class="p-3 text-left">Antecedentes</th><th class="p-3">Partidas</th>
               ${thOrden(reqListaOrden, 'total', 'Total est.', 'text-right justify-end')}<th class="p-3 relative">
@@ -987,7 +987,7 @@ window.reqEditar = async (id) => {
                             <tr class="border-b border-slate-900" data-id="${d.id}">
                                 <td class="p-2">${esc(d.productos?.nombre || d.descripcion || '—')}</td>
                                 <td class="p-2 text-right"><input type="number" step="any" min="0" class="edit-req-cant w-20 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-right font-mono text-slate-100" value="${d.cantidad}"></td>
-                                <td class="p-2 text-right"><input type="number" step="any" min="0" class="edit-req-costo w-24 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-right font-mono text-slate-100" value="${Number(d.costo_estimado || 0)}"></td>
+                                <td class="p-2 text-right"><span class="relative inline-block"><span class="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none">$</span><input type="number" step="0.0001" min="0" class="edit-req-costo w-28 bg-slate-950 border border-slate-800 rounded pl-5 pr-2 py-1 text-right font-mono text-slate-100" title="Hasta 4 decimales" value="${Number(d.costo_estimado || 0).toFixed(4)}"></span></td>
                                 <td class="p-2 text-right"><button type="button" class="edit-req-quitar text-rose-400 hover:text-rose-300">✕</button></td>
                             </tr>`).join('') || '<tr><td colspan="4" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
                     </tbody>
@@ -1202,7 +1202,7 @@ window.reqAutorizar = async (id) => {
                   <input type="text" data-f="pInput" autocomplete="off" placeholder="Buscar o escribir uno nuevo..." class="${inp}">
                   <div data-f="pSug" class="hidden absolute left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-40 max-h-44 overflow-y-auto"></div></div>
                 <div><label class="${lbl}">Cantidad</label><input type="number" step="any" min="0" data-f="pCant" class="${inp}"></div>
-                <div><label class="${lbl}">Costo unit.</label><input type="number" step="any" min="0" data-f="pCosto" class="${inp}"></div>
+                <div><label class="${lbl}">Costo unit.</label><span class="relative block"><span class="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none">$</span><input type="number" step="0.0001" min="0" data-f="pCosto" title="Hasta 4 decimales" class="${inp} pl-5"></span></div>
                 <div><label class="${lbl}">Unidad</label><select data-f="pUni" class="${inp}">${optUni}</select></div>
               </div>
               <button type="button" data-f="pAdd" class="mt-2 text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium px-4 py-1.5 rounded-lg">＋ Agregar partida</button>
@@ -1257,7 +1257,7 @@ window.reqAutorizar = async (id) => {
             <td class="p-2 text-right font-mono">${manual
                 ? `<input type="number" data-cant="${i}" min="0" step="any" value="${l.cantidad}" class="w-20 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-right font-mono text-xs text-slate-100">`
                 : formatoNum(l.cantidad)}</td>
-            <td class="p-2 text-right"><input type="number" data-costo="${i}" min="0" step="any" value="${l.costo}" class="w-24 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-right font-mono text-xs text-slate-100"></td>
+            <td class="p-2 text-right"><span class="relative inline-block"><span class="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none">$</span><input type="number" data-costo="${i}" min="0" step="0.0001" title="Hasta 4 decimales (diezmilésimas)" value="${Number(l.costo || 0).toFixed(4)}" class="w-28 bg-slate-900 border border-slate-800 rounded-lg pl-5 pr-2 py-1.5 text-right font-mono text-xs text-slate-100"></span></td>
             <td class="p-2 text-right font-mono" data-sub="${i}">${money(l.cantidad * l.costo)}</td>
             <td class="p-2 text-right">${manual ? `<button type="button" data-quitar="${i}" class="text-rose-400 hover:text-rose-300 text-xs px-2 py-1 bg-rose-950/40 rounded border border-rose-900/50">✕</button>` : ''}</td>
           </tr>`).join('') || '<tr><td colspan="6" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>';
@@ -1266,6 +1266,7 @@ window.reqAutorizar = async (id) => {
         f('partidas').querySelectorAll('[data-sku]').forEach((el) => { el.oninput = () => { lineas[Number(el.dataset.sku)].skuProveedor = el.value; }; });
         f('partidas').querySelectorAll('[data-costo]').forEach((el) => {
             el.oninput = () => { lineas[Number(el.dataset.costo)].costo = parseFloat(el.value) || 0; recalcular(); };
+            el.onchange = () => { const v = Math.round((parseFloat(el.value) || 0) * 10000) / 10000; lineas[Number(el.dataset.costo)].costo = v; el.value = v.toFixed(4); recalcular(); };
         });
     };
     const totales = () => {
