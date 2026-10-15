@@ -349,7 +349,7 @@ function cxpPintarDocumentos() {
                       : polizasPago.length ? `<div class="flex flex-col gap-0.5">${polizasPago.map((pid) => `<span>${linkPoliza(pid, 'text-xs font-mono text-emerald-400 hover:underline')}</span>`).join('')}</div>`
                       : `<span>${linkPoliza(x.poliza_id, 'text-xs font-mono text-sky-400 hover:underline')}</span>`}</td>
                   <td class="p-2 text-right">${abierto && (esAbierto || cxpFiltro === 'todas')
-                      ? `<button type="button" class="cxp-pagar-fila inline-block w-[72px] text-center text-xs bg-sky-600 hover:bg-sky-500 text-white font-medium py-1.5 rounded-lg">Pagar</button>${(cxpPagosDe(x).length || (x.orden_compra_id && cxpHistorialOc(x.orden_compra_id).movs.length)) ? '<button type="button" class="cxp-ver-fila block ml-auto mt-0.5 text-[10px] text-slate-400 hover:text-sky-300 underline">ver pagos</button>' : ''}`
+                      ? `<button type="button" class="cxp-pagar-fila inline-block w-[72px] text-center text-xs bg-sky-600 hover:bg-sky-500 text-white font-medium py-1.5 rounded-lg">Pagar</button>`
                       : !abierto ? `<button type="button" class="cxp-ver-fila inline-block w-[72px] text-center text-xs bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600 font-medium py-1.5 rounded-lg">Ver</button>` : ''}</td>
                 </tr>`;
             }).join('') : `<tr><td colspan="10" class="p-4 text-center text-slate-500">No hay documentos en "${cxpEstLabel(cxpFiltro).toLowerCase()}" con los filtros elegidos.</td></tr>`}

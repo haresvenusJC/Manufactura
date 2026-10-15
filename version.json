@@ -1,5 +1,5 @@
 {
- "v": "20261016001500",
+ "v": "20261016020000",
  "modulos": [
   "activos-fijos.js",
   "app.js",
@@ -27,6 +27,7 @@
   "conversion-unidades.js",
   "cuentas-por-cobrar.js",
   "devoluciones.js",
+  "dialogos.js",
   "documentos.js",
   "empleados.js",
   "enlaces-reporte.js",

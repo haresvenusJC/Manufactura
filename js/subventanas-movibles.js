@@ -197,6 +197,11 @@ function agregarSemaforo(panel, asa) {
     // El semáforo va a la DERECHA de la barra de título, en el orden verde · amarillo · rojo (pedido del usuario 2026-10-15).
     grupo.style.margin = '0 0 0 12px';
     fila.style.alignItems = 'center';
+    // Si la "fila" no es ya una fila flex (ej. un <h3> de un cuadro de confirmación), se vuelve una para que
+    // el semáforo quede a la derecha del texto en el mismo renglón y no debajo.
+    if (!/flex/.test(getComputedStyle(fila).display)) {
+        fila.style.display = 'flex'; fila.style.justifyContent = 'space-between'; fila.style.gap = '12px';
+    }
     fila.appendChild(grupo);
 }
 

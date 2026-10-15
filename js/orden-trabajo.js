@@ -1,6 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { accesoOperador } from './patron-login.js';
 import './subventanas-movibles.js'; // todas las subventanas se pueden arrastrar (ver CLAUDE.md)
+import './dialogos.js'; // alert() con el diseño del tema (ver dialogos.js)
 
 // ---------------------------------------------------------------------------
 //  Orden de Trabajo (móvil, para operarios).

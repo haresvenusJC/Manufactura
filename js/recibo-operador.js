@@ -1,6 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { accesoOperador } from './patron-login.js';
 import './subventanas-movibles.js'; // todas las subventanas se pueden arrastrar (ver CLAUDE.md)
+import './dialogos.js'; // alert() con el diseño del tema (ver dialogos.js)
 
 // ---------------------------------------------------------------------------
 //  Pre-recibo de mercancía (móvil, para operadores de almacén).
@@ -295,8 +296,8 @@ function mostrarConfirmacion1() {
 // ---------- 2da confirmación: pregunta directa antes de cerrar ----------
 function mostrarConfirmacion2() {
     mostrarModal(`
-      <div class="bg-slate-900 border border-rose-700 rounded-2xl p-4 max-w-sm w-full">
-        <h3 class="text-base font-bold text-rose-400 mb-2">¿Seguro que quieres cerrar este recibo?</h3>
+      <div class="bg-slate-900 border border-rose-700 rounded-2xl p-4 max-w-md w-full">
+        <h3 class="text-base font-bold text-rose-400 mb-2 items-center">¿Seguro que quieres cerrar este recibo?</h3>
         <p class="text-xs text-slate-400 mb-4">Una vez enviado ya no vas a poder editar el conteo. El administrador lo revisará contra las fotos.</p>
         <div class="flex gap-2">
           <button type="button" id="prCancelar2" class="flex-1 bg-slate-800 border border-slate-700 text-slate-300 py-3 rounded-xl text-sm">Cancelar</button>
