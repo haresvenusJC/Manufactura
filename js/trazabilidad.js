@@ -1,5 +1,6 @@
 import { supabaseClient } from './supabase.js';
 import { linkPoliza } from './enlaces-reporte.js';
+import { fechaLocalTxt } from './fechas.js';
 
 // =====================================================================
 //  Antecedentes de proceso: Requisición → Orden de compra → Documento(s)
@@ -140,7 +141,7 @@ export async function abrirAntecedentes(ordenCompraId) {
                 <div class="flex items-center justify-between gap-2 flex-wrap py-1.5 border-b border-slate-800 last:border-0">
                     <div>
                         <button type="button" onclick="window.abrirDetalleDocumentoGlobal(${d.id})" class="font-mono text-indigo-300 hover:underline text-sm">${esc(d.folio || '#' + d.id)}</button>
-                        <span class="text-[11px] text-slate-500 ml-1">${d.fecha_emision ? new Date(d.fecha_emision).toLocaleDateString('es-MX') : ''}</span>
+                        <span class="text-[11px] text-slate-500 ml-1">${d.fecha_emision ? fechaLocalTxt(d.fecha_emision, 'es-MX') : ''}</span>
                     </div>
                     <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold border ${DOC_ESTATUS[d.estado] || 'text-slate-400 bg-slate-800 border-slate-700'}">${esc(d.estado || 'N/D')}</span>
                 </div>`).join('')
@@ -238,7 +239,7 @@ export async function abrirSeguimientoPedido(pedidoId) {
         (rRec.data || []).forEach((d) => { if (!recibosPorOc.has(d.orden_compra_id)) recibosPorOc.set(d.orden_compra_id, []); recibosPorOc.get(d.orden_compra_id).push(d); });
         const surtidos = rSur.error ? [] : (rSur.data || []);
 
-        const fechaTxt = (f) => f ? new Date(f).toLocaleDateString('es-MX') : '';
+        const fechaTxt = (f) => fechaLocalTxt(f, 'es-MX');
         const num = (n) => Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 });
         const insignia = (txt, clase) => `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${clase}">${esc(txt)}</span>`;
         const paso = (titulo, html) => `

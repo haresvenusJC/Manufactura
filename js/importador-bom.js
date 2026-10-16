@@ -1,3 +1,4 @@
+import { hoyISO } from './fechas.js';
 import { supabaseClient } from './supabase.js';
 import { norm, parseNumero } from './importador.js';
 // SheetJS (lectura de .xlsx/.xls/.csv). Mismo CDN que usa el importador de productos.
@@ -194,7 +195,7 @@ async function exportarBom() {
         // Mismas notas explicativas que trae la plantilla de ejemplo — el
         // detector de encabezados de ambos importadores las ignora solo
         // (busca la fila con más "pinta" de encabezado, no la primera).
-        const stamp = new Date().toISOString().slice(0, 10);
+        const stamp = hoyISO();
         const notas = [
             [`# BOM exportado el ${stamp} desde Catálogos > Importar Excel/CSV > "Estructura de Componentes (BOM)".`],
             ['# Esta es la fórmula completa de TODOS los productos que ya tienen componentes cargados.'],

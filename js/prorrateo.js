@@ -1,3 +1,4 @@
+import { hoyISO } from './fechas.js';
 import { supabaseClient } from './supabase.js';
 import { montarGuia } from './asistente-contable.js';
 import { abrirAsistenteProrrateo } from './asistente-prorrateo.js';
@@ -19,7 +20,7 @@ const TABLA_FALTA = /does not exist|schema cache|could not find|relation .* does
 const MANUAL_URL = 'manual-costos-produccion.html';
 const GUIA_URL = 'guia-costos-produccion.html';
 
-const mesActualISO = () => new Date().toISOString().slice(0, 7);
+const mesActualISO = () => hoyISO().slice(0, 7);
 
 export async function cargarModuloProrrateo() {
     const cont = document.getElementById('contenedorProrrateo');

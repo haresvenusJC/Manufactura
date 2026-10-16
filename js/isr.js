@@ -15,7 +15,7 @@ const isrOrden = crearOrdenTabla('vigente_desde', 'desc');
 // y muestra las tarifas.
 // =====================================================================
 
-const hoyISO = () => new Date().toISOString().slice(0, 10);
+import { hoyISO } from './fechas.js';
 
 let isrTramos = []; // [{ limite_inferior, limite_superior, cuota_fija, porcentaje }]
 

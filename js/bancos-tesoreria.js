@@ -1,3 +1,4 @@
+import { hoyISO } from './fechas.js';
 import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
@@ -237,7 +238,7 @@ window.btVerMovimientos = async (id) => {
         cont.querySelectorAll('.bt-conciliado').forEach((chk) => {
             chk.onchange = async () => {
                 await supabaseClient.from('poliza_movimientos').update({
-                    conciliado: chk.checked, fecha_conciliacion: chk.checked ? new Date().toISOString().slice(0, 10) : null,
+                    conciliado: chk.checked, fecha_conciliacion: chk.checked ? hoyISO() : null,
                 }).eq('id', Number(chk.dataset.id));
             };
         });

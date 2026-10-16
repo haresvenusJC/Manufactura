@@ -12,7 +12,7 @@ import { linkDoc, linkPoliza, etiquetaPoliza } from './enlaces-reporte.js';
 
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const hoyISO = () => new Date().toISOString().slice(0, 10);
+import { hoyISO } from './fechas.js';
 const normTxt = (s) => String(s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
 
 let devTab = 'cliente';

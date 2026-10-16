@@ -12,7 +12,7 @@ import { imprimirHtml, marcaDeEstatus } from './impresion.js';
 // =====================================================================
 
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const hoyISO = () => new Date().toISOString().slice(0, 10);
+import { hoyISO, diasDesdeHoyISO } from './fechas.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 // Forma de pago de la ODC (clave SAT c_forma_pago) → valor del selector "Forma de pago" de esta pantalla.
 // Pagos registrados de una fila (documento de compra, gasto u ODC con anticipo).
@@ -160,13 +160,17 @@ async function cxpCargarOcPorPagar() {
             const total = Math.round(sub * 1.16 * 100) / 100;
             const objetivo = Number(o.anticipo_monto) > 0 ? Number(o.anticipo_monto) : (o.condicion_pago === 'contado' ? total : 0);
             const pagado = pagadoPorOc.get(o.id) || 0;
+            // Anticipo ya cubierto pero la ODC aún no se liquida: la fila muestra lo que FALTA (total − anticipo), no $0.00.
+            const porAnticipar = Math.round((objetivo - pagado) * 100) / 100;
+            const restante = Math.round((total - pagado) * 100) / 100;
+            const saldoFila = porAnticipar > 0.01 ? porAnticipar : (pagado > 0.01 && restante > 0.01 ? restante : 0);
             const textoPactado = (o.condicion_pago === 'credito' ? `Crédito ${Number(o.dias_credito || 0)} días` : 'Contado')
                 + (Number(o.anticipo_pct) > 0 ? ` · anticipo ${Number(o.anticipo_pct)}%` : '');
             return {
                 tipo: 'oc', id: o.id, folio: o.folio || '#' + o.id, fecha: o.fecha, vence: null,
                 proveedor_id: o.proveedor_id, proveedor_nombre: o.proveedores?.nombre || '—',
-                total, pagado, saldo: Math.round((objetivo - pagado) * 100) / 100, objetivo,
-                orden_compra_id: o.id, poliza_id: null, estatus_cxp: Math.round((objetivo - pagado) * 100) / 100 > 0.01 ? 'pendiente' : 'anticipado', textoPactado,
+                total, pagado, saldo: saldoFila, objetivo,
+                orden_compra_id: o.id, poliza_id: null, estatus_cxp: porAnticipar > 0.01 ? 'pendiente' : 'anticipado', textoPactado,
             };
         }).filter((o) => o.saldo > 0.01 || o.pagado > 0.01); // anticipo ya cubierto: se queda como "Pagada" (para ver/cancelar su pago)
     } catch (e) {
@@ -231,7 +235,12 @@ function cxpPintarDocumentos() {
     const chipEstatus = (x) => {
         if (x.tipo === 'oc' && x.estatus_cxp === 'pendiente') return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 whitespace-nowrap">Por anticipar</span>';
         if (x.estatus_cxp === 'cancelado') return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-950 text-rose-300">Cancelada</span>';
-        if (x.estatus_cxp === 'anticipado') return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 whitespace-nowrap" title="Anticipo cubierto; la mercancía aún no se recibe">Anticipo pagado</span>';
+        if (x.estatus_cxp === 'anticipado') {
+            const tip = Number(x.saldo) > 0.01
+                ? `Anticipo cubierto; falta liquidar ${money(x.saldo)} (se paga al recibir la mercancía o con otro anticipo)`
+                : 'Anticipo cubierto; la mercancía aún no se recibe';
+            return `<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 whitespace-nowrap" title="${tip}">Anticipo pagado</span>`;
+        }
         if (x.estatus_cxp === 'pagado') return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300">Pagada</span>';
         if (esVencida(x)) return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-950 text-rose-300">Vencida</span>';
         if (esParcial(x)) return '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-950 text-sky-300">Pago parcial</span>';
@@ -272,7 +281,7 @@ function cxpPintarDocumentos() {
         ).join('')}
       </div>`);
 
-    const hoy7 = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    const hoy7 = diasDesdeHoyISO(7);
     // Las tarjetas de deuda NO suman los compromisos por anticipar (aún no es deuda contable: no está en 201.01).
     const sumSi = (f) => pendientesKPI.filter((x) => x.tipo !== 'oc').filter(f).reduce((a, x) => a + Number(x.saldo || 0), 0);
     const porAnticiparKPI = pendientesKPI.filter((x) => x.tipo === 'oc').reduce((a, x) => a + Number(x.saldo || 0), 0);

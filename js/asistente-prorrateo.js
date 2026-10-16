@@ -22,7 +22,7 @@ const num = (v, d = 0) => { const n = parseFloat(v); return Number.isFinite(n) ?
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fnum = (n, d = 2) => Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: d });
 const pct = (f) => (Number(f || 0) * 100).toLocaleString('es-MX', { maximumFractionDigits: 1 }) + '%';
-const mesISO = () => new Date().toISOString().slice(0, 7);
+const mesISO = () => hoyISO().slice(0, 7);
 const sigMes = (iso) => { const d = new Date(iso + 'T00:00:00'); d.setMonth(d.getMonth() + 1); return d.toISOString().slice(0, 10); };
 
 const ID_MODAL = 'asistenteProrrateoModal';
@@ -611,7 +611,7 @@ const EQUIPOS_SUG = [
 ];
 const UNID_KW = { kW: 1, HP: 0.746, W: 0.001 };
 const TIPOS_CARGA = [['equipo', 'Equipo'], ['clima', 'Clima / HVAC'], ['iluminacion', 'Iluminación'], ['otro', 'Otro']];
-const hoyISO = () => new Date().toISOString().slice(0, 10);
+import { hoyISO } from './fechas.js';
 
 function kwFila(f) { return num(f.v) * (UNID_KW[f.u] || 1) * Math.max(1, num(f.c, 1)) * Math.min(1, Math.max(0.01, num(f.f, 1))); }
 const idCuenta = (cod) => ctaPorCodigo(cod)?.id || '';
@@ -1141,7 +1141,7 @@ async function guardarCaso() {
         const fila = {
             nombre: prov ? `${c.n} · ${prov.nombre}` : c.n, cuenta_id: ctaId, proveedor_id: provId,
             base: R.modo === 'manual' ? 'manual' : R.base, cuenta_no_produccion_id: ofId, activo: true,
-            notas: `${R.desc}. Creada con el asistente de prorrateo (${new Date().toISOString().slice(0, 10)}).`,
+            notas: `${R.desc}. Creada con el asistente de prorrateo (${hoyISO()}).`,
         };
         const existente = S.plantillas.find(p => p.cuenta_id === ctaId && (p.proveedor_id || null) === provId);
         let plId;

@@ -1,3 +1,4 @@
+import { hoyISO } from './fechas.js';
 // =====================================================================
 //  Auxiliar de Anticipos a proveedores — pestaña de Reportes contables.
 //
@@ -384,7 +385,7 @@ window.aaResolverAnticipo = async (ocId, ocFolio) => {
           <div><label class="block text-[10px] text-slate-400 mb-1">Monto a resolver</label>
             <input type="number" step="0.01" min="0.01" max="${disponible}" id="aaResMonto" value="${disponible}" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono"></div>
           <div><label class="block text-[10px] text-slate-400 mb-1">Fecha</label>
-            <input type="date" id="aaResFecha" value="${new Date().toISOString().slice(0, 10)}" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
+            <input type="date" id="aaResFecha" value="${hoyISO()}" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
           <div><label class="block text-[10px] text-slate-400 mb-1">Notas</label>
             <input type="text" id="aaResNotas" placeholder="Por qué no se completó esta OC" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></div>
         </div>
@@ -410,7 +411,7 @@ window.aaResolverAnticipo = async (ocId, ocFolio) => {
         if (!(monto > 0)) { msg.textContent = 'Captura un monto mayor a cero.'; return; }
         const datos = {
             tipo, monto,
-            fecha: document.getElementById('aaResFecha').value || new Date().toISOString().slice(0, 10),
+            fecha: document.getElementById('aaResFecha').value || hoyISO(),
             notas: document.getElementById('aaResNotas').value.trim() || null,
         };
         if (tipo === 'reasignado') {

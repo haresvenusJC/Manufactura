@@ -10,6 +10,7 @@ import { opcionesPresentacionHtml, sugerirPresetPorUnidadCfdi } from './presenta
 import './trazabilidad.js';
 import { convertirEnBuscador } from './buscador-select.js';
 import { etiquetaPoliza, linkPoliza } from './enlaces-reporte.js';
+import { fechaLocalTxt } from './fechas.js';
 
 // =====================================================================
 //  Órdenes de compra + Recibo de mercancía  (Fase 1: captura y recepción
@@ -20,7 +21,7 @@ import { etiquetaPoliza, linkPoliza } from './enlaces-reporte.js';
 // =====================================================================
 
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const hoyISO = () => new Date().toISOString().slice(0, 10);
+import { hoyISO } from './fechas.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const normTxt = (s) => String(s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
 // pedido - recibido con resta de punto flotante de JS da colas como
@@ -2053,7 +2054,7 @@ async function rmAvisoRecepcionesPrevias() {
         <div class="space-y-1">
           ${filas.map(d => `
             <div class="flex items-center justify-between gap-2 text-xs bg-slate-950 border border-slate-800 rounded px-2 py-1">
-              <span class="text-slate-300">Recibo #${d.id}${d.folio ? ' · folio ' + esc(d.folio) : ''} · ${d.fecha_emision ? new Date(d.fecha_emision).toLocaleDateString('es-MX') : ''} · ${money(d.total || 0)}${d.poliza_id ? ' · contabilizado' : ''}</span>
+              <span class="text-slate-300">Recibo #${d.id}${d.folio ? ' · folio ' + esc(d.folio) : ''} · ${d.fecha_emision ? fechaLocalTxt(d.fecha_emision, 'es-MX') : ''} · ${money(d.total || 0)}${d.poliza_id ? ' · contabilizado' : ''}</span>
               <button type="button" onclick="window.rmAbrirEdicionRecepcion(${d.id})" class="text-[11px] bg-sky-700 hover:bg-sky-600 text-white px-2 py-1 rounded shrink-0">✏ Editar</button>
             </div>`).join('')}
         </div>

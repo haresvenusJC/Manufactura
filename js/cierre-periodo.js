@@ -1,3 +1,4 @@
+import { hoyISO } from './fechas.js';
 import { supabaseClient } from './supabase.js';
 import { montarGuia } from './asistente-contable.js';
 
@@ -12,7 +13,7 @@ import { montarGuia } from './asistente-contable.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const TABLA_FALTA = /does not exist|schema cache|could not find|relation .* does not exist/i;
 
-const mesActualISO = () => new Date().toISOString().slice(0, 7);
+const mesActualISO = () => hoyISO().slice(0, 7);
 const nombreMes = (anio, mes) =>
     new Date(anio, mes - 1, 1).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
 

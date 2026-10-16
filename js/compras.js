@@ -1,7 +1,9 @@
+import { hoyISO } from './fechas.js';
 import { supabaseClient } from './supabase.js';
 import { cargarInventarioCompleto } from './inventario.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { linkDoc, linkPoliza } from './enlaces-reporte.js';
+import { fechaLocalTxt } from './fechas.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -195,7 +197,7 @@ export async function configurarFormularioCompras() {
 
     const inputFecha = document.getElementById('compraFecha');
     if (inputFecha) {
-        inputFecha.value = new Date().toISOString().split('T')[0];
+        inputFecha.value = hoyISO();
     }
 
     await cargarProveedoresSelect();
@@ -258,7 +260,7 @@ export async function configurarFormularioCompras() {
     formCompra.onsubmit = async (e) => {
         e.preventDefault();
 
-        const fecha = document.getElementById('compraFecha')?.value || new Date().toISOString().split('T')[0];
+        const fecha = document.getElementById('compraFecha')?.value || hoyISO();
         const folio = document.getElementById('compraFactura')?.value.trim() || '';
         const proveedorId = document.getElementById('compraProveedorId')?.value ? parseInt(document.getElementById('compraProveedorId').value) : null;
         const monedaCodigo = document.getElementById('compraMoneda')?.value || 'MXN';
@@ -436,7 +438,7 @@ export async function configurarFormularioCompras() {
             actualizarSubtotalFiscalAuto();
 
             if (inputFecha) {
-                inputFecha.value = new Date().toISOString().split('T')[0];
+                inputFecha.value = hoyISO();
             }
 
             if (typeof cargarInventarioCompleto === 'function') {
@@ -507,7 +509,7 @@ async function cargarHistorialCompras() {
             html += `
                 <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition">
                     <td class="p-3">${linkDoc(doc.id, doc.folio || 'Sin Factura', 'font-mono text-xs text-emerald-400 font-bold')}</td>
-                    <td class="p-3 text-xs text-slate-400">${doc.fecha_emision ? new Date(doc.fecha_emision).toLocaleDateString() : ''}</td>
+                    <td class="p-3 text-xs text-slate-400">${doc.fecha_emision ? fechaLocalTxt(doc.fecha_emision) : ''}</td>
                     <td class="p-3 text-xs text-slate-200">${doc.proveedores?.nombre || 'N/D'}</td>
                     <td class="p-3">${descDetalles}</td>
                     <td class="p-3">${polCell}</td>

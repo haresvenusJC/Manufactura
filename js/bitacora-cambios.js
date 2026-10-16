@@ -16,7 +16,7 @@ import { linkDoc, linkPoliza } from './enlaces-reporte.js';
 // =====================================================================
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const hoyISO = () => new Date().toISOString().slice(0, 10);
+import { hoyISO } from './fechas.js';
 const primerDiaMesISO = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); };
 const bitOrden = crearOrdenTabla('creado_at', 'desc');
 const LIMITE = 500;
@@ -302,7 +302,7 @@ function bitExportarCsv() {
     const blob = new Blob(['﻿' + lineas.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `bitacora_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `bitacora_${hoyISO()}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();

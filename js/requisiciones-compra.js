@@ -16,7 +16,7 @@ import './trazabilidad.js';
 // =====================================================================
 
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const hoyISO = () => new Date().toISOString().slice(0, 10);
+import { hoyISO } from './fechas.js';
 // Hoy + N días hábiles (lunes a viernes), en hora local — para "Fecha esperada" al autorizar.
 function fechaHabilesDesdeHoy(n) {
     const d = new Date();

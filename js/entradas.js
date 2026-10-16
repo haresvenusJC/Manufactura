@@ -1,8 +1,10 @@
+import { hoyISO } from './fechas.js';
 import { supabaseClient } from './supabase.js';
 import { siguienteFolio, proximoFolio } from './folios.js';
 import { cargarInventarioCompleto } from './inventario.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { linkDoc, linkPoliza } from './enlaces-reporte.js';
+import { fechaLocalTxt } from './fechas.js';
 
 let partidasEntradaDirecta = [];
 let catalogoInsumosCache = [];
@@ -142,7 +144,7 @@ export async function configurarFormularioEntradasDirectas() {
     }
 
     const inputFecha = document.getElementById('entradaDirectaFecha');
-    if (inputFecha) inputFecha.value = new Date().toISOString().split('T')[0];
+    if (inputFecha) inputFecha.value = hoyISO();
 
     await Promise.allSettled([
         cargarUnidadesMedidaSelectED(),
@@ -338,7 +340,7 @@ export async function configurarFormularioEntradasDirectas() {
             formEntradasDirectas.reset();
             mostrarProximoFolioEntrada();   // el siguiente folio sugerido
 
-            if (inputFecha) inputFecha.value = new Date().toISOString().split('T')[0];
+            if (inputFecha) inputFecha.value = hoyISO();
             renderizarTablaEDPartidas();
 
             if (typeof cargarInventarioCompleto === 'function') {
@@ -409,7 +411,7 @@ async function cargarHistorialEntradas() {
             html += `
                 <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition">
                     <td class="p-3">${linkDoc(doc.id, doc.folio || 'Sin Folio', 'font-mono text-xs text-emerald-400 font-bold')}</td>
-                    <td class="p-3 text-xs text-slate-400">${doc.fecha_emision ? new Date(doc.fecha_emision).toLocaleDateString() : ''}</td>
+                    <td class="p-3 text-xs text-slate-400">${doc.fecha_emision ? fechaLocalTxt(doc.fecha_emision) : ''}</td>
                     <td class="p-3 text-xs text-slate-200">${doc.descripcion || 'N/D'}</td>
                     <td class="p-3">${descDetalles}</td>
                     <td class="p-3">${polCell}</td>

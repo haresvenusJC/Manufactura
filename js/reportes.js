@@ -18,7 +18,7 @@ const repInvOrden = crearOrdenTabla('valor', 'desc');
 // ---------- Helpers compartidos (mismo patrón que contabilidad.js) ----------
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const numero = (n) => Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
-const hoyISO = () => new Date().toISOString().slice(0, 10);
+import { hoyISO } from './fechas.js';
 const primerDiaMesISO = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); };
 
 const ETIQUETAS_TIPO_PRODUCTO = {

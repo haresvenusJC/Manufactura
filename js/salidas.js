@@ -2,6 +2,7 @@ import { supabaseClient } from './supabase.js';
 import { siguienteFolio, proximoFolio, SERIE_SALIDA } from './folios.js';
 import { cargarInventarioCompleto, registrarMovimientoAlmacen } from './inventario.js';
 import { linkDoc, linkPoliza, etiquetaPoliza } from './enlaces-reporte.js';
+import { fechaLocalTxt } from './fechas.js';
 
 let partidasSalidaTemp = [];
 let reservadoPorProductoSal = {};   // producto_id -> { reservado, disponible } (pedidos pendientes)
@@ -421,7 +422,7 @@ async function seleccionarProducto(id, nombre) {
                     <span class="font-mono font-bold text-amber-300">Lote: ${l.numero_lote || 'SIN-LOTE'}</span>
                     <span class="font-mono text-emerald-400">${l.stock_actual} disp.</span>
                 </div>
-                <div class="text-[11px] text-slate-400 mt-1">Costo: $${Number(l.costo_unitario || 0).toFixed(2)} | Ingreso: ${l.fecha_ingreso ? new Date(l.fecha_ingreso).toLocaleDateString() : 'N/D'}</div>
+                <div class="text-[11px] text-slate-400 mt-1">Costo: $${Number(l.costo_unitario || 0).toFixed(2)} | Ingreso: ${l.fecha_ingreso ? fechaLocalTxt(l.fecha_ingreso) : 'N/D'}</div>
             </div>
         `;
     });
@@ -960,7 +961,7 @@ async function cargarHistorialSalidas() {
                 <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition">
                     <td class="p-3">${linkDoc(doc.id, doc.folio || 'Sin Folio', 'font-mono text-xs text-red-400 font-bold')}</td>
                     <td class="p-3 text-xs uppercase font-semibold text-slate-400">${doc.tipo_movimiento}</td>
-                    <td class="p-3 text-xs text-slate-400">${new Date(doc.fecha_emision).toLocaleDateString()}</td>
+                    <td class="p-3 text-xs text-slate-400">${fechaLocalTxt(doc.fecha_emision)}</td>
                     <td class="p-3 text-xs text-slate-200">${doc.descripcion || 'N/D'}</td>
                     <td class="p-3">${descDetalles}</td>
                     <td class="p-3">${contabCell}</td>

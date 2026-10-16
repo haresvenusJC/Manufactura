@@ -1,6 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { etiquetaPoliza } from './enlaces-reporte.js';
+import { fechaLocalTxt } from './fechas.js';
 
 const invResumenOrden = crearOrdenTabla();
 const invLotesOrden = crearOrdenTabla();
@@ -325,7 +326,7 @@ async function renderizarTablaLotes(contenedorLotes) {
         lotes.forEach(l => {
             const nombreProd = l.productos?.nombre || 'Desconocido';
             const tipoProd = l.productos?.tipo || 'General';
-            const fechaIng = l.fecha_ingreso ? new Date(l.fecha_ingreso).toLocaleDateString() : 'N/D';
+            const fechaIng = l.fecha_ingreso ? fechaLocalTxt(l.fecha_ingreso) : 'N/D';
 
             htmlLotes += `
                 <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition">
@@ -535,7 +536,7 @@ window.verDetalleLoteMovimiento = async function(loteId) {
                    `• Producto: ${nombreProd}\n• Identificador de Lote: ${numLoteStr}\n` +
                    `• Stock Actual en Lote: ${loteInfo.stock_actual}\n` +
                    `• Costo Unitario: $${Number(loteInfo.costo_unitario || 0).toFixed(2)}\n` +
-                   `• Fecha de Ingreso: ${loteInfo.fecha_ingreso ? new Date(loteInfo.fecha_ingreso).toLocaleDateString() : 'N/D'}\n\n`;
+                   `• Fecha de Ingreso: ${loteInfo.fecha_ingreso ? fechaLocalTxt(loteInfo.fecha_ingreso) : 'N/D'}\n\n`;
 
         if (doc) {
             info += `📄 DOCUMENTO VINCULADO:\n• ID Documento: #${doc.id}\n• Tipo de Movimiento: ${doc.tipo_movimiento.toUpperCase()}\n` +

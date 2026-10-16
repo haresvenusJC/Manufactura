@@ -2,6 +2,7 @@ import { supabaseClient } from './supabase.js';
 import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 import './trazabilidad.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+import { fechaLocalTxt } from './fechas.js';
 
 let documentosCache = [];
 let docActualParaImprimir = null; // compat: instancia "de siempre" (modalDetalleDocKardex)
@@ -451,7 +452,7 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
                 const lote = det.lotes_inventario || {};
                 const loteNum = lote.numero_lote ? `Lote: ${lote.numero_lote}` : 'Lote: SIN-LOTE';
                 const unidad = prod.unidades_medida?.nombre || '';
-                const fechaIngresoLote = lote.fecha_ingreso ? new Date(lote.fecha_ingreso).toLocaleDateString() : null;
+                const fechaIngresoLote = lote.fecha_ingreso ? fechaLocalTxt(lote.fecha_ingreso) : null;
                 const monedaCodigo = lote.monedas?.codigo;
                 const tipoCambio = Number(lote.tipo_cambio || 1);
 

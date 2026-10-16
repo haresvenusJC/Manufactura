@@ -1,0 +1,22 @@
+-- =====================================================================
+--  Zona horaria de la base = México (America/Mexico_City)
+--  Fecha: 2026-10-16  ·  Proyecto: Hares de México (Supabase)
+--
+--  NO lo ejecuta la app. Pegar y correr a mano en Supabase -> SQL Editor.
+--
+--  Problema: Supabase corre en UTC. Todo lo que la base fecha con current_date,
+--  now()::date o un DEFAULT current_date (lotes, pólizas, folios, documentos…)
+--  recibía el día SIGUIENTE cuando se ejecutaba después de las 18:00 hora de México.
+--  Con la zona del servidor en México, esas fechas son el día real en que se
+--  ejecutó cada documento. Las columnas timestamptz no cambian (siguen guardándose
+--  en UTC y se muestran en hora local); solo cambia cómo se calcula "hoy".
+--
+--  Solo afecta a conexiones NUEVAS: si tras correrlo la consulta de abajo aún dice UTC,
+--  espera unos minutos o reinicia el proyecto (Settings -> General -> Restart project).
+--  No re-fecha lo ya guardado (todo lo capturado hasta hoy es fase de pruebas).
+-- =====================================================================
+alter database postgres set timezone to 'America/Mexico_City';
+
+-- Verificación (corre esto DESPUÉS, en una pestaña/conexión nueva):
+--   select current_setting('TimeZone') as zona, current_date as hoy, now() as ahora;
+-- Debe decir America/Mexico_City y "hoy" igual a la fecha de tu reloj.

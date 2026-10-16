@@ -1,3 +1,4 @@
+import { hoyISO } from './fechas.js';
 import { supabaseClient } from './supabase.js';
 import { renderizarKardexProducto } from './kardex.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
@@ -1326,7 +1327,7 @@ async function exportarCatalogoProductos(formato) {
             ...[...todas].filter((c) => !preferidas.includes(c)).sort(),
         ];
 
-        const stamp = new Date().toISOString().slice(0, 10);
+        const stamp = hoyISO();
         const nombreArchivo = `catalogo_productos_${stamp}`;
 
         if (formato === 'xlsx') {

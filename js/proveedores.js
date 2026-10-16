@@ -4,6 +4,7 @@ import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-
 // El catálogo de regímenes vive en js/regimenes-fiscales.js (tabla c_regimen_fiscal); se re-exporta para no romper imports.
 export { REGIMENES } from './regimenes-fiscales.js';
 import { cargarRegimenes, opcionesRegimen } from './regimenes-fiscales.js';
+import { fechaLocalTxt } from './fechas.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -370,7 +371,7 @@ function configurarLogicaProveedores() {
                                     <td class="p-2.5 font-mono text-sky-300">${esc(f.numero_lote || 'S/N')}</td>
                                     <td class="p-2.5 font-mono">${f.stock_actual} ${esc(f.u)}</td>
                                     <td class="p-2.5 font-mono text-slate-300">$${Number(f.costo_unitario || 0).toFixed(2)} <span class="text-[10px] text-slate-500">${esc(f.moneda || 'MXN')}</span></td>
-                                    <td class="p-2.5 text-slate-400">${f.fecha_ingreso ? new Date(f.fecha_ingreso).toLocaleDateString() : 'N/D'}</td>
+                                    <td class="p-2.5 text-slate-400">${f.fecha_ingreso ? fechaLocalTxt(f.fecha_ingreso) : 'N/D'}</td>
                                 </tr>`).join('')}
                         </tbody>
                     </table>
