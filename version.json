@@ -1,5 +1,5 @@
 {
- "v": "20261016070000",
+ "v": "20261016150000",
  "modulos": [
   "activos-fijos.js",
   "app.js",
@@ -33,6 +33,7 @@
   "enlaces-reporte.js",
   "estado-vacio.js",
   "fechas.js",
+  "filtro-columna.js",
   "entradas.js",
   "folios.js",
   "fresh-start.js",
@@ -75,4 +76,5 @@
   "trazabilidad.js"
  ]
 }
+
 

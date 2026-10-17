@@ -49,6 +49,7 @@ const MANUAL_ANCHORS = {
     'polizas': '#m-polizas',
     'reportes-contables': '#m-reportes-contables',
     'pagos-proveedor': '#m-pagos-proveedor',
+    'kardex': '#m-kardex',
     'cuentas-por-cobrar': '#m-cuentas-por-cobrar',
     'cierre-periodo': '#m-cierre-periodo',
     'nomina': '#m-nomina',
@@ -105,6 +106,22 @@ export const GUIAS = {
         errores: [
             'Leer los números antes de haber corrido el prorrateo del mes: faltaría todo el CIF.',
             'Esperar que "Desde" filtre el Balance general — no aplica, es un saldo acumulado a una fecha.',
+        ],
+    },
+    'kardex': {
+        titulo: 'Kardex',
+        paraQue: 'Movimientos de inventario por periodo y producto: saldo inicial, entradas, salidas y saldo final. Elige uno o varios productos (hasta 10).',
+        pasos: [
+            'Elige "Desde" y "Hasta" (por default, del día 1 del mes a hoy).',
+            'Busca el producto por SKU o nombre y elígelo de la lista (con ↓ y Enter o con el mouse); puedes sumar varios.',
+            'Da "Consultar": cada producto muestra su saldo inicial, entradas, salidas y saldo final, y debajo sus movimientos.',
+            'Filtra con el menú ▼ de Operación, Lote o Cantidad (entradas/salidas) y ordena con ⇅; los totales de cada producto no cambian con los filtros.',
+            '🖨️ Imprimir y ⬇ CSV sacan lo que estás viendo.',
+        ],
+        cuando: 'Cuando necesitas explicar por qué cambió el saldo de un artículo o rastrear un lote.',
+        errores: [
+            'Consultar sin elegir al menos un producto.',
+            'Ordenar o filtrar y creer que cambió el saldo: Stock ant./Stock nuevo siguen el orden cronológico del producto completo (todos sus lotes), sin importar cómo ordenes la tabla.',
         ],
     },
     'pagos-proveedor': {

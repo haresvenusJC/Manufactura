@@ -395,6 +395,7 @@
                                     <li><button onclick="window.loadView('tablas', {tabla:'c_forma_pago'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">SAT · Forma de pago</button></li>
                                     <li><button onclick="window.loadView('tablas', {tabla:'c_metodo_pago'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">SAT · Método de pago</button></li>
                                     <li><button onclick="window.loadView('tablas', {tabla:'regimenes'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">SAT · Regímenes fiscales</button></li>
+                                    <li><button onclick="window.loadView('tablas', {tabla:'umbral_caducidad'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Umbral caducidades</button></li>
                                 </ul>
                             </li>
                             <li><button onclick="window.loadView('fresh-start')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Fresh start (mantenimiento)</button></li>
@@ -474,7 +475,7 @@
             </section>
 
             <!-- Vista: Inventario -->
-            <section id="view-inventario" class="vista-seccion hidden space-y-4">
+            <section id="view-inventario" class="vista-seccion lista-completa hidden space-y-4">
                 <div class="flex items-center justify-between gap-2 flex-wrap">
                     <h2 class="text-xl font-bold text-sky-400">Inventario de Materias Primas</h2>
                     <button type="button" onclick="window.abrirManual('#m-inventario', 'Stock General')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
@@ -490,14 +491,9 @@
             </section>
 
             <!-- Vista: Kardex (visor por fechas y productos; el Kardex de un solo producto sigue embebido en Productos) -->
-            <section id="view-kardex" class="vista-seccion hidden space-y-4">
-                <div class="flex items-center justify-between gap-2 flex-wrap">
-                    <h2 class="text-xl font-bold text-sky-400">Kardex</h2>
-                </div>
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-                    <p class="text-xs text-slate-400 mb-3">Movimientos de inventario por periodo y producto: saldo inicial, entradas, salidas y saldo final. Elige uno o varios productos.</p>
-                    <div id="contenedorKardexVisor">Cargando...</div>
-                </div>
+            <section id="view-kardex" class="vista-seccion lista-completa hidden space-y-4">
+                <h2 class="text-xl font-bold text-sky-400">Kardex</h2>
+                <div id="contenedorKardexVisor">Cargando...</div>
             </section>
 
             <!-- Vista: Lotes (antes "Existencias y Lotes Detallados" dentro de Stock General). Lo llena cargarInventarioCompleto() por id. -->
@@ -782,9 +778,6 @@
                     <input type="text" id="tareasBuscador" placeholder="🔍 Buscar por título o detalle..."
                            class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 mb-3">
                     <div id="contenedorTareas">Cargando tareas...</div>
-                </div>
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-                    <div id="contenedorConfigCaducidad">Cargando configuración de alertas de caducidad...</div>
                 </div>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorTareasHistorial">Cargando historial...</div>

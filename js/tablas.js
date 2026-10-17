@@ -119,6 +119,92 @@ async function cargarEditorRegimenes(cont, titulo) {
     });
 }
 
+// Umbrales de caducidad (public.alertas_caducidad_umbrales): a cuántos días de vida de un lote se avisa y con qué prioridad.
+// Vivía en Tareas de almacén; ahora es una tabla de apoyo de Configuración. Al cambiar cualquier umbral se vuelve a correr
+// tareas_sync_caducidad para que las Tareas de almacén reflejen el cambio. Requiere sql/2026-09-09_tareas_caducidad.sql.
+const PRIO_CAD = { 1: 'Alta', 2: 'Normal', 3: 'Baja' };
+
+async function cargarEditorUmbralesCaducidad(cont, titulo) {
+    if (titulo) titulo.textContent = '⏳ Umbral caducidades';
+    cont.innerHTML = '<p class="text-sm text-slate-400">Cargando…</p>';
+
+    let umbrales;
+    try {
+        const { data, error } = await supabaseClient.from('alertas_caducidad_umbrales').select('*').order('dias', { ascending: false });
+        if (error) throw error;
+        umbrales = data || [];
+    } catch (err) {
+        const m = err?.message || String(err);
+        cont.innerHTML = /does not exist|schema cache|could not find/i.test(m)
+            ? '<p class="text-sm text-slate-500">Las alertas de caducidad aún no están activadas (falta correr <span class="font-mono">sql/2026-09-09_tareas_caducidad.sql</span>).</p>'
+            : `<p class="text-sm text-rose-400">No se pudieron leer los umbrales: ${esc(m)}</p>`;
+        return;
+    }
+
+    cont.innerHTML = `
+        <p class="text-xs text-slate-400 mb-3">Aviso (en Tareas de almacén) cuando a un lote le queden ≤ estos días de vida. Cada umbral se puede activar, desactivar o quitar.</p>
+        <div class="overflow-x-auto border border-slate-800 rounded-lg mb-3">
+            <table class="w-full text-sm text-left">
+                <thead class="bg-slate-950 text-xs text-slate-400"><tr>
+                    <th class="px-3 py-2">Activo</th><th class="px-3 py-2">Días</th><th class="px-3 py-2">Etiqueta</th><th class="px-3 py-2">Prioridad</th><th class="px-3 py-2"></th>
+                </tr></thead>
+                <tbody class="divide-y divide-slate-800 text-slate-200">
+                    ${umbrales.map((u) => `
+                        <tr class="hover:bg-slate-800/40">
+                            <td class="px-3 py-1.5"><input type="checkbox" class="cad-activo" data-dias="${u.dias}" ${u.activo ? 'checked' : ''}></td>
+                            <td class="px-3 py-1.5 font-mono">${u.dias}</td>
+                            <td class="px-3 py-1.5">${esc(u.etiqueta)}</td>
+                            <td class="px-3 py-1.5 text-slate-400">${PRIO_CAD[u.prioridad] || esc(u.prioridad)}</td>
+                            <td class="px-3 py-1.5 text-right"><button type="button" class="cad-borrar text-rose-400 hover:text-rose-300 cursor-pointer" data-dias="${u.dias}" title="Quitar umbral">✕</button></td>
+                        </tr>`).join('') || '<tr><td colspan="5" class="px-3 py-4 text-center text-slate-500">Sin umbrales. Agrega al menos uno.</td></tr>'}
+                </tbody>
+            </table>
+        </div>
+        <div class="flex flex-wrap items-end gap-2 text-xs">
+            <div><label class="block text-slate-400 mb-1">Días</label>
+                <input type="number" id="cadDias" min="0" step="1" class="w-24 bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-slate-200"></div>
+            <div><label class="block text-slate-400 mb-1">Etiqueta</label>
+                <input type="text" id="cadEtiqueta" placeholder="ej. 15 días de vida" class="w-48 bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-slate-200"></div>
+            <div><label class="block text-slate-400 mb-1">Prioridad</label>
+                <select id="cadPrioridad" class="bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-slate-200">
+                    <option value="1">Alta</option><option value="2" selected>Normal</option><option value="3">Baja</option>
+                </select></div>
+            <button type="button" id="cadAgregar" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-1.5 rounded-lg cursor-pointer">Agregar umbral</button>
+        </div>
+        <p id="cadMsg" class="text-[11px] text-slate-500 mt-2"></p>`;
+
+    const msg = cont.querySelector('#cadMsg');
+    const reevaluar = async () => {
+        const { error } = await supabaseClient.rpc('tareas_sync_caducidad', { p_lote_id: null });
+        if (error) { alert('Umbral guardado, pero falló la re-evaluación de lotes: ' + (error.message || error)); }
+        await cargarEditorUmbralesCaducidad(cont, titulo);
+        const m2 = cont.querySelector('#cadMsg');
+        if (m2 && !error) m2.textContent = 'Guardado. Los lotes se re-evaluaron y las Tareas de almacén ya reflejan el cambio.';
+    };
+
+    cont.querySelectorAll('.cad-activo').forEach((c) => c.addEventListener('change', async () => {
+        const { error } = await supabaseClient.from('alertas_caducidad_umbrales').update({ activo: c.checked }).eq('dias', Number(c.dataset.dias));
+        if (error) { alert('No se pudo actualizar: ' + (error.message || error)); c.checked = !c.checked; return; }
+        await reevaluar();
+    }));
+    cont.querySelectorAll('.cad-borrar').forEach((b) => b.addEventListener('click', async () => {
+        if (!confirm(`¿Quitar el umbral de ${b.dataset.dias} días?`)) return;
+        const { error } = await supabaseClient.from('alertas_caducidad_umbrales').delete().eq('dias', Number(b.dataset.dias));
+        if (error) { alert('No se pudo quitar: ' + (error.message || error)); return; }
+        await reevaluar();
+    }));
+    cont.querySelector('#cadAgregar').addEventListener('click', async () => {
+        const dias = parseInt(cont.querySelector('#cadDias').value, 10);
+        const etiqueta = cont.querySelector('#cadEtiqueta').value.trim();
+        const prioridad = Number(cont.querySelector('#cadPrioridad').value) || 2;
+        if (!Number.isInteger(dias) || dias < 0) { msg.textContent = 'Pon un número de días válido (0 o más).'; return; }
+        if (!etiqueta) { msg.textContent = 'Pon una etiqueta.'; return; }
+        const { error } = await supabaseClient.from('alertas_caducidad_umbrales').upsert({ dias, etiqueta, prioridad, activo: true }, { onConflict: 'dias' });
+        if (error) { msg.textContent = 'No se pudo agregar: ' + (error.message || error); return; }
+        await reevaluar();
+    });
+}
+
 export async function cargarModuloTablas(tabla = 'unidades_medida') {
     const cont = document.getElementById('contenedorTablas');
     if (!cont) return;
@@ -130,6 +216,7 @@ export async function cargarModuloTablas(tabla = 'unidades_medida') {
         return;
     }
     if (tabla === 'regimenes') return cargarEditorRegimenes(cont, document.getElementById('tituloTablas'));
+    if (tabla === 'umbral_caducidad') return cargarEditorUmbralesCaducidad(cont, document.getElementById('tituloTablas'));
     if (tabla === 'conversiones') {
         cont.innerHTML = '<p class="text-sm text-slate-400">Cargando…</p>';
         return cargarConversiones(cont, document.getElementById('tituloTablas'));

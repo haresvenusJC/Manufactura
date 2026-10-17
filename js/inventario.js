@@ -1,9 +1,10 @@
 import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
+import { thColumna, wireFiltrosColumna } from './filtro-columna.js';
 import { etiquetaPoliza } from './enlaces-reporte.js';
 import { fechaLocalTxt } from './fechas.js';
 
-const invResumenOrden = crearOrdenTabla();
+const invResumenOrden = crearOrdenTabla('nombre', 'asc');
 const invLotesOrden = crearOrdenTabla();
 const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -59,13 +60,6 @@ const limpiarFiltroTexto = (t) => String(t || '').replace(/[,()%*\\]/g, ' ').tri
 // cliente sin volver a golpear Supabase en cada tecleo del buscador.
 let invProductosCache = [];
 let invFiltroTexto = '';
-const porPaginaResumen = 10;
-const invSeccionEstado = {
-    terminados: { pagina: 1, colapsada: true },
-    semiterminados: { pagina: 1, colapsada: true },
-    materias: { pagina: 1, colapsada: true },
-    componentes: { pagina: 1, colapsada: true },
-};
 
 export async function cargarInventarioCompleto() {
     const contenedorInv = document.getElementById('contenedorInventario');
@@ -101,7 +95,6 @@ export async function cargarInventarioCompleto() {
                 inputBuscar.value = invFiltroTexto;
                 inputBuscar.oninput = () => {
                     invFiltroTexto = inputBuscar.value;
-                    Object.keys(invSeccionEstado).forEach(k => { invSeccionEstado[k].pagina = 1; });
                     renderInventarioResumen();
                 };
             }
@@ -118,115 +111,126 @@ export async function cargarInventarioCompleto() {
     }
 }
 
+// Clasificación de cada artículo en el resumen (misma regla de siempre; otros tipos no se listan).
+const INV_CLASES = {
+    terminados:     { t: 'Productos terminados', ico: '📦', cls: 'text-amber-400' },
+    semiterminados: { t: 'Semiterminados (granel)', ico: '🧴', cls: 'text-indigo-400' },
+    materias:       { t: 'Materias primas', ico: '🧪', cls: 'text-sky-400' },
+    componentes:    { t: 'Componentes y refacciones', ico: '⚙️', cls: 'text-emerald-400' },
+};
+const invClaseDe = (p) => {
+    if (p.tipo === 'producto') return 'terminados';
+    if (p.tipo === 'semiterminado') return 'semiterminados';
+    if (p.tipo === 'materia_prima' || !p.tipo) return 'materias';
+    if (p.tipo === 'componente' || p.tipo === 'refaccion' || p.tipo === 'insumo') return 'componentes';
+    return null;
+};
+// Filtros por columna (menú ▼ en el encabezado). '' = sin filtrar.
+const invFiltros = { clase: '', unidad: '', stock: '', reservado: '', libre: '', costo: '' };
+
 function renderInventarioResumen() {
     const contenedorInv = document.getElementById('contenedorInventario');
     if (!contenedorInv) return;
 
-    const filtro = invFiltroTexto.trim().toLowerCase();
-    const pasaFiltro = (p) => !filtro
-        || (p.nombre || '').toLowerCase().includes(filtro)
-        || (p.sku || '').toLowerCase().includes(filtro);
+    const conReservas = !!invReservas._ok;
+    const texto = invFiltroTexto.trim().toLowerCase();
+    const reservadoDe = (p) => Number(invReservas[p.id]?.reservado || 0);
+    const libreDe = (p) => (invClaseDe(p) === 'terminados' && invReservas[p.id] ? Number(invReservas[p.id].disponible || 0) : Number(p.stock_actual || 0));
+    const base = invProductosCache.filter((p) => invClaseDe(p) && (!texto
+        || (p.nombre || '').toLowerCase().includes(texto) || (p.sku || '').toLowerCase().includes(texto)));
 
-    const productosTerminados = invProductosCache.filter(p => p.tipo === 'producto' && pasaFiltro(p));
-    const semiterminados = invProductosCache.filter(p => p.tipo === 'semiterminado' && pasaFiltro(p));
-    const materiasPrimas = invProductosCache.filter(p => (p.tipo === 'materia_prima' || !p.tipo) && pasaFiltro(p));
-    const componentes = invProductosCache.filter(p => (p.tipo === 'componente' || p.tipo === 'refaccion' || p.tipo === 'insumo') && pasaFiltro(p));
-
-    // Renderizado de sección: colapsable y paginada de 10 en 10.
-    const renderSeccion = (titulo, colorClass, lista, key) => {
-        if (lista.length === 0) return '';
-        aplicarOrden(invResumenOrden, lista, (item, campo) => {
-            switch (campo) {
-                case 'nombre': return (item.nombre || '').toLowerCase();
-                case 'unidad': return (item.unidades_medida?.nombre || '').toLowerCase();
-                case 'stock': return Number(item.stock_actual || 0);
-                case 'costo': return Number(item.costo_unitario || 0);
-                default: return item.id;
-            }
-        });
-
-        const estado = invSeccionEstado[key];
-        const totalPaginas = Math.ceil(lista.length / porPaginaResumen) || 1;
-        if (estado.pagina > totalPaginas) estado.pagina = totalPaginas;
-        const desde = (estado.pagina - 1) * porPaginaResumen;
-        const pagina = lista.slice(desde, desde + porPaginaResumen);
-
-        let sectionHtml = `
-            <div class="mb-6">
-                <button type="button" class="inv-sec-toggle w-full flex items-center justify-between gap-2 mb-2 cursor-pointer" data-seccion="${key}">
-                    <h4 class="text-xs font-bold ${colorClass} uppercase tracking-wider">${titulo} <span class="text-slate-500 normal-case font-normal">(${lista.length})</span></h4>
-                    <span class="text-slate-500 text-xs">${estado.colapsada ? '▸ mostrar' : '▾ ocultar'}</span>
-                </button>
-        `;
-        if (!estado.colapsada) {
-            sectionHtml += `
-                <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-950">
-                    <table class="w-full text-left text-sm text-slate-300">
-                        <thead class="bg-slate-900 ${colorClass} border-b border-slate-800 text-xs uppercase">
-                            <tr>
-                                ${thOrden(invResumenOrden, 'nombre', 'Elemento / SKU')}
-                                ${thOrden(invResumenOrden, 'unidad', 'Unidad')}
-                                ${thOrden(invResumenOrden, 'stock', key === 'terminados' && invReservas._ok ? 'Existencia' : 'Stock Disponible')}
-                                ${key === 'terminados' && invReservas._ok ? '<th class="p-3" title="Apartado por pedidos de venta pendientes">Reservado</th><th class="p-3" title="Existencia menos lo reservado">Libre</th>' : ''}
-                                ${thOrden(invResumenOrden, 'costo', 'Costo Unitario')}
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-            pagina.forEach(item => {
-                const nombreUnidad = item.unidades_medida?.nombre || 'N/D';
-                const codigoMoneda = item.monedas?.codigo || 'MXN';
-                sectionHtml += `
-                    <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition">
-                        <td class="p-3 font-medium text-slate-100">${item.nombre} <span class="text-xs text-slate-500 font-mono">(${item.sku || 'N/D'})</span></td>
-                        <td class="p-3 text-slate-400 text-xs">${nombreUnidad}</td>
-                        <td class="p-3 font-mono font-semibold">${item.stock_actual || 0}</td>
-                        ${key === 'terminados' && invReservas._ok ? `<td class="p-3 font-mono ${(invReservas[item.id]?.reservado || 0) > 0 ? 'text-sky-300' : 'text-slate-600'}">${invReservas[item.id]?.reservado || 0}</td>
-                        <td class="p-3 font-mono ${(invReservas[item.id]?.reservado || 0) > 0 ? 'text-amber-300 font-semibold' : 'text-slate-400'}">${invReservas[item.id] ? invReservas[item.id].disponible : (item.stock_actual || 0)}</td>` : ''}
-                        <td class="p-3 font-mono text-slate-300">$${Number(item.costo_unitario || 0).toFixed(2)} <span class="text-[10px] text-slate-500">${codigoMoneda}</span></td>
-                    </tr>
-                `;
-            });
-            sectionHtml += `</tbody></table></div>`;
-
-            if (totalPaginas > 1) {
-                sectionHtml += `
-                    <div class="flex items-center justify-between mt-2 px-1">
-                        <span class="text-[11px] text-slate-500">Página ${estado.pagina} de ${totalPaginas}</span>
-                        <div class="flex gap-1.5">
-                            <button type="button" class="inv-sec-pag text-[11px] ${estado.pagina <= 1 ? 'opacity-40 pointer-events-none' : ''} bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-2.5 py-1 rounded" data-seccion="${key}" data-pagina="${estado.pagina - 1}">← Anterior</button>
-                            <button type="button" class="inv-sec-pag text-[11px] ${estado.pagina >= totalPaginas ? 'opacity-40 pointer-events-none' : ''} bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-2.5 py-1 rounded" data-seccion="${key}" data-pagina="${estado.pagina + 1}">Siguiente →</button>
-                        </div>
-                    </div>
-                `;
-            }
-        }
-        sectionHtml += `</div>`;
-        return sectionHtml;
+    // Cada filtro; `excepto` permite contar las opciones de una columna sin aplicarle su propio filtro.
+    const cumple = (p, excepto) => {
+        const f = invFiltros;
+        if (excepto !== 'clase' && f.clase && invClaseDe(p) !== f.clase) return false;
+        if (excepto !== 'unidad' && f.unidad && (p.unidades_medida?.nombre || 'N/D') !== f.unidad) return false;
+        if (excepto !== 'stock' && f.stock && (Number(p.stock_actual || 0) > 0) !== (f.stock === 'con')) return false;
+        if (conReservas && excepto !== 'reservado' && f.reservado && (reservadoDe(p) > 0) !== (f.reservado === 'con')) return false;
+        if (conReservas && excepto !== 'libre' && f.libre && (libreDe(p) > 0) !== (f.libre === 'con')) return false;
+        if (excepto !== 'costo' && f.costo && (Number(p.costo_unitario || 0) > 0) !== (f.costo === 'con')) return false;
+        return true;
     };
+    const lista = base.filter((p) => cumple(p, null));
+    const cuenta = (excepto, fn) => base.filter((p) => cumple(p, excepto) && fn(p)).length;
 
-    let html = '';
-    html += renderSeccion('📦 Productos Terminados', 'text-amber-400', productosTerminados, 'terminados');
-    html += renderSeccion('🧴 Semiterminados (granel y similares)', 'text-indigo-400', semiterminados, 'semiterminados');
-    html += renderSeccion('🧪 Materias Primas e Insumos', 'text-sky-400', materiasPrimas, 'materias');
-    html += renderSeccion('⚙️ Componentes y Refacciones', 'text-emerald-400', componentes, 'componentes');
+    aplicarOrden(invResumenOrden, lista, (item, campo) => {
+        switch (campo) {
+            case 'nombre': return (item.nombre || '').toLowerCase();
+            case 'clase': return Object.keys(INV_CLASES).indexOf(invClaseDe(item));
+            case 'unidad': return (item.unidades_medida?.nombre || '').toLowerCase();
+            case 'stock': return Number(item.stock_actual || 0);
+            case 'reservado': return reservadoDe(item);
+            case 'libre': return libreDe(item);
+            case 'costo': return Number(item.costo_unitario || 0);
+            default: return item.id;
+        }
+    });
 
-    contenedorInv.innerHTML = html || '<p class="text-sm text-slate-500">No se encontraron artículos con ese criterio.</p>';
+    const unidades = [...new Set(base.map((p) => p.unidades_medida?.nombre || 'N/D'))].sort((a, b) => a.localeCompare(b, 'es'));
+    const opcSiNo = (campo, si, no, fn) => [
+        { v: '', t: 'Todos', n: cuenta(campo, () => true) },
+        { v: 'con', t: si, n: cuenta(campo, (p) => fn(p) > 0) },
+        { v: 'sin', t: no, n: cuenta(campo, (p) => !(fn(p) > 0)) },
+    ];
+    const th = [
+        thColumna({ orden: invResumenOrden, campo: 'nombre', titulo: 'Elemento / SKU' }),
+        thColumna({ orden: invResumenOrden, campo: 'clase', titulo: 'Clasificación', filtro: { id: 'clase', valor: invFiltros.clase, opciones: [
+            { v: '', t: 'Todas', n: cuenta('clase', () => true) },
+            ...Object.entries(INV_CLASES).map(([k, c]) => ({ v: k, t: c.t, n: cuenta('clase', (p) => invClaseDe(p) === k) })),
+        ] } }),
+        thColumna({ orden: invResumenOrden, campo: 'unidad', titulo: 'Unidad', filtro: { id: 'unidad', valor: invFiltros.unidad, opciones: [
+            { v: '', t: 'Todas', n: cuenta('unidad', () => true) },
+            ...unidades.map((u) => ({ v: u, t: u, n: cuenta('unidad', (p) => (p.unidades_medida?.nombre || 'N/D') === u) })),
+        ] } }),
+        thColumna({ orden: invResumenOrden, campo: 'stock', titulo: conReservas ? 'Existencia' : 'Stock', clase: 'text-right', filtro: { id: 'stock', valor: invFiltros.stock,
+            opciones: opcSiNo('stock', 'Con existencia', 'Sin existencia', (p) => Number(p.stock_actual || 0)) } }),
+        ...(conReservas ? [
+            thColumna({ orden: invResumenOrden, campo: 'reservado', titulo: 'Reservado', clase: 'text-right', filtro: { id: 'reservado', valor: invFiltros.reservado,
+                opciones: opcSiNo('reservado', 'Con reservado', 'Sin reservado', reservadoDe) } }),
+            thColumna({ orden: invResumenOrden, campo: 'libre', titulo: 'Libre', clase: 'text-right', filtro: { id: 'libre', valor: invFiltros.libre,
+                opciones: opcSiNo('libre', 'Con libre', 'Sin libre', libreDe) } }),
+        ] : []),
+        thColumna({ orden: invResumenOrden, campo: 'costo', titulo: 'Costo unitario', clase: 'text-right', filtro: { id: 'costo', valor: invFiltros.costo,
+            opciones: opcSiNo('costo', 'Con costo', 'Sin costo ($0)', (p) => Number(p.costo_unitario || 0)) } }),
+    ].join('');
+    const anchos = conReservas ? [27, 17, 9, 10, 10, 10, 17] : [34, 20, 11, 15, 20];
+    const filas = lista.map((item) => {
+        const c = INV_CLASES[invClaseDe(item)];
+        const esTerm = invClaseDe(item) === 'terminados';
+        const res = reservadoDe(item);
+        const codigoMoneda = item.monedas?.codigo || 'MXN';
+        return `
+            <tr class="border-b border-slate-900 hover:bg-slate-900/40 transition">
+                <td class="p-3 font-medium text-slate-100 truncate" title="${escLote(item.nombre)}">${escLote(item.nombre)} <span class="text-xs text-slate-500 font-mono">(${escLote(item.sku || 'N/D')})</span></td>
+                <td class="p-3 text-xs ${c.cls} truncate">${c.t}</td>
+                <td class="p-3 text-slate-400 text-xs">${escLote(item.unidades_medida?.nombre || 'N/D')}</td>
+                <td class="p-3 text-right font-mono font-semibold">${item.stock_actual || 0}</td>
+                ${conReservas ? `
+                <td class="p-3 text-right font-mono ${res > 0 ? 'text-sky-300' : 'text-slate-600'}">${esTerm ? res : '—'}</td>
+                <td class="p-3 text-right font-mono ${esTerm && res > 0 ? 'text-amber-300 font-semibold' : 'text-slate-400'}">${esTerm ? libreDe(item) : '—'}</td>` : ''}
+                <td class="p-3 text-right font-mono text-slate-300">$${Number(item.costo_unitario || 0).toFixed(2)} <span class="text-[10px] text-slate-500">${codigoMoneda}</span></td>
+            </tr>`;
+    }).join('');
+
+    const hayFiltros = Object.values(invFiltros).some(Boolean);
+    contenedorInv.innerHTML = `
+        <div class="flex items-center justify-between gap-2 mb-2 text-[11px] text-slate-500">
+            <span>${lista.length} de ${base.length} artículos</span>
+            ${hayFiltros ? '<button type="button" id="invLimpiarFiltros" class="text-sky-300 hover:text-sky-200 underline">Quitar filtros</button>' : ''}
+        </div>
+        <div class="border border-slate-800 rounded-xl bg-slate-950">
+          <table class="w-full table-fixed text-left text-sm text-slate-300">
+            <colgroup>${anchos.map((a) => `<col style="width:${a}%">`).join('')}</colgroup>
+            <thead class="bg-slate-900 text-slate-300 border-b border-slate-800 text-xs"><tr>${th}</tr></thead>
+            <tbody>${filas || `<tr><td colspan="${anchos.length}" class="p-4 text-center text-slate-500">No se encontraron artículos con ese criterio.</td></tr>`}</tbody>
+          </table>
+        </div>`;
 
     wireOrdenTabla(contenedorInv, invResumenOrden, () => renderInventarioResumen());
-    contenedorInv.querySelectorAll('.inv-sec-toggle').forEach(btn => {
-        btn.onclick = () => {
-            const key = btn.dataset.seccion;
-            invSeccionEstado[key].colapsada = !invSeccionEstado[key].colapsada;
-            renderInventarioResumen();
-        };
-    });
-    contenedorInv.querySelectorAll('.inv-sec-pag').forEach(btn => {
-        btn.onclick = () => {
-            const key = btn.dataset.seccion;
-            invSeccionEstado[key].pagina = Number(btn.dataset.pagina);
-            renderInventarioResumen();
-        };
+    wireFiltrosColumna(contenedorInv, (id, valor) => { invFiltros[id] = valor; renderInventarioResumen(); });
+    contenedorInv.querySelector('#invLimpiarFiltros')?.addEventListener('click', () => {
+        Object.keys(invFiltros).forEach((k) => { invFiltros[k] = ''; });
+        renderInventarioResumen();
     });
 }
 

@@ -107,6 +107,7 @@ export const SECCIONES = [
             { v: 'tablas', t: 'Tablas · SAT · Forma de pago', d: 'Catálogo de formas de pago del SAT (solo lectura).', extra: "{tabla:'c_forma_pago'}" },
             { v: 'tablas', t: 'Tablas · SAT · Método de pago', d: 'Catálogo de métodos de pago del SAT, PUE / PPD (solo lectura).', extra: "{tabla:'c_metodo_pago'}" },
             { v: 'tablas', t: 'Tablas · SAT · Regímenes fiscales', d: 'Catálogo de regímenes fiscales del SAT que usan Proveedores y Clientes (solo lectura).', extra: "{tabla:'regimenes'}" },
+            { v: 'tablas', t: 'Tablas · Umbral caducidades', d: 'Días de vida restante de un lote a los que se avisa en Tareas de almacén, con su prioridad (antes vivía en Tareas).', extra: "{tabla:'umbral_caducidad'}" },
         ],
     },
 ];
