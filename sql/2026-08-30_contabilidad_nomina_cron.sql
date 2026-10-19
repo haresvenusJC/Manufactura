@@ -138,8 +138,8 @@ $$;
 revoke all on function public._nomina_autogenerar_pendiente() from public;
 
 -- ---------------------------------------------------------------------
--- Programa la corrida diaria (13:00 UTC ~ 7-8 am hora de Mexico según
--- horario de verano). Se puede ajustar la hora desde el Dashboard ->
+-- Programa la corrida diaria (13:00 UTC = 7:00 am hora de Mexico; UTC-6 fijo,
+-- sin horario de verano desde 2022). Se puede ajustar la hora desde el Dashboard ->
 -- Database -> Cron, o corriendo de nuevo cron.schedule con otro valor.
 -- ---------------------------------------------------------------------
 do $$
