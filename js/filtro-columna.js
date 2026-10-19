@@ -61,9 +61,13 @@ export function wireFiltrosColumna(contenedor, onSeleccion) {
             const z = Number(getComputedStyle(document.body).zoom) || 1;
             const r = btn.getBoundingClientRect();
             menu.style.position = 'fixed';
-            menu.style.top = ((r.bottom + 4) / z) + 'px';
-            const ancho = menu.getBoundingClientRect().width || 200;
-            menu.style.left = (Math.max(8, Math.min(r.left, window.innerWidth - ancho - 8)) / z) + 'px';
+            // `position:fixed` se mide contra el ancestro con `transform` (la animación de entrada de .vista-seccion deja uno): se mide
+            // dónde cae el origen (0,0) y se resta, para que el menú quede pegado a su botón con o sin ese ancestro.
+            menu.style.top = '0px'; menu.style.left = '0px';
+            const o = menu.getBoundingClientRect();
+            const ancho = o.width || 200;
+            menu.style.top = ((r.bottom + 4 - o.top) / z) + 'px';
+            menu.style.left = ((Math.max(8, Math.min(r.left, window.innerWidth - ancho - 8)) - o.left) / z) + 'px';
         };
     });
     contenedor.querySelectorAll('[data-fc-opt]').forEach((op) => {
