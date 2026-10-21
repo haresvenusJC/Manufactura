@@ -136,7 +136,15 @@ async function reqAbrirAltaActivoFijo({ nombre = '', proveedorId = null, onCread
         if (!cats.length) return;
         f('catWrap').classList.remove('hidden');
         f('cat').innerHTML = opcionesCategoriaDep(cats, new Date().getFullYear());
-        f('cat').onchange = () => { const c = cats.find((x) => x.id === Number(f('cat').value)); f('catInfo').innerHTML = c ? textoCategoriaDep(c) : ''; };
+        f('cat').onchange = () => {
+            const c = cats.find((x) => x.id === Number(f('cat').value));
+            f('catInfo').innerHTML = c ? textoCategoriaDep(c) : '';
+            // La cuenta de activo sale de la categoría (se puede cambiar)
+            if (c && c.cuenta_activo_id && [...f('cuenta').options].some((o) => o.value === String(c.cuenta_activo_id))) {
+                f('cuenta').value = String(c.cuenta_activo_id);
+                f('catInfo').innerHTML += ` · <b>Al recibirlo se carga a ${esc(f('cuenta').selectedOptions[0]?.textContent || '')}</b>`;
+            }
+        };
     });
 
     f('ok').onclick = async () => {

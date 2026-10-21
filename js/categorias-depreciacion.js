@@ -15,9 +15,14 @@ const fmtMoneda = (n) => Number(n).toLocaleString('es-MX', { style: 'currency', 
 export async function cargarCategoriasDep() {
     try {
         const { data, error } = await supabaseClient.from('c_categoria_depreciacion')
+            .select('id, grupo, articulo, categoria, pct_anual, tope_deducible, vigente_desde, vigente_hasta, notas, cuenta_activo_id, cuenta_dep_acum_id, cuenta_gasto_cif_id, cuenta_gasto_admin_id')
+            .eq('activo', true).order('orden').order('vigente_desde', { ascending: false });
+        if (!error) return data || [];
+        // Sin sql/2026-10-22d (columnas de cuenta) se reintenta sin ellas
+        const r2 = await supabaseClient.from('c_categoria_depreciacion')
             .select('id, grupo, articulo, categoria, pct_anual, tope_deducible, vigente_desde, vigente_hasta, notas')
             .eq('activo', true).order('orden').order('vigente_desde', { ascending: false });
-        return error ? [] : (data || []);
+        return r2.error ? [] : (r2.data || []);
     } catch (_) { return []; }
 }
 

@@ -539,6 +539,15 @@ export async function cargarModuloAltaArticulo() {
             const f = categoriasDep.find((c) => c.id === Number(e.target.value));
             const info = document.getElementById('prodCategoriaDepInfo');
             if (info) info.innerHTML = f ? textoCategoriaDep(f) : 'Al recibir la compra, el equipo se da de alta en Finanzas → Activos fijos.';
+            // Acción del usuario (no la carga de un artículo existente): la cuenta de activo sale de la categoría
+            if (f && e.isTrusted && f.cuenta_activo_id) {
+                const selCta = document.getElementById('prodCtaInventario');
+                if (selCta && [...selCta.options].some((o) => o.value === String(f.cuenta_activo_id))) {
+                    selCta.value = String(f.cuenta_activo_id);
+                    const txt = selCta.options[selCta.selectedIndex]?.textContent?.trim();
+                    if (info && txt) info.innerHTML += ` · <b>Al recibirlo se carga a ${escaparHtml(txt)}</b>`;
+                }
+            }
         });
         document.querySelectorAll('.abast-btn').forEach((b) => {
             b.addEventListener('click', () => {

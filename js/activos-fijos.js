@@ -46,7 +46,7 @@ export async function cargarModuloActivosFijos() {
             supabaseClient.from('centros_costo').select('id, codigo, nombre').eq('tipo', 'produccion').eq('activo', true),
             supabaseClient.from('activos_fijos_centros').select('id').limit(1),
             supabaseClient.from('activos_fijos').select('depreciable').limit(1),
-            supabaseClient.from('areas_fisicas').select('id, codigo, nombre').eq('activo', true).order('codigo'),
+            supabaseClient.from('areas_fisicas').select('id, codigo, nombre, rol').eq('activo', true).order('codigo'),
             supabaseClient.from('activos_fijos').select('pendiente').limit(1),
             cargarCategoriasDep(),
         ]);
@@ -169,6 +169,11 @@ export async function cargarModuloActivosFijos() {
         document.getElementById('afCatDep').addEventListener('change', () => afAlElegirCategoria(true));
         document.getElementById('afFecha').addEventListener('change', () => afPintarCatDep(document.getElementById('afCatDep').value || null));
         document.getElementById('afCosto').addEventListener('input', () => afAlElegirCategoria(false));
+        // Cambiar el área (producción / no producción) cambia el gasto de depreciación de la categoría elegida
+        document.getElementById('afArea')?.addEventListener('change', () => {
+            const f = afCatsDep.find((c) => c.id === Number(document.getElementById('afCatDep').value));
+            if (f) { afAplicarCuentasCategoria(f); afAlElegirCategoria(false); }
+        });
     }
     document.querySelectorAll('input[name="afDep"]').forEach((r) => r.addEventListener('change', afMostrarDep));
 
@@ -201,8 +206,27 @@ function afAlElegirCategoria(precargar) {
     }
     const costo = parseFloat(document.getElementById('afCosto').value) || 0;
     const noDed = fila.tope_deducible && costo > fila.tope_deducible ? ` · <b class="text-amber-300">parte no deducible para ISR: ${money(costo - fila.tope_deducible)}</b>` : '';
-    info.innerHTML = `${textoCategoriaDep(fila)}${noDed}<br><span class="text-slate-500">El % es un tope: la vida útil de abajo (sugerida de ese %) es la que usa la depreciación contable y puedes ajustarla.</span>`;
+    if (precargar) afAplicarCuentasCategoria(fila);
+    const nom = (id) => afCuentas.find((c) => c.id === Number(id));
+    const ctaTxt = (id) => { const c = nom(id); return c ? `${c.codigo}` : '—'; };
+    const rolProd = afAreas.find((a) => a.id === Number(document.getElementById('afArea')?.value))?.rol !== 'no_produccion';
+    const cuentasInfo = fila.cuenta_activo_id
+        ? `<br>📒 <b>Contabilidad:</b> compra → Cargo ${ctaTxt(fila.cuenta_activo_id)} · cada mes → Cargo ${ctaTxt(rolProd ? fila.cuenta_gasto_cif_id : fila.cuenta_gasto_admin_id)} (${rolProd ? 'área de producción, se prorratea al costo' : 'área sin producción, gasto'}) / Abono ${ctaTxt(fila.cuenta_dep_acum_id)}`
+        : '<br><span class="text-amber-300">Esta categoría aún no tiene cuentas asignadas: elígelas abajo o captúralas en Configuración → Tablas → SAT · Depreciación fiscal.</span>';
+    info.innerHTML = `${textoCategoriaDep(fila)}${noDed}${cuentasInfo}<br><span class="text-slate-500">El % es un tope: la vida útil de abajo (sugerida de ese %) es la que usa la depreciación contable y puedes ajustarla.</span>`;
     info.classList.remove('hidden');
+}
+
+// Cuentas del equipo según su categoría: activo, depreciación acumulada y gasto (CIF si el área es de producción, si no administración).
+function afAplicarCuentasCategoria(fila) {
+    if (!fila) return;
+    const pon = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = String(val); };
+    const area = afAreas.find((a) => a.id === Number(document.getElementById('afArea')?.value));
+    const prod = !area || area.rol !== 'no_produccion';
+    pon('afCtaActivo', fila.cuenta_activo_id);
+    pon('afCtaAcumulada', fila.cuenta_dep_acum_id);
+    pon('afCtaGasto', prod ? fila.cuenta_gasto_cif_id : fila.cuenta_gasto_admin_id);
+    afMostrarEtapas();
 }
 
 const afEsDep = () => !afNuevo || document.querySelector('input[name="afDep"]:checked')?.value === 'si';

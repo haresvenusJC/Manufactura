@@ -133,6 +133,13 @@ async function cargarEditorDepreciacionFiscal(cont, titulo) {
         return;
     }
     const filas = data || [];
+    const conCuentas = filas.length > 0 && 'cuenta_activo_id' in filas[0];   // falta sql/2026-10-22d si no
+    let cuentas = [];
+    if (conCuentas) {
+        const rc = await supabaseClient.from('cuentas_contables').select('id, codigo, nombre').eq('afectable', true).eq('activa', true).order('codigo');
+        cuentas = rc.data || [];
+    }
+    const selCta = (campo, valor, etiqueta) => `<label class="block text-[9px] text-slate-500 leading-tight">${etiqueta}<select data-campo="${campo}" class="w-full bg-slate-950 border border-slate-800 rounded p-0.5 text-[10px] text-slate-100"><option value="">—</option>${cuentas.map((c) => `<option value="${c.id}" ${c.id === valor ? 'selected' : ''}>${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('')}</select></label>`;
     const anioHoy = new Date().getFullYear();
     const rige = (r) => r.activo && r.vigente_desde <= anioHoy && (r.vigente_hasta == null || r.vigente_hasta >= anioHoy);
     const inp = 'w-full bg-slate-950 border border-slate-800 rounded p-1 text-xs text-slate-100';
@@ -147,6 +154,7 @@ async function cargarEditorDepreciacionFiscal(cont, titulo) {
           <td class="px-2 py-1.5 w-28"><input data-campo="tope_deducible" type="number" step="0.01" min="0" value="${r.tope_deducible ?? ''}" placeholder="—" class="${inp} text-right"></td>
           <td class="px-2 py-1.5 w-20"><input data-campo="vigente_desde" type="number" min="2000" max="2100" value="${r.vigente_desde}" class="${inp} text-right"></td>
           <td class="px-2 py-1.5 w-20"><input data-campo="vigente_hasta" type="number" min="2000" max="2100" value="${r.vigente_hasta ?? ''}" placeholder="vigente" class="${inp} text-right"></td>
+          ${conCuentas ? `<td class="px-2 py-1.5 min-w-[13rem]">${selCta('cuenta_activo_id', r.cuenta_activo_id, 'Activo (compra)')}${selCta('cuenta_dep_acum_id', r.cuenta_dep_acum_id, 'Dep. acumulada')}${selCta('cuenta_gasto_cif_id', r.cuenta_gasto_cif_id, 'Gasto · producción (CIF)')}${selCta('cuenta_gasto_admin_id', r.cuenta_gasto_admin_id, 'Gasto · administración')}</td>` : ''}
           <td class="px-2 py-1.5 text-center"><input data-campo="activo" type="checkbox" class="accent-sky-500" ${r.activo ? 'checked' : ''}></td>
           <td class="px-2 py-1.5 whitespace-nowrap">${rige(r) ? `<span class="text-[10px] text-emerald-400 font-semibold">Rige ${anioHoy}</span> ` : ''}<button type="button" data-nueva class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded" title="Cierra esta fila y crea otra con el % nuevo desde el ejercicio que indiques">Nueva vigencia</button></td>
         </tr>`;
@@ -167,7 +175,7 @@ async function cargarEditorDepreciacionFiscal(cont, titulo) {
         <div class="overflow-x-auto border border-slate-800 rounded-lg"><table class="w-full text-sm text-left">
           <thead class="bg-slate-950 text-[11px] uppercase text-slate-400"><tr>
             <th class="px-2 py-2">Tipo</th><th class="px-2 py-2">Fundamento</th><th class="px-2 py-2">Categoría</th><th class="px-2 py-2 text-right">% anual</th><th class="px-2 py-2 text-center">Vida</th>
-            <th class="px-2 py-2 text-right">Tope deducible</th><th class="px-2 py-2 text-right">Desde</th><th class="px-2 py-2 text-right">Hasta</th><th class="px-2 py-2 text-center">Activo</th><th class="px-2 py-2"></th></tr></thead>
+            <th class="px-2 py-2 text-right">Tope deducible</th><th class="px-2 py-2 text-right">Desde</th><th class="px-2 py-2 text-right">Hasta</th>${conCuentas ? '<th class="px-2 py-2">Cuentas contables</th>' : ''}<th class="px-2 py-2 text-center">Activo</th><th class="px-2 py-2"></th></tr></thead>
           <tbody class="divide-y divide-slate-800 text-slate-200">${filas.map(fila).join('')}</tbody></table></div>`;
 
     const msg = cont.querySelector('#cdMsg');
@@ -182,6 +190,7 @@ async function cargarEditorDepreciacionFiscal(cont, titulo) {
                 notas: val('notas').value.trim() || null, pct_anual: num(val('pct_anual').value), tope_deducible: num(val('tope_deducible').value),
                 vigente_desde: num(val('vigente_desde').value), vigente_hasta: num(val('vigente_hasta').value), activo: val('activo').checked,
             };
+            if (conCuentas) ['cuenta_activo_id', 'cuenta_dep_acum_id', 'cuenta_gasto_cif_id', 'cuenta_gasto_admin_id'].forEach((k) => { cambios[k] = num(val(k).value); });
             if (!cambios.articulo || !cambios.categoria) return aviso('Fundamento y categoría no pueden quedar vacíos.', false);
             if (!(cambios.pct_anual > 0 && cambios.pct_anual <= 100)) return aviso('El % debe estar entre 0.01 y 100.', false);
             if (cambios.vigente_hasta != null && cambios.vigente_hasta < cambios.vigente_desde) return aviso('"Hasta" no puede ser menor que "Desde".', false);
@@ -201,7 +210,8 @@ async function cargarEditorDepreciacionFiscal(cont, titulo) {
             if (e1) return aviso(`No se pudo cerrar la fila: ${e1.message}`, false);
             const { error: e2 } = await supabaseClient.from('c_categoria_depreciacion').insert({
                 grupo: r.grupo, articulo: r.articulo, categoria: r.categoria, pct_anual: pct, tope_deducible: r.tope_deducible,
-                vigente_desde: anio, activo: r.activo, orden: r.orden, notas: r.notas });
+                vigente_desde: anio, activo: r.activo, orden: r.orden, notas: r.notas,
+                ...(conCuentas ? { cuenta_activo_id: r.cuenta_activo_id, cuenta_dep_acum_id: r.cuenta_dep_acum_id, cuenta_gasto_cif_id: r.cuenta_gasto_cif_id, cuenta_gasto_admin_id: r.cuenta_gasto_admin_id } : {}) });
             if (e2) return aviso(`Se cerró la fila pero no se creó la nueva: ${e2.message}`, false);
             await cargarEditorDepreciacionFiscal(cont, titulo);
             const m2 = cont.querySelector('#cdMsg'); if (m2) { m2.textContent = `✔ «${r.categoria}»: ${r.pct_anual}% hasta ${anio - 1} y ${pct}% desde ${anio}.`; m2.className = 'text-[11px] min-h-[1rem] mb-2 text-emerald-400'; }
