@@ -267,12 +267,11 @@ export async function cargarModuloAltaArticulo() {
                                 <label class="block text-[11px] text-slate-400 mb-1" title="Cuando la existencia baje de aquí, Inventario lo marca como 'hay que comprar'.">Stock mínimo</label>
                                 <input type="number" step="0.0001" min="0" id="prodStockMinimo" value="0" title="Cuando la existencia baje de aquí, Inventario lo marca como 'hay que comprar'." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
                             </div>
-                        </div>
-
-                        <div id="bloqueProdCategoriaDep" class="hidden rounded-lg border border-teal-900/60 bg-teal-950/20 p-2.5">
-                            <label class="block text-[11px] text-slate-300 mb-1">Categoría fiscal del equipo <span class="text-slate-500">· define su % máximo de depreciación (LISR)</span></label>
+                            <div id="bloqueProdCategoriaDep" class="hidden col-span-2 sm:col-span-1 xl:col-span-4">
+                            <label class="block text-[11px] text-slate-400 mb-1">Categoría fiscal del equipo <span class="text-slate-500">· define su % máximo de depreciación (LISR)</span></label>
                             <select id="prodCategoriaDep" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></select>
                             <p id="prodCategoriaDepInfo" class="text-[10px] text-slate-500 mt-1">${categoriasDep.length ? 'Al recibir la compra, el equipo se da de alta en Finanzas → Activos fijos con esta categoría y su % ya cargado.' : 'Falta correr sql/2026-10-22_categorias_depreciacion_fiscal.sql en Supabase para poder elegir la categoría.'}</p>
+                        </div>
                         </div>
 
                         <label id="bloqueProdCaducidad" class="flex items-start gap-2 text-xs text-slate-300 bg-slate-900/40 border border-slate-800 rounded-lg px-3 py-2">
