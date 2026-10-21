@@ -140,7 +140,7 @@ async function fetchInventarioValorizado() {
         .limit(2000);
     if (error) throw error;
 
-    return (data || []).map((p) => ({
+    return (data || []).filter((p) => p.tipo !== 'activo_fijo').map((p) => ({
         producto: p.nombre,
         sku: p.sku || '',
         tipo: p.tipo || 'sin_tipo',

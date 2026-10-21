@@ -23,6 +23,10 @@ let afEtapasPorActivo = new Map();
 let afActivoEditId = null;
 let afAreas = [];            // áreas físicas (dónde está cada equipo)
 let afNuevo = false;         // false si falta correr sql/2026-10-15_equipos_unificados.sql
+let afPend = false;          // false si falta correr sql/2026-10-21_activo_fijo_en_compras.sql (activos que nacen de una compra)
+let afSoloPend = false;      // la lista muestra solo los pendientes de completar
+let afEditPendiente = false; // el activo que se edita nació de una compra y está pendiente de completar
+let afEditLigado = false;    // el activo que se edita viene de una compra: su costo y fecha no se editan aquí
 const UNIDAD_KW = { kW: 1, HP: 0.746, W: 0.001 };
 const TIPOS_CARGA = [['equipo', 'Equipo'], ['clima', 'Clima / HVAC'], ['iluminacion', 'Iluminación'], ['otro', 'Otro']];
 const afIdCuenta = (cod) => afCuentas.find((c) => c.codigo === cod)?.id || '';
@@ -35,15 +39,17 @@ export async function cargarModuloActivosFijos() {
     try {
         const { data } = await supabaseClient.from('cuentas_contables').select('id, codigo, nombre, tipo').eq('afectable', true).eq('activa', true).order('codigo');
         afCuentas = data || [];
-        const [ce, et, nu, ar] = await Promise.all([
+        const [ce, et, nu, ar, pe] = await Promise.all([
             supabaseClient.from('centros_costo').select('id, codigo, nombre').eq('tipo', 'produccion').eq('activo', true),
             supabaseClient.from('activos_fijos_centros').select('id').limit(1),
             supabaseClient.from('activos_fijos').select('depreciable').limit(1),
             supabaseClient.from('areas_fisicas').select('id, codigo, nombre').eq('activo', true).order('codigo'),
+            supabaseClient.from('activos_fijos').select('pendiente').limit(1),
         ]);
         afCentros = ordenarCentrosProduccion(ce.data || []);
         afTieneEtapas = !et.error;
         afNuevo = !nu.error && !ar.error;
+        afPend = !pe.error;
         afAreas = ar.data || [];
     } catch (e) {
         cont.innerHTML = `<p class="text-rose-400 text-xs">Error al cargar catálogos: ${e.message || e}</p>`;
@@ -57,6 +63,7 @@ export async function cargarModuloActivosFijos() {
     <div class="space-y-5">
       <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
         <h3 id="afFormTitulo" class="text-md font-semibold text-emerald-400 mb-3">Nuevo activo fijo</h3>
+        <div id="afPendAviso" class="hidden mb-3 bg-amber-950/30 border border-amber-800/50 text-amber-200 rounded-lg p-2.5 text-xs"></div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
           <div class="md:col-span-2"><label class="block text-xs text-slate-400 mb-1">Nombre</label>
             <input type="text" id="afNombre" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
@@ -172,6 +179,9 @@ function afMostrarDep() {
 
 function afResetForm() {
     afActivoEditId = null;
+    afEditPendiente = false; afEditLigado = false;
+    document.getElementById('afPendAviso')?.classList.add('hidden');
+    ['afCosto', 'afFecha'].forEach((id) => { const el = document.getElementById(id); if (el) { el.readOnly = false; el.classList.remove('opacity-60'); } });
     document.getElementById('afFormTitulo').textContent = 'Nuevo activo fijo';
     document.getElementById('afNombre').value = '';
     document.getElementById('afCategoria').value = '';
@@ -227,7 +237,8 @@ async function afGuardarActivo() {
         nombre,
         categoria: document.getElementById('afCategoria').value.trim() || null,
         fecha_adquisicion: document.getElementById('afFecha').value || hoyISO(),
-        costo_adquisicion: dep ? costo : null,
+        // Un activo que viene de una compra conserva su costo aunque no se deprecie (ya está en la cuenta de activo).
+        costo_adquisicion: (dep || afEditLigado) ? costo : null,
         valor_residual: dep ? (parseFloat(document.getElementById('afResidual').value) || 0) : 0,
         vida_util_meses: dep ? vidaUtil : null,
         cuenta_activo_id: dep && document.getElementById('afCtaActivo').value ? parseInt(document.getElementById('afCtaActivo').value) : null,
@@ -235,6 +246,7 @@ async function afGuardarActivo() {
         cuenta_depreciacion_acumulada_id: dep && document.getElementById('afCtaAcumulada').value ? parseInt(document.getElementById('afCtaAcumulada').value) : null,
         notas: document.getElementById('afNotas').value.trim() || null,
     };
+    if (afPend && afActivoEditId && afEditPendiente) payload.pendiente = false;   // ya se completó: entra a la depreciación
     if (afNuevo) {
         Object.assign(payload, {
             depreciable: dep,
@@ -268,7 +280,8 @@ async function afGuardarActivo() {
             }
             sinEtapas = dep && esCuentaCif(payload.cuenta_depreciacion_gasto_id) && !marcadas.length;
         }
-        msg.textContent = (afActivoEditId ? 'Activo actualizado.' : 'Activo guardado.')
+        const completado = !!(afActivoEditId && afEditPendiente);
+        msg.textContent = (completado ? 'Activo completado: ya entra a la depreciación del mes.' : (afActivoEditId ? 'Activo actualizado.' : 'Activo guardado.'))
             + (sinEtapas ? ' ⚠ Sin etapas: su depreciación NO se repartirá al prorrateo hasta que las marques.' : '');
         msg.className = 'text-xs mt-2 ' + (sinEtapas ? 'text-amber-400' : 'text-emerald-400');
         afResetForm();
@@ -284,7 +297,7 @@ async function afRenderLista() {
     try {
         const { data, error } = await supabaseClient
             .from('activos_fijos')
-            .select('id, nombre, categoria, fecha_adquisicion, costo_adquisicion, valor_residual, vida_util_meses, activo, fecha_baja, cuenta_depreciacion_gasto_id' + (afNuevo ? ', depreciable, area_id, potencia_kw, cantidad, factor_uso' : ''))
+            .select('id, nombre, categoria, fecha_adquisicion, costo_adquisicion, valor_residual, vida_util_meses, activo, fecha_baja, cuenta_depreciacion_gasto_id' + (afNuevo ? ', depreciable, area_id, potencia_kw, cantidad, factor_uso' : '') + (afPend ? ', pendiente, documento_id' : ''))
             .order('id', { ascending: false });
         if (error) throw error;
         afEtapasPorActivo = new Map();
@@ -296,6 +309,14 @@ async function afRenderLista() {
             });
         }
         if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin activos fijos registrados.</p>'; return; }
+        const nPend = data.filter((a) => a.pendiente).length;
+        if (!nPend) afSoloPend = false;
+        const avisoPend = nPend ? `
+        <div class="mb-2 flex flex-wrap items-center gap-3 bg-amber-950/30 border border-amber-800/50 text-amber-200 rounded-lg p-2.5 text-xs">
+          <span>⏳ <b>${nPend}</b> activo(s) fijo(s) llegaron de una compra y están <b>pendientes de completar</b> (área, si se deprecia, vida útil y etapas). Mientras tanto no se deprecian.</span>
+          <button type="button" onclick="window.afFiltrarPend()" class="text-[11px] bg-amber-900/60 hover:bg-amber-800 text-amber-100 border border-amber-700 px-2 py-1 rounded">${afSoloPend ? 'Ver todos' : 'Ver solo pendientes'}</button>
+        </div>` : '';
+        const visibles = afSoloPend ? data.filter((a) => a.pendiente) : data;
 
         aplicarOrden(afOrden, data, (a, campo) => {
             switch (campo) {
@@ -306,7 +327,7 @@ async function afRenderLista() {
             }
         });
 
-        cont.innerHTML = `
+        cont.innerHTML = `${avisoPend}
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
@@ -316,25 +337,27 @@ async function afRenderLista() {
               <th class="p-2 text-right">Vida útil</th><th class="p-2">Etapas (CIF)</th><th class="p-2">Estatus</th>
             </tr></thead>
             <tbody>
-              ${data.map((a) => `
+              ${visibles.map((a) => `
                 <tr class="border-b border-slate-900">
                   <td class="p-2 whitespace-nowrap">
-                    <button type="button" onclick="window.afEditar(${a.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded">Editar</button>
+                    ${a.pendiente
+                        ? `<button type="button" onclick="window.afEditar(${a.id})" class="text-[11px] bg-amber-700 hover:bg-amber-600 text-white border border-amber-600 px-2 py-1 rounded font-semibold">Completar</button>`
+                        : `<button type="button" onclick="window.afEditar(${a.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded">Editar</button>`}
                     ${a.activo ? `<button type="button" onclick="window.afDarBaja(${a.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded ml-1">Dar de baja</button>` : ''}
                   </td>
-                  <td class="p-2 text-slate-100">${esc(a.nombre)}</td>
+                  <td class="p-2 text-slate-100">${esc(a.nombre)}${a.documento_id ? `<span class="block text-[10px] text-slate-500">Compra · ${linkDoc(a.documento_id, 'recepción #' + a.documento_id, 'font-mono text-sky-300')}</span>` : ''}</td>
                   <td class="p-2 text-slate-400">${esc(a.categoria || '—')}</td>
                   <td class="p-2 whitespace-nowrap text-slate-400">${a.fecha_adquisicion || ''}</td>
                   <td class="p-2 text-right font-mono">${a.costo_adquisicion == null ? '—' : money(a.costo_adquisicion)}</td>
                   ${afNuevo ? `
-                  <td class="p-2 whitespace-nowrap">${a.area_id ? esc(afAreas.find((x) => x.id === a.area_id)?.codigo || '#' + a.area_id) : '<span class="text-amber-400" title="Sin área no cuenta para la luz">⚠ sin área</span>'}</td>
-                  <td class="p-2 text-right font-mono text-slate-400">${a.potencia_kw == null ? '<span class="text-amber-400" title="Sin potencia no cuenta para la luz">⚠</span>' : (Number(a.potencia_kw) * Number(a.cantidad || 1) * Number(a.factor_uso || 1)).toLocaleString('es-MX', { maximumFractionDigits: 3 })}</td>
-                  <td class="p-2">${a.depreciable ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-sky-300 bg-sky-950/40">Depreciable</span>' : '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-slate-300 bg-slate-800">No depreciable</span>'}</td>` : ''}
+                  <td class="p-2 whitespace-nowrap">${a.area_id ? esc(afAreas.find((x) => x.id === a.area_id)?.codigo || '#' + a.area_id) : (a.pendiente ? '<span class="text-slate-600">—</span>' : '<span class="text-amber-400" title="Sin área no cuenta para la luz">⚠ sin área</span>')}</td>
+                  <td class="p-2 text-right font-mono text-slate-400">${a.potencia_kw == null ? (a.pendiente ? '<span class="text-slate-600">—</span>' : '<span class="text-amber-400" title="Sin potencia no cuenta para la luz">⚠</span>') : (Number(a.potencia_kw) * Number(a.cantidad || 1) * Number(a.factor_uso || 1)).toLocaleString('es-MX', { maximumFractionDigits: 3 })}</td>
+                  <td class="p-2">${a.pendiente ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-amber-300 bg-amber-950/40">Por definir</span>' : a.depreciable ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-sky-300 bg-sky-950/40">Depreciable</span>' : '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-slate-300 bg-slate-800">No depreciable</span>'}</td>` : ''}
                   <td class="p-2 text-right font-mono text-slate-400">${a.vida_util_meses ?? '—'}</td>
-                  <td class="p-2 text-xs">${(afNuevo && !a.depreciable) ? '<span class="text-slate-600">no aplica</span>' : esCuentaCif(a.cuenta_depreciacion_gasto_id)
+                  <td class="p-2 text-xs">${a.pendiente ? '<span class="text-slate-600">—</span>' : (afNuevo && !a.depreciable) ? '<span class="text-slate-600">no aplica</span>' : esCuentaCif(a.cuenta_depreciacion_gasto_id)
                       ? ((afEtapasPorActivo.get(a.id) || []).length ? `<span class="text-emerald-400">${esc(afEtapasPorActivo.get(a.id).join(', '))}</span>` : (afTieneEtapas ? '<span class="text-amber-400" title="Sin etapas no se prorratea">⚠ sin etapas</span>' : '<span class="text-slate-500">—</span>'))
                       : '<span class="text-slate-600">no aplica</span>'}</td>
-                  <td class="p-2">${a.activo ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-emerald-300 bg-emerald-950/40">activo</span>' : `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-slate-400 bg-slate-800">de baja${a.fecha_baja ? ' ' + a.fecha_baja : ''}</span>`}</td>
+                  <td class="p-2">${a.pendiente ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-amber-300 bg-amber-950/40">⏳ pendiente de completar</span>' : a.activo ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-emerald-300 bg-emerald-950/40">activo</span>' : `<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-slate-400 bg-slate-800">de baja${a.fecha_baja ? ' ' + a.fecha_baja : ''}</span>`}</td>
                 </tr>`).join('')}
             </tbody>
           </table>
@@ -349,7 +372,18 @@ window.afEditar = async (id) => {
     const { data: a, error } = await supabaseClient.from('activos_fijos').select('*').eq('id', id).single();
     if (error || !a) { alert('No se pudo cargar el activo: ' + (error?.message || 'no encontrado')); return; }
     afActivoEditId = id;
-    document.getElementById('afFormTitulo').textContent = 'Editar activo fijo';
+    afEditPendiente = !!a.pendiente;
+    afEditLigado = !!a.documento_id;
+    document.getElementById('afFormTitulo').textContent = a.pendiente ? 'Completar activo fijo (viene de una compra)' : 'Editar activo fijo';
+    const avisoP = document.getElementById('afPendAviso');
+    if (avisoP) {
+        if (a.documento_id) {
+            avisoP.innerHTML = `Este equipo llegó de la compra · recepción ${linkDoc(a.documento_id, '#' + a.documento_id, 'font-mono text-sky-300')}. Su <b>costo</b> y su <b>fecha</b> vienen de esa compra y no se editan aquí.`
+                + (a.pendiente ? ' <b>Falta:</b> área donde está, potencia, si se deprecia y, si se deprecia, su vida útil, cuentas y etapas.' : '');
+            avisoP.classList.remove('hidden');
+        } else avisoP.classList.add('hidden');
+    }
+    ['afCosto', 'afFecha'].forEach((cid) => { const el = document.getElementById(cid); if (el) { el.readOnly = afEditLigado; el.classList.toggle('opacity-60', afEditLigado); } });
     document.getElementById('afNombre').value = a.nombre || '';
     document.getElementById('afCategoria').value = a.categoria || '';
     document.getElementById('afFecha').value = a.fecha_adquisicion || '';
@@ -367,8 +401,9 @@ window.afEditar = async (id) => {
         document.getElementById('afPotU').value = 'kW';
         document.getElementById('afCant').value = a.cantidad || 1;
         document.getElementById('afFu').value = a.factor_uso ?? 1;
-        document.querySelectorAll('input[name="afDep"]').forEach((r) => { r.checked = r.value === (a.depreciable ? 'si' : 'no'); });
-        document.getElementById('afDepWrap').classList.toggle('hidden', !a.depreciable);
+        // Pendiente de completar: el usuario decide explícitamente si se deprecia (no se asume).
+        document.querySelectorAll('input[name="afDep"]').forEach((r) => { r.checked = !a.pendiente && r.value === (a.depreciable ? 'si' : 'no'); });
+        document.getElementById('afDepWrap').classList.toggle('hidden', !!a.pendiente || !a.depreciable);
     }
     document.querySelectorAll('.afEtapaChk').forEach((c) => { c.checked = false; });
     if (afTieneEtapas) {
@@ -377,10 +412,12 @@ window.afEditar = async (id) => {
         document.querySelectorAll('.afEtapaChk').forEach((c) => { c.checked = ids.has(Number(c.value)); });
     }
     afMostrarEtapas();
-    document.getElementById('afGuardar').textContent = 'Actualizar activo';
+    document.getElementById('afGuardar').textContent = a.pendiente ? 'Completar y guardar activo' : 'Actualizar activo';
     document.getElementById('afCancelarEdicion').classList.remove('hidden');
     document.getElementById('afNombre').scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
+
+window.afFiltrarPend = async () => { afSoloPend = !afSoloPend; await afRenderLista(); };
 
 window.afDarBaja = async (id) => {
     const motivo = prompt('¿Por qué se da de baja este activo? (venta, obsolescencia, siniestro...)');

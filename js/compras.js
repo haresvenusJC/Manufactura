@@ -671,6 +671,7 @@ async function precargarProductosParaBusqueda() {
                 proveedor_id,
                 costo_unitario,
                 unidad_medida_id,
+                tipo,
                 unidades_medida!unidad_medida_id (
                     id,
                     nombre
@@ -679,7 +680,7 @@ async function precargarProductosParaBusqueda() {
             .order('nombre', { ascending: true });
 
         if (error) throw error;
-        catalogoProductosCache = data || [];
+        catalogoProductosCache = (data || []).filter((p) => p.tipo !== 'activo_fijo');   // un equipo se compra por requisición -> ODC, no por compra directa
     } catch (err) {
         console.warn("Aviso al cargar catálogo de productos para AJAX:", err);
     }

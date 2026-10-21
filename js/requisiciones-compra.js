@@ -61,6 +61,113 @@ const REQ_ESTATUS = {
     cancelada: 'text-slate-400 bg-slate-800',
 };
 
+// =====================================================================
+//  Alta rápida de un ACTIVO FIJO (equipo) desde la requisición o la ODC manual.
+//  Si el equipo no está en el catálogo, esta subventana lo crea SIN salir de lo que se
+//  está capturando: la pantalla de atrás (partidas, fecha, notas...) no se toca. Al guardar
+//  devuelve el producto nuevo (tipo 'activo_fijo') a quien la abrió para dejarlo seleccionado.
+//  Un equipo no es inventario: al recibirlo no genera lote ni existencia; su costo va a la
+//  cuenta de activo (152.xx) y la recepción lo da de alta, pendiente de completar, en Activos fijos.
+// =====================================================================
+async function reqAbrirAltaActivoFijo({ nombre = '', proveedorId = null, onCreado }) {
+    const id = window.idSubventana('reqAltaActivoFijo');
+    const previa = document.getElementById(id);
+    if (previa) { previa.querySelector('[data-f="nombre"]')?.focus(); return; }
+
+    const ov = document.createElement('div');
+    ov.id = id;
+    ov.className = 'fixed inset-0 bg-slate-950/40 flex items-start justify-center p-3 overflow-y-auto';
+    ov.style.zIndex = typeof window.zSubventanaSiguiente === 'function' ? window.zSubventanaSiguiente() : 80;
+    const uniPieza = reqUnidades.find((u) => /^pieza/i.test(u.nombre || ''));
+    ov.innerHTML = `
+      <div class="w-full max-w-lg my-6 bg-slate-950 border border-slate-800 rounded-xl p-4 shadow-2xl">
+        <div class="flex items-center justify-between gap-3 mb-1">
+          <h3 class="text-base font-semibold text-sky-300">🏭 Nuevo activo fijo (equipo)</h3>
+          <button type="button" data-x class="text-slate-400 hover:text-slate-100 text-xl leading-none" title="Cerrar">&times;</button>
+        </div>
+        <p class="text-[11px] text-slate-500 mb-3">Lo que estás capturando atrás no se pierde. Aquí solo se da de alta el equipo en el catálogo; su área, vida útil y etapas se completan en Finanzas → Activos fijos cuando lo recibas.</p>
+        <div class="space-y-3">
+          <div><label class="block text-xs text-slate-400 mb-1">Nombre del equipo <span class="text-rose-400">*</span></label>
+            <input type="text" data-f="nombre" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+          <div class="grid grid-cols-2 gap-3">
+            <div><label class="block text-xs text-slate-400 mb-1">SKU / modelo <span class="text-slate-600">(opcional)</span></label>
+              <input type="text" data-f="sku" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+            <div><label class="block text-xs text-slate-400 mb-1">Unidad</label>
+              <select data-f="unidad" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${reqUnidades.map((u) => `<option value="${u.id}">${esc(u.nombre)}</option>`).join('')}</select></div>
+          </div>
+          <div><label class="block text-xs text-slate-400 mb-1">Cuenta contable del activo <span class="text-rose-400">*</span></label>
+            <select data-f="cuenta" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">Cargando...</option></select>
+            <p class="text-[10px] text-slate-500 mt-1">Al recibirlo, su costo se carga a esta cuenta (no a inventario). Maquinaria y equipo = 152.01.</p></div>
+          <div><label class="block text-xs text-slate-400 mb-1">Proveedor sugerido <span class="text-slate-600">(opcional)</span></label>
+            <select data-f="prov" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">—</option>${reqProveedores.map((p) => `<option value="${p.id}">${esc(p.nombre)}</option>`).join('')}</select></div>
+        </div>
+        <p data-f="msg" class="text-xs mt-3 min-h-[1rem]"></p>
+        <div class="flex gap-2 mt-2">
+          <button type="button" data-x class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-2.5 px-4 rounded-lg text-sm">Cancelar</button>
+          <button type="button" data-f="ok" class="flex-1 bg-sky-600 hover:bg-sky-500 text-white font-semibold py-2.5 rounded-lg text-sm">Crear activo fijo y seleccionarlo</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+
+    const f = (n) => ov.querySelector(`[data-f="${n}"]`);
+    f('nombre').value = nombre;
+    if (uniPieza) f('unidad').value = uniPieza.id;
+    if (proveedorId) f('prov').value = String(proveedorId);
+    const cerrar = () => { ov.remove(); document.removeEventListener('keydown', cerrarEsc, true); };
+    const cerrarEsc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); cerrar(); } };
+    document.addEventListener('keydown', cerrarEsc, true);
+    ov.querySelectorAll('[data-x]').forEach((b) => { b.onclick = cerrar; });
+    setTimeout(() => f('nombre').focus(), 0);
+
+    // Cuentas de activo fijo (15x, sin la depreciación acumulada 153) — de la tabla real.
+    const { data: ctas } = await supabaseClient.from('cuentas_contables').select('id, codigo, nombre')
+        .eq('afectable', true).eq('activa', true).eq('tipo', 'activo').like('codigo', '15%').order('codigo');
+    const lista = (ctas || []).filter((c) => !String(c.codigo).startsWith('153'));
+    f('cuenta').innerHTML = '<option value="">Selecciona...</option>' + lista.map((c) => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
+    const def = lista.find((c) => c.codigo === '152.01');
+    if (def) f('cuenta').value = String(def.id);
+
+    f('ok').onclick = async () => {
+        const msg = f('msg');
+        const err = (t) => { msg.textContent = t; msg.className = 'text-xs mt-3 min-h-[1rem] text-rose-400'; };
+        const nom = f('nombre').value.trim();
+        if (!nom) return err('Escribe el nombre del equipo.');
+        if (!f('cuenta').value) return err('Elige la cuenta contable del activo.');
+        const dup = reqProductos.find((p) => (p.nombre || '').trim().toLowerCase() === nom.toLowerCase());
+        if (dup) return err(`Ya existe «${dup.nombre}» en el catálogo (${dup.tipo === 'activo_fijo' ? 'activo fijo' : 'otro tipo'}). Búscalo en la lista en vez de crearlo otra vez.`);
+        const btn = f('ok');
+        btn.disabled = true;
+        msg.textContent = 'Creando...'; msg.className = 'text-xs mt-3 min-h-[1rem] text-slate-400';
+        try {
+            const fila = {
+                nombre: nom,
+                tipo: 'activo_fijo',
+                costo_unitario: 0,
+                stock_actual: 0,
+                unidad_medida_id: f('unidad').value ? Number(f('unidad').value) : null,
+                cuenta_inventario_id: Number(f('cuenta').value),
+                proveedor_id: f('prov').value ? Number(f('prov').value) : null,
+            };
+            const sku = f('sku').value.trim();
+            if (sku) fila.sku = sku;
+            const { data, error } = await supabaseClient.from('productos').insert([fila])
+                .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id, cantidad_minima_compra, tipo').single();
+            if (error) {
+                if (/check constraint/i.test(error.message || '')) {
+                    throw new Error('Falta correr sql/2026-10-21_activo_fijo_en_compras.sql en Supabase (el catálogo aún no acepta el tipo «Activo fijo»).');
+                }
+                throw error;
+            }
+            reqProductos.push(data);
+            cerrar();
+            if (typeof onCreado === 'function') onCreado(data);
+        } catch (e) {
+            err('No se pudo crear: ' + (e.message || e));
+            btn.disabled = false;
+        }
+    };
+}
+
 async function reqCargarCatalogos() {
     const [pv, um, mo] = await Promise.all([
         supabaseClient.from('proveedores').select('id, nombre').order('nombre'),
@@ -72,7 +179,7 @@ async function reqCargarCatalogos() {
     reqMonedas = mo.data || [];
 
     const pr = await supabaseClient.from('productos')
-        .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id, cantidad_minima_compra').order('nombre');
+        .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id, cantidad_minima_compra, tipo').order('nombre');
     reqProductos = pr.data || [];
 }
 
@@ -88,6 +195,7 @@ function reqMoqDe(productoId) {
 // políticas de venta del proveedor.
 function reqHtmlMoq(p, i) {
     if (!p.productoId) return '<span class="text-slate-600">—</span>';
+    if (reqProductos.find((x) => x.id === Number(p.productoId))?.tipo === 'activo_fijo') return '<span class="text-slate-600" title="Un equipo se pide de uno en uno; no aplica MOQ">—</span>';
     const moq = reqMoqDe(p.productoId);
     const u = esc(p.unidadNombre || '');
     const cant = Number(p.cantidad || 0);
@@ -357,19 +465,42 @@ function reqWireFormulario() {
         const hits = reqProductos.filter(p =>
             (p.nombre && p.nombre.toLowerCase().includes(t)) || (p.sku && p.sku.toLowerCase().includes(t))
         ).slice(0, 12);
-        if (!hits.length) { sug.classList.add('hidden'); return; }
+        // Si lo escrito no coincide exactamente con ningún producto, se ofrece crearlo como activo fijo (equipo).
+        const hayExacto = reqProductos.some((p) => (p.nombre || '').trim().toLowerCase() === t);
+        const filaNuevo = (t.length >= 3 && !hayExacto)
+            ? `<div class="px-3 py-2 text-xs text-sky-300 hover:bg-sky-600 hover:text-white cursor-pointer border-t border-slate-700 req-sug req-sug-nuevo" data-nuevo="1">➕ ${hits.length ? '¿No está?' : 'No existe.'} Crear «${esc(inp.value.trim())}» como activo fijo (equipo)</div>` : '';
+        if (!hits.length && !filaNuevo) { sug.classList.add('hidden'); return; }
         sug.innerHTML = hits.map(p => `
             <div class="px-3 py-2 text-xs text-slate-200 hover:bg-emerald-600 hover:text-white cursor-pointer border-b border-slate-800/50 last:border-0 req-sug" data-id="${p.id}">
-                ${esc(p.nombre)} <span class="text-[10px] text-slate-400">${p.sku ? 'SKU ' + esc(p.sku) : ''}</span>
-            </div>`).join('');
+                ${esc(p.nombre)} <span class="text-[10px] text-slate-400">${p.tipo === 'activo_fijo' ? '🏭 activo fijo' : (p.sku ? 'SKU ' + esc(p.sku) : '')}</span>
+            </div>`).join('') + filaNuevo;
         sug.classList.remove('hidden');
         sug.querySelectorAll('.req-sug').forEach(el => {
             el.onclick = () => {
+                if (el.dataset.nuevo) {
+                    sug.classList.add('hidden');
+                    reqAbrirAltaActivoFijo({
+                        nombre: inp.value.trim(),
+                        proveedorId: document.getElementById('reqProdProveedor').value ? Number(document.getElementById('reqProdProveedor').value) : null,
+                        onCreado: (p) => {
+                            // El equipo nuevo queda seleccionado en el formulario; lo ya capturado no se toca.
+                            reqProdSel = p;
+                            inp.value = p.nombre;
+                            if (p.unidad_medida_id) document.getElementById('reqProdUnidad').value = p.unidad_medida_id;
+                            if (p.proveedor_id) document.getElementById('reqProdProveedor').value = p.proveedor_id;
+                            document.getElementById('reqProdCant').value = '1';
+                            reqActualizarInfoProveedor();
+                            document.getElementById('reqProdCant').focus();
+                        },
+                    });
+                    return;
+                }
                 const p = reqProductos.find(x => x.id === Number(el.dataset.id));
                 reqProdSel = p || null;
                 inp.value = p ? p.nombre : inp.value;
                 if (p && p.unidad_medida_id) document.getElementById('reqProdUnidad').value = p.unidad_medida_id;
                 if (p && p.proveedor_id) document.getElementById('reqProdProveedor').value = p.proveedor_id;
+                if (p && p.tipo === 'activo_fijo') document.getElementById('reqProdCant').value = '1';   // un equipo por partida
                 sug.classList.add('hidden');
                 reqActualizarInfoProveedor();
             };
@@ -396,8 +527,9 @@ function reqWireFormulario() {
         else if (e.key === 'ArrowUp' && abierta) { e.preventDefault(); reqSugMarcar(reqSugIdx < 0 ? -1 : reqSugIdx - 1); }
         else if (e.key === 'Enter' && abierta) {
             e.preventDefault();
-            reqSugItems()[reqSugIdx < 0 ? 0 : reqSugIdx].click();
-            document.getElementById('reqProdCant')?.focus();
+            const elegido = reqSugItems()[reqSugIdx < 0 ? 0 : reqSugIdx];
+            elegido.click();
+            if (!elegido.dataset.nuevo) document.getElementById('reqProdCant')?.focus();
         } else if (e.key === 'Escape' && abierta) { e.preventDefault(); e.stopPropagation(); sug.classList.add('hidden'); }
     });
     document.addEventListener('click', (e) => {
@@ -411,6 +543,10 @@ function reqWireFormulario() {
         const unidadId = document.getElementById('reqProdUnidad').value ? parseInt(document.getElementById('reqProdUnidad').value) : null;
         const proveedorId = document.getElementById('reqProdProveedor').value ? parseInt(document.getElementById('reqProdProveedor').value) : null;
         if (!nombre || cantidad <= 0) { alert('Indica el producto y una cantidad mayor a 0.'); return; }
+        if (reqProdSel && reqProdSel.tipo === 'activo_fijo' && cantidad !== 1) {
+            alert('«' + reqProdSel.nombre + '» es un activo fijo: se pide de uno en uno. Si necesitas varios equipos, agrega una partida por cada uno (cantidad 1).');
+            return;
+        }
 
         await reqAgregarPartida({ productoId: reqProdSel ? reqProdSel.id : null, nombre, cantidad, unidadId, proveedorId });
         reqRenderPartidas();
@@ -1378,16 +1514,36 @@ window.reqAutorizar = async (id) => {
             const t = pInput.value.toLowerCase().trim();
             if (!t) { pSug.classList.add('hidden'); return; }
             const hits = reqProductos.filter((p) => (p.nombre && p.nombre.toLowerCase().includes(t)) || (p.sku && p.sku.toLowerCase().includes(t))).slice(0, 12);
-            if (!hits.length) { pSug.classList.add('hidden'); return; }
-            pSug.innerHTML = hits.map((p) => `<div class="px-3 py-2 text-xs text-slate-200 hover:bg-emerald-600 hover:text-white cursor-pointer border-b border-slate-800/50 last:border-0" data-pid="${p.id}">${esc(p.nombre)} <span class="text-[10px] text-slate-400">${p.sku ? 'SKU ' + esc(p.sku) : ''}</span></div>`).join('');
+            const hayExacto = reqProductos.some((p) => (p.nombre || '').trim().toLowerCase() === t);
+            const filaNuevo = (t.length >= 3 && !hayExacto)
+                ? `<div class="px-3 py-2 text-xs text-sky-300 hover:bg-sky-600 hover:text-white cursor-pointer border-t border-slate-700" data-nuevo="1">➕ ${hits.length ? '¿No está?' : 'No existe.'} Crear «${esc(pInput.value.trim())}» como activo fijo (equipo)</div>` : '';
+            if (!hits.length && !filaNuevo) { pSug.classList.add('hidden'); return; }
+            pSug.innerHTML = hits.map((p) => `<div class="px-3 py-2 text-xs text-slate-200 hover:bg-emerald-600 hover:text-white cursor-pointer border-b border-slate-800/50 last:border-0" data-pid="${p.id}">${esc(p.nombre)} <span class="text-[10px] text-slate-400">${p.tipo === 'activo_fijo' ? '🏭 activo fijo' : (p.sku ? 'SKU ' + esc(p.sku) : '')}</span></div>`).join('') + filaNuevo;
             pSug.classList.remove('hidden');
-            pSug.querySelectorAll('[data-pid]').forEach((el) => {
+            pSug.querySelectorAll('[data-pid], [data-nuevo]').forEach((el) => {
                 el.onclick = () => {
+                    if (el.dataset.nuevo) {
+                        pSug.classList.add('hidden');
+                        reqAbrirAltaActivoFijo({
+                            nombre: pInput.value.trim(),
+                            proveedorId: f('proveedor').value ? Number(f('proveedor').value) : null,
+                            onCreado: (p) => {
+                                // El equipo nuevo queda seleccionado; la orden que se está capturando no se toca.
+                                prodSel = p;
+                                pInput.value = p.nombre;
+                                if (p.unidad_medida_id) f('pUni').value = p.unidad_medida_id;
+                                f('pCant').value = '1';
+                                f('pCosto').focus();
+                            },
+                        });
+                        return;
+                    }
                     const p = reqProductos.find((x) => x.id === Number(el.dataset.pid));
                     prodSel = p || null;
                     pInput.value = p ? p.nombre : pInput.value;
                     if (p && p.costo_unitario != null) f('pCosto').value = p.costo_unitario;
                     if (p && p.unidad_medida_id) f('pUni').value = p.unidad_medida_id;
+                    if (p && p.tipo === 'activo_fijo') f('pCant').value = '1';   // un equipo por partida
                     pSug.classList.add('hidden');
                 };
             });
@@ -1396,6 +1552,10 @@ window.reqAutorizar = async (id) => {
             const nombre = pInput.value.trim();
             const cantidad = parseFloat(f('pCant').value) || 0;
             if (!nombre || cantidad <= 0) { alert('Indica el producto y una cantidad mayor a 0.'); return; }
+            if (prodSel && prodSel.tipo === 'activo_fijo' && cantidad !== 1) {
+                alert('«' + prodSel.nombre + '» es un activo fijo: se pide de uno en uno. Si necesitas varios equipos, agrega una partida por cada uno (cantidad 1).');
+                return;
+            }
             const uId = f('pUni').value ? Number(f('pUni').value) : null;
             const linea = {
                 reqDetId: null, productoId: prodSel ? prodSel.id : null, descripcion: prodSel ? null : nombre, nombre,
@@ -1443,6 +1603,8 @@ window.reqAutorizar = async (id) => {
         if (!f('fechaEsp').value) return err('Captura la fecha esperada de entrega.');
         if (!lineas.length) return err(manual ? 'Agrega al menos una partida.' : 'La requisición no tiene partidas.');
         if (lineas.some((l) => !(l.costo > 0))) return err('Captura el costo unitario cotizado de todas las partidas.');
+        const afMal = lineas.find((l) => l.productoId && reqProductos.find((p) => p.id === Number(l.productoId))?.tipo === 'activo_fijo' && Number(l.cantidad) !== 1);
+        if (afMal) return err('«' + afMal.nombre + '» es un activo fijo: va de uno en uno (cantidad 1). Para varios equipos, una partida por cada uno.');
         const conAnticipo = f('chkAnt').checked;
         const pct = conAnticipo ? (parseFloat(f('antPct').value) || 0) : 0;
         if (conAnticipo && (pct <= 0 || pct > 100)) return err('El % de anticipo debe estar entre 1 y 100.');

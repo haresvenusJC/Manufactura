@@ -160,7 +160,7 @@ export async function cargarModuloAltaArticulo() {
         let opcionesBomHtml = '<option value="">Seleccione insumo o componente...</option>';
         if (todosArticulos && todosArticulos.length > 0) {
             const materiasPrimas = todosArticulos.filter(a => a.tipo === 'materia_prima');
-            const productosTerminados = todosArticulos.filter(a => a.tipo !== 'materia_prima');
+            const productosTerminados = todosArticulos.filter(a => a.tipo !== 'materia_prima' && a.tipo !== 'activo_fijo');   // un equipo no es componente de una fórmula
 
             if (materiasPrimas.length > 0) {
                 opcionesBomHtml += '<optgroup label="Materias Primas">';
@@ -204,12 +204,14 @@ export async function cargarModuloAltaArticulo() {
                                 <option value="semiterminado">Semiterminado (granel)</option>
                                 <option value="materia_prima">Materia Prima</option>
                                 <option value="insumo">Insumo / Componente Auxiliar</option>
+                                <option value="activo_fijo">Activo fijo (equipo)</option>
                             </select>
-                            <div id="tipoElementoBotones" class="grid grid-cols-1 sm:grid-cols-4 gap-1.5">
+                            <div id="tipoElementoBotones" class="grid grid-cols-1 sm:grid-cols-5 gap-1.5">
                                 <button type="button" data-tipo="producto" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Producto terminado</button>
                                 <button type="button" data-tipo="semiterminado" title="Se fabrica y se usa como componente de otros productos (ej. granel). Un granel se da de alta aquí, con Unidad de Medida en Litros o Kilogramos." class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Semiterminado</button>
                                 <button type="button" data-tipo="materia_prima" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Materia prima</button>
                                 <button type="button" data-tipo="insumo" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Insumo</button>
+                                <button type="button" data-tipo="activo_fijo" title="Un equipo o maquinaria que se compra para usarse, no para venderse ni consumirse. No entra al inventario: al recibirlo se da de alta en Activos fijos." class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Activo fijo</button>
                             </div>
                         </div>
 
@@ -482,6 +484,7 @@ export async function cargarModuloAltaArticulo() {
         }
         function sincronizarAbastecimiento() {
             const esProducto = selectTipoElemento.value === 'producto';
+            const esEquipo = selectTipoElemento.value === 'activo_fijo';
             const semi = esSemiForm();
             if (semi) inputAbast.value = 'fabricado';          // un semiterminado siempre se fabrica
             const comprado = esProducto && inputAbast.value === 'comprado';
@@ -490,12 +493,20 @@ export async function cargarModuloAltaArticulo() {
             // Densidad es para lo que se fabrica en granel (semiterminado) y también para materia
             // prima/insumo cuando la fórmula del granel los pide en otra unidad — un Producto
             // terminado ya recibe el granel en la unidad que necesita su BOM, no aplica.
-            document.getElementById('bloqueProdDensidad')?.classList.toggle('hidden', esProducto);
+            document.getElementById('bloqueProdDensidad')?.classList.toggle('hidden', esProducto || esEquipo);
             // Rendimiento del lote es SOLO de quien tiene su propia fórmula/BOM (el semiterminado);
             // materia prima e insumo son componentes de esa fórmula, no aplica.
             document.getElementById('bloqueProdRendimientoLote')?.classList.toggle('hidden', !semi);
             // Control de caducidad tampoco se pregunta para Producto terminado en esta pantalla.
-            document.getElementById('bloqueProdCaducidad')?.classList.toggle('hidden', esProducto);
+            document.getElementById('bloqueProdCaducidad')?.classList.toggle('hidden', esProducto || esEquipo);
+            // Un equipo (activo fijo) no es inventario: su cuenta es de activo (152.xx), no de inventario.
+            if (esEquipo) {
+                const selCta = document.getElementById('prodCtaInventario');
+                if (selCta && !selCta.value) {
+                    const op = [...selCta.options].find((o) => /^152\.01\b/.test(o.textContent.trim()));
+                    if (op) selCta.value = op.value;
+                }
+            }
             const llevaBom = semi || (esProducto && !comprado);
             seccionBomContainer.classList.toggle('hidden', !llevaBom);
             if (!llevaBom) {
@@ -1452,6 +1463,7 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
             semiterminado: 'Semiterminado',
             materia_prima: 'Materia prima',
             insumo: 'Insumo',
+            activo_fijo: 'Activo fijo',
         };
 
         productosData.forEach(item => {
@@ -1459,6 +1471,7 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
             let tipoColor = "text-sky-400 border-sky-800";
             if (tipoActual === 'materia_prima') tipoColor = "text-amber-400 border-amber-800";
             if (tipoActual === 'insumo') tipoColor = "text-emerald-400 border-emerald-800";
+            if (tipoActual === 'activo_fijo') tipoColor = "text-teal-300 border-teal-800";
             let etiquetaTipo = OPCIONES_TIPO_LABEL[tipoActual] || tipoActual;
             if (tipoActual === 'semiterminado') {
                 tipoColor = "text-indigo-400 border-indigo-800";
@@ -2260,6 +2273,7 @@ const ETIQUETA_TIPO_PRODUCTO = {
     semiterminado: 'Semiterminado (granel)',
     materia_prima: 'Materia prima',
     insumo: 'Insumo / componente',
+    activo_fijo: 'Activo fijo (equipo)',
 };
 
 
@@ -2632,7 +2646,9 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
         // su BOM. Rendimiento del lote es solo de quien tiene su propia fórmula/BOM (el
         // semiterminado) — materia prima e insumo son componentes de esa fórmula, no aplica.
         const camposOcultosPorTipo = new Set(
-            art.tipo === 'producto' ? ['densidad_kg_l', 'rendimiento_lote_bom', 'requiere_caducidad'] : []
+            art.tipo === 'producto' ? ['densidad_kg_l', 'rendimiento_lote_bom', 'requiere_caducidad']
+                : art.tipo === 'activo_fijo' ? ['densidad_kg_l', 'rendimiento_lote_bom', 'requiere_caducidad', 'lote_minimo_fabricacion', 'stock_minimo', 'cantidad_minima_compra']   // un equipo no es inventario
+                : []
         );
         if (art.tipo !== 'semiterminado') camposOcultosPorTipo.add('rendimiento_lote_bom');
         // Lote mínimo de fabricación: solo de lo que se fabrica (producto terminado o semiterminado).
@@ -2678,6 +2694,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                                     <option value="semiterminado" ${valor === 'semiterminado' ? 'selected' : ''}>Semiterminado (granel)</option>
                                     <option value="materia_prima" ${valor === 'materia_prima' ? 'selected' : ''}>Materia prima</option>
                                     <option value="insumo" ${valor === 'insumo' ? 'selected' : ''}>Insumo</option>
+                                    <option value="activo_fijo" ${valor === 'activo_fijo' ? 'selected' : ''}>Activo fijo (equipo)</option>
                                 </select>
                                 ${pistaCampo(clave)}
                             </div>`;

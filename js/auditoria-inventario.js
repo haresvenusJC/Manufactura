@@ -125,11 +125,12 @@ function wireBuscadorSku() {
         const q = input.value.trim();
         if (q.length < 2) { sug.classList.add('hidden'); sug.innerHTML = ''; return; }
         timer = setTimeout(async () => {
-            const { data, error } = await supabaseClient
+            const { data: dataTodos, error } = await supabaseClient
                 .from('productos')
                 .select('id, nombre, sku, tipo')
                 .or(`nombre.ilike.%${q}%,sku.ilike.%${q}%`)
-                .limit(8);
+                .limit(12);
+            const data = (dataTodos || []).filter((p) => p.tipo !== 'activo_fijo').slice(0, 8);   // un equipo no se cuenta en una auditoría de inventario
             if (error || !data || !data.length) {
                 sug.innerHTML = '<div class="p-2.5 text-xs text-slate-500">Sin coincidencias.</div>';
                 sug.classList.remove('hidden');

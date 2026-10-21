@@ -81,7 +81,7 @@ export async function cargarInventarioCompleto() {
 
             if (errProd) throw errProd;
 
-            invProductosCache = productos || [];
+            invProductosCache = (productos || []).filter((p) => p.tipo !== 'activo_fijo');   // un equipo no es existencia
 
             // Reservado / disponible por producto (sin la migración de reservas queda vacío y no se muestran las columnas).
             invReservas = {};

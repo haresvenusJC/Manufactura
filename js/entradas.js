@@ -513,7 +513,7 @@ async function configurarDatalistInsumosED() {
                 .select('nombre, unidad_medida_id, costo_unitario, tipo, cuenta_inventario_id');
 
             if (error) throw error;
-            catalogoInsumosCache = data || [];
+            catalogoInsumosCache = (data || []).filter((i) => i.tipo !== 'activo_fijo');   // un equipo no entra por una entrada directa
             renderizarTablaEDPartidas(); // ya se puede resolver "Se carga a" de las partidas que ya estaban agregadas
             let nombres = [...new Set(catalogoInsumosCache.map(i => i.nombre).filter(n => n && n.trim() !== ''))];
             nombres.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));

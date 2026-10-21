@@ -594,7 +594,14 @@ window.cancelarReciboDesdeDoc = async function(docId) {
             : 'No se pudo verificar el recibo #' + docId + ':\n' + (eDiag.message || eDiag));
         return;
     }
-    if (!diag || !diag.length) { alert('El recibo #' + docId + ' no tiene movimientos de inventario que revertir.'); return; }
+    // Activos fijos que dio de alta esta recepción (sql/2026-10-21_activo_fijo_en_compras.sql): no llevan
+    // movimientos de inventario, pero también se retiran al cancelar. Sin la migración, la consulta falla y se omite.
+    let activos = [];
+    try {
+        const rAf = await supabaseClient.from('activos_fijos').select('id, nombre, pendiente').eq('documento_id', docId);
+        if (!rAf.error) activos = rAf.data || [];
+    } catch (_) { /* migración sin correr */ }
+    if ((!diag || !diag.length) && !activos.length) { alert('El recibo #' + docId + ' no tiene movimientos de inventario que revertir.'); return; }
 
     const consumidos = diag.filter((d) => !d.ok);
     if (consumidos.length) {
@@ -604,8 +611,11 @@ window.cancelarReciboDesdeDoc = async function(docId) {
         return;
     }
 
-    const resumen = diag.map((d) => `· ${d.producto_nombre} · lote ${d.numero_lote}: −${d.recibido}`).join('\n');
-    if (!confirm(`✅ El recibo #${docId} SÍ es cancelable: ningún lote se ha consumido.\n\nSe revertirá el inventario y se cancelará su póliza:\n${resumen}\n\n¿Continuar?`)) return;
+    const resumen = [
+        ...diag.map((d) => `· ${d.producto_nombre} · lote ${d.numero_lote}: −${d.recibido}`),
+        ...activos.map((a) => `· Activo fijo «${a.nombre}» (${a.pendiente ? 'pendiente de completar' : 'ya completado'}): se retira de Activos fijos`),
+    ].join('\n');
+    if (!confirm(`✅ El recibo #${docId} SÍ es cancelable${diag.length ? ': ningún lote se ha consumido' : ''}.\n\nSe ${diag.length ? 'revertirá el inventario y se ' : ''}cancelará su póliza:\n${resumen}\n\n¿Continuar?`)) return;
 
     const motivo = prompt('Motivo de la cancelación:', 'Cancelación de recibo');
     if (motivo === null) return;

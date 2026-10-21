@@ -326,6 +326,7 @@ export const GUIAS = {
         paraQue: 'Llevar el catálogo de tu maquinaria, equipo y vehículos, y su depreciación mensual en línea recta (NIF C-6) — cuánto valen en libros y cuánto gasto de depreciación cae cada mes.',
         pasos: [
             'Da de alta el activo: costo de adquisición, valor residual (lo que valdría al final de su vida útil, puede ser 0), vida útil en meses, y sus 3 cuentas (activo, gasto de depreciación, depreciación acumulada).',
+            'Si el equipo lo compraste por requisición → orden de compra → recepción, ya aparece aquí solo como "⏳ pendiente de completar" con su costo real: pulsa "Completar" y captura área, si se deprecia, vida útil y etapas.',
             'En "Depreciación del mes", elige año y mes y pulsa "Calcular" — es una vista previa, no aplica nada todavía.',
             'Si todo cuadra, "Aplicar depreciación de [mes]" — genera UNA póliza con todos los activos de ese mes.',
             'Si algo salió mal, "Cancelar" ese mes desde el historial — revierte la póliza y lo deja listo para corregir y volver a aplicar.',

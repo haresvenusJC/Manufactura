@@ -179,7 +179,7 @@ export async function cargarModuloSalidas() {
                     .select('id, nombre, sku, stock_actual, tipo'));
             }
             if (!errProd && productos) {
-                listaProductosGlobal = productos;
+                listaProductosGlobal = productos.filter((p) => p.tipo !== 'activo_fijo');   // un equipo no sale por una salida de inventario
             }
             // Mercancía apartada por pedidos pendientes (vista de sql/2026-11-03; sin ella, queda vacío).
             reservadoPorProductoSal = {};

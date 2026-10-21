@@ -56,10 +56,10 @@ async function ocCargarCatalogos() {
 
     // requiere_caducidad puede no existir aún: cae al select básico
     let pr = await supabaseClient.from('productos')
-        .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id, requiere_caducidad').order('nombre');
+        .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id, requiere_caducidad, tipo').order('nombre');
     if (pr.error) {
         pr = await supabaseClient.from('productos')
-            .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id').order('nombre');
+            .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id, tipo').order('nombre');
     }
     ocProductos = pr.data || [];
 }
@@ -1955,15 +1955,16 @@ async function rmRenderDetalle(oc) {
     const filas = (oc.ordenes_compra_detalle || []).map((d) => {
         const pend = pendienteSeguro(d.cantidad, d.cantidad_recibida);
         const prod = d.producto_id ? ocProductos.find(p => p.id === d.producto_id) : null;
-        const reqCad = !!(prod && prod.requiere_caducidad);
+        const esAf = !!(prod && prod.tipo === 'activo_fijo');   // equipo: no lleva lote ni caducidad, no entra al inventario
+        const reqCad = !!(prod && prod.requiere_caducidad) && !esAf;
         const capturado = capturaOperador[d.id];
         const valorInicial = capturado != null ? capturado : pend;
         const difiere = capturado != null && capturado !== pend;
         const yaRecibido = Number(d.cantidad_recibida || 0);
         return `
-        <tr class="border-b border-slate-900" data-detid="${d.id}" data-prodid="${d.producto_id || ''}" data-reqcad="${reqCad ? 1 : 0}" data-capturado="${capturado != null ? capturado : ''}">
+        <tr class="border-b border-slate-900" data-detid="${d.id}" data-prodid="${d.producto_id || ''}" data-reqcad="${reqCad ? 1 : 0}" data-af="${esAf ? 1 : 0}" data-capturado="${capturado != null ? capturado : ''}">
           <td class="p-2 text-center"><input type="checkbox" class="rm-chk accent-emerald-500 w-4 h-4" ${(capturado != null ? capturado > 0 : pend > 0) ? 'checked' : ''}></td>
-          <td class="p-2 text-slate-100">${esc(nombreProd(d))}${d.producto_id ? '' : ' <span class="text-[10px] text-amber-400">(nuevo)</span>'}${reqCad ? ' <span class="text-[10px] text-amber-400">· caducidad requerida</span>' : ''}</td>
+          <td class="p-2 text-slate-100">${esc(nombreProd(d))}${d.producto_id ? '' : ' <span class="text-[10px] text-amber-400">(nuevo)</span>'}${reqCad ? ' <span class="text-[10px] text-amber-400">· caducidad requerida</span>' : ''}${esAf ? ' <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-950/60 text-sky-300 font-semibold">🏭 Activo fijo</span><span class="block text-[10px] text-sky-300/80">No entra al inventario: se da de alta en Activos fijos (pendiente de completar).</span>' : ''}</td>
           <td class="p-2 text-right font-mono text-slate-400">
             ${d.cantidad}
             ${yaRecibido > 0 ? `<p class="text-[10px] text-slate-500 whitespace-nowrap">ya recibiste ${yaRecibido} · pendiente ${pend}</p>` : ''}
@@ -1979,8 +1980,8 @@ async function rmRenderDetalle(oc) {
               <button type="button" class="rm-conv-toggle text-[10px] text-sky-400 hover:text-sky-300 whitespace-nowrap" title="Convertir desde la presentación de la factura (millar, gruesa, docena...)">🔁 convertir</button>
             </div>
           </td>
-          <td class="p-2"><input type="text" class="rm-lote w-28 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" placeholder="lote del proveedor"></td>
-          <td class="p-2"><input type="date" class="rm-cad w-32 bg-slate-900 border ${reqCad ? 'border-amber-600' : 'border-slate-800'} rounded px-2 py-1 text-xs text-slate-100 font-mono"></td>
+          <td class="p-2"><input type="text" class="rm-lote w-28 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono ${esAf ? 'opacity-40' : ''}" placeholder="${esAf ? 'no aplica' : 'lote del proveedor'}" ${esAf ? 'disabled' : ''}></td>
+          <td class="p-2"><input type="date" class="rm-cad w-32 bg-slate-900 border ${reqCad ? 'border-amber-600' : 'border-slate-800'} rounded px-2 py-1 text-xs text-slate-100 font-mono ${esAf ? 'opacity-40' : ''}" ${esAf ? 'disabled' : ''}></td>
         </tr>
         ${rmFilaConversion(pend, d.costo_unitario_estimado, capturado != null)}`;
     }).join('');
@@ -2101,6 +2102,11 @@ window.rmAbrirEdicionRecepcion = async (documentoId) => {
 
     if (doc.poliza_id) {
         alert(`Esta recepción ya está contabilizada (póliza ${await etiquetaPoliza(doc.poliza_id)}). Cancélala primero desde el historial si necesitas corregir cantidades o costos, y vuelve a capturarla.`);
+        return;
+    }
+
+    if (detalles.some((d) => ocProductos.find((p) => p.id === d.producto_id)?.tipo === 'activo_fijo')) {
+        alert('Esta recepción trae un activo fijo (no tiene lote que editar). Para corregirla, cancélala desde el historial y vuelve a capturarla.');
         return;
     }
 
@@ -2449,6 +2455,18 @@ function rmAplicarLanded(lineas, tc) {
     return { extras, matSubtotal, capTotal };
 }
 
+// Activo fijo: solo el renglón del documento, SIN lote ni kardex (un equipo no es inventario).
+// El subtotal lleva el costo con los cargos capitalizables (flete, seguro...) porque, según la NIF C-6,
+// forman parte del costo de adquisición; contabilizar_compra lo carga a la cuenta de activo (152.xx)
+// y da de alta el activo en Activos fijos con ese mismo costo.
+async function rmAplicarEntradaActivo(documentoId, productoId, cantidad, costo, landedUnit) {
+    const unit = (landedUnit != null && landedUnit > 0) ? landedUnit : costo;
+    const { error } = await supabaseClient.from('documento_detalles').insert([{
+        documento_id: documentoId, producto_id: productoId, cantidad, costo_unitario: unit, subtotal: cantidad * unit,
+    }]);
+    if (error) throw error;
+}
+
 // Inserta el detalle (costo MATERIAL) + mueve inventario FIFO (costo LANDED) +
 // guarda lote del proveedor, caducidad y la parte adicional del costo.
 async function rmAplicarEntradaLinea(documentoId, productoId, cantidad, costo, lote, caducidad, landedUnit, adicUnit) {
@@ -2622,14 +2640,26 @@ async function rmConfirmar(ocs) {
         const nom = det?.producto_id
             ? (ocProductos.find(p => p.id === det.producto_id)?.nombre || `#${det.producto_id}`)
             : (det?.descripcion || 'partida');
+        const esAf = tr.dataset.af === '1';
         const lote = tr.querySelector('.rm-lote').value.trim();
         const caducidad = tr.querySelector('.rm-cad').value || null;
-        if (!lote) errores.push(`Falta el lote del proveedor de "${nom}".`);
-        if (tr.dataset.reqcad === '1' && !caducidad) errores.push(`Falta la caducidad de "${nom}".`);
-        lineas.push({ det, label: nom, cantidad: cant, costo: parseFloat(tr.querySelector('.rm-costo').value) || 0, lote, caducidad });
+        if (esAf) {
+            // Un equipo se recibe de uno en uno y no lleva lote ni caducidad.
+            if (cant !== 1) errores.push(`"${nom}" es un activo fijo: se recibe de uno en uno por partida (cantidad 1). Si compraste varios equipos, pide una partida por cada uno.`);
+        } else {
+            if (!lote) errores.push(`Falta el lote del proveedor de "${nom}".`);
+            if (tr.dataset.reqcad === '1' && !caducidad) errores.push(`Falta la caducidad de "${nom}".`);
+        }
+        lineas.push({ det, label: nom, cantidad: cant, costo: parseFloat(tr.querySelector('.rm-costo').value) || 0, lote, caducidad, esAf });
     });
     if (!lineas.length) { msg.textContent = 'Marca al menos una partida con cantidad mayor a 0.'; msg.className = 'text-xs text-rose-400'; return; }
     if (errores.length) { alert('⚠ Revisa:\n' + errores.join('\n')); return; }
+    // El activo fijo se da de alta al contabilizar la recepción (su costo va a la cuenta de activo):
+    // sin contabilizar no habría ni póliza ni activo.
+    if (lineas.some((l) => l.esAf) && (rmSinContab || !document.getElementById('rmContabilizar')?.checked)) {
+        alert('⚠ Esta recepción trae un activo fijo: debe contabilizarse (marca «Generar póliza») para que su costo llegue a la cuenta de activo y se dé de alta en Activos fijos.');
+        return;
+    }
     if (!confirm(`¿Confirmar recepción de ${lineas.length} partida(s) de la orden ${oc.folio}?\n\nRevisa el costo unitario de cada una — así se va a guardar:\n\n${rmResumenLineas(lineas, (l) => l.label)}`)) return;
 
     const tc = rmTcActual();
@@ -2689,7 +2719,8 @@ async function rmConfirmar(ocs) {
                 await supabaseClient.from('ordenes_compra_detalle').update({ producto_id: productoId }).eq('id', l.det.id);
             }
 
-            await rmAplicarEntradaLinea(documentoId, productoId, l.cantidad, l.costo, l.lote, l.caducidad, l.landedUnit, l.adicUnit);
+            if (l.esAf) await rmAplicarEntradaActivo(documentoId, productoId, l.cantidad, l.costo, l.landedUnit);
+            else await rmAplicarEntradaLinea(documentoId, productoId, l.cantidad, l.costo, l.lote, l.caducidad, l.landedUnit, l.adicUnit);
             // Deja el costo del catálogo con el último costo de compra (landed, en MXN).
             await supabaseClient.from('productos').update({ costo_unitario: (l.landedUnit ?? l.costo) }).eq('id', productoId);
 
@@ -2732,7 +2763,10 @@ async function rmConfirmar(ocs) {
         } catch (_) { /* no bloquea la recepción ya registrada */ }
         rmPrereciboEnProceso = null;   // terminó: "Pre-recibos por validar" vuelve a mostrar todos
 
-        alert(`✅ Recepción registrada (documento #${documentoId}).${msgContab}\nLa orden ${oc.folio} quedó "${nuevo}".`);
+        const avisoAf = lineas.some((l) => l.esAf)
+            ? '\n\n🏭 El activo fijo quedó dado de alta como PENDIENTE DE COMPLETAR: entra a Finanzas → Activos fijos y captura su área, vida útil y etapas para que empiece a depreciarse.'
+            : '';
+        alert(`✅ Recepción registrada (documento #${documentoId}).${msgContab}\nLa orden ${oc.folio} quedó "${nuevo}".${avisoAf}`);
 
         if (typeof cargarInventarioCompleto === 'function') await cargarInventarioCompleto();
         await cargarModuloReciboMercancia();
@@ -2867,6 +2901,9 @@ async function rmConfirmarXml() {
         if (tr.dataset.reqcad === '1' && !caducidad) errores.push(`Falta la caducidad de "${desc}".`);
         const prodId = tr.dataset.prodid ? Number(tr.dataset.prodid) : null;
         const prodIdAuto = tr.dataset.prodidAuto ? Number(tr.dataset.prodidAuto) : null;
+        if (prodId && ocProductos.find((p) => p.id === prodId)?.tipo === 'activo_fijo') {
+            errores.push(`"${desc}" es un activo fijo: recíbelo desde su orden de compra (requisición → ODC), no desde un CFDI suelto.`);
+        }
         lineas.push({
             prodId,
             desc,
