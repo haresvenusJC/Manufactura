@@ -249,21 +249,21 @@ export async function cargarModuloAltaArticulo() {
                                 </select>
                                 <p class="text-[10px] text-slate-500 mt-0.5">Granel: Litros o Kilogramos, nunca Pieza.</p>
                             </div>
-                            <div>
+                            <div id="bloqueProdCosto">
                                 <label class="block text-[11px] text-slate-400 mb-1">Costo Unitario</label>
                                 <input type="number" step="0.01" id="prodCosto" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
                             </div>
-                            <div>
+                            <div id="bloqueProdPrecio">
                                 <label class="block text-[11px] text-slate-400 mb-1">Precio de venta</label>
                                 <input type="number" step="0.01" min="0" id="prodPrecioVenta" placeholder="s/IVA" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
                             </div>
-                            <div>
+                            <div id="bloqueProdMoneda">
                                 <label class="block text-[11px] text-slate-400 mb-1">Moneda</label>
                                 <select id="prodMonedaId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-medium" required>
                                     ${opcionesMonedas}
                                 </select>
                             </div>
-                            <div>
+                            <div id="bloqueProdStockMin">
                                 <label class="block text-[11px] text-slate-400 mb-1" title="Cuando la existencia baje de aquí, Inventario lo marca como 'hay que comprar'.">Stock mínimo</label>
                                 <input type="number" step="0.0001" min="0" id="prodStockMinimo" value="0" title="Cuando la existencia baje de aquí, Inventario lo marca como 'hay que comprar'." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
                             </div>
@@ -508,6 +508,9 @@ export async function cargarModuloAltaArticulo() {
             document.getElementById('bloqueProdRendimientoLote')?.classList.toggle('hidden', !semi);
             // Control de caducidad tampoco se pregunta para Producto terminado en esta pantalla.
             document.getElementById('bloqueProdCaducidad')?.classList.toggle('hidden', esProducto || esEquipo);
+            // Un equipo no se vende ni se lleva en stock: su costo real sale de la compra. Se ocultan costo, precio, moneda y stock mínimo.
+            ['bloqueProdCosto', 'bloqueProdPrecio', 'bloqueProdMoneda', 'bloqueProdStockMin'].forEach((bid) => document.getElementById(bid)?.classList.toggle('hidden', esEquipo));
+            const selMon = document.getElementById('prodMonedaId'); if (selMon) selMon.required = !esEquipo;   // un required oculto bloquearía el envío
             // Categoría fiscal (LISR): solo para equipos.
             const bloqueCat = document.getElementById('bloqueProdCategoriaDep');
             if (bloqueCat) {

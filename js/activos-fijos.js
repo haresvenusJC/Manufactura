@@ -68,6 +68,7 @@ export async function cargarModuloActivosFijos() {
     <div class="space-y-5">
       <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
         <h3 id="afFormTitulo" class="text-md font-semibold text-emerald-400 mb-3">Nuevo activo fijo</h3>
+        <p class="text-[11px] text-slate-500 mb-3">Aquí das de alta los equipos que <b>ya tienes</b>. Para uno que vas a <b>comprar</b>, créalo desde Requisición de compra (o en Productos como «Activo fijo»): al recibirlo, aparece aquí solo y lo completas.</p>
         <div id="afPendAviso" class="hidden mb-3 bg-amber-950/30 border border-amber-800/50 text-amber-200 rounded-lg p-2.5 text-xs"></div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
           <div class="md:col-span-2"><label class="block text-xs text-slate-400 mb-1">Nombre</label>
@@ -322,6 +323,14 @@ async function afGuardarActivo() {
             cantidad: parseInt(document.getElementById('afCant').value),
             factor_uso: parseFloat(document.getElementById('afFu').value),
         });
+    }
+
+    // Alta manual: si ya hay un artículo «Activo fijo» con ese nombre, probablemente es el mismo equipo que se va a comprar.
+    if (!afActivoEditId) {
+        try {
+            const { data: dup } = await supabaseClient.from('productos').select('nombre').eq('tipo', 'activo_fijo').ilike('nombre', nombre).limit(1);
+            if (dup && dup.length && !confirm(`Ya existe el artículo «${dup[0].nombre}» (Activo fijo) en Productos.\n\nSi es un equipo que vas a comprar, no lo captures aquí: pídelo en una requisición y, al recibirlo, aparecerá en Activos fijos solo.\n\n¿Guardarlo de todos modos como activo que ya tienes?`)) return;
+        } catch (_) { /* sin aviso si la consulta falla */ }
     }
 
     try {
