@@ -2208,8 +2208,8 @@ export function rmClasificarConceptos(conceptos) {
 // para que quede claro renglón por renglón (no solo al momento del diálogo).
 function rmxNotaTexto(cap) {
     return cap
-        ? '✓ Se capitaliza a 115.xx (inventario) — es la opción que recomienda NIF C-4.'
-        : '⚠ Va a gasto 601.14 — NIF C-4 solo lo recomienda si el cargo no es atribuible a la mercancía recibida.';
+        ? '✓ Se suma al costo de lo recibido: inventario 115.xx (NIF C-4) o, si es un activo fijo, a su cuenta 152.xx (NIF C-6) — es la opción que recomiendan.'
+        : '⚠ Va a gasto 601.xx — NIF C-4 / C-6 solo lo aceptan si el cargo no es atribuible a lo recibido (p. ej. no es necesario para dejarlo en su lugar y condiciones de uso).';
 }
 
 function rmExtraFila(concepto, monto, cap) {
