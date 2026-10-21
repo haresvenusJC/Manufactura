@@ -109,6 +109,7 @@ insert into _agrup_sat (codigo, agrupador, nota) values
     ('601.62', '601.72', '¿? Maniobras y almacenaje -> SAT 601.72 Fletes y acarreos'),
     ('601.63', '601.73', 'Gastos aduanales -> SAT 601.73 Gastos de importación'),
     ('601.83', '601.61', 'Propaganda y publicidad'),
+    ('601.64', '601.84', '¿? Deterioro de inventarios: el SAT no tiene cuenta propia (601.64 del SAT es Asistencia técnica) -> 601.84 Otros gastos generales'),
     ('601.84', '601.83', 'Gastos no deducibles (sin requisitos fiscales)'),
     ('601.99', '601.84', 'Otros gastos generales'),
     -- Resultado integral de financiamiento
