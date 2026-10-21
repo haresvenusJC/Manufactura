@@ -25,7 +25,7 @@
 
 begin;
 
-create temp table _agrup_sat (codigo text primary key, agrupador text not null, nota text) on commit drop;
+create temp table _agrup_sat (codigo text primary key, agrupador text not null, nota text, nombre_patron text) on commit drop;
 
 insert into _agrup_sat (codigo, agrupador, nota) values
     -- Activo circulante
@@ -45,13 +45,16 @@ insert into _agrup_sat (codigo, agrupador, nota) values
     -- Activo fijo y su depreciación
     ('152.01', '153.01', 'Maquinaria y equipo -> SAT 153.01 (152 del SAT es Edificios)'),
     ('154.01', '156.01', 'Equipo de cómputo -> SAT 156.01 (154 del SAT es Automóviles)'),
+    -- Depreciación: el agrupador depende del TIPO de bien (171.01-171.18 acumulada, 504.07-504.24 gasto).
+    -- Solo se corrige si el NOMBRE de la cuenta coincide con ese tipo; si no, se omite y se avisa.
     ('153.01', '171.02', 'Dep. acumulada de maquinaria y equipo -> SAT 171.02'),
     ('153.02', '171.05', 'Dep. acumulada de equipo de cómputo -> SAT 171.05'),
     -- Pasivo
     ('201.01', '201.01', 'Proveedores nacionales'),
     ('205.01', '205.02', 'Acreedores diversos a corto plazo nacional'),
-    ('209.01', '208.01', 'IVA trasladado cobrado'),
-    ('209.02', '209.01', 'IVA trasladado no cobrado'),
+    ('209',    '207',    'MAYOR IVA trasladado -> SAT 207 Impuestos trasladados (sus hijas van a 208 cobrado y 209 no cobrado)'),
+    ('209.01', '208.01', 'IVA trasladado cobrado -> SAT 208.01 (208 = Impuestos trasladados cobrados)'),
+    ('209.02', '209.01', 'IVA trasladado no cobrado -> SAT 209.01 (209 = Impuestos trasladados no cobrados)'),
     ('210.01', '207.02', '¿? IEPS trasladado'),
     ('213.01', '213.03', 'ISR por pagar'),
     ('213.03', '213.01', 'IVA por pagar'),
@@ -114,6 +117,9 @@ insert into _agrup_sat (codigo, agrupador, nota) values
     ('702.01', '702.04', '¿? Intereses a favor -> SAT 702.04 bancarios nacional'),
     ('702.02', '702.01', 'Utilidad cambiaria');
 
+update _agrup_sat set nombre_patron = '%maquinaria%'  where codigo in ('153.01', '503.04');
+update _agrup_sat set nombre_patron = '%mput%'        where codigo in ('153.02');   -- cómputo / computo
+
 -- 1) Cuentas de detalle (y cualquiera que coincida por número)
 do $$
 declare
@@ -124,6 +130,7 @@ begin
           from public.cuentas_contables c
           join _agrup_sat m on m.codigo = c.codigo
          where c.codigo_agrupador is distinct from m.agrupador
+           and (m.nombre_patron is null or c.nombre ilike m.nombre_patron)
          order by c.codigo
     loop
         update public.cuentas_contables set codigo_agrupador = r.despues where id = r.id;
@@ -131,6 +138,13 @@ begin
         raise notice '% · %: % -> %', r.codigo, r.nombre, coalesce(r.antes, '(vacío)'), r.despues;
     end loop;
     raise notice 'Cuentas corregidas: %', n;
+    for r in
+        select c.codigo, c.nombre from public.cuentas_contables c
+          join _agrup_sat m on m.codigo = c.codigo
+         where m.nombre_patron is not null and not (c.nombre ilike m.nombre_patron)
+    loop
+        raise notice 'OMITIDA % · %: su nombre no corresponde al tipo de bien esperado; asígnale a mano el agrupador de depreciación (171.xx acumulada / 504.07-504.24 gasto) de ese tipo.', r.codigo, r.nombre;
+    end loop;
 end $$;
 
 -- 2) Cuentas mayores (con hijas): código de nivel 1 del SAT (3 dígitos) si todas sus hijas coinciden
@@ -144,6 +158,7 @@ begin
           from public.cuentas_contables p
           join public.cuentas_contables h on h.cuenta_padre_id = p.id
          where h.codigo_agrupador is not null
+           and not exists (select 1 from _agrup_sat m where m.codigo = p.codigo)   -- las mayores con regla propia no se tocan aquí
          group by p.id, p.codigo, p.nombre, p.codigo_agrupador
          order by p.codigo
     loop
