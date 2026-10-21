@@ -88,6 +88,10 @@ export async function cargarModuloActivosFijos() {
             <label class="flex items-start gap-2 text-xs text-slate-200 mb-1"><input type="radio" name="afDep" value="si" class="mt-0.5"> <span><b>Depreciable</b> — lo compraste y vale dinero que se va desgastando (maquinaria, equipo de cómputo). Pide costo y vida útil; cada mes genera su póliza de depreciación.</span></label>
             <label class="flex items-start gap-2 text-xs text-slate-200"><input type="radio" name="afDep" value="no" class="mt-0.5"> <span><b>No depreciable</b> — solo quieres controlarlo (dónde está y cuánta luz usa): equipo ya depreciado, de bajo valor o que no se activa. No genera depreciación.</span></label>
           </div>` : ''}
+          <div id="afHistWrap" class="md:col-span-3 hidden">
+            <label class="block text-xs text-slate-400 mb-1">Costo histórico <span class="text-slate-600">· opcional: lo que costó el equipo, solo para verlo en el listado (no genera póliza ni depreciación)</span></label>
+            <input type="number" step="any" min="0" id="afCostoHist" class="w-full md:w-1/3 bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+          </div>
           <div id="afDepWrap" class="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-3 ${afNuevo ? 'hidden' : ''}">
           <div><label class="block text-xs text-slate-400 mb-1">Costo de adquisición</label>
             <input type="number" step="any" min="0" id="afCosto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
@@ -170,6 +174,8 @@ function afMostrarDep() {
     if (!afNuevo) return;
     const dep = afEsDep();
     document.getElementById('afDepWrap').classList.toggle('hidden', !dep);
+    // "Costo histórico" solo para el que se marca No depreciable (y no viene de una compra: ese ya trae su costo real).
+    document.getElementById('afHistWrap')?.classList.toggle('hidden', dep || afEditLigado || document.querySelector('input[name="afDep"]:checked')?.value !== 'no');
     if (dep) {
         const pon = (id, cod) => { const el = document.getElementById(id); if (el && !el.value) el.value = afIdCuenta(cod); };
         pon('afCtaActivo', '152.01'); pon('afCtaGasto', '503.04'); pon('afCtaAcumulada', '153.01');
@@ -187,6 +193,7 @@ function afResetForm() {
     document.getElementById('afCategoria').value = '';
     document.getElementById('afFecha').value = hoyISO();
     document.getElementById('afCosto').value = '';
+    const hist0 = document.getElementById('afCostoHist'); if (hist0) hist0.value = '';
     document.getElementById('afResidual').value = '0';
     document.getElementById('afVidaUtil').value = '';
     document.getElementById('afCtaActivo').value = '';
@@ -238,7 +245,8 @@ async function afGuardarActivo() {
         categoria: document.getElementById('afCategoria').value.trim() || null,
         fecha_adquisicion: document.getElementById('afFecha').value || hoyISO(),
         // Un activo que viene de una compra conserva su costo aunque no se deprecie (ya está en la cuenta de activo).
-        costo_adquisicion: (dep || afEditLigado) ? costo : null,
+        // No depreciable sin compra: el costo histórico es opcional (solo para el listado).
+        costo_adquisicion: (dep || afEditLigado) ? costo : (parseFloat(document.getElementById('afCostoHist')?.value) > 0 ? parseFloat(document.getElementById('afCostoHist').value) : null),
         valor_residual: dep ? (parseFloat(document.getElementById('afResidual').value) || 0) : 0,
         vida_util_meses: dep ? vidaUtil : null,
         cuenta_activo_id: dep && document.getElementById('afCtaActivo').value ? parseInt(document.getElementById('afCtaActivo').value) : null,
@@ -404,6 +412,9 @@ window.afEditar = async (id) => {
         // Pendiente de completar: el usuario decide explícitamente si se deprecia (no se asume).
         document.querySelectorAll('input[name="afDep"]').forEach((r) => { r.checked = !a.pendiente && r.value === (a.depreciable ? 'si' : 'no'); });
         document.getElementById('afDepWrap').classList.toggle('hidden', !!a.pendiente || !a.depreciable);
+        const hist = document.getElementById('afCostoHist');
+        if (hist) hist.value = (!a.depreciable && !a.documento_id && a.costo_adquisicion != null) ? a.costo_adquisicion : '';
+        afMostrarDep();
     }
     document.querySelectorAll('.afEtapaChk').forEach((c) => { c.checked = false; });
     if (afTieneEtapas) {
