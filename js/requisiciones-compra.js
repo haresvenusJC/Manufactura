@@ -1,3 +1,4 @@
+import { cargarCategoriasDep, opcionesCategoriaDep, textoCategoriaDep } from './categorias-depreciacion.js';
 import { supabaseClient } from './supabase.js';
 import { siguienteFolio } from './folios.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
@@ -98,6 +99,9 @@ async function reqAbrirAltaActivoFijo({ nombre = '', proveedorId = null, onCread
           <div><label class="block text-xs text-slate-400 mb-1">Cuenta contable del activo <span class="text-rose-400">*</span></label>
             <select data-f="cuenta" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">Cargando...</option></select>
             <p class="text-[10px] text-slate-500 mt-1">Al recibirlo, su costo se carga a esta cuenta (no a inventario). Maquinaria y equipo = 152.01.</p></div>
+          <div data-f="catWrap" class="hidden"><label class="block text-xs text-slate-400 mb-1">Categoría fiscal <span class="text-slate-600">(define su % máximo de depreciación · LISR)</span></label>
+            <select data-f="cat" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select>
+            <p data-f="catInfo" class="text-[10px] text-slate-500 mt-1"></p></div>
           <div><label class="block text-xs text-slate-400 mb-1">Proveedor sugerido <span class="text-slate-600">(opcional)</span></label>
             <select data-f="prov" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">—</option>${reqProveedores.map((p) => `<option value="${p.id}">${esc(p.nombre)}</option>`).join('')}</select></div>
         </div>
@@ -127,6 +131,14 @@ async function reqAbrirAltaActivoFijo({ nombre = '', proveedorId = null, onCread
     const def = lista.find((c) => c.codigo === '152.01');
     if (def) f('cuenta').value = String(def.id);
 
+    // Categoría fiscal (LISR): solo aparece si la migración ya está corrida.
+    cargarCategoriasDep().then((cats) => {
+        if (!cats.length) return;
+        f('catWrap').classList.remove('hidden');
+        f('cat').innerHTML = opcionesCategoriaDep(cats, new Date().getFullYear());
+        f('cat').onchange = () => { const c = cats.find((x) => x.id === Number(f('cat').value)); f('catInfo').innerHTML = c ? textoCategoriaDep(c) : ''; };
+    });
+
     f('ok').onclick = async () => {
         const msg = f('msg');
         const err = (t) => { msg.textContent = t; msg.className = 'text-xs mt-3 min-h-[1rem] text-rose-400'; };
@@ -150,6 +162,7 @@ async function reqAbrirAltaActivoFijo({ nombre = '', proveedorId = null, onCread
             };
             const sku = f('sku').value.trim();
             if (sku) fila.sku = sku;
+            if (f('cat').value) fila.categoria_depreciacion_id = Number(f('cat').value);
             const { data, error } = await supabaseClient.from('productos').insert([fila])
                 .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id, cantidad_minima_compra, tipo').single();
             if (error) {

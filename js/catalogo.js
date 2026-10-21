@@ -4,6 +4,7 @@ import { renderizarKardexProducto } from './kardex.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { factorConversion, tamanoTeoricoTanda, familiaDeUnidad } from './conversion-unidades.js';
 import { opcionesPresentacionHtml } from './presentaciones-proveedor.js';
+import { cargarCategoriasDep, opcionesCategoriaDep, textoCategoriaDep } from './categorias-depreciacion.js';
 
 let catBusqueda = ''; // texto del buscador en vivo del Catálogo General (SKU y/o nombre)
 const catOrden = crearOrdenTabla('nombre', 'asc'); // ordenamiento de la tabla del Catálogo: alfabético por Nombre por defecto (clic en otra columna lo cambia)
@@ -147,6 +148,8 @@ export async function cargarModuloAltaArticulo() {
                 .order('codigo', { ascending: true });
             cuentasContables = resCtas || [];
         } catch (_) { /* modulo de contabilidad aun no instalado */ }
+        // Categorías fiscales de depreciación (LISR), para el tipo Activo fijo. Vacío si falta sql/2026-10-22_categorias_depreciacion_fiscal.sql.
+        const categoriasDep = await cargarCategoriasDep();
 
         const opcionesCuentas = (tiposPreferidos = []) => {
             const pref = cuentasContables.filter(c => tiposPreferidos.includes(c.tipo));
@@ -264,6 +267,12 @@ export async function cargarModuloAltaArticulo() {
                                 <label class="block text-[11px] text-slate-400 mb-1" title="Cuando la existencia baje de aquí, Inventario lo marca como 'hay que comprar'.">Stock mínimo</label>
                                 <input type="number" step="0.0001" min="0" id="prodStockMinimo" value="0" title="Cuando la existencia baje de aquí, Inventario lo marca como 'hay que comprar'." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
                             </div>
+                        </div>
+
+                        <div id="bloqueProdCategoriaDep" class="hidden rounded-lg border border-teal-900/60 bg-teal-950/20 p-2.5">
+                            <label class="block text-[11px] text-slate-300 mb-1">Categoría fiscal del equipo <span class="text-slate-500">· define su % máximo de depreciación (LISR)</span></label>
+                            <select id="prodCategoriaDep" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></select>
+                            <p id="prodCategoriaDepInfo" class="text-[10px] text-slate-500 mt-1">${categoriasDep.length ? 'Al recibir la compra, el equipo se da de alta en Finanzas → Activos fijos con esta categoría y su % ya cargado.' : 'Falta correr sql/2026-10-22_categorias_depreciacion_fiscal.sql en Supabase para poder elegir la categoría.'}</p>
                         </div>
 
                         <label id="bloqueProdCaducidad" class="flex items-start gap-2 text-xs text-slate-300 bg-slate-900/40 border border-slate-800 rounded-lg px-3 py-2">
@@ -499,6 +508,13 @@ export async function cargarModuloAltaArticulo() {
             document.getElementById('bloqueProdRendimientoLote')?.classList.toggle('hidden', !semi);
             // Control de caducidad tampoco se pregunta para Producto terminado en esta pantalla.
             document.getElementById('bloqueProdCaducidad')?.classList.toggle('hidden', esProducto || esEquipo);
+            // Categoría fiscal (LISR): solo para equipos.
+            const bloqueCat = document.getElementById('bloqueProdCategoriaDep');
+            if (bloqueCat) {
+                bloqueCat.classList.toggle('hidden', !esEquipo || !categoriasDep.length);
+                const selCat = document.getElementById('prodCategoriaDep');
+                if (esEquipo && !selCat.options.length) selCat.innerHTML = opcionesCategoriaDep(categoriasDep, new Date().getFullYear());
+            }
             // Un equipo (activo fijo) no es inventario: su cuenta es de activo (152.xx), no de inventario.
             if (esEquipo) {
                 const selCta = document.getElementById('prodCtaInventario');
@@ -517,6 +533,11 @@ export async function cargarModuloAltaArticulo() {
             marcarBotonTipoActivo();
             pintarAnalisisTandaForm();
         }
+        document.getElementById('prodCategoriaDep')?.addEventListener('change', (e) => {
+            const f = categoriasDep.find((c) => c.id === Number(e.target.value));
+            const info = document.getElementById('prodCategoriaDepInfo');
+            if (info) info.innerHTML = f ? textoCategoriaDep(f) : 'Al recibir la compra, el equipo se da de alta en Finanzas → Activos fijos.';
+        });
         document.querySelectorAll('.abast-btn').forEach((b) => {
             b.addEventListener('click', () => {
                 inputAbast.value = b.dataset.abast;
@@ -647,6 +668,15 @@ export async function cargarModuloAltaArticulo() {
                 document.getElementById('prodProveedorId').value = art.proveedor_id || '';
                 document.getElementById('prodDesc').value = art.descripcion || '';
                 document.getElementById('prodRequiereCaducidad').checked = !!art.requiere_caducidad;
+                {
+                    const selCat = document.getElementById('prodCategoriaDep');
+                    if (selCat) {
+                        selCat.innerHTML = opcionesCategoriaDep(categoriasDep, new Date().getFullYear(), art.categoria_depreciacion_id);
+                        selCat.value = art.categoria_depreciacion_id || '';
+                        selCat.dispatchEvent(new Event('change'));
+                    }
+                    formArticulo.dataset.tieneCatDep = art.categoria_depreciacion_id ? '1' : '';
+                }
 
                 // Datos contables (si el modulo esta instalado)
                 const elTasaIva = document.getElementById('prodTasaIva');
@@ -746,6 +776,7 @@ export async function cargarModuloAltaArticulo() {
             marcarBotonTipoActivo('producto');
             inputAbast.value = 'fabricado';
             formArticulo.dataset.tieneAbast = '';
+            formArticulo.dataset.tieneCatDep = '';
             sincronizarAbastecimiento();
             document.getElementById('prodExistenciaActual').classList.add('hidden');
             tituloForm.textContent = "Alta de productos";
@@ -1047,6 +1078,11 @@ export async function cargarModuloAltaArticulo() {
                 ? { abastecimiento: abastVal }
                 : {};
 
+            // Categoría fiscal del equipo (solo se manda si se eligió o si ya tenía una, para no romper sin la migración)
+            const selCatDep = document.getElementById('prodCategoriaDep');
+            const catDepPayload = (tipo === 'activo_fijo' && selCatDep && (selCatDep.value || formArticulo.dataset.tieneCatDep === '1'))
+                ? { categoria_depreciacion_id: selCatDep.value ? Number(selCatDep.value) : null } : {};
+
             // Datos contables (opcionales; solo si el modulo esta instalado)
             const elTasaIva = document.getElementById('prodTasaIva');
             const datosContables = {};
@@ -1089,6 +1125,7 @@ export async function cargarModuloAltaArticulo() {
                     ...densidadPayload,
                     ...rendimientoLotePayload,
                     ...abastPayload,
+                    ...catDepPayload,
                     ...datosContables
                 };
 
@@ -1549,7 +1586,7 @@ const ORDEN_CAMPOS_PRODUCTO = [
     'sku', 'nombre', 'tipo', 'descripcion', 'clave_sat', 'densidad_kg_l', 'rendimiento_lote_bom', 'lote_minimo_fabricacion',
     'unidad_medida_id', 'proveedor_id', 'moneda_id',
     'costo_unitario', 'precio_venta', 'tasa_iva', 'tasa_ieps',
-    'cuenta_inventario_id', 'cuenta_costo_id',
+    'cuenta_inventario_id', 'cuenta_costo_id', 'categoria_depreciacion_id',
     'stock_actual', 'stock_minimo', 'cantidad_minima_compra', 'tiempo_entrega_dias',
     'requiere_caducidad',
 ];
@@ -2249,6 +2286,7 @@ const ETIQUETAS_CAMPO_PRODUCTO = {
     sku: 'SKU / Código', clave_sat: 'Clave SAT (ClaveProdServ)', densidad_kg_l: 'Densidad (kg por litro)',
     rendimiento_lote_bom: 'Rendimiento del lote (para el BOM)', unidad_medida_id: 'Unidad de Medida',
     descripcion: 'Descripción', lote_minimo_fabricacion: 'Lote mínimo de fabricación',
+    categoria_depreciacion_id: 'Categoría fiscal (LISR)',
 };
 // Pistas bajo cada campo de "Editar artículo" (las mismas ideas que el formulario del Catálogo).
 const PISTAS_CAMPO_PRODUCTO = {
@@ -2579,7 +2617,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
         await abrirResumenCompletoProducto(id, nombreConocido, skuConocido, soloLectura);
     };
     try {
-        const [{ data: art, error }, resProv, resMon, resUm, resCta, resClaves, resBom] = await Promise.all([
+        const [{ data: art, error }, resProv, resMon, resUm, resCta, resClaves, resBom, filasCatDep] = await Promise.all([
             supabaseClient.from('productos').select('*').eq('id', id).single(),
             supabaseClient.from('proveedores').select('id, nombre').order('nombre', { ascending: true }),
             supabaseClient.from('monedas').select('id, codigo').order('id', { ascending: true }),
@@ -2587,6 +2625,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
             supabaseClient.from('cuentas_contables').select('id, codigo, nombre').order('codigo', { ascending: true }),
             supabaseClient.from('producto_claves_proveedor').select('*').eq('producto_id', id),
             supabaseClient.from('bom').select('componente_id, cantidad_requerida, unidad_medida').eq('producto_id', id).order('id', { ascending: true }),
+            cargarCategoriasDep(),
         ]);
         if (error) throw error;
 
@@ -2621,6 +2660,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
             unidad_medida_id: construirOpcionesSelector(resUm.data, art.unidad_medida_id, (r) => r.nombre, '(sin unidad)'),
             cuenta_inventario_id: construirOpcionesSelector(resCta.data, art.cuenta_inventario_id, (r) => `${r.codigo} · ${r.nombre}`, '(sin cuenta)'),
             cuenta_costo_id: construirOpcionesSelector(resCta.data, art.cuenta_costo_id, (r) => `${r.codigo} · ${r.nombre}`, '(sin cuenta)'),
+            categoria_depreciacion_id: construirOpcionesSelector(filasCatDep, art.categoria_depreciacion_id, (r) => `${r.categoria} · ${r.pct_anual}% (${r.articulo}, desde ${r.vigente_desde})`, '(sin categoría fiscal)'),
         };
 
         // Solo para "Ver artículo": el texto ya resuelto de cada llave
@@ -2635,6 +2675,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
             unidad_medida_id: buscarEnLista(resUm.data, art.unidad_medida_id, (r) => r.nombre),
             cuenta_inventario_id: buscarEnLista(resCta.data, art.cuenta_inventario_id, (r) => `${r.codigo} · ${r.nombre}`),
             cuenta_costo_id: buscarEnLista(resCta.data, art.cuenta_costo_id, (r) => `${r.codigo} · ${r.nombre}`),
+            categoria_depreciacion_id: buscarEnLista(filasCatDep, art.categoria_depreciacion_id, (r) => `${r.categoria} · ${r.pct_anual}% (${r.articulo})`),
         };
 
         // "activo" ya no va en la cuadrícula: vive fijo en el pie del modal
@@ -2651,6 +2692,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                 : []
         );
         if (art.tipo !== 'semiterminado') camposOcultosPorTipo.add('rendimiento_lote_bom');
+        if (art.tipo !== 'activo_fijo') camposOcultosPorTipo.add('categoria_depreciacion_id');   // la categoría fiscal es solo de equipos
         // Lote mínimo de fabricación: solo de lo que se fabrica (producto terminado o semiterminado).
         if (art.tipo !== 'semiterminado' && art.tipo !== 'producto') camposOcultosPorTipo.add('lote_minimo_fabricacion');
         const claves = Object.keys(art)

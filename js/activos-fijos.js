@@ -3,6 +3,7 @@ import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-
 import { montarGuia } from './asistente-contable.js';
 import { linkDoc, linkPoliza } from './enlaces-reporte.js';
 import { ordenarCentrosProduccion } from './centros-costo.js';
+import { cargarCategoriasDep, opcionesCategoriaDep, textoCategoriaDep, vidaMesesDePct } from './categorias-depreciacion.js';
 
 // =====================================================================
 //  Activos fijos y depreciación (NIF C-6, línea recta): catálogo de
@@ -26,6 +27,8 @@ let afNuevo = false;         // false si falta correr sql/2026-10-15_equipos_uni
 let afPend = false;          // false si falta correr sql/2026-10-21_activo_fijo_en_compras.sql (activos que nacen de una compra)
 let afSoloPend = false;      // la lista muestra solo los pendientes de completar
 let afEditPendiente = false; // el activo que se edita nació de una compra y está pendiente de completar
+let afCatsDep = [];          // categorías fiscales (LISR); vacío si falta sql/2026-10-22_categorias_depreciacion_fiscal.sql
+let afCatOrig = null;        // categoría/% que el activo ya traía al editarlo (se conserva su copia del año)
 let afEditLigado = false;    // el activo que se edita viene de una compra: su costo y fecha no se editan aquí
 const UNIDAD_KW = { kW: 1, HP: 0.746, W: 0.001 };
 const TIPOS_CARGA = [['equipo', 'Equipo'], ['clima', 'Clima / HVAC'], ['iluminacion', 'Iluminación'], ['otro', 'Otro']];
@@ -39,13 +42,15 @@ export async function cargarModuloActivosFijos() {
     try {
         const { data } = await supabaseClient.from('cuentas_contables').select('id, codigo, nombre, tipo').eq('afectable', true).eq('activa', true).order('codigo');
         afCuentas = data || [];
-        const [ce, et, nu, ar, pe] = await Promise.all([
+        const [ce, et, nu, ar, pe, cd] = await Promise.all([
             supabaseClient.from('centros_costo').select('id, codigo, nombre').eq('tipo', 'produccion').eq('activo', true),
             supabaseClient.from('activos_fijos_centros').select('id').limit(1),
             supabaseClient.from('activos_fijos').select('depreciable').limit(1),
             supabaseClient.from('areas_fisicas').select('id, codigo, nombre').eq('activo', true).order('codigo'),
             supabaseClient.from('activos_fijos').select('pendiente').limit(1),
+            cargarCategoriasDep(),
         ]);
+        afCatsDep = cd || [];
         afCentros = ordenarCentrosProduccion(ce.data || []);
         afTieneEtapas = !et.error;
         afNuevo = !nu.error && !ar.error;
@@ -67,8 +72,9 @@ export async function cargarModuloActivosFijos() {
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
           <div class="md:col-span-2"><label class="block text-xs text-slate-400 mb-1">Nombre</label>
             <input type="text" id="afNombre" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Categoría</label>
-            <input type="text" id="afCategoria" placeholder="Ej. Maquinaria" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+          <div><label class="block text-xs text-slate-400 mb-1">Categoría${afCatsDep.length ? ' fiscal <span class="text-slate-600">· LISR, define el % máximo</span>' : ''}</label>
+            <input type="text" id="afCategoria" placeholder="Ej. Maquinaria" class="${afCatsDep.length ? 'hidden ' : ''}w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+            ${afCatsDep.length ? '<select id="afCatDep" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select>' : ''}</div>
           <div><label class="block text-xs text-slate-400 mb-1">Fecha de alta / adquisición</label>
             <input type="date" id="afFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
           ${afNuevo ? `
@@ -88,6 +94,7 @@ export async function cargarModuloActivosFijos() {
             <label class="flex items-start gap-2 text-xs text-slate-200 mb-1"><input type="radio" name="afDep" value="si" class="mt-0.5"> <span><b>Depreciable</b> — lo compraste y vale dinero que se va desgastando (maquinaria, equipo de cómputo). Pide costo y vida útil; cada mes genera su póliza de depreciación.</span></label>
             <label class="flex items-start gap-2 text-xs text-slate-200"><input type="radio" name="afDep" value="no" class="mt-0.5"> <span><b>No depreciable</b> — solo quieres controlarlo (dónde está y cuánta luz usa): equipo ya depreciado, de bajo valor o que no se activa. No genera depreciación.</span></label>
           </div>` : ''}
+          ${afCatsDep.length ? '<div id="afCatDepInfo" class="md:col-span-3 hidden text-[11px] text-teal-200 bg-teal-950/30 border border-teal-900/60 rounded-lg px-3 py-2"></div>' : ''}
           <div id="afHistWrap" class="md:col-span-3 hidden">
             <label class="block text-xs text-slate-400 mb-1">Costo histórico <span class="text-slate-600">· opcional: lo que costó el equipo, solo para verlo en el listado (no genera póliza ni depreciación)</span></label>
             <input type="number" step="any" min="0" id="afCostoHist" class="w-full md:w-1/3 bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
@@ -151,15 +158,50 @@ export async function cargarModuloActivosFijos() {
     document.getElementById('afAnio').value = hoy.getFullYear();
     document.getElementById('afMes').value = hoy.getMonth() + 1;
 
+    document.getElementById('afVidaUtil').addEventListener('input', (e) => { delete e.target.dataset.auto; });
     document.getElementById('afGuardar').onclick = afGuardarActivo;
     document.getElementById('afCancelarEdicion').onclick = afResetForm;
     document.getElementById('afCalcular').onclick = afCalcularDepreciacion;
     document.getElementById('afCtaGasto').addEventListener('change', afMostrarEtapas);
+    if (afCatsDep.length) {
+        afPintarCatDep(null);
+        document.getElementById('afCatDep').addEventListener('change', () => afAlElegirCategoria(true));
+        document.getElementById('afFecha').addEventListener('change', () => afPintarCatDep(document.getElementById('afCatDep').value || null));
+        document.getElementById('afCosto').addEventListener('input', () => afAlElegirCategoria(false));
+    }
     document.querySelectorAll('input[name="afDep"]').forEach((r) => r.addEventListener('change', afMostrarDep));
 
     await afRenderLista();
     await afRenderHistorial();
     montarGuia(cont, 'activos-fijos');
+}
+
+// Categorías que rigen en el ejercicio de la fecha de adquisición (conserva la elegida aunque ya no rija).
+function afPintarCatDep(sel) {
+    const el = document.getElementById('afCatDep');
+    if (!el) return;
+    const anio = Number(String(document.getElementById('afFecha').value || '').slice(0, 4)) || new Date().getFullYear();
+    el.innerHTML = opcionesCategoriaDep(afCatsDep, anio, sel);
+    el.value = sel ? String(sel) : '';
+    afAlElegirCategoria(false);
+}
+
+// Muestra el fundamento, tope y parte no deducible; con `precargar` sugiere la vida útil (editable) y el nombre de la categoría.
+function afAlElegirCategoria(precargar) {
+    const el = document.getElementById('afCatDep');
+    const info = document.getElementById('afCatDepInfo');
+    if (!el || !info) return;
+    const fila = afCatsDep.find((c) => c.id === Number(el.value));
+    if (!fila) { info.classList.add('hidden'); if (precargar) document.getElementById('afCategoria').value = ''; return; }
+    if (precargar) {
+        document.getElementById('afCategoria').value = fila.categoria;
+        const vida = document.getElementById('afVidaUtil');
+        if (vida && (!vida.value || vida.dataset.auto === '1')) { vida.value = vidaMesesDePct(fila.pct_anual); vida.dataset.auto = '1'; }
+    }
+    const costo = parseFloat(document.getElementById('afCosto').value) || 0;
+    const noDed = fila.tope_deducible && costo > fila.tope_deducible ? ` · <b class="text-amber-300">parte no deducible para ISR: ${money(costo - fila.tope_deducible)}</b>` : '';
+    info.innerHTML = `${textoCategoriaDep(fila)}${noDed}<br><span class="text-slate-500">El % es un tope: la vida útil de abajo (sugerida de ese %) es la que usa la depreciación contable y puedes ajustarla.</span>`;
+    info.classList.remove('hidden');
 }
 
 const afEsDep = () => !afNuevo || document.querySelector('input[name="afDep"]:checked')?.value === 'si';
@@ -191,11 +233,13 @@ function afResetForm() {
     document.getElementById('afFormTitulo').textContent = 'Nuevo activo fijo';
     document.getElementById('afNombre').value = '';
     document.getElementById('afCategoria').value = '';
+    afCatOrig = null;
     document.getElementById('afFecha').value = hoyISO();
     document.getElementById('afCosto').value = '';
     const hist0 = document.getElementById('afCostoHist'); if (hist0) hist0.value = '';
     document.getElementById('afResidual').value = '0';
     document.getElementById('afVidaUtil').value = '';
+    delete document.getElementById('afVidaUtil').dataset.auto;
     document.getElementById('afCtaActivo').value = '';
     document.getElementById('afCtaGasto').value = '';
     document.getElementById('afCtaAcumulada').value = '';
@@ -212,6 +256,7 @@ function afResetForm() {
     }
     afMostrarDep();
     afMostrarEtapas();
+    if (afCatsDep.length) afPintarCatDep(null);
     document.getElementById('afGuardar').textContent = 'Guardar activo';
     document.getElementById('afCancelarEdicion').classList.add('hidden');
 }
@@ -254,6 +299,19 @@ async function afGuardarActivo() {
         cuenta_depreciacion_acumulada_id: dep && document.getElementById('afCtaAcumulada').value ? parseInt(document.getElementById('afCtaAcumulada').value) : null,
         notas: document.getElementById('afNotas').value.trim() || null,
     };
+    if (afCatsDep.length) {
+        const catId = Number(document.getElementById('afCatDep')?.value) || null;
+        if (catId && afCatOrig && afCatOrig.id === catId) {
+            // misma categoría que ya traía: se conserva la copia del % y tope de su ejercicio
+            Object.assign(payload, { categoria_depreciacion_id: catId, pct_fiscal: afCatOrig.pct, tope_fiscal: afCatOrig.tope, ejercicio_fiscal: afCatOrig.ej });
+        } else if (catId) {
+            const f = afCatsDep.find((c) => c.id === catId);
+            Object.assign(payload, { categoria_depreciacion_id: catId, pct_fiscal: f.pct_anual, tope_fiscal: f.tope_deducible,
+                ejercicio_fiscal: Number(String(payload.fecha_adquisicion).slice(0, 4)) || new Date().getFullYear() });
+        } else {
+            Object.assign(payload, { categoria_depreciacion_id: null, pct_fiscal: null, tope_fiscal: null, ejercicio_fiscal: null });
+        }
+    }
     if (afPend && afActivoEditId && afEditPendiente) payload.pendiente = false;   // ya se completó: entra a la depreciación
     if (afNuevo) {
         Object.assign(payload, {
@@ -305,7 +363,7 @@ async function afRenderLista() {
     try {
         const { data, error } = await supabaseClient
             .from('activos_fijos')
-            .select('id, nombre, categoria, fecha_adquisicion, costo_adquisicion, valor_residual, vida_util_meses, activo, fecha_baja, cuenta_depreciacion_gasto_id' + (afNuevo ? ', depreciable, area_id, potencia_kw, cantidad, factor_uso' : '') + (afPend ? ', pendiente, documento_id' : ''))
+            .select('id, nombre, categoria, fecha_adquisicion, costo_adquisicion, valor_residual, vida_util_meses, activo, fecha_baja, cuenta_depreciacion_gasto_id' + (afNuevo ? ', depreciable, area_id, potencia_kw, cantidad, factor_uso' : '') + (afCatsDep.length ? ', pct_fiscal' : '') + (afPend ? ', pendiente, documento_id' : ''))
             .order('id', { ascending: false });
         if (error) throw error;
         afEtapasPorActivo = new Map();
@@ -354,7 +412,7 @@ async function afRenderLista() {
                     ${a.activo ? `<button type="button" onclick="window.afDarBaja(${a.id})" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-rose-300 border border-slate-700 px-2 py-1 rounded ml-1">Dar de baja</button>` : ''}
                   </td>
                   <td class="p-2 text-slate-100">${esc(a.nombre)}${a.documento_id ? `<span class="block text-[10px] text-slate-500">Compra · ${linkDoc(a.documento_id, 'recepción #' + a.documento_id, 'font-mono text-sky-300')}</span>` : ''}</td>
-                  <td class="p-2 text-slate-400">${esc(a.categoria || '—')}</td>
+                  <td class="p-2 text-slate-400">${esc(a.categoria || '—')}${a.pct_fiscal != null ? `<span class="block text-[10px] text-slate-500">LISR máx. ${Number(a.pct_fiscal)}%</span>` : ''}</td>
                   <td class="p-2 whitespace-nowrap text-slate-400">${a.fecha_adquisicion || ''}</td>
                   <td class="p-2 text-right font-mono">${a.costo_adquisicion == null ? '—' : money(a.costo_adquisicion)}</td>
                   ${afNuevo ? `
@@ -402,6 +460,12 @@ window.afEditar = async (id) => {
     document.getElementById('afCtaGasto').value = a.cuenta_depreciacion_gasto_id || '';
     document.getElementById('afCtaAcumulada').value = a.cuenta_depreciacion_acumulada_id || '';
     document.getElementById('afNotas').value = a.notas || '';
+    afCatOrig = a.categoria_depreciacion_id ? { id: a.categoria_depreciacion_id, pct: a.pct_fiscal, tope: a.tope_fiscal, ej: a.ejercicio_fiscal } : null;
+    if (afCatsDep.length) afPintarCatDep(a.categoria_depreciacion_id || null);
+    if (afCatsDep.length && a.pendiente && afCatOrig && !a.vida_util_meses && a.pct_fiscal) {
+        const vida = document.getElementById('afVidaUtil');
+        vida.value = vidaMesesDePct(a.pct_fiscal); vida.dataset.auto = '1';   // sugerida de su categoría; editable
+    }
     if (afNuevo) {
         document.getElementById('afArea').value = a.area_id || '';
         document.getElementById('afTipoCarga').value = a.tipo_carga || 'equipo';

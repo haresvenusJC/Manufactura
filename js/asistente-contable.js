@@ -326,6 +326,7 @@ export const GUIAS = {
         paraQue: 'Llevar el catálogo de tu maquinaria, equipo y vehículos, y su depreciación mensual en línea recta (NIF C-6) — cuánto valen en libros y cuánto gasto de depreciación cae cada mes.',
         pasos: [
             'Da de alta el activo: costo de adquisición, valor residual (lo que valdría al final de su vida útil, puede ser 0), vida útil en meses, y sus 3 cuentas (activo, gasto de depreciación, depreciación acumulada).',
+            'Elige su "Categoría fiscal" (LISR): trae el % máximo anual, sugiere la vida útil (ajustable) y avisa si hay tope deducible (ej. automóviles $175,000). La tabla se edita en Configuración → Tablas → SAT · Depreciación fiscal; si la ley cambia un %, usa "Nueva vigencia".',
             'Si el equipo lo compraste por requisición → orden de compra → recepción, ya aparece aquí solo como "⏳ pendiente de completar" con su costo real: pulsa "Completar" y captura área, si se deprecia, vida útil y etapas.',
             'Para un equipo viejo que ya no se deprecia pero quieres tener en el listado: márcalo "No depreciable", pon su fecha de adquisición original y, si quieres, su costo histórico (solo informativo).',
             'En "Depreciación del mes", elige año y mes y pulsa "Calcular" — es una vista previa, no aplica nada todavía.',
