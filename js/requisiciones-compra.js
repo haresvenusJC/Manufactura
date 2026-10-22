@@ -487,10 +487,10 @@ function reqWireFormulario() {
         const hits = reqProductos.filter(p =>
             (p.nombre && p.nombre.toLowerCase().includes(t)) || (p.sku && p.sku.toLowerCase().includes(t))
         ).slice(0, 12);
-        // Si lo escrito no coincide exactamente con ningún producto, se ofrece crearlo como activo fijo (equipo).
-        const hayExacto = reqProductos.some((p) => (p.nombre || '').trim().toLowerCase() === t);
-        const filaNuevo = (t.length >= 3 && !hayExacto)
-            ? `<div class="px-3 py-2 text-xs text-sky-300 hover:bg-sky-600 hover:text-white cursor-pointer border-t border-slate-700 req-sug req-sug-nuevo" data-nuevo="1">➕ ${hits.length ? '¿No está?' : 'No existe.'} Crear «${esc(inp.value.trim())}» como activo fijo (equipo)</div>` : '';
+        // Solo si NO hay ningún producto parecido se ofrece crear un equipo (activo fijo): con coincidencias en pantalla
+        // (p. ej. un insumo mal escrito) la opción estorbaba y invitaba a crear un equipo por error.
+        const filaNuevo = (t.length >= 3 && !hits.length)
+            ? `<div class="px-3 py-2 text-xs text-sky-300 hover:bg-sky-600 hover:text-white cursor-pointer border-t border-slate-700 req-sug req-sug-nuevo" data-nuevo="1">➕ No existe. Si es un equipo (maquinaria, computadora, mobiliario…), crear «${esc(inp.value.trim())}» como activo fijo</div>` : '';
         if (!hits.length && !filaNuevo) { sug.classList.add('hidden'); return; }
         sug.innerHTML = hits.map(p => `
             <div class="px-3 py-2 text-xs text-slate-200 hover:bg-emerald-600 hover:text-white cursor-pointer border-b border-slate-800/50 last:border-0 req-sug" data-id="${p.id}">
@@ -1536,9 +1536,9 @@ window.reqAutorizar = async (id) => {
             const t = pInput.value.toLowerCase().trim();
             if (!t) { pSug.classList.add('hidden'); return; }
             const hits = reqProductos.filter((p) => (p.nombre && p.nombre.toLowerCase().includes(t)) || (p.sku && p.sku.toLowerCase().includes(t))).slice(0, 12);
-            const hayExacto = reqProductos.some((p) => (p.nombre || '').trim().toLowerCase() === t);
-            const filaNuevo = (t.length >= 3 && !hayExacto)
-                ? `<div class="px-3 py-2 text-xs text-sky-300 hover:bg-sky-600 hover:text-white cursor-pointer border-t border-slate-700" data-nuevo="1">➕ ${hits.length ? '¿No está?' : 'No existe.'} Crear «${esc(pInput.value.trim())}» como activo fijo (equipo)</div>` : '';
+            // Solo si no hay ningún producto parecido se ofrece crear un equipo (activo fijo)
+            const filaNuevo = (t.length >= 3 && !hits.length)
+                ? `<div class="px-3 py-2 text-xs text-sky-300 hover:bg-sky-600 hover:text-white cursor-pointer border-t border-slate-700" data-nuevo="1">➕ No existe. Si es un equipo (maquinaria, computadora, mobiliario…), crear «${esc(pInput.value.trim())}» como activo fijo</div>` : '';
             if (!hits.length && !filaNuevo) { pSug.classList.add('hidden'); return; }
             pSug.innerHTML = hits.map((p) => `<div class="px-3 py-2 text-xs text-slate-200 hover:bg-emerald-600 hover:text-white cursor-pointer border-b border-slate-800/50 last:border-0" data-pid="${p.id}">${esc(p.nombre)} <span class="text-[10px] text-slate-400">${p.tipo === 'activo_fijo' ? '🏭 activo fijo' : (p.sku ? 'SKU ' + esc(p.sku) : '')}</span></div>`).join('') + filaNuevo;
             pSug.classList.remove('hidden');
