@@ -17,7 +17,7 @@ const histTareasOrden = crearOrdenTabla();
 // Agregar un tipo nuevo = sumar un fetcher, no rediseñar la pantalla.
 // =====================================================================
 
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2 } from './formato.js';
 import { hoyISO } from './fechas.js';
 const primerDiaMesISO = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));

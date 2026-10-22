@@ -7,6 +7,7 @@ import { crearOrdenTabla, wireOrdenTabla, aplicarOrden } from './orden-tabla.js'
 import { montarGuia } from './asistente-contable.js';
 
 
+import { money, money4, importe, redondear2 } from './formato.js';
 // Folio del documento de cada movimiento (OPC-000001, ENT-000001, ODC-…): una sola consulta por los ids distintos.
 // Si falla, la fila sigue mostrando "#id" como antes. Modifica y devuelve el mismo arreglo.
 export async function adjuntarFoliosDocumento(movs) {
@@ -46,7 +47,7 @@ export function filaMovimientoKardex(m) {
                                             <td class="p-3 text-xs uppercase font-semibold text-indigo-300">${m.tipo_movimiento || 'N/D'}</td>
                                             <td class="p-3 text-xs font-mono text-amber-300">${numeroLote}${chipFefo}</td>
                                             <td class="p-3 font-mono text-slate-300">
-                                                $${Number(m.costo_unitario || 0).toFixed(4)}
+                                                ${money4(m.costo_unitario)}
                                                 ${(() => {
                                                     const adic = Number(m.lotes_inventario?.costo_adicional_unitario || 0);
                                                     if (!adic) return '';
@@ -337,7 +338,7 @@ window.abrirDetalleDocumento = async function(docId) {
                             </div>
                         </div>
                         <div class="flex justify-between items-center text-xs font-mono pt-1">
-                            <span class="text-slate-400">Costo Unitario: <strong class="text-emerald-400">$${Number(det.costo_unitario || 0).toFixed(2)}</strong></span>
+                            <span class="text-slate-400">Costo Unitario: <strong class="text-emerald-400">${money4(det.costo_unitario)}</strong></span>
                             <span class="text-slate-400">Subtotal: <strong class="text-amber-300">$${Number(det.subtotal || 0).toFixed(2)}</strong></span>
                         </div>
                     </div>

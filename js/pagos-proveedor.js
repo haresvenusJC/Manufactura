@@ -11,7 +11,7 @@ import { imprimirHtml, marcaDeEstatus } from './impresion.js';
 //  Requiere: sql/2026-09-02_pagos_proveedor.sql
 // =====================================================================
 
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2 } from './formato.js';
 import { hoyISO, diasDesdeHoyISO } from './fechas.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 // Forma de pago de la ODC (clave SAT c_forma_pago) → valor del selector "Forma de pago" de esta pantalla.
@@ -645,7 +645,7 @@ function cxpPintarVentanaPago(docs, provId, detalle, proveedorInfo) {
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-[11px] text-slate-300">
             <thead class="bg-slate-900 text-slate-500 uppercase"><tr><th class="p-1.5">Código</th><th class="p-1.5">Descripción</th><th class="p-1.5">Cta.</th><th class="p-1.5 text-right">Cant.</th><th class="p-1.5 text-right">P. Unit.</th><th class="p-1.5 text-right">Importe</th></tr></thead>
-            <tbody>${detalle.lineas.map((l) => `<tr class="border-t border-slate-900"><td class="p-1.5 font-mono">${esc(l.productos?.sku || '—')}</td><td class="p-1.5">${esc(l.productos?.nombre || '—')}</td><td class="p-1.5 font-mono">${esc(l.productos?.cuentas_contables?.codigo || '115.01')}</td><td class="p-1.5 text-right font-mono">${l.cantidad}</td><td class="p-1.5 text-right font-mono">${money(l.costo_unitario)}</td><td class="p-1.5 text-right font-mono">${money(l.subtotal)}</td></tr>`).join('')}</tbody>
+            <tbody>${detalle.lineas.map((l) => `<tr class="border-t border-slate-900"><td class="p-1.5 font-mono">${esc(l.productos?.sku || '—')}</td><td class="p-1.5">${esc(l.productos?.nombre || '—')}</td><td class="p-1.5 font-mono">${esc(l.productos?.cuentas_contables?.codigo || '115.01')}</td><td class="p-1.5 text-right font-mono">${l.cantidad}</td><td class="p-1.5 text-right font-mono">${money4(l.costo_unitario)}</td><td class="p-1.5 text-right font-mono">${money(l.subtotal)}</td></tr>`).join('')}</tbody>
           </table>
         </div>
         <div class="text-xs text-slate-400 space-y-0.5 text-right pr-1">

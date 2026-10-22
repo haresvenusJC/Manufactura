@@ -15,7 +15,7 @@ import './trazabilidad.js';   // window.abrirSeguimientoPedido (seguimiento del 
 //  usa Salidas / Ventas), enlazada de vuelta al pedido.
 // =====================================================================
 
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2 } from './formato.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 import { hoyISO } from './fechas.js';
 
@@ -205,7 +205,7 @@ function pvRenderPartidas() {
         <tr class="border-b border-slate-900">
             <td class="p-2 text-slate-100">${esc(p.nombre)}</td>
             <td class="p-2 text-right font-mono">${p.cantidad}</td>
-            <td class="p-2 text-right font-mono">${money(p.precio)}</td>
+            <td class="p-2 text-right font-mono">${money4(p.precio)}</td>
             <td class="p-2 text-right font-mono text-emerald-400">${money(p.cantidad * p.precio)}</td>
             <td class="p-2 text-right"><button type="button" onclick="window.pvQuitarPartida(${i})" class="text-rose-400 hover:text-rose-300 text-xs px-2 py-1 bg-rose-950/40 rounded border border-rose-900/50">✕</button></td>
         </tr>`).join('');
@@ -295,7 +295,7 @@ async function pvRenderLista() {
 
         data.forEach((p) => {
             const det = p.pedidos_venta_detalle || [];
-            p._total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.precio_unitario || 0), 0);
+            p._total = det.reduce((a, d) => a + importe(d.cantidad, d.precio_unitario), 0);
             const ped = det.reduce((a, d) => a + Number(d.cantidad || 0), 0);
             const sur = det.reduce((a, d) => a + Number(d.cantidad_surtida || 0), 0);
             p._pct = ped > 0 ? Math.round((sur / ped) * 100) : 0;
@@ -397,7 +397,7 @@ async function pvPintarDetalle(id, modal) {
         modal.querySelector('#pvTituloDetalle').textContent = p.folio || ('#' + p.id);
 
         const det = p.pedidos_venta_detalle || [];
-        const total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.precio_unitario || 0), 0);
+        const total = det.reduce((a, d) => a + importe(d.cantidad, d.precio_unitario), 0);
         const conReservas = (p.estatus === 'pendiente' || p.estatus === 'parcial') && det.some((d) => d.cantidad_reservada !== undefined && d.cantidad_reservada !== null);
         const hayFalta = conReservas && det.some((d) => pvFalta(d) > 1e-9);
         const puedeLiberar = conReservas && det.some((d) => d.apartar !== undefined);   // migración …03b corrida
@@ -461,7 +461,7 @@ async function pvPintarDetalle(id, modal) {
                       ${puedeLiberar ? `<td class="p-2 text-center whitespace-nowrap">${d.apartar === false
                           ? `<span class="text-[10px] text-slate-400" title="${esc(d.motivo_liberacion || '')}">Liberada</span> <button type="button" class="pv-reactivar text-[10px] text-sky-300 hover:underline" data-det="${d.id}">Volver a apartar</button>`
                           : `<button type="button" class="pv-liberar text-[10px] text-amber-300 hover:underline" data-det="${d.id}">Liberar</button>`}</td>` : ''}
-                      <td class="p-2 text-right font-mono">${money(d.precio_unitario)}</td>
+                      <td class="p-2 text-right font-mono">${money4(d.precio_unitario)}</td>
                     </tr>`).join('')}
                 </tbody>
                 <tfoot><tr><td colspan="${(conReservas ? 6 : 4) + (puedeLiberar ? 1 : 0)}" class="p-2 text-right font-semibold text-slate-400">Total</td><td class="p-2 text-right font-mono font-semibold text-emerald-300">${money(total)}</td></tr></tfoot>

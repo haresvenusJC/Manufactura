@@ -7,6 +7,7 @@ import { linkDoc, linkPoliza } from './enlaces-reporte.js';
 import { fechaLocalTxt } from './fechas.js';
 import { abrirAltaVinculada } from './vinculos.js';
 
+import { money, money4, importe, redondear2 } from './formato.js';
 let partidasEntradaDirecta = [];
 let catalogoInsumosCache = [];
 let catalogoUnidadesCache = [];
@@ -447,7 +448,7 @@ function renderizarTablaEDPartidas() {
                 <td class="p-3 font-medium text-slate-100">${esc(item.nombre)}</td>
                 <td class="p-3 text-slate-300">${item.cantidad}</td>
                 <td class="p-3 text-slate-400 text-xs">${esc(item.unidadNombre)}</td>
-                <td class="p-3 text-emerald-400 font-mono">$${item.costo.toFixed(2)}</td>
+                <td class="p-3 text-emerald-400 font-mono">${money4(item.costo)}</td>
                 <td class="p-3 font-mono text-xs text-emerald-300">${esc(item.lote || 'SIN-LOTE')}</td>
                 <td class="p-3 text-xs text-sky-300">${item.cuentaCargo ? esc(item.cuentaCargo.codigo + ' · ' + item.cuentaCargo.nombre) : '<span class="text-slate-600">—</span>'}</td>
                 <td class="p-3 text-center">

@@ -6,6 +6,7 @@ import { linkDoc, linkPoliza } from './enlaces-reporte.js';
 import { fechaLocalTxt } from './fechas.js';
 import { abrirAltaVinculada } from './vinculos.js';
 
+import { money, money4, importe, redondear2 } from './formato.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 let catalogoProveedoresCache = [];
@@ -407,7 +408,7 @@ export async function configurarFormularioCompras() {
                 const condicion = document.getElementById('compraCondicion').value;
                 let subtotalFiscal = nf('compraSubtotal');
                 if (subtotalFiscal <= 0) {
-                    subtotalFiscal = partidasAProcesar.reduce((a, p) => a + (p.cantidad * p.costoUnitario), 0);
+                    subtotalFiscal = partidasAProcesar.reduce((a, p) => a + importe(p.cantidad, p.costoUnitario), 0);
                 }
                 const p_datos = {
                     subtotal: subtotalFiscal,
@@ -539,7 +540,7 @@ function recalcularTotalFiscalCompra() {
 
 function subtotalPartidasCompra() {
     if (listaPartidasCompra.length > 0) {
-        return listaPartidasCompra.reduce((a, p) => a + (p.cantidad * p.costoUnitario), 0);
+        return listaPartidasCompra.reduce((a, p) => a + importe(p.cantidad, p.costoUnitario), 0);
     }
     const cant = parseFloat(document.getElementById('compraCantidad')?.value) || 0;
     const cu = parseFloat(document.getElementById('compraCostUnitario')?.value) || 0;
@@ -791,7 +792,7 @@ function actualizarTablaPartidasUI() {
                 <td class="p-3 font-medium text-slate-100">${p.nombreInsumo}</td>
                 <td class="p-3 text-slate-300">${p.cantidad}</td>
                 <td class="p-3 text-slate-400 text-xs">${p.unidadNombre}</td>
-                <td class="p-3 text-emerald-400 font-mono">$${p.costoUnitario.toFixed(2)}</td>
+                <td class="p-3 text-emerald-400 font-mono">${money4(p.costoUnitario)}</td>
                 <td class="p-3 font-mono text-xs text-emerald-300">${p.numeroLote}</td>
                 <td class="p-3 text-center">
                     <button type="button" onclick="window.eliminarPartidaCompra(${index})" class="text-red-400 hover:text-red-300 font-bold px-2 py-1 rounded bg-red-950 border border-red-900 text-xs" style="cursor: pointer;">✕</button>

@@ -20,7 +20,7 @@ import { fechaLocalTxt } from './fechas.js';
 //  Fase 2: importar XML del CFDI.  Fase 3: leer el QR del CFDI.
 // =====================================================================
 
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2 } from './formato.js';
 import { hoyISO } from './fechas.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const normTxt = (s) => String(s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
@@ -232,7 +232,7 @@ function ocRenderPartidas() {
                     ${p.unidadProveedor ? `<span class="block">Unidad: ${esc(p.unidadProveedor)}${p.factorConversion ? ` (×${p.factorConversion})` : ''}</span>` : ''}`
                     : '<span class="italic text-slate-600">sin claves capturadas para este proveedor</span>'}
             </td>
-            <td class="p-2 text-right font-mono">${money(p.costo)}</td>
+            <td class="p-2 text-right font-mono">${money4(p.costo)}</td>
             <td class="p-2 text-right font-mono text-emerald-400">${money(p.cantidad * p.costo)}</td>
             <td class="p-2 text-right"><button type="button" onclick="window.ocQuitarPartida(${i})" class="text-rose-400 hover:text-rose-300 text-xs px-2 py-1 bg-rose-950/40 rounded border border-rose-900/50">✕</button></td>
         </tr>`;
@@ -381,7 +381,7 @@ async function ocRenderLista() {
 
         data.forEach(o => {
             const det = o.ordenes_compra_detalle || [];
-            o._total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0), 0);
+            o._total = det.reduce((a, d) => a + importe(d.cantidad, d.costo_unitario_estimado), 0);
             const ped = det.reduce((a, d) => a + Number(d.cantidad || 0), 0);
             const rec = det.reduce((a, d) => a + Number(d.cantidad_recibida || 0), 0);
             o._pct = ped > 0 ? Math.round((rec / ped) * 100) : 0;
@@ -529,7 +529,7 @@ async function abrirDetalleOC(id) {
 
 async function renderVistaOC(o, cuerpo) {
     const det = o.ordenes_compra_detalle || [];
-    const totalEst = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0), 0);
+    const totalEst = det.reduce((a, d) => a + importe(d.cantidad, d.costo_unitario_estimado), 0);
     const nombreUnidad = (uid) => ocUnidades.find(u => u.id === uid)?.nombre || '';
     const fmtFecha = (iso) => { try { return new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso || '—'; } };
 
@@ -620,7 +620,7 @@ async function renderVistaOC(o, cuerpo) {
                   </td>
                   <td class="p-2 text-right font-mono">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })} ${esc(nombreUnidad(d.unidad_medida_id))}</td>
                   <td class="p-2 text-right font-mono text-slate-400">${Number(d.cantidad_recibida || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</td>
-                  <td class="p-2 text-right font-mono">${money(d.costo_unitario_estimado)}</td>
+                  <td class="p-2 text-right font-mono">${money4(d.costo_unitario_estimado)}</td>
                   <td class="p-2 text-right font-mono">${money(Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0))}</td>
                   <td class="p-2 text-slate-400">${esc(d.notas || '')}</td>
                 </tr>`;

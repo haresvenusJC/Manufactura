@@ -252,11 +252,11 @@ export async function cargarModuloAltaArticulo() {
                             </div>
                             <div id="bloqueProdCosto">
                                 <label class="block text-[11px] text-slate-400 mb-1">Costo Unitario</label>
-                                <input type="number" step="0.01" id="prodCosto" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                <input type="number" step="0.0001" min="0" id="prodCosto" value="0" title="Hasta 4 decimales (diezmilésimas)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
                             </div>
                             <div id="bloqueProdPrecio">
                                 <label class="block text-[11px] text-slate-400 mb-1">Precio de venta</label>
-                                <input type="number" step="0.01" min="0" id="prodPrecioVenta" placeholder="s/IVA" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                <input type="number" step="0.0001" min="0" id="prodPrecioVenta" title="Hasta 4 decimales (diezmilésimas)" placeholder="s/IVA" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
                             </div>
                             <div id="bloqueProdMoneda">
                                 <label class="block text-[11px] text-slate-400 mb-1">Moneda</label>

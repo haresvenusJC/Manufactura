@@ -7,6 +7,7 @@ export { REGIMENES } from './regimenes-fiscales.js';
 import { cargarRegimenes, opcionesRegimen } from './regimenes-fiscales.js';
 import { fechaLocalTxt } from './fechas.js';
 
+import { money, money4, importe, redondear2 } from './formato.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 let provCtas = [];
@@ -372,7 +373,7 @@ function configurarLogicaProveedores() {
                                     <td class="p-2.5 font-medium text-slate-100">${esc(f.prod)}</td>
                                     <td class="p-2.5 font-mono text-sky-300">${esc(f.numero_lote || 'S/N')}</td>
                                     <td class="p-2.5 font-mono">${f.stock_actual} ${esc(f.u)}</td>
-                                    <td class="p-2.5 font-mono text-slate-300">$${Number(f.costo_unitario || 0).toFixed(2)} <span class="text-[10px] text-slate-500">${esc(f.moneda || 'MXN')}</span></td>
+                                    <td class="p-2.5 font-mono text-slate-300">${money4(f.costo_unitario)} <span class="text-[10px] text-slate-500">${esc(f.moneda || 'MXN')}</span></td>
                                     <td class="p-2.5 text-slate-400">${f.fecha_ingreso ? fechaLocalTxt(f.fecha_ingreso) : 'N/D'}</td>
                                 </tr>`).join('')}
                         </tbody>

@@ -343,7 +343,7 @@ async function eliminar(id) {
 //  registrar_poliza). Requiere: sql/2026-08-28_contabilidad_polizas.sql
 // =====================================================================
 
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2 } from './formato.js';
 import { hoyISO } from './fechas.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const primerDiaMesISO = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); };

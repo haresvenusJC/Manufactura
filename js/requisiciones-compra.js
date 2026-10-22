@@ -17,7 +17,7 @@ import { abrirAltaVinculada } from './vinculos.js';
 //  resulta de autorizarla.
 // =====================================================================
 
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2 } from './formato.js';
 import { hoyISO } from './fechas.js';
 // Hoy + N días hábiles (lunes a viernes), en hora local — para "Fecha esperada" al autorizar.
 function fechaHabilesDesdeHoy(n) {
@@ -769,7 +769,7 @@ async function reqRenderLista() {
 
         (data || []).forEach(r => {
             const det = r.requisiciones_compra_detalle || [];
-            r._total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_estimado || 0), 0);
+            r._total = det.reduce((a, d) => a + importe(d.cantidad, d.costo_estimado), 0);
             r._resumen = det.map(d => d.productos?.nombre || '(sin producto)').join(', ');
         });
         aplicarOrden(reqListaOrden, data, (r, campo) => {
@@ -894,7 +894,7 @@ async function abrirDetalleReq(id) {
 
         const cuerpo = modal.querySelector('#' + idCuerpo);
         const det = r.requisiciones_compra_detalle || [];
-        const total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_estimado || 0), 0);
+        const total = det.reduce((a, d) => a + importe(d.cantidad, d.costo_estimado), 0);
         const fmtFecha = (iso) => { try { return new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso || '—'; } };
 
         const bloqueRevision = r.estatus === 'autorizada'
@@ -934,7 +934,7 @@ async function abrirDetalleReq(id) {
                             ${d.unidad_proveedor ? `<span class="block">Unidad: ${esc(d.unidad_proveedor)}${d.factor_conversion_proveedor ? ` (×${d.factor_conversion_proveedor})` : ''}</span>` : ''}`
                             : (d.proveedores?.nombre ? '<span class="block italic text-slate-600">sin claves capturadas para este proveedor</span>' : '')}
                       </td>
-                      <td class="p-2 text-right font-mono">${money(d.costo_estimado)}</td>
+                      <td class="p-2 text-right font-mono">${money4(d.costo_estimado)}</td>
                       <td class="p-2 text-right font-mono">${money(Number(d.cantidad || 0) * Number(d.costo_estimado || 0))}</td>
                     </tr>`;
                   }).join('') || '<tr><td colspan="5" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
@@ -1322,8 +1322,9 @@ window.reqAutorizar = async (id) => {
         });
     };
     const totales = () => {
-        const sub = lineas.reduce((a, l) => a + l.cantidad * l.costo, 0);
-        return { sub, iva: sub * IVA_ODC, tot: sub * (1 + IVA_ODC) };
+        const sub = lineas.reduce((a, l) => a + importe(l.cantidad, l.costo), 0);
+        const iva = redondear2(sub * IVA_ODC);
+        return { sub: redondear2(sub), iva, tot: redondear2(sub + iva) };
     };
     function recalcular() {
         const t = totales();

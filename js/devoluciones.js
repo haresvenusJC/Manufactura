@@ -10,7 +10,7 @@ import { linkDoc, linkPoliza, etiquetaPoliza } from './enlaces-reporte.js';
 //  proveedor/cliente.
 // =====================================================================
 
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2 } from './formato.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 import { hoyISO } from './fechas.js';
 const normTxt = (s) => String(s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
@@ -184,8 +184,8 @@ function devRenderPartidasCliente() {
         <tr class="border-b border-slate-900">
             <td class="p-2 text-slate-100">${esc(p.nombre)}</td>
             <td class="p-2 text-right font-mono">${p.cantidad}</td>
-            <td class="p-2 text-right font-mono text-slate-400">${money(p.costo)}</td>
-            <td class="p-2 text-right font-mono">${money(p.precio)}</td>
+            <td class="p-2 text-right font-mono text-slate-400">${money4(p.costo)}</td>
+            <td class="p-2 text-right font-mono">${money4(p.precio)}</td>
             <td class="p-2 text-right font-mono text-emerald-400">${money(p.cantidad * p.precio)}</td>
             <td class="p-2 text-right"><button type="button" onclick="window.devQuitarCliente(${i})" class="text-rose-400 hover:text-rose-300 text-xs px-2 py-1 bg-rose-950/40 rounded border border-rose-900/50">✕</button></td>
         </tr>`).join('');
@@ -238,7 +238,7 @@ async function devRenderHistCliente() {
         if (error) throw error;
         if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin devoluciones de cliente registradas.</p>'; return; }
         data.forEach((d) => {
-            const bruto = (d.devoluciones_cliente_detalle || []).reduce((a, l) => a + Number(l.cantidad || 0) * Number(l.precio_unitario || 0), 0);
+            const bruto = (d.devoluciones_cliente_detalle || []).reduce((a, l) => a + importe(l.cantidad, l.precio_unitario), 0);
             d._subtotal = d.documentos?.subtotal != null ? Number(d.documentos.subtotal) : bruto;
             d._iva = Number(d.documentos?.iva || 0);
             d._total = d.documentos?.total != null ? Number(d.documentos.total) : bruto;
@@ -344,7 +344,7 @@ function devRenderPanelProveedor() {
     document.getElementById('devpLote').onchange = () => {
         const lote = devLotesProdActual.find((l) => l.id === Number(document.getElementById('devpLote').value));
         const info = document.getElementById('devpLoteInfo');
-        info.textContent = lote ? `Disponible: ${Math.min(lote.stock_actual, lote.stock_costeo)} · Costo: ${money(lote.costo_unitario_final)}` : '';
+        info.textContent = lote ? `Disponible: ${Math.min(lote.stock_actual, lote.stock_costeo)} · Costo: ${money4(lote.costo_unitario_final)}` : '';
     };
 
     document.getElementById('devpAddPartida').onclick = () => {
@@ -380,7 +380,7 @@ async function devCargarLotesProducto(producto) {
     if (error) { sel.innerHTML = '<option value="">Error al cargar lotes</option>'; return; }
     devLotesProdActual = (data || []).filter((l) => Number(l.stock_costeo || 0) > 0);
     if (!devLotesProdActual.length) { sel.innerHTML = '<option value="">Sin lotes con stock disponible</option>'; return; }
-    sel.innerHTML = devLotesProdActual.map((l) => `<option value="${l.id}">${esc(l.numero_lote || ('#' + l.id))} · disp. ${Math.min(l.stock_actual, l.stock_costeo)} · ${money(l.costo_unitario_final)}</option>`).join('');
+    sel.innerHTML = devLotesProdActual.map((l) => `<option value="${l.id}">${esc(l.numero_lote || ('#' + l.id))} · disp. ${Math.min(l.stock_actual, l.stock_costeo)} · ${money4(l.costo_unitario_final)}</option>`).join('');
 }
 
 function devRenderPartidasProveedor() {
@@ -391,7 +391,7 @@ function devRenderPartidasProveedor() {
             <td class="p-2 text-slate-100">${esc(p.nombre)}</td>
             <td class="p-2 font-mono text-slate-400">${esc(p.numeroLote)}</td>
             <td class="p-2 text-right font-mono">${p.cantidad}</td>
-            <td class="p-2 text-right font-mono text-slate-400">${money(p.costo)}</td>
+            <td class="p-2 text-right font-mono text-slate-400">${money4(p.costo)}</td>
             <td class="p-2 text-right font-mono text-emerald-400">${money(p.cantidad * p.costo)}</td>
             <td class="p-2 text-right"><button type="button" onclick="window.devQuitarProveedor(${i})" class="text-rose-400 hover:text-rose-300 text-xs px-2 py-1 bg-rose-950/40 rounded border border-rose-900/50">✕</button></td>
         </tr>`).join('');
@@ -444,7 +444,7 @@ async function devRenderHistProveedor() {
         if (error) throw error;
         if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin devoluciones a proveedor registradas.</p>'; return; }
         data.forEach((d) => {
-            const bruto = (d.devoluciones_proveedor_detalle || []).reduce((a, l) => a + Number(l.cantidad || 0) * Number(l.costo_unitario || 0), 0);
+            const bruto = (d.devoluciones_proveedor_detalle || []).reduce((a, l) => a + importe(l.cantidad, l.costo_unitario), 0);
             d._subtotal = d.documentos?.subtotal != null ? Number(d.documentos.subtotal) : bruto;
             d._iva = Number(d.documentos?.iva || 0);
             d._total = d.documentos?.total != null ? Number(d.documentos.total) : bruto;

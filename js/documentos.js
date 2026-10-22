@@ -4,6 +4,7 @@ import './trazabilidad.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { fechaLocalTxt } from './fechas.js';
 
+import { money, money4, importe, redondear2 } from './formato.js';
 let documentosCache = [];
 let docActualParaImprimir = null; // compat: instancia "de siempre" (modalDetalleDocKardex)
 const docsParaImprimirPorModal = new Map(); // idModal -> { tipoDocumento, titulo } — una entrada por subventana abierta con Ctrl+clic
@@ -471,7 +472,7 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
                             <span class="text-slate-400 print:text-gray-700">Importe: <strong class="text-emerald-400 print:text-black">$${importeVenta.toFixed(2)}</strong></span>
                         </div>`
                     : `<div class="flex justify-between items-center text-xs font-mono pt-1 campo-costo">
-                            <span class="text-slate-400 print:text-gray-700">Costo Unitario: <strong class="text-emerald-400 print:text-black">$${Number(det.costo_unitario || 0).toFixed(2)}${monedaCodigo ? ` ${monedaCodigo}` : ''}</strong>${(monedaCodigo && tipoCambio !== 1) ? ` <span class="text-[10px] text-slate-500">(TC: ${tipoCambio})</span>` : ''}</span>
+                            <span class="text-slate-400 print:text-gray-700">Costo Unitario: <strong class="text-emerald-400 print:text-black">${money4(det.costo_unitario)}${monedaCodigo ? ` ${monedaCodigo}` : ''}</strong>${(monedaCodigo && tipoCambio !== 1) ? ` <span class="text-[10px] text-slate-500">(TC: ${tipoCambio})</span>` : ''}</span>
                             <span class="text-slate-400 print:text-gray-700">Subtotal: <strong class="text-amber-300 print:text-black">$${Number(det.subtotal || 0).toFixed(2)}</strong></span>
                         </div>`;
 

@@ -12,7 +12,7 @@ import { cargarCategoriasDep, opcionesCategoriaDep, textoCategoriaDep, vidaMeses
 //  abono a depreciación acumulada), con su historial y cancelación.
 // =====================================================================
 
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2 } from './formato.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 import { hoyISO } from './fechas.js';
 const afOrden = crearOrdenTabla('id', 'desc');

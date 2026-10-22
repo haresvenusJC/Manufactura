@@ -1,5 +1,5 @@
 {
- "v": "20261022215748",
+ "v": "20261022221440",
  "modulos": [
   "activos-fijos.js",
   "app.js",
@@ -37,6 +37,7 @@
   "fechas.js",
   "filtro-columna.js",
   "folios.js",
+  "formato.js",
   "fresh-start.js",
   "iconos-accesos.js",
   "importador-bom.js",

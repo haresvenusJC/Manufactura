@@ -10,7 +10,7 @@ import { supabaseClient } from './supabase.js';
 import { linkPoliza, linkDoc } from './enlaces-reporte.js';
 import { cxpImprimirComprobante } from './pagos-proveedor.js';
 
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2 } from './formato.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 import { hoyISO } from './fechas.js';
 const inicioMesISO = () => hoyISO().slice(0, 8) + '01';

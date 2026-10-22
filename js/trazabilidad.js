@@ -12,7 +12,7 @@ import { fechaLocalTxt } from './fechas.js';
 // =====================================================================
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2 } from './formato.js';
 
 const REQ_ESTATUS = {
     pendiente: 'text-amber-300 bg-amber-950/40',
