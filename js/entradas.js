@@ -5,6 +5,7 @@ import { cargarInventarioCompleto } from './inventario.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { linkDoc, linkPoliza } from './enlaces-reporte.js';
 import { fechaLocalTxt } from './fechas.js';
+import { abrirAltaVinculada } from './vinculos.js';
 
 let partidasEntradaDirecta = [];
 let catalogoInsumosCache = [];
@@ -180,6 +181,12 @@ export async function configurarFormularioEntradasDirectas() {
                 return;
             }
 
+            if (!catalogoInsumosCache.some(i => i.nombre && i.nombre.trim().toLowerCase() === nombre.toLowerCase())) {
+                alert(`«${nombre}» no existe en el catálogo. Usa «➕ Crear y editar» bajo el nombre para darlo de alta con su tipo, unidad y cuenta.`);
+                procesando = false;
+                return;
+            }
+
             partidasEntradaDirecta.push({
                 nombre,
                 unidad_medida_id,
@@ -194,6 +201,7 @@ export async function configurarFormularioEntradasDirectas() {
             renderizarTablaEDPartidas();
 
             document.getElementById('inputEDNombre').value = '';
+            document.getElementById('inputEDNombre').dispatchEvent(new Event('input'));   // oculta «Crear y editar»
             document.getElementById('inputEDUnidadId').value = '';
             document.getElementById('inputEDCantidad').value = '';
             document.getElementById('inputEDCosto').value = '';
@@ -524,8 +532,38 @@ async function configurarDatalistInsumosED() {
         }
     };
 
+    // «Crear y editar…» (estilo Odoo): si lo escrito no existe, abre el Alta de artículo real encima y regresa aquí.
+    const filaCrear = document.createElement('button');
+    filaCrear.type = 'button';
+    filaCrear.className = 'hidden mt-1 w-full text-left text-xs text-sky-300 hover:bg-sky-600 hover:text-white bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 cursor-pointer';
+    inputInsumo.insertAdjacentElement('afterend', filaCrear);
+    const actualizarCrear = () => {
+        const val = inputInsumo.value.trim();
+        const existe = catalogoInsumosCache.some(i => i.nombre && i.nombre.trim().toLowerCase() === val.toLowerCase());
+        filaCrear.classList.toggle('hidden', val.length < 2 || existe);
+        filaCrear.textContent = `➕ Crear y editar «${val}»…`;
+    };
+    inputInsumo.addEventListener('input', actualizarCrear);
+    filaCrear.addEventListener('click', () => abrirAltaVinculada('producto', {
+        nombre: inputInsumo.value.trim(),
+        onGuardado: async ({ id }) => {
+            const { data } = await supabaseClient.from('productos').select('nombre, unidad_medida_id, costo_unitario, tipo').eq('id', id).single();
+            if (!data) return;
+            if (data.tipo === 'activo_fijo') { alert('Un equipo no entra por una entrada directa (se compra por requisición → ODC).'); return; }
+            await refrescarCatalogo();
+            inputInsumo.value = data.nombre;
+            const unit = document.getElementById('inputEDUnidadId');
+            if (unit && data.unidad_medida_id) unit.value = data.unidad_medida_id;
+            const cost = document.getElementById('inputEDCosto');
+            if (cost && data.costo_unitario != null) cost.value = data.costo_unitario;
+            actualizarCrear();
+            document.getElementById('inputEDCantidad')?.focus();
+        },
+    }));
+
     inputInsumo.addEventListener('focus', refrescarCatalogo);
     inputInsumo.addEventListener('change', () => {
+        actualizarCrear();
         const val = inputInsumo.value.trim();
         const enc = catalogoInsumosCache.find(i => i.nombre && i.nombre.toLowerCase() === val.toLowerCase());
         if (enc) {
