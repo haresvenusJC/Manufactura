@@ -70,6 +70,26 @@ const REQ_ESTATUS = {
 //  Un equipo no es inventario: al recibirlo no genera lote ni existencia; su costo va a la
 //  cuenta de activo (152.xx) y la recepción lo da de alta, pendiente de completar, en Activos fijos.
 // =====================================================================
+// Tipos del buscador de producto (mismos que las pestañas de Alta de artículo; el semiterminado se fabrica, no se compra).
+const REQ_TIPOS_BUSQUEDA = [
+    ['', 'Todos'], ['materia_prima', 'Materia prima'], ['insumo', 'Insumo'],
+    ['producto', 'Producto terminado'], ['activo_fijo', 'Activo fijo'],
+];
+const reqOpcionesTipo = () => REQ_TIPOS_BUSQUEDA.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+const reqFiltrarProductos = (texto, tipo) => reqProductos.filter(p =>
+    (!tipo || p.tipo === tipo) &&
+    ((p.nombre && p.nombre.toLowerCase().includes(texto)) || (p.sku && p.sku.toLowerCase().includes(texto)))
+).slice(0, 12);
+// Solo el tipo elegido decide qué se sugiere: crear equipo únicamente en «Activo fijo»; en los demás tipos, un aviso.
+function reqFilaNuevo(texto, tipo, hayHits, clsExtra = '') {
+    if (texto.length < 3 || hayHits) return '';
+    if (tipo === 'activo_fijo') {
+        return `<div class="px-3 py-2 text-xs text-sky-300 hover:bg-sky-600 hover:text-white cursor-pointer border-t border-slate-700 ${clsExtra}" data-nuevo="1">➕ No existe como activo fijo. Crear «${esc(texto)}» como activo fijo</div>`;
+    }
+    const nombreTipo = (REQ_TIPOS_BUSQUEDA.find(([v]) => v === tipo) || [])[1];
+    return `<div class="px-3 py-2 text-[11px] text-slate-400 border-t border-slate-700">${nombreTipo ? `No hay «${esc(texto)}» en ${nombreTipo}. Dalo de alta en Catálogos → Alta de artículo.` : 'No existe. Elige el tipo de producto (p. ej. Activo fijo) para poder darlo de alta.'}</div>`;
+}
+
 async function reqAbrirAltaActivoFijo({ nombre = '', proveedorId = null, onCreado }) {
     const id = window.idSubventana('reqAltaActivoFijo');
     const previa = document.getElementById(id);
@@ -297,6 +317,8 @@ export async function cargarModuloRequisicionesCompra() {
 
         <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-3 mb-3">
           <div class="grid grid-cols-2 md:grid-cols-5 lg:flex lg:flex-wrap lg:items-end gap-2">
+            <div class="lg:w-40"><label class="block text-[11px] text-slate-400 mb-1">Tipo</label>
+              <select id="reqProdTipo" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100" data-sin-buscador>${reqOpcionesTipo()}</select></div>
             <div class="col-span-2 lg:flex-1 lg:min-w-[260px] relative">
               <label class="block text-[11px] text-slate-400 mb-1">Producto</label>
               <input type="text" id="reqProdInput" autocomplete="off" placeholder="Buscar o escribir uno nuevo..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
@@ -479,18 +501,20 @@ function reqWireFormulario() {
     const inp = document.getElementById('reqProdInput');
     const sug = document.getElementById('reqProdSug');
 
+    document.getElementById('reqProdTipo')?.addEventListener('change', () => {
+        reqProdSel = null;
+        inp.dispatchEvent(new Event('input'));
+        inp.focus();
+    });
     inp.addEventListener('input', () => {
         reqProdSel = null;
         reqActualizarInfoProveedor();
         const t = inp.value.toLowerCase().trim();
         if (!t) { sug.classList.add('hidden'); return; }
-        const hits = reqProductos.filter(p =>
-            (p.nombre && p.nombre.toLowerCase().includes(t)) || (p.sku && p.sku.toLowerCase().includes(t))
-        ).slice(0, 12);
-        // Solo si NO hay ningún producto parecido se ofrece crear un equipo (activo fijo): con coincidencias en pantalla
-        // (p. ej. un insumo mal escrito) la opción estorbaba y invitaba a crear un equipo por error.
-        const filaNuevo = (t.length >= 3 && !hits.length)
-            ? `<div class="px-3 py-2 text-xs text-sky-300 hover:bg-sky-600 hover:text-white cursor-pointer border-t border-slate-700 req-sug req-sug-nuevo" data-nuevo="1">➕ No existe. Si es un equipo (maquinaria, computadora, mobiliario…), crear «${esc(inp.value.trim())}» como activo fijo</div>` : '';
+        const tipoSel = document.getElementById('reqProdTipo')?.value || '';
+        const hits = reqFiltrarProductos(t, tipoSel);
+        // Crear un equipo solo se ofrece con el tipo «Activo fijo» elegido y sin coincidencias.
+        const filaNuevo = reqFilaNuevo(inp.value.trim(), tipoSel, hits.length > 0, 'req-sug req-sug-nuevo');
         if (!hits.length && !filaNuevo) { sug.classList.add('hidden'); return; }
         sug.innerHTML = hits.map(p => `
             <div class="px-3 py-2 text-xs text-slate-200 hover:bg-emerald-600 hover:text-white cursor-pointer border-b border-slate-800/50 last:border-0 req-sug" data-id="${p.id}">
@@ -1356,7 +1380,7 @@ window.reqAutorizar = async (id) => {
             ${manual ? `
             <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 mb-3">
               <div class="grid grid-cols-2 sm:grid-cols-6 gap-2 items-end">
-                <div class="col-span-2 sm:col-span-3 relative"><label class="${lbl}">Producto</label>
+                <div class="col-span-2 sm:col-span-3 relative"><label class="${lbl}">Producto · tipo <select data-f="pTipo" data-sin-buscador class="bg-slate-900 border border-slate-800 rounded p-0.5 text-[11px] text-slate-100">${reqOpcionesTipo()}</select></label>
                   <input type="text" data-f="pInput" autocomplete="off" placeholder="Buscar o escribir uno nuevo..." class="${inp}">
                   <div data-f="pSug" class="hidden absolute left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-40 max-h-44 overflow-y-auto"></div></div>
                 <div><label class="${lbl}">Cantidad</label><input type="number" step="any" min="0" data-f="pCant" class="${inp}"></div>
@@ -1531,14 +1555,14 @@ window.reqAutorizar = async (id) => {
     let prodSel = null;
     if (manual) {
         const pInput = f('pInput'), pSug = f('pSug');
+        f('pTipo').onchange = () => { prodSel = null; pInput.dispatchEvent(new Event('input')); pInput.focus(); };
         pInput.addEventListener('input', () => {
             prodSel = null;
             const t = pInput.value.toLowerCase().trim();
             if (!t) { pSug.classList.add('hidden'); return; }
-            const hits = reqProductos.filter((p) => (p.nombre && p.nombre.toLowerCase().includes(t)) || (p.sku && p.sku.toLowerCase().includes(t))).slice(0, 12);
-            // Solo si no hay ningún producto parecido se ofrece crear un equipo (activo fijo)
-            const filaNuevo = (t.length >= 3 && !hits.length)
-                ? `<div class="px-3 py-2 text-xs text-sky-300 hover:bg-sky-600 hover:text-white cursor-pointer border-t border-slate-700" data-nuevo="1">➕ No existe. Si es un equipo (maquinaria, computadora, mobiliario…), crear «${esc(pInput.value.trim())}» como activo fijo</div>` : '';
+            const tipoSel = f('pTipo').value;
+            const hits = reqFiltrarProductos(t, tipoSel);
+            const filaNuevo = reqFilaNuevo(pInput.value.trim(), tipoSel, hits.length > 0);
             if (!hits.length && !filaNuevo) { pSug.classList.add('hidden'); return; }
             pSug.innerHTML = hits.map((p) => `<div class="px-3 py-2 text-xs text-slate-200 hover:bg-emerald-600 hover:text-white cursor-pointer border-b border-slate-800/50 last:border-0" data-pid="${p.id}">${esc(p.nombre)} <span class="text-[10px] text-slate-400">${p.tipo === 'activo_fijo' ? '🏭 activo fijo' : (p.sku ? 'SKU ' + esc(p.sku) : '')}</span></div>`).join('') + filaNuevo;
             pSug.classList.remove('hidden');
