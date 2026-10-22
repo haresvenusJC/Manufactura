@@ -1,3 +1,4 @@
+import { avisarRegistroGuardado } from './vinculos.js';
 import { supabaseClient } from './supabase.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
@@ -328,6 +329,7 @@ function configurarLogicaProveedores() {
 
             limpiar();
             await renderizarTablaProveedores();
+            avisarRegistroGuardado('proveedor', id);
             msg.textContent = msgTexto;
             msg.className = msgClase;
         } catch (err) {

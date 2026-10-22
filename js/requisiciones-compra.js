@@ -6,6 +6,7 @@ import { montarGuia } from './asistente-contable.js';
 import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 import { obtenerInfoProveedorProducto } from './info-proveedor-producto.js';
 import './trazabilidad.js';
+import { abrirAltaVinculada } from './vinculos.js';
 
 // =====================================================================
 //  Requisiciones de compra — paso previo a la Orden de compra. Se capturan
@@ -70,144 +71,24 @@ const REQ_ESTATUS = {
 //  Un equipo no es inventario: al recibirlo no genera lote ni existencia; su costo va a la
 //  cuenta de activo (152.xx) y la recepción lo da de alta, pendiente de completar, en Activos fijos.
 // =====================================================================
-// Tipos del buscador de producto (mismos que las pestañas de Alta de artículo; el semiterminado se fabrica, no se compra).
-const REQ_TIPOS_BUSQUEDA = [
-    ['', 'Todos'], ['materia_prima', 'Materia prima'], ['insumo', 'Insumo'],
-    ['producto', 'Producto terminado'], ['activo_fijo', 'Activo fijo'],
-];
-const reqOpcionesTipo = () => REQ_TIPOS_BUSQUEDA.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
-const reqFiltrarProductos = (texto, tipo) => reqProductos.filter(p =>
-    (!tipo || p.tipo === tipo) &&
-    ((p.nombre && p.nombre.toLowerCase().includes(texto)) || (p.sku && p.sku.toLowerCase().includes(texto)))
+// Búsqueda de producto: coincidencias desde la primera letra (nombre o SKU).
+const reqFiltrarProductos = (texto) => reqProductos.filter(p =>
+    (p.nombre && p.nombre.toLowerCase().includes(texto)) || (p.sku && p.sku.toLowerCase().includes(texto))
 ).slice(0, 12);
-// Solo el tipo elegido decide qué se sugiere: crear equipo únicamente en «Activo fijo»; en los demás tipos, un aviso.
-function reqFilaNuevo(texto, tipo, hayHits, clsExtra = '') {
-    if (texto.length < 3 || hayHits) return '';
-    if (tipo === 'activo_fijo') {
-        return `<div class="px-3 py-2 text-xs text-sky-300 hover:bg-sky-600 hover:text-white cursor-pointer border-t border-slate-700 ${clsExtra}" data-nuevo="1">➕ No existe como activo fijo. Crear «${esc(texto)}» como activo fijo</div>`;
-    }
-    const nombreTipo = (REQ_TIPOS_BUSQUEDA.find(([v]) => v === tipo) || [])[1];
-    return `<div class="px-3 py-2 text-[11px] text-slate-400 border-t border-slate-700">${nombreTipo ? `No hay «${esc(texto)}» en ${nombreTipo}. Dalo de alta en Catálogos → Alta de artículo.` : 'No existe. Elige el tipo de producto (p. ej. Activo fijo) para poder darlo de alta.'}</div>`;
-}
-
-async function reqAbrirAltaActivoFijo({ nombre = '', proveedorId = null, onCreado }) {
-    const id = window.idSubventana('reqAltaActivoFijo');
-    const previa = document.getElementById(id);
-    if (previa) { previa.querySelector('[data-f="nombre"]')?.focus(); return; }
-
-    const ov = document.createElement('div');
-    ov.id = id;
-    ov.className = 'fixed inset-0 bg-slate-950/40 flex items-start justify-center p-3 overflow-y-auto';
-    ov.style.zIndex = typeof window.zSubventanaSiguiente === 'function' ? window.zSubventanaSiguiente() : 80;
-    const uniPieza = reqUnidades.find((u) => /^pieza/i.test(u.nombre || ''));
-    ov.innerHTML = `
-      <div class="w-full max-w-lg my-6 bg-slate-950 border border-slate-800 rounded-xl p-4 shadow-2xl">
-        <div class="flex items-center justify-between gap-3 mb-1">
-          <h3 class="text-base font-semibold text-sky-300">🏭 Nuevo activo fijo (equipo)</h3>
-          <button type="button" data-x class="text-slate-400 hover:text-slate-100 text-xl leading-none" title="Cerrar">&times;</button>
-        </div>
-        <p class="text-[11px] text-slate-500 mb-3">Lo que estás capturando atrás no se pierde. Aquí solo se da de alta el equipo en el catálogo; su área, vida útil y etapas se completan en Finanzas → Activos fijos cuando lo recibas.</p>
-        <div class="space-y-3">
-          <div><label class="block text-xs text-slate-400 mb-1">Nombre del equipo <span class="text-rose-400">*</span></label>
-            <input type="text" data-f="nombre" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-          <div class="grid grid-cols-2 gap-3">
-            <div><label class="block text-xs text-slate-400 mb-1">SKU / modelo <span class="text-slate-600">(opcional)</span></label>
-              <input type="text" data-f="sku" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
-            <div><label class="block text-xs text-slate-400 mb-1">Unidad</label>
-              <select data-f="unidad" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">${reqUnidades.map((u) => `<option value="${u.id}">${esc(u.nombre)}</option>`).join('')}</select></div>
-          </div>
-          <div><label class="block text-xs text-slate-400 mb-1">Cuenta contable del activo <span class="text-rose-400">*</span></label>
-            <select data-f="cuenta" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">Cargando...</option></select>
-            <p class="text-[10px] text-slate-500 mt-1">Al recibirlo, su costo se carga a esta cuenta (no a inventario). Maquinaria y equipo = 152.01.</p></div>
-          <div data-f="catWrap" class="hidden"><label class="block text-xs text-slate-400 mb-1">Categoría fiscal <span class="text-rose-400">*</span> <span class="text-slate-600">(define su % máximo, su cuenta y su depreciación · LISR)</span></label>
-            <select data-f="cat" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select>
-            <p data-f="catInfo" class="text-[10px] text-slate-500 mt-1"></p></div>
-          <div><label class="block text-xs text-slate-400 mb-1">Proveedor sugerido <span class="text-slate-600">(opcional)</span></label>
-            <select data-f="prov" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">—</option>${reqProveedores.map((p) => `<option value="${p.id}">${esc(p.nombre)}</option>`).join('')}</select></div>
-        </div>
-        <p data-f="msg" class="text-xs mt-3 min-h-[1rem]"></p>
-        <div class="flex gap-2 mt-2">
-          <button type="button" data-x class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-2.5 px-4 rounded-lg text-sm">Cancelar</button>
-          <button type="button" data-f="ok" class="flex-1 bg-sky-600 hover:bg-sky-500 text-white font-semibold py-2.5 rounded-lg text-sm">Crear activo fijo y seleccionarlo</button>
-        </div>
-      </div>`;
-    document.body.appendChild(ov);
-
-    const f = (n) => ov.querySelector(`[data-f="${n}"]`);
-    f('nombre').value = nombre;
-    if (uniPieza) f('unidad').value = uniPieza.id;
-    if (proveedorId) f('prov').value = String(proveedorId);
-    const cerrar = () => { ov.remove(); document.removeEventListener('keydown', cerrarEsc, true); };
-    const cerrarEsc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); cerrar(); } };
-    document.addEventListener('keydown', cerrarEsc, true);
-    ov.querySelectorAll('[data-x]').forEach((b) => { b.onclick = cerrar; });
-    setTimeout(() => f('nombre').focus(), 0);
-
-    // Cuentas de activo fijo (15x, sin la depreciación acumulada 153) — de la tabla real.
-    const { data: ctas } = await supabaseClient.from('cuentas_contables').select('id, codigo, nombre')
-        .eq('afectable', true).eq('activa', true).eq('tipo', 'activo').like('codigo', '15%').order('codigo');
-    const lista = (ctas || []).filter((c) => !String(c.codigo).startsWith('153'));
-    f('cuenta').innerHTML = '<option value="">Selecciona...</option>' + lista.map((c) => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
-    const def = lista.find((c) => c.codigo === '152.01');
-    if (def) f('cuenta').value = String(def.id);
-
-    // Categoría fiscal (LISR): solo aparece si la migración ya está corrida.
-    cargarCategoriasDep().then((cats) => {
-        if (!cats.length) return;
-        f('catWrap').classList.remove('hidden');
-        f('cat').innerHTML = opcionesCategoriaDep(cats, new Date().getFullYear());
-        f('cat').onchange = () => {
-            const c = cats.find((x) => x.id === Number(f('cat').value));
-            f('catInfo').innerHTML = c ? textoCategoriaDep(c) : '';
-            // La cuenta de activo sale de la categoría (se puede cambiar)
-            if (c && c.cuenta_activo_id && [...f('cuenta').options].some((o) => o.value === String(c.cuenta_activo_id))) {
-                f('cuenta').value = String(c.cuenta_activo_id);
-                f('catInfo').innerHTML += ` · <b>Al recibirlo se carga a ${esc(f('cuenta').selectedOptions[0]?.textContent || '')}</b>`;
-            }
-        };
+// Al final de la lista, como en Odoo: «Crear y editar…» abre el Alta de artículo real (una sola plantilla) y regresa aquí.
+const reqFilaCrear = (texto, clsExtra = '') => texto.length < 2 ? ''
+    : `<div class="px-3 py-2 text-xs text-sky-300 hover:bg-sky-600 hover:text-white cursor-pointer border-t border-slate-700 ${clsExtra}" data-nuevo="1">➕ Crear y editar «${esc(texto)}»…</div>`;
+function reqCrearYEditarProducto(nombre, onCreado) {
+    abrirAltaVinculada('producto', {
+        nombre,
+        onGuardado: async ({ id }) => {
+            const { data } = await supabaseClient.from('productos')
+                .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id, cantidad_minima_compra, tipo').eq('id', id).single();
+            if (!data) return;
+            reqProductos = [...reqProductos.filter(p => p.id !== data.id), data].sort((x, y) => (x.nombre || '').localeCompare(y.nombre || ''));
+            onCreado(data);
+        },
     });
-
-    f('ok').onclick = async () => {
-        const msg = f('msg');
-        const err = (t) => { msg.textContent = t; msg.className = 'text-xs mt-3 min-h-[1rem] text-rose-400'; };
-        const nom = f('nombre').value.trim();
-        if (!nom) return err('Escribe el nombre del equipo.');
-        if (!f('catWrap').classList.contains('hidden') && !f('cat').value) return err('Elige la categoría fiscal del equipo: de ella salen su cuenta de activo y su depreciación automática.');
-        if (!f('cuenta').value) return err('Elige la cuenta contable del activo.');
-        const dup = reqProductos.find((p) => (p.nombre || '').trim().toLowerCase() === nom.toLowerCase());
-        if (dup) return err(`Ya existe «${dup.nombre}» en el catálogo (${dup.tipo === 'activo_fijo' ? 'activo fijo' : 'otro tipo'}). Búscalo en la lista en vez de crearlo otra vez.`);
-        const btn = f('ok');
-        btn.disabled = true;
-        msg.textContent = 'Creando...'; msg.className = 'text-xs mt-3 min-h-[1rem] text-slate-400';
-        try {
-            const fila = {
-                nombre: nom,
-                tipo: 'activo_fijo',
-                costo_unitario: 0,
-                stock_actual: 0,
-                unidad_medida_id: f('unidad').value ? Number(f('unidad').value) : null,
-                cuenta_inventario_id: Number(f('cuenta').value),
-                proveedor_id: f('prov').value ? Number(f('prov').value) : null,
-            };
-            const sku = f('sku').value.trim();
-            if (sku) fila.sku = sku;
-            if (f('cat').value) fila.categoria_depreciacion_id = Number(f('cat').value);
-            const { data, error } = await supabaseClient.from('productos').insert([fila])
-                .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id, cantidad_minima_compra, tipo').single();
-            if (error) {
-                if (/check constraint/i.test(error.message || '')) {
-                    throw new Error('Falta correr sql/2026-10-21_activo_fijo_en_compras.sql en Supabase (el catálogo aún no acepta el tipo «Activo fijo»).');
-                }
-                throw error;
-            }
-            reqProductos.push(data);
-            cerrar();
-            if (typeof onCreado === 'function') onCreado(data);
-        } catch (e) {
-            err('No se pudo crear: ' + (e.message || e));
-            btn.disabled = false;
-        }
-    };
 }
 
 async function reqCargarCatalogos() {
@@ -317,8 +198,6 @@ export async function cargarModuloRequisicionesCompra() {
 
         <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-3 mb-3">
           <div class="grid grid-cols-2 md:grid-cols-5 lg:flex lg:flex-wrap lg:items-end gap-2">
-            <div class="lg:w-40"><label class="block text-[11px] text-slate-400 mb-1">Tipo</label>
-              <select id="reqProdTipo" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100" data-sin-buscador>${reqOpcionesTipo()}</select></div>
             <div class="col-span-2 lg:flex-1 lg:min-w-[260px] relative">
               <label class="block text-[11px] text-slate-400 mb-1">Producto</label>
               <input type="text" id="reqProdInput" autocomplete="off" placeholder="Buscar o escribir uno nuevo..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
@@ -501,20 +380,13 @@ function reqWireFormulario() {
     const inp = document.getElementById('reqProdInput');
     const sug = document.getElementById('reqProdSug');
 
-    document.getElementById('reqProdTipo')?.addEventListener('change', () => {
-        reqProdSel = null;
-        inp.dispatchEvent(new Event('input'));
-        inp.focus();
-    });
     inp.addEventListener('input', () => {
         reqProdSel = null;
         reqActualizarInfoProveedor();
         const t = inp.value.toLowerCase().trim();
         if (!t) { sug.classList.add('hidden'); return; }
-        const tipoSel = document.getElementById('reqProdTipo')?.value || '';
-        const hits = reqFiltrarProductos(t, tipoSel);
-        // Crear un equipo solo se ofrece con el tipo «Activo fijo» elegido y sin coincidencias.
-        const filaNuevo = reqFilaNuevo(inp.value.trim(), tipoSel, hits.length > 0, 'req-sug req-sug-nuevo');
+        const hits = reqFiltrarProductos(t);
+        const filaNuevo = reqFilaCrear(inp.value.trim(), 'req-sug req-sug-nuevo');
         if (!hits.length && !filaNuevo) { sug.classList.add('hidden'); return; }
         sug.innerHTML = hits.map(p => `
             <div class="px-3 py-2 text-xs text-slate-200 hover:bg-emerald-600 hover:text-white cursor-pointer border-b border-slate-800/50 last:border-0 req-sug" data-id="${p.id}">
@@ -525,19 +397,15 @@ function reqWireFormulario() {
             el.onclick = () => {
                 if (el.dataset.nuevo) {
                     sug.classList.add('hidden');
-                    reqAbrirAltaActivoFijo({
-                        nombre: inp.value.trim(),
-                        proveedorId: document.getElementById('reqProdProveedor').value ? Number(document.getElementById('reqProdProveedor').value) : null,
-                        onCreado: (p) => {
+                    reqCrearYEditarProducto(inp.value.trim(), (p) => {
                             // El equipo nuevo queda seleccionado en el formulario; lo ya capturado no se toca.
                             reqProdSel = p;
                             inp.value = p.nombre;
                             if (p.unidad_medida_id) document.getElementById('reqProdUnidad').value = p.unidad_medida_id;
                             if (p.proveedor_id) document.getElementById('reqProdProveedor').value = p.proveedor_id;
-                            document.getElementById('reqProdCant').value = '1';
+                            if (p.tipo === 'activo_fijo') document.getElementById('reqProdCant').value = '1';
                             reqActualizarInfoProveedor();
                             document.getElementById('reqProdCant').focus();
-                        },
                     });
                     return;
                 }
@@ -1380,7 +1248,7 @@ window.reqAutorizar = async (id) => {
             ${manual ? `
             <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 mb-3">
               <div class="grid grid-cols-2 sm:grid-cols-6 gap-2 items-end">
-                <div class="col-span-2 sm:col-span-3 relative"><label class="${lbl}">Producto · tipo <select data-f="pTipo" data-sin-buscador class="bg-slate-900 border border-slate-800 rounded p-0.5 text-[11px] text-slate-100">${reqOpcionesTipo()}</select></label>
+                <div class="col-span-2 sm:col-span-3 relative"><label class="${lbl}">Producto</label>
                   <input type="text" data-f="pInput" autocomplete="off" placeholder="Buscar o escribir uno nuevo..." class="${inp}">
                   <div data-f="pSug" class="hidden absolute left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-40 max-h-44 overflow-y-auto"></div></div>
                 <div><label class="${lbl}">Cantidad</label><input type="number" step="any" min="0" data-f="pCant" class="${inp}"></div>
@@ -1555,14 +1423,12 @@ window.reqAutorizar = async (id) => {
     let prodSel = null;
     if (manual) {
         const pInput = f('pInput'), pSug = f('pSug');
-        f('pTipo').onchange = () => { prodSel = null; pInput.dispatchEvent(new Event('input')); pInput.focus(); };
         pInput.addEventListener('input', () => {
             prodSel = null;
             const t = pInput.value.toLowerCase().trim();
             if (!t) { pSug.classList.add('hidden'); return; }
-            const tipoSel = f('pTipo').value;
-            const hits = reqFiltrarProductos(t, tipoSel);
-            const filaNuevo = reqFilaNuevo(pInput.value.trim(), tipoSel, hits.length > 0);
+            const hits = reqFiltrarProductos(t);
+            const filaNuevo = reqFilaCrear(pInput.value.trim());
             if (!hits.length && !filaNuevo) { pSug.classList.add('hidden'); return; }
             pSug.innerHTML = hits.map((p) => `<div class="px-3 py-2 text-xs text-slate-200 hover:bg-emerald-600 hover:text-white cursor-pointer border-b border-slate-800/50 last:border-0" data-pid="${p.id}">${esc(p.nombre)} <span class="text-[10px] text-slate-400">${p.tipo === 'activo_fijo' ? '🏭 activo fijo' : (p.sku ? 'SKU ' + esc(p.sku) : '')}</span></div>`).join('') + filaNuevo;
             pSug.classList.remove('hidden');
@@ -1570,17 +1436,13 @@ window.reqAutorizar = async (id) => {
                 el.onclick = () => {
                     if (el.dataset.nuevo) {
                         pSug.classList.add('hidden');
-                        reqAbrirAltaActivoFijo({
-                            nombre: pInput.value.trim(),
-                            proveedorId: f('proveedor').value ? Number(f('proveedor').value) : null,
-                            onCreado: (p) => {
-                                // El equipo nuevo queda seleccionado; la orden que se está capturando no se toca.
-                                prodSel = p;
-                                pInput.value = p.nombre;
-                                if (p.unidad_medida_id) f('pUni').value = p.unidad_medida_id;
-                                f('pCant').value = '1';
-                                f('pCosto').focus();
-                            },
+                        reqCrearYEditarProducto(pInput.value.trim(), (p) => {
+                            // El artículo nuevo queda seleccionado; la orden que se está capturando no se toca.
+                            prodSel = p;
+                            pInput.value = p.nombre;
+                            if (p.unidad_medida_id) f('pUni').value = p.unidad_medida_id;
+                            if (p.tipo === 'activo_fijo') f('pCant').value = '1';
+                            f('pCosto').focus();
                         });
                         return;
                     }

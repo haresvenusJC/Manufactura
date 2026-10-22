@@ -1,3 +1,4 @@
+import { avisarRegistroGuardado } from './vinculos.js';
 import { hoyISO } from './fechas.js';
 import { supabaseClient } from './supabase.js';
 import { renderizarKardexProducto } from './kardex.js';
@@ -1245,6 +1246,7 @@ export async function cargarModuloAltaArticulo() {
                 if (typeof window.refrescarResumenSiEsProducto === 'function') await window.refrescarResumenSiEsProducto(articuloId);
                 btnNuevoModo.click();
                 await renderizarTablaProductos(mapaUnidades);
+                avisarRegistroGuardado('producto', articuloId);
 
             } catch (err) {
                 console.error("Error al guardar el artículo:", err);
