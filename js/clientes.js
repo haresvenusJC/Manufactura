@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { avisarRegistroGuardado } from './vinculos.js';
 import { cargarRegimenes, opcionesRegimen } from './regimenes-fiscales.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
@@ -267,16 +268,19 @@ async function guardarCliente(e) {
     };
     if (!payload.nombre) { msg.textContent = 'El nombre es obligatorio.'; msg.className = 'text-xs text-rose-400'; return; }
     try {
+        let idGuardado = cliEditId;
         if (cliEditId) {
             const { error } = await supabaseClient.from('clientes').update(payload).eq('id', cliEditId);
             if (error) throw error;
         } else {
-            const { error } = await supabaseClient.from('clientes').insert([payload]);
+            const { data, error } = await supabaseClient.from('clientes').insert([payload]).select('id').single();
             if (error) throw error;
+            idGuardado = data?.id;
         }
         limpiarCliForm();
         await recargarClientes();
         msg.textContent = 'Guardado.'; msg.className = 'text-xs text-emerald-400';
+        if (idGuardado) avisarRegistroGuardado('cliente', idGuardado);
     } catch (err) {
         msg.textContent = err.message || String(err); msg.className = 'text-xs text-rose-400';
     }

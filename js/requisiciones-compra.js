@@ -72,9 +72,11 @@ const REQ_ESTATUS = {
 //  cuenta de activo (152.xx) y la recepción lo da de alta, pendiente de completar, en Activos fijos.
 // =====================================================================
 // Búsqueda de producto: coincidencias desde la primera letra (nombre o SKU).
-const reqFiltrarProductos = (texto) => reqProductos.filter(p =>
-    (p.nombre && p.nombre.toLowerCase().includes(texto)) || (p.sku && p.sku.toLowerCase().includes(texto))
-).slice(0, 12);
+const reqNorm = (x) => String(x ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const reqFiltrarProductos = (texto) => {
+    const palabras = reqNorm(texto).split(/\s+/).filter(Boolean);   // "sey envase" = "envase sey": cada palabra en cualquier orden
+    return reqProductos.filter(p => { const h = reqNorm(`${p.nombre || ''} ${p.sku || ''}`); return palabras.every(w => h.includes(w)); }).slice(0, 12);
+};
 // Al final de la lista, como en Odoo: «Crear y editar…» abre el Alta de artículo real (una sola plantilla) y regresa aquí.
 const reqFilaCrear = (texto, clsExtra = '') => texto.length < 2 ? ''
     : `<div class="px-3 py-2 text-xs text-sky-300 hover:bg-sky-600 hover:text-white cursor-pointer border-t border-slate-700 ${clsExtra}" data-nuevo="1">➕ Crear y editar «${esc(texto)}»…</div>`;

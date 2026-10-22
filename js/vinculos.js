@@ -11,6 +11,8 @@
 // =====================================================================
 const ENTIDADES = {
     producto: { vista: 'alta-articulo', titulo: 'Alta de artículo', campoNombre: 'prodNombre', nuevo: 'btnNuevoModo' },
+    cliente: { vista: 'clientes', titulo: 'Clientes', campoNombre: 'cliNombre', nuevo: 'cliNuevo',
+        cargar: async () => { const m = await import('./clientes.js'); await m.cargarModuloClientes('clientes'); } },
     proveedor: { vista: 'proveedores', titulo: 'Proveedores', campoNombre: 'provNombre', nuevo: 'btnLimpiarProveedor' },
 };
 
@@ -67,8 +69,14 @@ export function abrirAltaVinculada(entidad, { nombre = '', onGuardado } = {}) {
 
     // Modo "nuevo" con el nombre ya escrito (si el módulo aún no terminó de montarse, reintenta un momento).
     let intentos = 0;
-    const preparar = () => {
-        const campo = document.getElementById(cfg.campoNombre);
+    let cargando = false;
+    const preparar = async () => {
+        let campo = document.getElementById(cfg.campoNombre);
+        if (!campo && cfg.cargar && !cargando) {   // catálogo que se arma al abrir su pantalla (ej. Clientes)
+            cargando = true;
+            try { await cfg.cargar(); } catch (e) { console.warn('alta vinculada (cargar):', e); }
+            campo = document.getElementById(cfg.campoNombre);
+        }
         if (!campo) { if (intentos++ < 20) setTimeout(preparar, 150); return; }
         document.getElementById(cfg.nuevo)?.click();
         campo.value = nombre;
