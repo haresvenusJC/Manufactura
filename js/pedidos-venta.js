@@ -5,6 +5,7 @@ import { generarRequisicionFaltantes, requisicionesDePedido, ordenesDePedido } f
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
 import { registrarSalidaMultiPartida } from './salidas.js';
+import { abrirAltaVinculada } from './vinculos.js';
 import './trazabilidad.js';   // window.abrirSeguimientoPedido (seguimiento del pedido)
 
 // =====================================================================
@@ -20,6 +21,7 @@ import { hoyISO } from './fechas.js';
 
 let pvClientes = [];
 let pvProductos = [];
+const PV_COLS_PRODUCTO = 'id, nombre, sku, precio_venta, unidad_medida_id, tipo';
 let pvPartidasTemp = [];
 let pvProdSel = null;
 let pvFiltro = 'pendiente';
@@ -148,12 +150,31 @@ function pvWireFormulario() {
         pvProdSel = null;
         const t = inp.value.toLowerCase().trim();
         if (!t) { sug.classList.add('hidden'); return; }
-        const hits = pvProductos.filter((p) => (p.nombre && p.nombre.toLowerCase().includes(t)) || (p.sku && p.sku.toLowerCase().includes(t))).slice(0, 12);
-        if (!hits.length) { sug.classList.add('hidden'); return; }
-        sug.innerHTML = hits.map((p) => `<div class="px-3 py-2 text-xs text-slate-200 hover:bg-emerald-600 hover:text-white cursor-pointer border-b border-slate-800/50 last:border-0 pv-sug" data-id="${p.id}">${esc(p.nombre)} <span class="text-[10px] text-slate-400">${p.sku ? 'SKU ' + esc(p.sku) : ''}</span></div>`).join('');
+        const palabras = t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/\s+/).filter(Boolean);   // palabras en cualquier orden
+        const hits = pvProductos.filter((p) => { const h = `${p.nombre || ''} ${p.sku || ''}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); return palabras.every((w) => h.includes(w)); }).slice(0, 12);
+        // Al final, como en Odoo: «Crear y editar…» abre el Alta de artículo real y regresa aquí con el producto elegido.
+        const filaCrear = inp.value.trim().length >= 2
+            ? `<div class="px-3 py-2 text-xs text-sky-300 hover:bg-sky-600 hover:text-white cursor-pointer border-t border-slate-700 pv-sug" data-nuevo="1">➕ Crear y editar «${esc(inp.value.trim())}»…</div>` : '';
+        sug.innerHTML = hits.map((p) => `<div class="px-3 py-2 text-xs text-slate-200 hover:bg-emerald-600 hover:text-white cursor-pointer border-b border-slate-800/50 last:border-0 pv-sug" data-id="${p.id}">${esc(p.nombre)} <span class="text-[10px] text-slate-400">${p.sku ? 'SKU ' + esc(p.sku) : ''}</span></div>`).join('') + filaCrear;
         sug.classList.remove('hidden');
         sug.querySelectorAll('.pv-sug').forEach((el) => {
             el.onclick = () => {
+                if (el.dataset.nuevo) {
+                    sug.classList.add('hidden');
+                    abrirAltaVinculada('producto', {
+                        nombre: inp.value.trim(),
+                        onGuardado: async ({ id }) => {
+                            const { data } = await supabaseClient.from('productos').select(PV_COLS_PRODUCTO).eq('id', id).single();
+                            if (!data) return;
+                            if (data.tipo !== 'producto') { alert('Un pedido de venta solo lleva productos terminados; el artículo se guardó como otro tipo.'); return; }
+                            pvProductos = [...pvProductos.filter((x) => x.id !== data.id), data];
+                            pvProdSel = data; inp.value = data.nombre;
+                            if (data.precio_venta != null) document.getElementById('pvPrecio').value = data.precio_venta;
+                            document.getElementById('pvCant').focus();
+                        },
+                    });
+                    return;
+                }
                 const p = pvProductos.find((x) => x.id === Number(el.dataset.id));
                 pvProdSel = p || null;
                 inp.value = p ? p.nombre : inp.value;
