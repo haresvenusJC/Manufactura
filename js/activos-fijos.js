@@ -36,29 +36,37 @@ const TIPOS_CARGA = [['equipo', 'Equipo'], ['clima', 'Clima / HVAC'], ['iluminac
 const afIdCuenta = (cod) => afCuentas.find((c) => c.codigo === cod)?.id || '';
 const esCuentaCif = (id) => String(afCuentas.find((c) => c.id === Number(id))?.codigo || '').startsWith('503.');
 
+// Catálogos que usan el alta, la carga de equipos existentes y la lista (cuentas, etapas, áreas, categorías fiscales y qué migraciones están corridas).
+async function afCargarCatalogos() {
+    const { data } = await supabaseClient.from('cuentas_contables').select('id, codigo, nombre, tipo').eq('afectable', true).eq('activa', true).order('codigo');
+    afCuentas = data || [];
+    const [ce, et, nu, ar, pe, cd, ap] = await Promise.all([
+        supabaseClient.from('centros_costo').select('id, codigo, nombre').eq('tipo', 'produccion').eq('activo', true),
+        supabaseClient.from('activos_fijos_centros').select('id').limit(1),
+        supabaseClient.from('activos_fijos').select('depreciable').limit(1),
+        supabaseClient.from('areas_fisicas').select('id, codigo, nombre, rol').eq('activo', true).order('codigo'),
+        supabaseClient.from('activos_fijos').select('pendiente').limit(1),
+        cargarCategoriasDep(),
+        supabaseClient.from('activos_fijos').select('acum_inicial').limit(1),
+    ]);
+    afApe = !ap.error;
+    afCatsDep = cd || [];
+    afCentros = ordenarCentrosProduccion(ce.data || []);
+    afTieneEtapas = !et.error;
+    afNuevo = !nu.error && !ar.error;
+    afPend = !pe.error;
+    afAreas = ar.data || [];
+}
+
+/** Abre la carga de un equipo existente (con nombre/categoría/modelo precargados) desde otra pantalla, p. ej. Alta de artículo. */
+export const afAbrirAperturaDesde = (pre) => window.afAbrirApertura(pre);
+
 export async function cargarModuloActivosFijos() {
     const cont = document.getElementById('contenedorActivosFijos');
     if (!cont) return;
     cont.innerHTML = '<p class="text-slate-500 text-sm">Cargando...</p>';
     try {
-        const { data } = await supabaseClient.from('cuentas_contables').select('id, codigo, nombre, tipo').eq('afectable', true).eq('activa', true).order('codigo');
-        afCuentas = data || [];
-        const [ce, et, nu, ar, pe, cd, ap] = await Promise.all([
-            supabaseClient.from('centros_costo').select('id, codigo, nombre').eq('tipo', 'produccion').eq('activo', true),
-            supabaseClient.from('activos_fijos_centros').select('id').limit(1),
-            supabaseClient.from('activos_fijos').select('depreciable').limit(1),
-            supabaseClient.from('areas_fisicas').select('id, codigo, nombre, rol').eq('activo', true).order('codigo'),
-            supabaseClient.from('activos_fijos').select('pendiente').limit(1),
-            cargarCategoriasDep(),
-            supabaseClient.from('activos_fijos').select('acum_inicial').limit(1),
-        ]);
-        afApe = !ap.error;
-        afCatsDep = cd || [];
-        afCentros = ordenarCentrosProduccion(ce.data || []);
-        afTieneEtapas = !et.error;
-        afNuevo = !nu.error && !ar.error;
-        afPend = !pe.error;
-        afAreas = ar.data || [];
+        await afCargarCatalogos();
     } catch (e) {
         cont.innerHTML = `<p class="text-rose-400 text-xs">Error al cargar catálogos: ${e.message || e}</p>`;
         return;
@@ -116,6 +124,13 @@ export async function cargarModuloActivosFijos() {
             <select id="afCtaGasto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">Selecciona...</option>${optsGasto}</select></div>
           <div><label class="block text-xs text-slate-400 mb-1">Cuenta de depreciación acumulada</label>
             <select id="afCtaAcumulada" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">Selecciona...</option>${optsActivo}</select></div>
+          ${afApe ? `<div class="md:col-span-3 border border-slate-800 rounded-lg p-3 bg-slate-900/40">
+            <label class="flex items-start gap-2 text-xs text-slate-200"><input type="checkbox" id="afUsado" class="mt-0.5 accent-emerald-500"> <span><b>Equipo usado</b> — se compró de segunda mano. Entra a su costo de compra (no hereda lo que depreció el vendedor) y se habilita capturar su <b>vida útil restante</b>, su <b>valor residual</b> y el <b>% fiscal</b> que le aplica tu contador.</span></label>
+            <div id="afUsadoWrap" class="hidden grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+              <div><label class="block text-xs text-slate-400 mb-1">% fiscal anual aplicado <span class="text-slate-600">· editable</span></label>
+                <input type="number" step="any" min="0" max="100" id="afPctFiscal" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+              <div class="md:col-span-2 text-[11px] text-slate-400 self-end pb-2" id="afMontoDep"></div>
+            </div></div>` : ''}
           </div>
           <div id="afEtapasWrap" class="md:col-span-3 hidden border border-slate-800 rounded-lg p-3 bg-slate-900/40">
             <div class="text-xs text-slate-300 font-medium mb-1">¿En qué etapas se usa esta máquina?</div>
@@ -182,6 +197,10 @@ export async function cargarModuloActivosFijos() {
         });
     }
     document.querySelectorAll('input[name="afDep"]').forEach((r) => r.addEventListener('change', afMostrarDep));
+    ['afUsado', 'afCosto', 'afResidual', 'afVidaUtil', 'afCatDep'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) { el.addEventListener('input', afSincUsado); el.addEventListener('change', afSincUsado); }
+    });
 
     await afRenderLista();
     await afRenderHistorial();
@@ -235,6 +254,21 @@ function afAplicarCuentasCategoria(fila) {
     afMostrarEtapas();
 }
 
+// Equipo usado: se habilitan % fiscal editable y vida restante; muestra el monto a depreciar (costo − residual).
+function afSincUsado() {
+    const chk = document.getElementById('afUsado');
+    if (!chk) return;
+    document.getElementById('afUsadoWrap').classList.toggle('hidden', !chk.checked);
+    const lbl = document.getElementById('afVidaUtil')?.previousElementSibling;
+    if (lbl) lbl.textContent = chk.checked ? 'Vida útil restante estimada (meses)' : 'Vida útil (meses)';
+    const pct = document.getElementById('afPctFiscal');
+    if (chk.checked && pct && !pct.value) pct.value = afCatsDep.find((c) => c.id === Number(document.getElementById('afCatDep')?.value))?.pct_anual ?? '';
+    const costo = parseFloat(document.getElementById('afCosto').value) || 0, res = parseFloat(document.getElementById('afResidual').value) || 0;
+    const vida = parseInt(document.getElementById('afVidaUtil').value) || 0, base = Math.max(0, costo - res);
+    document.getElementById('afMontoDep').innerHTML = chk.checked && costo
+        ? `Monto a depreciar: <b class="text-slate-200">${money(base)}</b> (costo ${money(costo)} − residual ${money(res)})${vida ? ` · ${money(base / vida)} al mes` : ''}` : '';
+}
+
 const afEsDep = () => !afNuevo || document.querySelector('input[name="afDep"]:checked')?.value === 'si';
 
 function afMostrarEtapas() {
@@ -275,6 +309,7 @@ function afResetForm() {
     document.getElementById('afCtaGasto').value = '';
     document.getElementById('afCtaAcumulada').value = '';
     document.getElementById('afNotas').value = '';
+    const us0 = document.getElementById('afUsado'); if (us0) { us0.checked = false; document.getElementById('afPctFiscal').value = ''; afSincUsado(); }
     document.querySelectorAll('.afEtapaChk').forEach((c) => { c.checked = false; });
     if (afNuevo) {
         document.getElementById('afArea').value = '';
@@ -311,6 +346,12 @@ async function afGuardarActivo() {
     if (dep) {
         if (costo <= 0) return falla('El costo de adquisición debe ser mayor a 0.');
         if (vidaUtil <= 0) return falla('La vida útil debe ser mayor a 0 meses.');
+        if (afCatsDep.length && !document.getElementById('afCatDep')?.value) return falla('Elige la categoría fiscal del equipo: de ella salen su % máximo y sus cuentas.');
+        if (afApe && document.getElementById('afUsado')?.checked) {
+            const pf = parseFloat(document.getElementById('afPctFiscal').value);
+            if (!(pf > 0 && pf <= 100)) return falla('Equipo usado: captura el % fiscal anual que le aplica (entre 0 y 100).');
+            if ((parseFloat(document.getElementById('afResidual').value) || 0) >= costo) return falla('El valor residual debe ser menor al costo: no habría monto a depreciar.');
+        }
         if (afNuevo && !(document.getElementById('afCtaActivo').value && document.getElementById('afCtaGasto').value && document.getElementById('afCtaAcumulada').value)) {
             return falla('Un equipo depreciable necesita sus tres cuentas (activo, gasto de depreciación y depreciación acumulada).');
         }
@@ -342,6 +383,11 @@ async function afGuardarActivo() {
         } else {
             Object.assign(payload, { categoria_depreciacion_id: null, pct_fiscal: null, tope_fiscal: null, ejercicio_fiscal: null });
         }
+    }
+    if (afApe) {
+        const usado = !!document.getElementById('afUsado')?.checked;
+        payload.usado = dep && usado;
+        if (payload.usado) payload.pct_fiscal = parseFloat(document.getElementById('afPctFiscal').value);   // editable en usados
     }
     if (afPend && afActivoEditId && afEditPendiente) payload.pendiente = false;   // ya se completó: entra a la depreciación
     if (afNuevo) {
@@ -507,6 +553,8 @@ window.afEditar = async (id) => {
     document.getElementById('afCtaGasto').value = a.cuenta_depreciacion_gasto_id || '';
     document.getElementById('afCtaAcumulada').value = a.cuenta_depreciacion_acumulada_id || '';
     document.getElementById('afNotas').value = a.notas || '';
+    const us1 = document.getElementById('afUsado');
+    if (us1) { us1.checked = !!a.usado; document.getElementById('afPctFiscal').value = a.usado && a.pct_fiscal != null ? a.pct_fiscal : ''; }
     afCatOrig = a.categoria_depreciacion_id ? { id: a.categoria_depreciacion_id, pct: a.pct_fiscal, tope: a.tope_fiscal, ej: a.ejercicio_fiscal } : null;
     if (afCatsDep.length) afPintarCatDep(a.categoria_depreciacion_id || null);
     if (afCatsDep.length && a.pendiente && afCatOrig && !a.vida_util_meses && a.pct_fiscal) {
@@ -534,6 +582,7 @@ window.afEditar = async (id) => {
         document.querySelectorAll('.afEtapaChk').forEach((c) => { c.checked = ids.has(Number(c.value)); });
     }
     afMostrarEtapas();
+    afSincUsado();
     document.getElementById('afGuardar').textContent = a.pendiente ? 'Completar y guardar activo' : 'Actualizar activo';
     document.getElementById('afCancelarEdicion').classList.remove('hidden');
     document.getElementById('afNombre').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -708,7 +757,12 @@ window.afCancelarMes = async (anio, mes) => {
 // Carga de un equipo EXISTENTE (carga inicial): depreciación acumulada al corte + póliza APE.
 // Requiere sql/2026-10-22f_activos_apertura_baja.sql.
 // ---------------------------------------------------------------------
-window.afAbrirApertura = async () => {
+window.afAbrirApertura = async (pre = {}) => {
+    // Puede abrirse desde Alta de artículo sin haber visitado Activos fijos: se cargan los catálogos
+    if (!afCuentas.length) {
+        try { await afCargarCatalogos(); } catch (e) { alert('No se pudieron cargar los catálogos: ' + (e.message || e)); return; }
+    }
+    if (!afApe) { alert('Falta correr sql/2026-10-22f_activos_apertura_baja.sql en Supabase para cargar equipos existentes.'); return; }
     const idv = window.idSubventana('afAperturaModal');
     if (document.getElementById(idv)) return;
     const ov = document.createElement('div');
@@ -725,7 +779,7 @@ window.afAbrirApertura = async () => {
         <p class="text-[11px] text-slate-500 mb-3">Para equipos que ya tenías antes de empezar en el ERP. Registra su depreciación acumulada al corte y genera la póliza de apertura <b>APE</b> (una sola vez por equipo). La depreciación del ERP continúa desde el mes siguiente al corte.</p>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
           <div class="md:col-span-2"><label class="block text-[11px] text-slate-400 mb-1">Nombre del equipo <span class="text-rose-400">*</span></label><input data-f="nombre" class="${inp}"></div>
-          <div><label class="block text-[11px] text-slate-400 mb-1">Categoría fiscal</label><select data-f="cat" class="${inp}"></select></div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Categoría fiscal <span class="text-rose-400">*</span></label><select data-f="cat" class="${inp}"></select></div>
           <div><label class="block text-[11px] text-slate-400 mb-1">Fecha de adquisición original <span class="text-rose-400">*</span></label><input type="date" data-f="adq" class="${inp}"></div>
           <div><label class="block text-[11px] text-slate-400 mb-1">Costo histórico <span class="text-rose-400">*</span></label><input type="number" step="any" min="0" data-f="costo" class="${inp}"></div>
           <div><label class="block text-[11px] text-slate-400 mb-1">Vida útil original (meses) <span class="text-rose-400">*</span></label><input type="number" min="1" data-f="vida" class="${inp}"></div>
@@ -735,6 +789,10 @@ window.afAbrirApertura = async () => {
           <div><label class="block text-[11px] text-slate-400 mb-1">Área donde está <span class="text-rose-400">*</span></label><select data-f="area" class="${inp}"><option value="">Selecciona…</option>${afAreas.map((x) => `<option value="${x.id}">${esc(x.codigo)} · ${esc(x.nombre)}</option>`).join('')}</select></div>
           <div><label class="block text-[11px] text-slate-400 mb-1">Potencia de placa (kW, 0 si no usa luz)</label><input type="number" step="any" min="0" value="0" data-f="pot" class="${inp}"></div>
           <div><label class="block text-[11px] text-slate-400 mb-1">Modelo / serie</label><input data-f="modelo" class="${inp}" placeholder="opcional"></div>
+          <div class="md:col-span-3 border border-slate-800 rounded-lg p-2.5 bg-slate-900/40">
+            <label class="flex items-start gap-2 text-[11px] text-slate-200"><input type="checkbox" data-f="usado" class="mt-0.5 accent-emerald-500"> <span><b>Equipo usado</b> — se compró de segunda mano. El costo es lo que pagaste y la vida útil es la <b>restante</b> al comprarlo; se habilita el % fiscal editable.</span></label>
+            <div data-f="usadoWrap" class="hidden mt-2 md:w-1/3"><label class="block text-[11px] text-slate-400 mb-1">% fiscal anual aplicado <span class="text-slate-600">· editable</span></label><input type="number" step="any" min="0" max="100" data-f="pct" class="${inp}"></div>
+          </div>
           <div><label class="block text-[11px] text-slate-400 mb-1">Cuenta de activo</label><select data-f="cta_act" class="${inp}">${optsCta}</select></div>
           <div><label class="block text-[11px] text-slate-400 mb-1">Depreciación acumulada</label><select data-f="cta_acum" class="${inp}">${optsCta}</select></div>
           <div><label class="block text-[11px] text-slate-400 mb-1">Gasto de depreciación</label><select data-f="cta_gas" class="${inp}">${optsCta}</select></div>
@@ -756,6 +814,14 @@ window.afAbrirApertura = async () => {
     ov.querySelectorAll('[data-x]').forEach((b) => { b.onclick = () => ov.remove(); });
     f('corte').value = hoyISO();
     f('cat').innerHTML = opcionesCategoriaDep(afCatsDep, anio);
+    if (pre.nombre) f('nombre').value = pre.nombre;
+    if (pre.modelo) f('modelo').value = pre.modelo;
+    if (pre.cat) f('cat').value = String(pre.cat);
+    f('usado').onchange = () => {
+        f('usadoWrap').classList.toggle('hidden', !f('usado').checked);
+        const lbl = f('vida').previousElementSibling; if (lbl) lbl.innerHTML = f('usado').checked ? 'Vida útil restante al comprarlo (meses) <span class="text-rose-400">*</span>' : 'Vida útil original (meses) <span class="text-rose-400">*</span>';
+        if (f('usado').checked && !f('pct').value) f('pct').value = afCatsDep.find((c) => c.id === Number(f('cat').value))?.pct_anual ?? '';
+    };
     const ctaCont = afCuentas.find((c) => c.codigo === '304.01'); if (ctaCont) f('cta_cont').value = String(ctaCont.id);
     const cod = (id) => { const c = afCuentas.find((x) => x.id === Number(id)); return c ? `${c.codigo} · ${c.nombre}` : '—'; };
     const r2 = (n) => Math.round(n * 100) / 100;
@@ -808,6 +874,8 @@ window.afAbrirApertura = async () => {
         const mal = (t) => { msg.textContent = t; msg.className = 'text-xs min-h-[1rem] mt-3 text-rose-400'; };
         const c = calc();
         if (!f('nombre').value.trim()) return mal('Escribe el nombre del equipo.');
+        if (afCatsDep.length && !f('cat').value) return mal('Elige la categoría fiscal del equipo: de ella salen su % máximo y sus cuentas.');
+        if (f('usado').checked && !(parseFloat(f('pct').value) > 0 && parseFloat(f('pct').value) <= 100)) return mal('Equipo usado: captura el % fiscal anual que le aplica (entre 0 y 100).');
         if (!f('adq').value || !f('corte').value) return mal('Captura la fecha de adquisición y la fecha de corte.');
         if (c.costo <= 0 || c.vida <= 0) return mal('Captura el costo histórico y la vida útil original.');
         if (!f('area').value) return mal('Elige el área donde está el equipo.');
@@ -828,6 +896,10 @@ window.afAbrirApertura = async () => {
         if (error) {
             f('ok').disabled = false;
             return mal(/activo_fijo_apertura/i.test(error.message || '') && /(find|function|schema)/i.test(error.message || '') ? 'Falta correr sql/2026-10-22f_activos_apertura_baja.sql en Supabase.' : 'No se pudo guardar: ' + (error.message || error));
+        }
+        if (f('usado').checked && data?.activo_id) {
+            const up = await supabaseClient.from('activos_fijos').update({ usado: true, pct_fiscal: parseFloat(f('pct').value) }).eq('id', data.activo_id);
+            if (up.error) alert('El equipo se cargó, pero no se pudo marcar como usado: ' + up.error.message);
         }
         ov.remove();
         alert(`✅ Equipo cargado: acumulada ${money(data.depreciacion_acumulada)}, valor en libros ${money(data.valor_en_libros)}.` + (data.poliza_id ? ' Se generó la póliza APE.' : ' Sin póliza de apertura.'));

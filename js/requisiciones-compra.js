@@ -99,7 +99,7 @@ async function reqAbrirAltaActivoFijo({ nombre = '', proveedorId = null, onCread
           <div><label class="block text-xs text-slate-400 mb-1">Cuenta contable del activo <span class="text-rose-400">*</span></label>
             <select data-f="cuenta" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"><option value="">Cargando...</option></select>
             <p class="text-[10px] text-slate-500 mt-1">Al recibirlo, su costo se carga a esta cuenta (no a inventario). Maquinaria y equipo = 152.01.</p></div>
-          <div data-f="catWrap" class="hidden"><label class="block text-xs text-slate-400 mb-1">Categoría fiscal <span class="text-slate-600">(define su % máximo de depreciación · LISR)</span></label>
+          <div data-f="catWrap" class="hidden"><label class="block text-xs text-slate-400 mb-1">Categoría fiscal <span class="text-rose-400">*</span> <span class="text-slate-600">(define su % máximo, su cuenta y su depreciación · LISR)</span></label>
             <select data-f="cat" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select>
             <p data-f="catInfo" class="text-[10px] text-slate-500 mt-1"></p></div>
           <div><label class="block text-xs text-slate-400 mb-1">Proveedor sugerido <span class="text-slate-600">(opcional)</span></label>
@@ -152,6 +152,7 @@ async function reqAbrirAltaActivoFijo({ nombre = '', proveedorId = null, onCread
         const err = (t) => { msg.textContent = t; msg.className = 'text-xs mt-3 min-h-[1rem] text-rose-400'; };
         const nom = f('nombre').value.trim();
         if (!nom) return err('Escribe el nombre del equipo.');
+        if (!f('catWrap').classList.contains('hidden') && !f('cat').value) return err('Elige la categoría fiscal del equipo: de ella salen su cuenta de activo y su depreciación automática.');
         if (!f('cuenta').value) return err('Elige la cuenta contable del activo.');
         const dup = reqProductos.find((p) => (p.nombre || '').trim().toLowerCase() === nom.toLowerCase());
         if (dup) return err(`Ya existe «${dup.nombre}» en el catálogo (${dup.tipo === 'activo_fijo' ? 'activo fijo' : 'otro tipo'}). Búscalo en la lista en vez de crearlo otra vez.`);

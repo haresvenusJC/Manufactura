@@ -268,10 +268,18 @@ export async function cargarModuloAltaArticulo() {
                                 <input type="number" step="0.0001" min="0" id="prodStockMinimo" value="0" title="Cuando la existencia baje de aquí, Inventario lo marca como 'hay que comprar'." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
                             </div>
                             <div id="bloqueProdCategoriaDep" class="hidden col-span-2 sm:col-span-1 xl:col-span-4">
-                            <label class="block text-[11px] text-slate-400 mb-1">Categoría fiscal del equipo <span class="text-slate-500">· define su % máximo de depreciación (LISR)</span></label>
+                            <label class="block text-[11px] text-slate-400 mb-1">Categoría fiscal del equipo <span class="text-rose-400">*</span> <span class="text-slate-500">· define su % máximo, su cuenta y su depreciación (LISR)</span></label>
                             <select id="prodCategoriaDep" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></select>
                             <p id="prodCategoriaDepInfo" class="text-[10px] text-slate-500 mt-1">${categoriasDep.length ? 'Al recibir la compra, el equipo se da de alta en Finanzas → Activos fijos con esta categoría y su % ya cargado.' : 'Falta correr sql/2026-10-22_categorias_depreciacion_fiscal.sql en Supabase para poder elegir la categoría.'}</p>
                         </div>
+                        </div>
+                        <div id="bloqueProdModoEquipo" class="hidden border border-slate-800 rounded-lg p-3 bg-slate-900/40 space-y-2">
+                            <label class="flex items-start gap-2 text-xs text-slate-200"><input type="radio" name="prodModoEquipo" value="comprar" checked class="mt-0.5 accent-emerald-500"> <span><b>Lo voy a comprar</b> — se guarda aquí y se pide por requisición; al recibirlo se da de alta solo en Activos fijos con las cuentas de su categoría.</span></label>
+                            <label class="flex items-start gap-2 text-xs text-slate-200"><input type="radio" name="prodModoEquipo" value="tengo" class="mt-0.5 accent-emerald-500"> <span><b>Ya lo tengo</b> — carga inicial de un equipo que ya existe (nuevo o <b>usado</b>): captura su depreciación acumulada y genera la póliza de apertura APE.</span></label>
+                            <div id="prodModoTengoWrap" class="hidden pt-1">
+                                <button type="button" id="btnProdCargaInicial" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2 px-4 rounded-lg text-xs">Abrir carga inicial del equipo…</button>
+                                <p class="text-[10px] text-slate-500 mt-1">Se abre el formulario de carga inicial con el nombre y la categoría que ya elegiste. No crea un artículo en Productos: el equipo vive en Finanzas → Activos fijos.</p>
+                            </div>
                         </div>
 
                         <label id="bloqueProdCaducidad" class="flex items-start gap-2 text-xs text-slate-300 bg-slate-900/40 border border-slate-800 rounded-lg px-3 py-2">
@@ -516,7 +524,10 @@ export async function cargarModuloAltaArticulo() {
                 bloqueCat.classList.toggle('hidden', !esEquipo || !categoriasDep.length);
                 const selCat = document.getElementById('prodCategoriaDep');
                 if (esEquipo && !selCat.options.length) selCat.innerHTML = opcionesCategoriaDep(categoriasDep, new Date().getFullYear());
+                selCat.required = esEquipo && categoriasDep.length > 0;   // un equipo siempre lleva categoría fiscal
             }
+            document.getElementById('bloqueProdModoEquipo')?.classList.toggle('hidden', !esEquipo || !!productoSeleccionadoId);
+            sincronizarModoEquipo();
             // Un equipo (activo fijo) no es inventario: su cuenta es de activo (152.xx), no de inventario.
             if (esEquipo) {
                 const selCta = document.getElementById('prodCtaInventario');
@@ -535,6 +546,20 @@ export async function cargarModuloAltaArticulo() {
             marcarBotonTipoActivo();
             pintarAnalisisTandaForm();
         }
+        // "Ya lo tengo": la carga inicial se hace en su propia subventana (póliza APE); aquí no se guarda un artículo.
+        function sincronizarModoEquipo() {
+            const esEquipo = selectTipoElemento.value === 'activo_fijo';
+            const tengo = esEquipo && !productoSeleccionadoId && document.querySelector('input[name="prodModoEquipo"]:checked')?.value === 'tengo';
+            document.getElementById('prodModoTengoWrap')?.classList.toggle('hidden', !tengo);
+            document.getElementById('btnGuardarProd')?.classList.toggle('hidden', tengo);
+        }
+        document.querySelectorAll('input[name="prodModoEquipo"]').forEach((r) => r.addEventListener('change', sincronizarModoEquipo));
+        document.getElementById('btnProdCargaInicial')?.addEventListener('click', async () => {
+            const catId = document.getElementById('prodCategoriaDep')?.value;
+            if (categoriasDep.length && !catId) { alert('Primero elige la categoría fiscal del equipo.'); return; }
+            const { afAbrirAperturaDesde } = await import('./activos-fijos.js');
+            afAbrirAperturaDesde({ nombre: document.getElementById('prodNombre').value.trim(), cat: catId, modelo: document.getElementById('prodSku').value.trim() });
+        });
         document.getElementById('prodCategoriaDep')?.addEventListener('change', (e) => {
             const f = categoriasDep.find((c) => c.id === Number(e.target.value));
             const info = document.getElementById('prodCategoriaDepInfo');
@@ -1108,6 +1133,11 @@ export async function cargarModuloAltaArticulo() {
 
             if (!nombre) {
                 alert("El nombre del artículo es obligatorio.");
+                return;
+            }
+            if (tipo === 'activo_fijo' && categoriasDep.length && !selCatDep?.value) {
+                alert("Elige la categoría fiscal del equipo: de ella salen su cuenta de activo y su depreciación automática.");
+                selCatDep?.focus();
                 return;
             }
             if (!sku) {
