@@ -4,6 +4,7 @@ import { cargarInventarioCompleto } from './inventario.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { linkDoc, linkPoliza } from './enlaces-reporte.js';
 import { fechaLocalTxt } from './fechas.js';
+import { abrirAltaVinculada } from './vinculos.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -222,21 +223,21 @@ export async function configurarFormularioCompras() {
                 return;
             }
 
-            const filtrados = catalogoProductosCache.filter(p => p.nombre.toLowerCase().includes(texto));
+            // palabras en cualquier orden y sin acentos ("sey envase" = "envase sey")
+            const norm = (x) => String(x ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+            const palabras = norm(texto).split(/\s+/).filter(Boolean);
+            const filtrados = catalogoProductosCache.filter(p => { const h = norm(p.nombre); return palabras.every(w => h.includes(w)); }).slice(0, 15);
 
-            if (filtrados.length > 0) {
-                contenedorSugerencias.innerHTML = filtrados.map(prod => `
-                    <div class="px-3 py-2 text-sm text-slate-200 hover:bg-emerald-600 hover:text-white cursor-pointer transition border-b border-slate-800/50 last:border-none"
-                         onclick="window.seleccionarInsumoAutocomplete('${encodeURIComponent(JSON.stringify(prod))}')">
-                        <span class="font-medium">${prod.nombre}</span>
-                        <span class="text-xs text-slate-400 block">Costo: $${prod.costo_unitario || 0} ${prod.unidades_medida ? `| Unid: ${prod.unidades_medida.nombre}` : ''}</span>
-                    </div>
-                `).join('');
-                contenedorSugerencias.classList.remove('hidden');
-            } else {
-                contenedorSugerencias.innerHTML = `<div class="px-3 py-2 text-xs text-slate-500">No se encontraron insumos coincidentes. Se registrará como nuevo.</div>`;
-                contenedorSugerencias.classList.remove('hidden');
-            }
+            // Al final, como en Odoo: «Crear y editar…» abre el Alta de artículo real y regresa aquí con el producto elegido.
+            const filaCrear = `<div class="px-3 py-2 text-sm text-sky-300 hover:bg-sky-600 hover:text-white cursor-pointer transition border-t border-slate-700" onclick="window.crearYEditarProductoCompra()">➕ Crear y editar «${esc(inputInsumo.value.trim())}»…</div>`;
+            contenedorSugerencias.innerHTML = filtrados.map(prod => `
+                <div class="px-3 py-2 text-sm text-slate-200 hover:bg-emerald-600 hover:text-white cursor-pointer transition border-b border-slate-800/50 last:border-none"
+                     onclick="window.seleccionarInsumoAutocomplete('${encodeURIComponent(JSON.stringify(prod))}')">
+                    <span class="font-medium">${esc(prod.nombre)}</span>
+                    <span class="text-xs text-slate-400 block">Costo: $${prod.costo_unitario || 0} ${prod.unidades_medida ? `| Unid: ${esc(prod.unidades_medida.nombre)}` : ''}</span>
+                </div>
+            `).join('') + (inputInsumo.value.trim().length >= 2 ? filaCrear : '');
+            contenedorSugerencias.classList.toggle('hidden', !contenedorSugerencias.innerHTML);
         });
 
         document.addEventListener('click', function(e) {
@@ -280,6 +281,8 @@ export async function configurarFormularioCompras() {
                 alert("Debe ingresar el nombre del insumo, seleccionar la unidad de medida y una cantidad válida (mayor a 0), o bien usar el botón 'Agregar Partida' para acumular varias.");
                 return;
             }
+
+            if (!existeProductoCompra(nombreInsumo)) { alert(MSG_NO_EXISTE_COMPRA(nombreInsumo)); return; }
 
             // Aplicar el tipo de cambio manual si es USD al costo unitario base
             costoUnitario = costoUnitario * tipoCambio;
@@ -686,6 +689,24 @@ async function precargarProductosParaBusqueda() {
     }
 }
 
+const existeProductoCompra = (nombre) => catalogoProductosCache.some(p => p.nombre && p.nombre.trim().toLowerCase() === String(nombre).trim().toLowerCase());
+const MSG_NO_EXISTE_COMPRA = (n) => `«${n}» no existe en el catálogo. Usa «➕ Crear y editar» en la lista del nombre para darlo de alta con su tipo, unidad y cuenta.`;
+
+window.crearYEditarProductoCompra = function() {
+    const inputInsumo = document.getElementById('compraInsumoNombre');
+    document.getElementById('sugerenciasInsumosCompra')?.classList.add('hidden');
+    abrirAltaVinculada('producto', {
+        nombre: inputInsumo ? inputInsumo.value.trim() : '',
+        onGuardado: async ({ id }) => {
+            await precargarProductosParaBusqueda();
+            const prod = catalogoProductosCache.find(p => p.id === id);
+            if (!prod) { alert('Un equipo (activo fijo) no se compra por compra directa: se pide por requisición → ODC.'); return; }
+            window.seleccionarInsumoAutocomplete(encodeURIComponent(JSON.stringify(prod)));
+            document.getElementById('compraCantidad')?.focus();
+        },
+    });
+};
+
 window.seleccionarInsumoAutocomplete = function(prodEncoded) {
     try {
         const prod = JSON.parse(decodeURIComponent(prodEncoded));
@@ -729,6 +750,7 @@ function agregarPartidaTemporal() {
         alert("Para agregar la partida, asegúrese de ingresar el nombre del insumo, seleccionar una unidad de medida y una cantidad mayor a 0.");
         return;
     }
+    if (!existeProductoCompra(nombreInsumo)) { alert(MSG_NO_EXISTE_COMPRA(nombreInsumo)); return; }
 
     const uMatch = catalogoUnidadesCache.find(u => u.id === unidadMedidaId);
     const unidadNombre = uMatch ? uMatch.nombre : 'N/A';
