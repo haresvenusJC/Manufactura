@@ -56,9 +56,14 @@ export function abrirAltaVinculada(entidad, { nombre = '', onGuardado } = {}) {
     document.body.appendChild(ov);
     ov.querySelector('[data-cuerpo]').appendChild(seccion);
     seccion.classList.remove('hidden');
+    // El título propio de la pantalla (y su botón de manual) sobra: la subventana ya trae el suyo.
+    const tituloPropio = seccion.firstElementChild && seccion.firstElementChild.querySelector('h2') ? seccion.firstElementChild : null;
+    const tituloEstabaOculto = tituloPropio ? tituloPropio.classList.contains('hidden') : false;
+    tituloPropio?.classList.add('hidden');
 
     const cerrar = () => {
         abierta = null;
+        if (tituloPropio && !tituloEstabaOculto) tituloPropio.classList.remove('hidden');
         marcador.parentNode?.insertBefore(seccion, marcador);
         marcador.remove();
         seccion.classList.toggle('hidden', estabaOculta);
