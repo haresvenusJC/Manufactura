@@ -27,6 +27,7 @@ let afNuevo = false;         // false si falta correr sql/2026-10-15_equipos_uni
 let afPend = false;          // false si falta correr sql/2026-10-21_activo_fijo_en_compras.sql (activos que nacen de una compra)
 let afSoloPend = false;      // la lista muestra solo los pendientes de completar
 let afEditPendiente = false; // el activo que se edita nació de una compra y está pendiente de completar
+let afApe = false;           // false si falta correr sql/2026-10-22f_activos_apertura_baja.sql (carga de equipos existentes y baja con póliza)
 let afCatsDep = [];          // categorías fiscales (LISR); vacío si falta sql/2026-10-22_categorias_depreciacion_fiscal.sql
 let afCatOrig = null;        // categoría/% que el activo ya traía al editarlo (se conserva su copia del año)
 let afEditLigado = false;    // el activo que se edita viene de una compra: su costo y fecha no se editan aquí
@@ -42,14 +43,16 @@ export async function cargarModuloActivosFijos() {
     try {
         const { data } = await supabaseClient.from('cuentas_contables').select('id, codigo, nombre, tipo').eq('afectable', true).eq('activa', true).order('codigo');
         afCuentas = data || [];
-        const [ce, et, nu, ar, pe, cd] = await Promise.all([
+        const [ce, et, nu, ar, pe, cd, ap] = await Promise.all([
             supabaseClient.from('centros_costo').select('id, codigo, nombre').eq('tipo', 'produccion').eq('activo', true),
             supabaseClient.from('activos_fijos_centros').select('id').limit(1),
             supabaseClient.from('activos_fijos').select('depreciable').limit(1),
             supabaseClient.from('areas_fisicas').select('id, codigo, nombre, rol').eq('activo', true).order('codigo'),
             supabaseClient.from('activos_fijos').select('pendiente').limit(1),
             cargarCategoriasDep(),
+            supabaseClient.from('activos_fijos').select('acum_inicial').limit(1),
         ]);
+        afApe = !ap.error;
         afCatsDep = cd || [];
         afCentros = ordenarCentrosProduccion(ce.data || []);
         afTieneEtapas = !et.error;
@@ -132,7 +135,10 @@ export async function cargarModuloActivosFijos() {
       </div>
 
       <div>
-        <h3 class="text-md font-semibold text-slate-300 mb-2">Catálogo de activos fijos</h3>
+        <div class="flex flex-wrap items-center gap-2 mb-2">
+          <h3 class="text-md font-semibold text-slate-300">Catálogo de activos fijos</h3>
+          <button type="button" onclick="window.afAbrirApertura()" class="ml-auto text-xs bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-3 py-1.5 rounded-lg" title="Para equipos que ya tenías antes de empezar en el ERP: registra su depreciación acumulada y genera la póliza de apertura">Cargar equipo existente</button>
+        </div>
         <div id="afLista" class="bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-500">Cargando...</div>
       </div>
 
@@ -396,7 +402,7 @@ async function afRenderLista() {
     try {
         const { data, error } = await supabaseClient
             .from('activos_fijos')
-            .select('id, nombre, categoria, fecha_adquisicion, costo_adquisicion, valor_residual, vida_util_meses, activo, fecha_baja, cuenta_depreciacion_gasto_id' + (afNuevo ? ', depreciable, area_id, potencia_kw, cantidad, factor_uso' : '') + (afCatsDep.length ? ', pct_fiscal' : '') + (afPend ? ', pendiente, documento_id' : ''))
+            .select('id, nombre, categoria, fecha_adquisicion, costo_adquisicion, valor_residual, vida_util_meses, activo, fecha_baja, cuenta_depreciacion_gasto_id' + (afNuevo ? ', depreciable, area_id, potencia_kw, cantidad, factor_uso' : '') + (afCatsDep.length ? ', pct_fiscal' : '') + (afApe ? ', acum_inicial, poliza_apertura_id, poliza_baja_id' : '') + (afPend ? ', pendiente, documento_id' : ''))
             .order('id', { ascending: false });
         if (error) throw error;
         afEtapasPorActivo = new Map();
@@ -408,6 +414,13 @@ async function afRenderLista() {
             });
         }
         if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin activos fijos registrados.</p>'; return; }
+        // Depreciación acumulada = la inicial de la carga + lo que el ERP ha depreciado
+        const acumPorActivo = new Map();
+        if (afApe) {
+            const { data: dp } = await supabaseClient.from('activos_fijos_depreciaciones').select('activo_id, monto');
+            (dp || []).forEach((r) => acumPorActivo.set(r.activo_id, (acumPorActivo.get(r.activo_id) || 0) + Number(r.monto || 0)));
+        }
+        const acumDe = (a) => Math.round((Number(a.acum_inicial || 0) + (acumPorActivo.get(a.id) || 0)) * 100) / 100;
         const nPend = data.filter((a) => a.pendiente).length;
         if (!nPend) afSoloPend = false;
         const avisoPend = nPend ? `
@@ -433,7 +446,7 @@ async function afRenderLista() {
               <th class="p-2">Acción</th>${thOrden(afOrden, 'nombre', 'Nombre')}<th class="p-2">Categoría</th>
               ${thOrden(afOrden, 'fecha', 'Adquisición')}${thOrden(afOrden, 'costo', 'Costo', 'text-right justify-end')}
               ${afNuevo ? '<th class="p-2">Área</th><th class="p-2 text-right">kW efect.</th><th class="p-2">Depreciación</th>' : ''}
-              <th class="p-2 text-right">Vida útil</th><th class="p-2">Etapas (CIF)</th><th class="p-2">Estatus</th>
+              ${afApe ? '<th class="p-2 text-right">Dep. acumulada</th><th class="p-2 text-right">Valor en libros</th>' : ''}<th class="p-2 text-right">Vida útil</th><th class="p-2">Etapas (CIF)</th><th class="p-2">Estatus</th>
             </tr></thead>
             <tbody>
               ${visibles.map((a) => `
@@ -452,6 +465,7 @@ async function afRenderLista() {
                   <td class="p-2 whitespace-nowrap">${a.area_id ? esc(afAreas.find((x) => x.id === a.area_id)?.codigo || '#' + a.area_id) : (a.pendiente ? '<span class="text-slate-600">—</span>' : '<span class="text-amber-400" title="Sin área no cuenta para la luz">⚠ sin área</span>')}</td>
                   <td class="p-2 text-right font-mono text-slate-400">${a.potencia_kw == null ? (a.pendiente ? '<span class="text-slate-600">—</span>' : '<span class="text-amber-400" title="Sin potencia no cuenta para la luz">⚠</span>') : (Number(a.potencia_kw) * Number(a.cantidad || 1) * Number(a.factor_uso || 1)).toLocaleString('es-MX', { maximumFractionDigits: 3 })}</td>
                   <td class="p-2">${a.pendiente ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-amber-300 bg-amber-950/40">Por definir</span>' : a.depreciable ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-sky-300 bg-sky-950/40">Depreciable</span>' : '<span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-slate-300 bg-slate-800">No depreciable</span>'}</td>` : ''}
+                  ${afApe ? `<td class="p-2 text-right font-mono text-slate-400">${a.costo_adquisicion == null || a.pendiente ? '—' : money(acumDe(a))}</td><td class="p-2 text-right font-mono ${a.costo_adquisicion != null && !a.pendiente && Number(a.costo_adquisicion) - acumDe(a) <= 0 ? 'text-emerald-400' : 'text-slate-300'}">${a.costo_adquisicion == null || a.pendiente ? '—' : money(Number(a.costo_adquisicion) - acumDe(a))}</td>` : ''}
                   <td class="p-2 text-right font-mono text-slate-400">${a.vida_util_meses ?? '—'}</td>
                   <td class="p-2 text-xs">${a.pendiente ? '<span class="text-slate-600">—</span>' : (afNuevo && !a.depreciable) ? '<span class="text-slate-600">no aplica</span>' : esCuentaCif(a.cuenta_depreciacion_gasto_id)
                       ? ((afEtapasPorActivo.get(a.id) || []).length ? `<span class="text-emerald-400">${esc(afEtapasPorActivo.get(a.id).join(', '))}</span>` : (afTieneEtapas ? '<span class="text-amber-400" title="Sin etapas no se prorratea">⚠ sin etapas</span>' : '<span class="text-slate-500">—</span>'))
@@ -528,15 +542,59 @@ window.afEditar = async (id) => {
 window.afFiltrarPend = async () => { afSoloPend = !afSoloPend; await afRenderLista(); };
 
 window.afDarBaja = async (id) => {
-    const motivo = prompt('¿Por qué se da de baja este activo? (venta, obsolescencia, siniestro...)');
-    if (motivo === null) return;
-    const fecha = prompt('Fecha de baja (AAAA-MM-DD):', hoyISO());
-    if (fecha === null) return;
-    const { error } = await supabaseClient.from('activos_fijos')
-        .update({ activo: false, fecha_baja: fecha || hoyISO(), motivo_baja: motivo || null })
-        .eq('id', id);
-    if (error) { alert('No se pudo dar de baja: ' + error.message); return; }
-    await afRenderLista();
+    const { data: a, error } = await supabaseClient.from('activos_fijos').select('*').eq('id', id).single();
+    if (error || !a) { alert('No se pudo cargar el activo: ' + (error?.message || 'no encontrado')); return; }
+    const { data: deps } = await supabaseClient.from('activos_fijos_depreciaciones').select('monto').eq('activo_id', id);
+    const acum = Math.round((Number(a.acum_inicial || 0) + (deps || []).reduce((t, d) => t + Number(d.monto || 0), 0)) * 100) / 100;
+    const costo = Number(a.costo_adquisicion || 0);
+    const vl = Math.round((costo - acum) * 100) / 100;
+    const cta = (cid) => { const c = afCuentas.find((x) => x.id === Number(cid)); return c ? `${c.codigo} · ${c.nombre}` : '—'; };
+    const perd = afCuentas.find((c) => c.codigo === '601.99');
+
+    const idv = window.idSubventana('afBajaModal');
+    const ov = document.createElement('div');
+    ov.id = idv;
+    ov.className = 'fixed inset-0 bg-slate-950/40 flex items-start justify-center p-3 overflow-y-auto';
+    ov.style.zIndex = typeof window.zSubventanaSiguiente === 'function' ? window.zSubventanaSiguiente() : 80;
+    const fila = (c, cargo, abono) => `<tr class="border-b border-slate-900"><td class="p-1.5 font-mono text-[11px]">${esc(c)}</td><td class="p-1.5 text-right font-mono">${cargo ? money(cargo) : ''}</td><td class="p-1.5 text-right font-mono">${abono ? money(abono) : ''}</td></tr>`;
+    ov.innerHTML = `
+      <div class="w-full max-w-2xl my-6 bg-slate-950 border border-slate-800 rounded-xl p-4 shadow-2xl">
+        <div class="flex items-center justify-between gap-3 mb-2"><h3 class="text-base font-semibold text-rose-300">Dar de baja · ${esc(a.nombre)}</h3>
+          <button type="button" data-x class="text-slate-400 hover:text-slate-100 text-xl leading-none">&times;</button></div>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div><label class="block text-[11px] text-slate-400 mb-1">Fecha de baja</label><input type="date" data-f="fecha" value="${hoyISO()}" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Motivo <span class="text-rose-400">*</span></label><input type="text" data-f="motivo" placeholder="Descompuesto sin reparación, obsolescencia, siniestro…" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+        </div>
+        <div class="text-xs bg-slate-900/60 border border-slate-800 rounded-lg p-2.5 mb-3 grid grid-cols-3 gap-2">
+          <div><div class="text-slate-500">Costo</div><b>${money(costo)}</b></div><div><div class="text-slate-500">Dep. acumulada</div><b>${money(acum)}</b></div><div><div class="text-slate-500">Valor en libros</div><b>${money(vl)}</b></div>
+        </div>
+        ${costo > 0 && a.cuenta_activo_id ? `
+        <p class="text-[11px] font-semibold text-sky-300 mb-1">Póliza BAJ · Diario (vista previa)</p>
+        <table class="w-full text-xs text-slate-300 mb-1"><thead class="text-slate-500"><tr><th class="p-1.5 text-left">Cuenta</th><th class="p-1.5 text-right">Cargo</th><th class="p-1.5 text-right">Abono</th></tr></thead><tbody>
+          ${acum > 0 ? fila(cta(a.cuenta_depreciacion_acumulada_id), acum, 0) : ''}${vl > 0 ? fila(perd ? `${perd.codigo} · ${perd.nombre} (pérdida por baja)` : '601.99 (pérdida por baja)', vl, 0) : ''}${fila(cta(a.cuenta_activo_id), 0, costo)}
+        </tbody></table>
+        <p class="text-[10px] text-slate-500 mb-2">Baja sin venta. Si vas a vender el equipo, registra la venta con su IVA en Salidas/Ventas y consulta a tu contador cómo dar de baja el activo.</p>` : '<p class="text-[11px] text-slate-500 mb-2">Este equipo no tiene costo ni cuenta de activo: solo se marcará como dado de baja, sin póliza.</p>'}
+        <p data-f="msg" class="text-xs min-h-[1rem] mb-2"></p>
+        <div class="flex gap-2"><button type="button" data-x class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-2.5 px-4 rounded-lg text-sm">Cancelar</button>
+          <button type="button" data-f="ok" class="flex-1 bg-rose-700 hover:bg-rose-600 text-white font-semibold py-2.5 rounded-lg text-sm">Dar de baja${costo > 0 ? ' y generar póliza' : ''}</button></div>
+      </div>`;
+    document.body.appendChild(ov);
+    const f = (n) => ov.querySelector(`[data-f="${n}"]`);
+    ov.querySelectorAll('[data-x]').forEach((b) => { b.onclick = () => ov.remove(); });
+    f('ok').onclick = async () => {
+        const msg = f('msg');
+        const mal = (t) => { msg.textContent = t; msg.className = 'text-xs min-h-[1rem] mb-2 text-rose-400'; };
+        if (!f('motivo').value.trim()) return mal('Escribe el motivo de la baja.');
+        f('ok').disabled = true; msg.textContent = 'Generando…'; msg.className = 'text-xs min-h-[1rem] mb-2 text-slate-400';
+        const { data, error: e } = await supabaseClient.rpc('activo_fijo_baja', { p_datos: { activo_id: id, fecha_baja: f('fecha').value || hoyISO(), motivo: f('motivo').value.trim() } });
+        if (e) {
+            f('ok').disabled = false;
+            return mal(/activo_fijo_baja/i.test(e.message || '') && /(find|function|schema)/i.test(e.message || '') ? 'Falta correr sql/2026-10-22f_activos_apertura_baja.sql en Supabase.' : 'No se pudo dar de baja: ' + (e.message || e));
+        }
+        ov.remove();
+        alert('✅ Equipo dado de baja.' + (data?.poliza_id ? ' Se generó la póliza BAJ.' : ''));
+        await afRenderLista();
+    };
 };
 
 async function afCalcularDepreciacion() {
@@ -643,4 +701,136 @@ window.afCancelarMes = async (anio, mes) => {
     if (error) { alert('No se pudo cancelar: ' + error.message); return; }
     await afRenderHistorial();
     await afCalcularDepreciacion();
+};
+
+
+// ---------------------------------------------------------------------
+// Carga de un equipo EXISTENTE (carga inicial): depreciación acumulada al corte + póliza APE.
+// Requiere sql/2026-10-22f_activos_apertura_baja.sql.
+// ---------------------------------------------------------------------
+window.afAbrirApertura = async () => {
+    const idv = window.idSubventana('afAperturaModal');
+    if (document.getElementById(idv)) return;
+    const ov = document.createElement('div');
+    ov.id = idv;
+    ov.className = 'fixed inset-0 bg-slate-950/40 flex items-start justify-center p-3 overflow-y-auto';
+    ov.style.zIndex = typeof window.zSubventanaSiguiente === 'function' ? window.zSubventanaSiguiente() : 80;
+    const optsCta = '<option value="">Selecciona…</option>' + afCuentas.map((c) => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
+    const anio = new Date().getFullYear();
+    const inp = 'w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100';
+    ov.innerHTML = `
+      <div class="w-full max-w-4xl my-4 bg-slate-950 border border-slate-800 rounded-xl p-4 shadow-2xl">
+        <div class="flex items-center justify-between gap-3 mb-1"><h3 class="text-base font-semibold text-emerald-300">Cargar equipo existente</h3>
+          <button type="button" data-x class="text-slate-400 hover:text-slate-100 text-xl leading-none">&times;</button></div>
+        <p class="text-[11px] text-slate-500 mb-3">Para equipos que ya tenías antes de empezar en el ERP. Registra su depreciación acumulada al corte y genera la póliza de apertura <b>APE</b> (una sola vez por equipo). La depreciación del ERP continúa desde el mes siguiente al corte.</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+          <div class="md:col-span-2"><label class="block text-[11px] text-slate-400 mb-1">Nombre del equipo <span class="text-rose-400">*</span></label><input data-f="nombre" class="${inp}"></div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Categoría fiscal</label><select data-f="cat" class="${inp}"></select></div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Fecha de adquisición original <span class="text-rose-400">*</span></label><input type="date" data-f="adq" class="${inp}"></div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Costo histórico <span class="text-rose-400">*</span></label><input type="number" step="any" min="0" data-f="costo" class="${inp}"></div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Vida útil original (meses) <span class="text-rose-400">*</span></label><input type="number" min="1" data-f="vida" class="${inp}"></div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Valor residual</label><input type="number" step="any" min="0" value="0" data-f="res" class="${inp}"></div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Fecha de corte (inicio del ERP) <span class="text-rose-400">*</span></label><input type="date" data-f="corte" class="${inp}"></div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Meses ya depreciados <span class="text-slate-600">· se calcula, editable</span></label><input type="number" min="0" data-f="meses" class="${inp}"></div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Área donde está <span class="text-rose-400">*</span></label><select data-f="area" class="${inp}"><option value="">Selecciona…</option>${afAreas.map((x) => `<option value="${x.id}">${esc(x.codigo)} · ${esc(x.nombre)}</option>`).join('')}</select></div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Potencia de placa (kW, 0 si no usa luz)</label><input type="number" step="any" min="0" value="0" data-f="pot" class="${inp}"></div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Modelo / serie</label><input data-f="modelo" class="${inp}" placeholder="opcional"></div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Cuenta de activo</label><select data-f="cta_act" class="${inp}">${optsCta}</select></div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Depreciación acumulada</label><select data-f="cta_acum" class="${inp}">${optsCta}</select></div>
+          <div><label class="block text-[11px] text-slate-400 mb-1">Gasto de depreciación</label><select data-f="cta_gas" class="${inp}">${optsCta}</select></div>
+        </div>
+        <div data-f="etapasWrap" class="hidden mb-3 border border-slate-800 rounded-lg p-2.5 bg-slate-900/40"><div class="text-[11px] text-slate-300 mb-1">Etapas donde se usa (la depreciación se reparte en partes iguales al prorrateo)</div>
+          <div class="flex flex-wrap gap-4">${afCentros.map((c) => `<label class="flex items-center gap-1.5 text-xs text-slate-200"><input type="checkbox" data-etapa value="${c.id}" class="accent-emerald-500"> ${esc(c.codigo)} · ${esc(c.nombre)}</label>`).join('')}</div></div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="bg-slate-900/60 border border-slate-800 rounded-lg p-3"><p class="text-[11px] font-semibold text-sky-300 mb-1.5">Cálculo al corte</p><div data-f="calc" class="text-xs text-slate-300 space-y-0.5"></div></div>
+          <div class="bg-slate-900/60 border border-slate-800 rounded-lg p-3"><p class="text-[11px] font-semibold text-sky-300 mb-1.5">Póliza APE · Diario (vista previa)</p><div data-f="pol" class="text-xs"></div>
+            <div class="mt-2"><label class="block text-[11px] text-slate-400 mb-1">Contrapartida del valor en libros</label><select data-f="cta_cont" class="${inp}">${optsCta}</select></div>
+            <label class="flex items-center gap-2 text-[11px] text-slate-300 mt-2"><input type="checkbox" data-f="genpol" checked class="accent-emerald-500"> Generar póliza de apertura <span class="text-slate-500">(quítala solo si esos saldos ya están en tu contabilidad)</span></label></div>
+        </div>
+        <p data-f="msg" class="text-xs min-h-[1rem] mt-3"></p>
+        <div class="flex gap-2 mt-2"><button type="button" data-x class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-2.5 px-4 rounded-lg text-sm">Cancelar</button>
+          <button type="button" data-f="ok" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-lg text-sm">Guardar equipo y generar póliza</button></div>
+      </div>`;
+    document.body.appendChild(ov);
+    const f = (n) => ov.querySelector(`[data-f="${n}"]`);
+    ov.querySelectorAll('[data-x]').forEach((b) => { b.onclick = () => ov.remove(); });
+    f('corte').value = hoyISO();
+    f('cat').innerHTML = opcionesCategoriaDep(afCatsDep, anio);
+    const ctaCont = afCuentas.find((c) => c.codigo === '304.01'); if (ctaCont) f('cta_cont').value = String(ctaCont.id);
+    const cod = (id) => { const c = afCuentas.find((x) => x.id === Number(id)); return c ? `${c.codigo} · ${c.nombre}` : '—'; };
+    const r2 = (n) => Math.round(n * 100) / 100;
+
+    const mesesDefault = () => {
+        const a = f('adq').value, c = f('corte').value;
+        if (!a || !c) return '';
+        const [ya, ma] = a.split('-').map(Number), [yc, mc] = c.split('-').map(Number);
+        return Math.max(0, (yc - ya) * 12 + (mc - ma) + 1);
+    };
+    const calc = () => {
+        const costo = parseFloat(f('costo').value) || 0, res = parseFloat(f('res').value) || 0, vida = parseInt(f('vida').value) || 0;
+        const meses = Math.max(0, Math.min(parseInt(f('meses').value) || 0, vida));
+        const mensual = vida ? r2((costo - res) / vida) : 0;
+        const acum = vida && meses >= vida ? r2(costo - res) : Math.min(r2(costo - res), r2(mensual * meses));
+        const vl = r2(costo - acum);
+        f('calc').innerHTML = costo && vida ? `
+          <div class="flex justify-between"><span>Depreciación mensual</span><b class="font-mono">${money(mensual)}</b></div>
+          <div class="flex justify-between"><span>Meses ya depreciados</span><b class="font-mono">${meses}</b></div>
+          <div class="flex justify-between"><span>Depreciación acumulada</span><b class="font-mono">${money(acum)}</b></div>
+          <div class="flex justify-between"><span>Valor en libros</span><b class="font-mono">${money(vl)}</b></div>
+          <div class="flex justify-between"><span>Meses por depreciar</span><b class="font-mono">${Math.max(0, vida - meses)}</b></div>
+          ${vl <= 0 ? '<div class="text-emerald-400 pt-1">100 % depreciado: no se depreciará más y no hay renglón contra la contrapartida.</div>' : ''}` : '<span class="text-slate-500">Captura costo, vida útil y fechas.</span>';
+        const fila = (c, cg, ab) => `<tr class="border-b border-slate-900"><td class="p-1 font-mono text-[11px]">${esc(c)}</td><td class="p-1 text-right font-mono">${cg ? money(cg) : ''}</td><td class="p-1 text-right font-mono">${ab ? money(ab) : ''}</td></tr>`;
+        f('pol').innerHTML = costo && vida ? `<table class="w-full text-slate-300"><tbody>
+          ${fila(cod(f('cta_act').value), costo, 0)}${acum > 0 ? fila(cod(f('cta_acum').value), 0, acum) : ''}${vl > 0 ? fila(cod(f('cta_cont').value), 0, vl) : ''}</tbody></table>` : '';
+        return { costo, res, vida, meses, acum, vl };
+    };
+    const pintarCuentas = () => {
+        const fila = afCatsDep.find((c) => c.id === Number(f('cat').value));
+        if (!fila) return;
+        const area = afAreas.find((x) => x.id === Number(f('area').value));
+        const prod = !area || area.rol !== 'no_produccion';
+        if (fila.cuenta_activo_id) f('cta_act').value = String(fila.cuenta_activo_id);
+        if (fila.cuenta_dep_acum_id) f('cta_acum').value = String(fila.cuenta_dep_acum_id);
+        const g = prod ? fila.cuenta_gasto_cif_id : fila.cuenta_gasto_admin_id;
+        if (g) f('cta_gas').value = String(g);
+        if (!f('vida').value) f('vida').value = vidaMesesDePct(fila.pct_anual);
+        f('etapasWrap').classList.toggle('hidden', !(prod && afTieneEtapas && esCuentaCif(f('cta_gas').value)));
+    };
+    f('cat').onchange = () => { pintarCuentas(); f('meses').value = mesesDefault(); calc(); };
+    f('area').onchange = () => { pintarCuentas(); calc(); };
+    ['adq', 'corte'].forEach((k) => { f(k).addEventListener('change', () => { f('meses').value = mesesDefault(); calc(); }); });
+    ['costo', 'vida', 'res', 'meses', 'cta_act', 'cta_acum', 'cta_cont'].forEach((k) => { f(k).addEventListener('input', calc); f(k).addEventListener('change', calc); });
+    f('cta_gas').addEventListener('change', () => { f('etapasWrap').classList.toggle('hidden', !(afTieneEtapas && esCuentaCif(f('cta_gas').value))); });
+    calc();
+
+    f('ok').onclick = async () => {
+        const msg = f('msg');
+        const mal = (t) => { msg.textContent = t; msg.className = 'text-xs min-h-[1rem] mt-3 text-rose-400'; };
+        const c = calc();
+        if (!f('nombre').value.trim()) return mal('Escribe el nombre del equipo.');
+        if (!f('adq').value || !f('corte').value) return mal('Captura la fecha de adquisición y la fecha de corte.');
+        if (c.costo <= 0 || c.vida <= 0) return mal('Captura el costo histórico y la vida útil original.');
+        if (!f('area').value) return mal('Elige el área donde está el equipo.');
+        if (!f('cta_act').value || !f('cta_acum').value || !f('cta_gas').value) return mal('Faltan las cuentas del equipo (activo, depreciación acumulada y gasto).');
+        if (f('genpol').checked && c.vl > 0 && !f('cta_cont').value) return mal('Elige la contrapartida del valor en libros (304.01 por defecto).');
+        const datos = {
+            nombre: f('nombre').value.trim(), categoria_depreciacion_id: f('cat').value ? Number(f('cat').value) : null,
+            fecha_adquisicion: f('adq').value, costo: c.costo, vida_util_meses: c.vida, valor_residual: c.res, fecha_corte: f('corte').value,
+            meses_depreciados: c.meses, area_id: Number(f('area').value), potencia_kw: parseFloat(f('pot').value) || 0,
+            modelo: f('modelo').value.trim() || null,
+            cuenta_activo_id: Number(f('cta_act').value), cuenta_dep_acum_id: Number(f('cta_acum').value), cuenta_gasto_id: Number(f('cta_gas').value),
+            cuenta_contrapartida_id: f('cta_cont').value ? Number(f('cta_cont').value) : null,
+            generar_poliza: f('genpol').checked,
+            etapas: [...ov.querySelectorAll('[data-etapa]:checked')].map((x) => Number(x.value)),
+        };
+        f('ok').disabled = true; msg.textContent = 'Guardando…'; msg.className = 'text-xs min-h-[1rem] mt-3 text-slate-400';
+        const { data, error } = await supabaseClient.rpc('activo_fijo_apertura', { p_datos: datos });
+        if (error) {
+            f('ok').disabled = false;
+            return mal(/activo_fijo_apertura/i.test(error.message || '') && /(find|function|schema)/i.test(error.message || '') ? 'Falta correr sql/2026-10-22f_activos_apertura_baja.sql en Supabase.' : 'No se pudo guardar: ' + (error.message || error));
+        }
+        ov.remove();
+        alert(`✅ Equipo cargado: acumulada ${money(data.depreciacion_acumulada)}, valor en libros ${money(data.valor_en_libros)}.` + (data.poliza_id ? ' Se generó la póliza APE.' : ' Sin póliza de apertura.'));
+        await afRenderLista();
+    };
 };
