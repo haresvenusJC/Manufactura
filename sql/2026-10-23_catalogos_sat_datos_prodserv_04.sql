@@ -5361,8 +5361,8 @@ select split_part(l, '|', 1),
 42161634|Bandejas de procedimiento o accesorios para hemodiálisis|O|O||D||1
 42161635|Cartuchos para aparatos de hemodiálisis|O|O||D||1
 42161700|Equipo de hemofiltración y suministros|O|O||D||1
-$sat$, E'\n') as l
- where l <> ''
+$sat$, E'[\r\n]+') as l
+ where l ~ '^[0-9]{8}[|]'
 on conflict (clave) do update set descripcion=excluded.descripcion, incluir_iva=excluded.incluir_iva,
   incluir_ieps=excluded.incluir_ieps, complemento=excluded.complemento, vigente_desde=excluded.vigente_desde,
   vigente_hasta=excluded.vigente_hasta, franja_fronteriza=excluded.franja_fronteriza, palabras_similares=excluded.palabras_similares;

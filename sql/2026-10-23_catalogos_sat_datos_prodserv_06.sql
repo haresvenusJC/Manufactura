@@ -6301,8 +6301,8 @@ select split_part(l, '|', 1),
 50351608|Albaricoque castlebrite congelada orgánica|O|O||D||1|Chabacano castlebrite congelado orgánico
 50351609|Albaricoque  clutha dorada congelada orgánica|O|O||D||1|Chabacano clutha dorada congelado orgánico
 50351610|Albaricoque clutha sol congelada orgánica|O|O||D||1|Chabacano clutha sol congelado orgánico
-$sat$, E'\n') as l
- where l <> ''
+$sat$, E'[\r\n]+') as l
+ where l ~ '^[0-9]{8}[|]'
 on conflict (clave) do update set descripcion=excluded.descripcion, incluir_iva=excluded.incluir_iva,
   incluir_ieps=excluded.incluir_ieps, complemento=excluded.complemento, vigente_desde=excluded.vigente_desde,
   vigente_hasta=excluded.vigente_hasta, franja_fronteriza=excluded.franja_fronteriza, palabras_similares=excluded.palabras_similares;

@@ -5046,8 +5046,8 @@ select split_part(l, '|', 1),
 31321204|Ensambles de barras soldadas con solvente de inconel|O|O||D||1
 31321205|Ensambles de barras soldadas con solvente de acero de aleación baja|O|O||D||1
 31321206|Ensambles de barras soldadas con solvente no metálica|O|O||D||1
-$sat$, E'\n') as l
- where l <> ''
+$sat$, E'[\r\n]+') as l
+ where l ~ '^[0-9]{8}[|]'
 on conflict (clave) do update set descripcion=excluded.descripcion, incluir_iva=excluded.incluir_iva,
   incluir_ieps=excluded.incluir_ieps, complemento=excluded.complemento, vigente_desde=excluded.vigente_desde,
   vigente_hasta=excluded.vigente_hasta, franja_fronteriza=excluded.franja_fronteriza, palabras_similares=excluded.palabras_similares;

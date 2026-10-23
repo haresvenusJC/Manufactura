@@ -5885,8 +5885,8 @@ select split_part(l, '|', 1),
 25111508|Transbordadores de pasajeros o vehículos|O|O||D||1|Transbordador marítimo
 25111509|Buques de cruceros|O|O||D||1|Barcos de crucero
 25111510|Naves de salvamento|O|O||D||1
-$sat$, E'\n') as l
- where l <> ''
+$sat$, E'[\r\n]+') as l
+ where l ~ '^[0-9]{8}[|]'
 on conflict (clave) do update set descripcion=excluded.descripcion, incluir_iva=excluded.incluir_iva,
   incluir_ieps=excluded.incluir_ieps, complemento=excluded.complemento, vigente_desde=excluded.vigente_desde,
   vigente_hasta=excluded.vigente_hasta, franja_fronteriza=excluded.franja_fronteriza, palabras_similares=excluded.palabras_similares;

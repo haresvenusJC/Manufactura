@@ -5804,8 +5804,8 @@ select split_part(l, '|', 1),
 71131403|Servicio de vapor del campo petrolero|O|O||D||1
 71131404|Servicios de recuperación de sulfuro|O|O||D||1|Servicios de eliminación de sulfuro
 71131405|Servicios de control de formación de hidratos en las tuberías de producción|O|O||D||1
-$sat$, E'\n') as l
- where l <> ''
+$sat$, E'[\r\n]+') as l
+ where l ~ '^[0-9]{8}[|]'
 on conflict (clave) do update set descripcion=excluded.descripcion, incluir_iva=excluded.incluir_iva,
   incluir_ieps=excluded.incluir_ieps, complemento=excluded.complemento, vigente_desde=excluded.vigente_desde,
   vigente_hasta=excluded.vigente_hasta, franja_fronteriza=excluded.franja_fronteriza, palabras_similares=excluded.palabras_similares;
