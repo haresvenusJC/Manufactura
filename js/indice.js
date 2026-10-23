@@ -91,7 +91,7 @@ export const SECCIONES = [
     {
         grupo: 'Utilerías', ancla: 'util', items: [
             { v: 'importador', t: 'Importar Excel/CSV', d: 'Carga masiva de productos desde una plantilla.' },
-            { v: 'importador-clave-sat', t: 'Importar catálogo SAT (productos y servicios)', d: 'Carga el catálogo c_ClaveProdServ del SAT (catCFDI.xls) para buscar la Clave SAT de un producto por palabras y ver su descripción.' },
+            { v: 'importador-clave-sat', t: 'Importar catálogos SAT (productos y unidades)', d: 'Carga el catálogo c_ClaveProdServ del SAT (catCFDI.xls) para buscar la Clave SAT de un producto por palabras y ver su descripción.' },
             { v: 'importador-claves-proveedor', t: 'Importar claves de proveedor (XML)', d: 'Lee facturas XML de tus proveedores y las empareja con tu catálogo, para capturar de golpe su SKU, descripción y unidad por producto — sin mover inventario ni contabilidad.' },
             { v: 'accesos-operadores', t: 'Accesos para operadores', d: 'Enlaces y códigos QR de las pantallas móviles de los operadores (Orden de Trabajo, Pre-recibo de mercancía y Conteo de inventario), para compartirlos o instalarlos en el celular.' },
         ],

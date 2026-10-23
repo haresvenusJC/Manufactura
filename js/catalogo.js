@@ -2250,10 +2250,15 @@ export async function abrirTablaUnidades() {
 
     try {
         const [rUnid, rProd] = await Promise.all([
-            supabaseClient.from('unidades_medida').select('id, nombre, es_fraccionable').order('nombre', { ascending: true }),
+            supabaseClient.from('unidades_medida').select('id, nombre, es_fraccionable, clave_sat').order('nombre', { ascending: true }),
             supabaseClient.from('productos').select('unidad_medida_id'),
         ]);
-        if (rUnid.error) throw rUnid.error;
+        if (rUnid.error) {
+            // Aún no existe unidades_medida.clave_sat (sql/2026-10-23_c_clave_prod_serv.sql): se muestra sin esa columna.
+            const r2 = await supabaseClient.from('unidades_medida').select('id, nombre, es_fraccionable').order('nombre', { ascending: true });
+            if (r2.error) throw rUnid.error;
+            rUnid.data = r2.data; unidSinClave = true;
+        } else unidSinClave = false;
         const usoPorId = new Map();
         (rProd.data || []).forEach((p) => { if (p.unidad_medida_id) usoPorId.set(p.unidad_medida_id, (usoPorId.get(p.unidad_medida_id) || 0) + 1); });
         unidFilas = (rUnid.data || []).map((u) => ({ ...u, _uso: usoPorId.get(u.id) || 0 }));
@@ -2262,6 +2267,8 @@ export async function abrirTablaUnidades() {
         cuerpo.innerHTML = `<p class="text-rose-400 text-xs">No se pudo cargar.<br>${escaparHtml(err.message || err)}</p>`;
     }
 }
+
+let unidSinClave = false; // true si la columna unidades_medida.clave_sat aún no existe
 
 function unidPintar(cuerpo) {
     const filtro = unidFiltro;
@@ -2278,12 +2285,13 @@ function unidPintar(cuerpo) {
     cuerpo.innerHTML = `
         <table class="w-full text-left text-xs">
             <thead class="text-slate-500 uppercase sticky top-0 bg-slate-900"><tr>
-                ${thOrden(unidOrden, 'nombre', 'Nombre')}${thOrden(unidOrden, 'fraccionable', 'Fraccionable', 'text-center justify-center')}${thOrden(unidOrden, 'uso', 'En uso', 'text-right justify-end')}<th class="p-2"></th>
+                ${thOrden(unidOrden, 'nombre', 'Nombre')}${unidSinClave ? '' : '<th class="p-2 text-left" title="Clave del catálogo c_ClaveUnidad del SAT (ej. KGM, LTR, H87)">Clave SAT</th>'}${thOrden(unidOrden, 'fraccionable', 'Fraccionable', 'text-center justify-center')}${thOrden(unidOrden, 'uso', 'En uso', 'text-right justify-end')}<th class="p-2"></th>
             </tr></thead>
             <tbody>
                 ${filas.map((u) => `
                 <tr class="border-t border-slate-800" data-id="${u.id}">
                     <td class="p-2"><input type="text" class="unid-nombre w-full bg-slate-950 border border-slate-800 rounded p-1 text-xs text-slate-100" value="${escaparHtml(u.nombre)}"></td>
+                    ${unidSinClave ? '' : `<td class="p-2"><input type="text" maxlength="3" class="unid-sat w-16 bg-slate-950 border border-slate-800 rounded p-1 text-xs text-slate-100 font-mono uppercase" value="${escaparHtml(u.clave_sat || '')}" placeholder="KGM"></td>`}
                     <td class="p-2 text-center"><input type="checkbox" class="unid-frac accent-sky-500" ${u.es_fraccionable ? 'checked' : ''}></td>
                     <td class="p-2 text-right font-mono text-slate-400" title="Productos que usan esta unidad">${u._uso}</td>
                     <td class="p-2 text-[10px] unid-estado text-slate-600"></td>
@@ -2314,6 +2322,24 @@ function unidPintar(cuerpo) {
             const nombre = inp.value.trim();
             if (!nombre) { inp.focus(); return; }
             guardar(inp.closest('tr'), { nombre });
+        });
+    });
+    cuerpo.querySelectorAll('.unid-sat').forEach((inp) => {
+        inp.addEventListener('change', async () => {
+            const clave = inp.value.trim().toUpperCase();
+            inp.value = clave;
+            const tr = inp.closest('tr');
+            if (clave) {
+                // Si el catálogo SAT ya está cargado, la clave debe existir en él.
+                const { data, error } = await supabaseClient.from('c_clave_unidad').select('clave, nombre').eq('clave', clave).maybeSingle();
+                const estado = tr.querySelector('.unid-estado');
+                if (!error && !data) {
+                    const { count } = await supabaseClient.from('c_clave_unidad').select('clave', { count: 'exact', head: true });
+                    if (count) { estado.textContent = `La clave ${clave} no está en el catálogo del SAT`; estado.className = 'p-2 text-[10px] unid-estado text-rose-400'; return; }
+                }
+                if (data) inp.title = data.nombre;
+            }
+            guardar(tr, { clave_sat: clave || null });
         });
     });
     cuerpo.querySelectorAll('.unid-frac').forEach((chk) => {
