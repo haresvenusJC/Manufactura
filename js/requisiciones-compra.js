@@ -926,7 +926,7 @@ async function abrirDetalleReq(id) {
             </div>
             ${r.notas ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Notas</span><p class="text-xs text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5">${esc(r.notas)}</p></div>` : ''}
             ${bloqueRevision}
-            <p class="text-[11px] text-slate-500 mb-1">Arriba, cómo lo vende el proveedor sugerido (sus claves de «Claves de proveedor»); abajo, lo nuestro. El precio es solo estimado: la cotización real se captura al generar la orden de compra.</p>
+            <p class="text-[11px] text-slate-500 mb-1">Renglón superior: como lo vende el proveedor sugerido. Renglón gris: lo nuestro (cantidad, unidad, SKU, descripción y costo de tu inventario). El precio es estimado; la cotización real se captura en la orden de compra.</p>
             <div class="border border-slate-800 rounded-lg mb-4">
               <table class="w-full text-left text-xs text-slate-300 table-fixed">
                 <colgroup><col style="width:10%"><col style="width:10%"><col style="width:12%"><col style="width:14%"><col><col style="width:15%"><col style="width:14%"></colgroup>
@@ -954,12 +954,15 @@ async function abrirDetalleReq(id) {
                       <td class="px-1.5 pt-1.5 text-right font-mono">${conUm ? '$' + Number(precioP).toLocaleString('es-MX', { minimumFractionDigits: 4, maximumFractionDigits: 6 }) : money4(precioP)}</td>
                       <td class="px-1.5 pt-1.5 text-right font-mono">${money(importe(d.cantidad, d.costo_estimado))}</td>
                     </tr>
-                    <tr class="text-[10px] text-slate-500"><td colspan="7" class="px-1.5 pb-1.5">
-                      Nuestro: <span class="text-slate-300">${esc(nombre)}</span>${d.productos?.sku ? ` · SKU ${esc(d.productos.sku)}` : ''}
-                      · <span class="font-mono text-slate-300">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })} ${esc(uInv)}</span> × <span class="font-mono text-slate-300">${money4(d.costo_estimado)}</span> c/u
-                      ${conUm ? ` · 1 ${esc(c.clave_unidad_sat)} = ${f.toLocaleString('es-MX', { maximumFractionDigits: 6 })} ${esc(uInv)}` : ''}
-                      · Proveedor: ${d.proveedores?.nombre ? esc(d.proveedores.nombre) : '<i>sin proveedor sugerido</i>'}${d.proveedores?.nombre && !c ? ' <i>(sin claves capturadas)</i>' : ''}
-                    </td></tr>`;
+                    <tr class="fila-interna bg-slate-950/60 text-[10px] text-slate-400 border-b border-slate-800">
+                      <td class="px-1.5 pb-1.5 text-right font-mono">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</td>
+                      <td class="px-1.5 pb-1.5">${esc(uInv)}</td>
+                      <td class="px-1.5 pb-1.5 font-mono">${esc(d.productos?.sku || '')}</td>
+                      <td class="px-1.5 pb-1.5">${conUm ? `1 ${esc(c.clave_unidad_sat)} = ${f.toLocaleString('es-MX', { maximumFractionDigits: 6 })}` : ''}</td>
+                      <td class="px-1.5 pb-1.5">${esc(nombre)}${d.proveedores?.nombre ? ` <span class="text-slate-500">· ${esc(d.proveedores.nombre)}${!c ? ' (sin claves)' : ''}</span>` : ' <i class="text-slate-500">· sin proveedor sugerido</i>'}</td>
+                      <td class="px-1.5 pb-1.5 text-right font-mono">${money4(d.costo_estimado)}</td>
+                      <td class="px-1.5 pb-1.5 text-slate-500">c/u interno</td>
+                    </tr>`;
                   }).join('') || '<tr><td colspan="7" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
                 </tbody>
                 <tfoot>

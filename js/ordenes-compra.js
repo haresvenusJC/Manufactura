@@ -640,14 +640,16 @@ async function renderVistaOC(o, cuerpo) {
                   <td class="px-1.5 pt-1.5 text-right font-mono">${conProv ? '$' + Number(precioP).toLocaleString('es-MX', { minimumFractionDigits: 4, maximumFractionDigits: 6 }) : money4(precioP)}</td>
                   <td class="px-1.5 pt-1.5 text-right font-mono">${money(importePartidaOdc(d))}</td>
                 </tr>
-                <tr class="text-[10px] text-slate-500"><td colspan="7" class="px-1.5 pb-1.5">
-                  Nuestro: <span class="text-slate-300">${esc(nombre)}</span>${d.productos?.sku ? ` · SKU ${esc(d.productos.sku)}` : ''}
-                  · <span class="font-mono text-slate-300">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })} ${esc(uInv)}</span> × <span class="font-mono text-slate-300">${money4(d.costo_unitario_estimado)}</span> c/u
-                  ${d.clave_unidad_sat && d.factor_conversion_proveedor ? ` · 1 ${esc(d.unidad_proveedor || d.clave_unidad_sat)} = ${Number(d.factor_conversion_proveedor).toLocaleString('es-MX', { maximumFractionDigits: 6 })} ${esc(uInv)}` : ''}
-                  ${solic ? ` · <span class="text-amber-300/90">Solicitado: ${Number(d.cantidad_solicitada).toLocaleString('es-MX', { maximumFractionDigits: 4 })} ${esc(uInv)} × ${money4(d.costo_solicitado)}</span>` : ''}
-                  · Recibido: <span class="font-mono">${Number(d.cantidad_recibida || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</span>
-                  ${d.notas ? ` · ${esc(d.notas)}` : ''}
-                </td></tr>`;
+                <tr class="fila-interna bg-slate-950/60 text-[10px] text-slate-400 border-b border-slate-800">
+                  <td class="px-1.5 pb-1.5 text-right font-mono">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</td>
+                  <td class="px-1.5 pb-1.5">${esc(uInv)}</td>
+                  <td class="px-1.5 pb-1.5 font-mono">${esc(d.productos?.sku || '')}</td>
+                  <td class="px-1.5 pb-1.5">${d.clave_unidad_sat && d.factor_conversion_proveedor ? `1 ${esc(d.clave_unidad_sat)} = ${Number(d.factor_conversion_proveedor).toLocaleString('es-MX', { maximumFractionDigits: 6 })}` : ''}</td>
+                  <td class="px-1.5 pb-1.5">${esc(nombre)}${d.notas ? ` <span class="text-slate-500">· ${esc(d.notas)}</span>` : ''}
+                    ${solic ? `<span class="block text-amber-300/90">Solicitado: ${Number(d.cantidad_solicitada).toLocaleString('es-MX', { maximumFractionDigits: 4 })} ${esc(uInv)} × ${money4(d.costo_solicitado)}</span>` : ''}</td>
+                  <td class="px-1.5 pb-1.5 text-right font-mono">${money4(d.costo_unitario_estimado)}</td>
+                  <td class="px-1.5 pb-1.5 text-slate-500">recibido ${Number(d.cantidad_recibida || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</td>
+                </tr>`;
               }).join('') || '<tr><td colspan="7" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
             </tbody>
             <tfoot>
