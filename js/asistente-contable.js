@@ -253,14 +253,17 @@ export const GUIAS = {
     },
     'tareas': {
         titulo: 'Tareas',
-        paraQue: 'Avisos y pendientes que el sistema genera solo: inventario bajo mínimo, lotes por caducar, nómina por generar.',
+        paraQue: 'Avisos y pendientes que el sistema genera solo: inventario bajo mínimo, lotes por caducar y la nómina por autorizar. Todo en una tabla que se filtra y se ordena.',
         pasos: [
-            'Revisa las tarjetas.',
-            'Marca cada una como atendida, o descártala si no aplica.',
-            'En el historial ves quién resolvió cada tarea y cuándo.',
+            'Arriba están los contadores clicables (Prioridad alta, Compras, Caducidad, Contables, Reaparecidas): un clic filtra, otro clic quita el filtro.',
+            'Usa el menú ▼ del encabezado de Prioridad, Tipo, Área, Proveedor o Estatus, y el buscador (acepta tarea, detalle o proveedor). "Quitar filtros" regresa a todo.',
+            'Por default lo contable (nómina) va primero, luego prioridad alta y las más antiguas.',
+            'Cada renglón tiene su acción principal (Generar requisición, Ver en inventario, Autorizar) y un menú ⋯ con Atendida, No aceptada o Cancelar.',
+            'Marca varias casillas (o la de arriba para todas las visibles) para generar una requisición por proveedor, o poner "No aceptada" / "Cancelar" a todas de golpe.',
+            'La pestaña Historial muestra quién resolvió cada tarea y cuándo.',
         ],
         cuando: 'A diario, o cada vez que entras al ERP.',
-        errores: ['Descartar una tarea sin resolver el problema de fondo.'],
+        errores: ['Cancelar una tarea sin resolver el problema de fondo: si la condición sigue, volverá a aparecer.'],
     },
     'requisiciones-compra': {
         titulo: 'Requisiciones de compra',
