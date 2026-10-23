@@ -875,7 +875,7 @@ async function abrirDetalleReq(id) {
             .from('requisiciones_compra')
             .select(`id, folio, fecha, estatus, origen, notas, revisada_por, revisada_en, motivo_rechazo, orden_compra_id,
                 ordenes_compra ( folio ),
-                requisiciones_compra_detalle ( id, producto_id, descripcion, cantidad, costo_estimado,
+                requisiciones_compra_detalle ( id, producto_id, descripcion, cantidad, costo_estimado, proveedor_sugerido_id,
                     sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor,
                     productos ( nombre, sku ), unidades_medida ( nombre ), proveedores ( nombre ) )`)
             .eq('id', id).single();
@@ -885,7 +885,7 @@ async function abrirDetalleReq(id) {
                 .from('requisiciones_compra')
                 .select(`id, folio, fecha, estatus, origen, notas, revisada_por, revisada_en, motivo_rechazo, orden_compra_id,
                     ordenes_compra ( folio ),
-                    requisiciones_compra_detalle ( id, producto_id, descripcion, cantidad, costo_estimado,
+                    requisiciones_compra_detalle ( id, producto_id, descripcion, cantidad, costo_estimado, proveedor_sugerido_id,
                         productos ( nombre, sku ), unidades_medida ( nombre ), proveedores ( nombre ) )`)
                 .eq('id', id).single());
         }
@@ -896,6 +896,17 @@ async function abrirDetalleReq(id) {
 
         const cuerpo = modal.querySelector('#' + idCuerpo);
         const det = r.requisiciones_compra_detalle || [];
+        // Claves con que cada proveedor sugerido vende el producto (una sola consulta; sin las columnas SAT cae al select viejo).
+        const idsProd = [...new Set(det.map(d => d.producto_id).filter(Boolean))];
+        let claves = [];
+        if (idsProd.length) {
+            for (const cols of ['producto_id, proveedor_id, clave, descripcion_factura, factor_conversion, clave_unidad_sat, clave_sat', 'producto_id, proveedor_id, clave, descripcion_factura']) {
+                const q = await supabaseClient.from('producto_claves_proveedor').select(cols).in('producto_id', idsProd);
+                if (!q.error) { claves = q.data || []; break; }
+                if (!/does not exist|schema cache|could not find/i.test(q.error.message || '')) break;
+            }
+        }
+        const claveDe = (d) => claves.find(c => c.producto_id === d.producto_id && c.proveedor_id === d.proveedor_sugerido_id) || null;
         const total = det.reduce((a, d) => a + importe(d.cantidad, d.costo_estimado), 0);
         const fmtFecha = (iso) => { try { return new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso || '—'; } };
 
@@ -915,34 +926,44 @@ async function abrirDetalleReq(id) {
             </div>
             ${r.notas ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Notas</span><p class="text-xs text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5">${esc(r.notas)}</p></div>` : ''}
             ${bloqueRevision}
-            <div class="overflow-x-auto border border-slate-800 rounded-lg mb-4">
-              <table class="w-full text-left text-xs text-slate-300">
-                <thead class="bg-slate-950 text-slate-500 uppercase"><tr>
-                  <th class="p-2">Mi catálogo (interno)</th><th class="p-2 text-right">Cantidad</th>
-                  <th class="p-2">Datos del proveedor (para la OC)</th>
-                  <th class="p-2 text-right">Costo est.</th><th class="p-2 text-right">Importe</th>
+            <p class="text-[11px] text-slate-500 mb-1">Arriba, cómo lo vende el proveedor sugerido (sus claves de «Claves de proveedor»); abajo, lo nuestro. El precio es solo estimado: la cotización real se captura al generar la orden de compra.</p>
+            <div class="border border-slate-800 rounded-lg mb-4">
+              <table class="w-full text-left text-xs text-slate-300 table-fixed">
+                <colgroup><col style="width:10%"><col style="width:10%"><col style="width:12%"><col style="width:14%"><col><col style="width:15%"><col style="width:14%"></colgroup>
+                <thead class="bg-slate-950 text-slate-400 text-[10px] font-semibold"><tr>
+                  <th class="px-1.5 py-1.5 text-right">Cant.</th><th class="px-1.5 py-1.5">Clave UM</th><th class="px-1.5 py-1.5">Clave SAT</th>
+                  <th class="px-1.5 py-1.5">Número</th><th class="px-1.5 py-1.5">Descripción</th>
+                  <th class="px-1.5 py-1.5 text-right">P. unitario</th><th class="px-1.5 py-1.5 text-right">Importe</th>
                 </tr></thead>
                 <tbody>
                   ${det.map(d => {
-                      const tieneDatosProv = d.sku_proveedor || d.descripcion_proveedor || d.unidad_proveedor;
+                      const c = claveDe(d);
+                      const f = Number(c?.factor_conversion);
+                      const conUm = !!(c?.clave_unidad_sat && f > 0);
+                      const cantP = conUm ? Number(d.cantidad || 0) / f : Number(d.cantidad || 0);
+                      const precioP = conUm ? Number(d.costo_estimado || 0) * f : Number(d.costo_estimado || 0);
+                      const nombre = d.productos?.nombre || d.descripcion || '—';
+                      const uInv = d.unidades_medida?.nombre || '';
                       return `
-                    <tr class="border-b border-slate-900 align-top">
-                      <td class="p-2">${esc(d.productos?.nombre || d.descripcion || '—')}${d.productos?.sku ? `<span class="block text-[10px] text-slate-500">SKU ${esc(d.productos.sku)}</span>` : ''}</td>
-                      <td class="p-2 text-right font-mono">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })} ${esc(d.unidades_medida?.nombre || '')}</td>
-                      <td class="p-2 text-slate-400 text-[11px]">
-                        ${d.proveedores?.nombre ? `<span class="text-slate-300">${esc(d.proveedores.nombre)}</span>` : '<span class="italic text-slate-600">sin proveedor sugerido</span>'}
-                        ${tieneDatosProv ? `${d.sku_proveedor ? `<span class="block">SKU proveedor: <span class="font-mono">${esc(d.sku_proveedor)}</span></span>` : ''}
-                            ${d.descripcion_proveedor ? `<span class="block">"${esc(d.descripcion_proveedor)}"</span>` : ''}
-                            ${d.unidad_proveedor ? `<span class="block">Unidad: ${esc(d.unidad_proveedor)}${d.factor_conversion_proveedor ? ` (×${d.factor_conversion_proveedor})` : ''}</span>` : ''}`
-                            : (d.proveedores?.nombre ? '<span class="block italic text-slate-600">sin claves capturadas para este proveedor</span>' : '')}
-                      </td>
-                      <td class="p-2 text-right font-mono">${money4(d.costo_estimado)}</td>
-                      <td class="p-2 text-right font-mono">${money(Number(d.cantidad || 0) * Number(d.costo_estimado || 0))}</td>
-                    </tr>`;
-                  }).join('') || '<tr><td colspan="5" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
+                    <tr class="border-t border-slate-800 align-top">
+                      <td class="px-1.5 pt-1.5 text-right font-mono">${Number(cantP).toLocaleString('es-MX', { maximumFractionDigits: 6 })}</td>
+                      <td class="px-1.5 pt-1.5 font-mono">${esc(conUm ? c.clave_unidad_sat : uInv)}</td>
+                      <td class="px-1.5 pt-1.5 font-mono">${esc(c?.clave_sat || '')}</td>
+                      <td class="px-1.5 pt-1.5 font-mono">${esc(c?.clave || d.sku_proveedor || '')}</td>
+                      <td class="px-1.5 pt-1.5">${esc(c?.descripcion_factura || d.descripcion_proveedor || nombre)}</td>
+                      <td class="px-1.5 pt-1.5 text-right font-mono">${conUm ? '$' + Number(precioP).toLocaleString('es-MX', { minimumFractionDigits: 4, maximumFractionDigits: 6 }) : money4(precioP)}</td>
+                      <td class="px-1.5 pt-1.5 text-right font-mono">${money(importe(d.cantidad, d.costo_estimado))}</td>
+                    </tr>
+                    <tr class="text-[10px] text-slate-500"><td colspan="7" class="px-1.5 pb-1.5">
+                      Nuestro: <span class="text-slate-300">${esc(nombre)}</span>${d.productos?.sku ? ` · SKU ${esc(d.productos.sku)}` : ''}
+                      · <span class="font-mono text-slate-300">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })} ${esc(uInv)}</span> × <span class="font-mono text-slate-300">${money4(d.costo_estimado)}</span> c/u
+                      ${conUm ? ` · 1 ${esc(c.clave_unidad_sat)} = ${f.toLocaleString('es-MX', { maximumFractionDigits: 6 })} ${esc(uInv)}` : ''}
+                      · Proveedor: ${d.proveedores?.nombre ? esc(d.proveedores.nombre) : '<i>sin proveedor sugerido</i>'}${d.proveedores?.nombre && !c ? ' <i>(sin claves capturadas)</i>' : ''}
+                    </td></tr>`;
+                  }).join('') || '<tr><td colspan="7" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
                 </tbody>
                 <tfoot>
-                  <tr><td colspan="4" class="p-2 text-right font-semibold text-slate-400">Total estimado</td><td class="p-2 text-right font-mono font-semibold text-emerald-300">${money(total)}</td></tr>
+                  <tr class="border-t border-slate-800"><td colspan="6" class="px-1.5 py-1.5 text-right font-semibold text-slate-400">Total estimado</td><td class="px-1.5 py-1.5 text-right font-mono font-semibold text-emerald-300">${money(total)}</td></tr>
                 </tfoot>
               </table>
             </div>
