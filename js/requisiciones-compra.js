@@ -926,48 +926,67 @@ async function abrirDetalleReq(id) {
             </div>
             ${r.notas ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Notas</span><p class="text-xs text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5">${esc(r.notas)}</p></div>` : ''}
             ${bloqueRevision}
-            <p class="text-[11px] text-slate-500 mb-1">Renglón superior: como lo vende el proveedor sugerido. Renglón gris: lo nuestro (cantidad, unidad, SKU, descripción y costo de tu inventario). El precio es estimado; la cotización real se captura en la orden de compra.</p>
-            <div class="border border-slate-800 rounded-lg mb-4">
+            <div class="border border-slate-800 rounded-lg mb-3">
+              <div class="px-2 py-1.5 text-[11px] font-semibold text-slate-300 bg-slate-950 border-b border-slate-800">Como lo vende el proveedor sugerido <span class="font-normal text-slate-500">· precio estimado; la cotización real se captura en la orden de compra</span></div>
               <table class="w-full text-left text-xs text-slate-300 table-fixed">
-                <colgroup><col style="width:10%"><col style="width:10%"><col style="width:12%"><col style="width:14%"><col><col style="width:15%"><col style="width:14%"></colgroup>
-                <thead class="bg-slate-950 text-slate-400 text-[10px] font-semibold"><tr>
-                  <th class="px-1.5 py-1.5 text-right">Cant.</th><th class="px-1.5 py-1.5">Clave UM</th><th class="px-1.5 py-1.5">Clave SAT</th>
+                <colgroup><col style="width:4%"><col style="width:10%"><col style="width:9%"><col style="width:12%"><col style="width:14%"><col><col style="width:14%"><col style="width:13%"></colgroup>
+                <thead class="text-slate-400 text-[10px] font-semibold"><tr>
+                  <th class="px-1.5 py-1.5">#</th><th class="px-1.5 py-1.5 text-right">Cant.</th><th class="px-1.5 py-1.5">Clave UM</th><th class="px-1.5 py-1.5">Clave SAT</th>
                   <th class="px-1.5 py-1.5">Número</th><th class="px-1.5 py-1.5">Descripción</th>
                   <th class="px-1.5 py-1.5 text-right">P. unitario</th><th class="px-1.5 py-1.5 text-right">Importe</th>
                 </tr></thead>
                 <tbody>
-                  ${det.map(d => {
+                  ${det.map((d, i) => {
                       const c = claveDe(d);
                       const f = Number(c?.factor_conversion);
                       const conUm = !!(c?.clave_unidad_sat && f > 0);
                       const cantP = conUm ? Number(d.cantidad || 0) / f : Number(d.cantidad || 0);
                       const precioP = conUm ? Number(d.costo_estimado || 0) * f : Number(d.costo_estimado || 0);
-                      const nombre = d.productos?.nombre || d.descripcion || '—';
-                      const uInv = d.unidades_medida?.nombre || '';
                       return `
                     <tr class="border-t border-slate-800 align-top">
-                      <td class="px-1.5 pt-1.5 text-right font-mono">${Number(cantP).toLocaleString('es-MX', { maximumFractionDigits: 6 })}</td>
-                      <td class="px-1.5 pt-1.5 font-mono">${esc(conUm ? c.clave_unidad_sat : uInv)}</td>
-                      <td class="px-1.5 pt-1.5 font-mono">${esc(c?.clave_sat || '')}</td>
-                      <td class="px-1.5 pt-1.5 font-mono">${esc(c?.clave || d.sku_proveedor || '')}</td>
-                      <td class="px-1.5 pt-1.5">${esc(c?.descripcion_factura || d.descripcion_proveedor || nombre)}</td>
-                      <td class="px-1.5 pt-1.5 text-right font-mono">${conUm ? '$' + Number(precioP).toLocaleString('es-MX', { minimumFractionDigits: 4, maximumFractionDigits: 6 }) : money4(precioP)}</td>
-                      <td class="px-1.5 pt-1.5 text-right font-mono">${money(importe(d.cantidad, d.costo_estimado))}</td>
-                    </tr>
-                    <tr class="fila-interna bg-slate-950/60 text-[10px] text-slate-400 border-b border-slate-800">
-                      <td class="px-1.5 pb-1.5 text-right font-mono">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</td>
-                      <td class="px-1.5 pb-1.5">${esc(uInv)}</td>
-                      <td class="px-1.5 pb-1.5 font-mono">${esc(d.productos?.sku || '')}</td>
-                      <td class="px-1.5 pb-1.5">${conUm ? `1 ${esc(c.clave_unidad_sat)} = ${f.toLocaleString('es-MX', { maximumFractionDigits: 6 })}` : ''}</td>
-                      <td class="px-1.5 pb-1.5">${esc(nombre)}${d.proveedores?.nombre ? ` <span class="text-slate-500">· ${esc(d.proveedores.nombre)}${!c ? ' (sin claves)' : ''}</span>` : ' <i class="text-slate-500">· sin proveedor sugerido</i>'}</td>
-                      <td class="px-1.5 pb-1.5 text-right font-mono">${money4(d.costo_estimado)}</td>
-                      <td class="px-1.5 pb-1.5 text-slate-500">c/u interno</td>
+                      <td class="px-1.5 py-1.5 text-slate-500">${i + 1}</td>
+                      <td class="px-1.5 py-1.5 text-right font-mono">${Number(cantP).toLocaleString('es-MX', { maximumFractionDigits: 6 })}</td>
+                      <td class="px-1.5 py-1.5 font-mono">${esc(conUm ? c.clave_unidad_sat : (d.unidades_medida?.nombre || ''))}</td>
+                      <td class="px-1.5 py-1.5 font-mono">${esc(c?.clave_sat || '')}</td>
+                      <td class="px-1.5 py-1.5 font-mono">${esc(c?.clave || d.sku_proveedor || '')}</td>
+                      <td class="px-1.5 py-1.5">${esc(c?.descripcion_factura || d.descripcion_proveedor || d.productos?.nombre || d.descripcion || '—')}</td>
+                      <td class="px-1.5 py-1.5 text-right font-mono">${conUm ? '$' + Number(precioP).toLocaleString('es-MX', { minimumFractionDigits: 4, maximumFractionDigits: 6 }) : money4(precioP)}</td>
+                      <td class="px-1.5 py-1.5 text-right font-mono">${money(importe(d.cantidad, d.costo_estimado))}</td>
                     </tr>`;
-                  }).join('') || '<tr><td colspan="7" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
+                  }).join('') || '<tr><td colspan="8" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
                 </tbody>
                 <tfoot>
-                  <tr class="border-t border-slate-800"><td colspan="6" class="px-1.5 py-1.5 text-right font-semibold text-slate-400">Total estimado</td><td class="px-1.5 py-1.5 text-right font-mono font-semibold text-emerald-300">${money(total)}</td></tr>
+                  <tr class="border-t border-slate-800"><td colspan="7" class="px-1.5 py-1.5 text-right font-semibold text-slate-400">Total estimado</td><td class="px-1.5 py-1.5 text-right font-mono font-semibold text-emerald-300">${money(total)}</td></tr>
                 </tfoot>
+              </table>
+            </div>
+            <div class="border border-slate-800 rounded-lg mb-4">
+              <div class="px-2 py-1.5 text-[11px] font-semibold text-slate-300 bg-slate-950 border-b border-slate-800">Nuestro inventario · notas y observaciones</div>
+              <table class="w-full text-left text-xs text-slate-300 table-fixed">
+                <colgroup><col style="width:4%"><col style="width:11%"><col><col style="width:11%"><col style="width:9%"><col style="width:12%"><col style="width:16%"><col style="width:21%"></colgroup>
+                <thead class="text-slate-400 text-[10px] font-semibold"><tr>
+                  <th class="px-1.5 py-1.5">#</th><th class="px-1.5 py-1.5">SKU</th><th class="px-1.5 py-1.5">Producto</th>
+                  <th class="px-1.5 py-1.5 text-right">Cantidad</th><th class="px-1.5 py-1.5">Unidad</th>
+                  <th class="px-1.5 py-1.5 text-right">Costo c/u</th><th class="px-1.5 py-1.5">Equivalencia</th><th class="px-1.5 py-1.5">Observaciones</th>
+                </tr></thead>
+                <tbody>
+                  ${det.map((d, i) => {
+                      const c = claveDe(d);
+                      const f = Number(c?.factor_conversion);
+                      const conUm = !!(c?.clave_unidad_sat && f > 0);
+                      return `
+                    <tr class="border-t border-slate-800 align-top">
+                      <td class="px-1.5 py-1.5 text-slate-500">${i + 1}</td>
+                      <td class="px-1.5 py-1.5 font-mono">${esc(d.productos?.sku || '')}</td>
+                      <td class="px-1.5 py-1.5">${esc(d.productos?.nombre || d.descripcion || '—')}</td>
+                      <td class="px-1.5 py-1.5 text-right font-mono">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</td>
+                      <td class="px-1.5 py-1.5">${esc(d.unidades_medida?.nombre || '')}</td>
+                      <td class="px-1.5 py-1.5 text-right font-mono">${money4(d.costo_estimado)}</td>
+                      <td class="px-1.5 py-1.5">${conUm ? `1 ${esc(c.clave_unidad_sat)} = ${f.toLocaleString('es-MX', { maximumFractionDigits: 6 })}` : ''}</td>
+                      <td class="px-1.5 py-1.5 text-[11px] text-slate-400">${d.proveedores?.nombre ? esc(d.proveedores.nombre) + (!c ? '<br><i>sin claves capturadas</i>' : '') : '<i>sin proveedor sugerido</i>'}</td>
+                    </tr>`;
+                  }).join('')}
+                </tbody>
               </table>
             </div>
             <div class="grid grid-cols-2 gap-6 mt-8 pt-4 border-t border-slate-800 text-xs text-slate-400">
