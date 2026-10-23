@@ -20,7 +20,7 @@ import { fechaLocalTxt } from './fechas.js';
 //  Fase 2: importar XML del CFDI.  Fase 3: leer el QR del CFDI.
 // =====================================================================
 
-import { money, money4, importe, redondear2 } from './formato.js';
+import { money, money4, importe, redondear2, importePartidaOdc } from './formato.js';
 import { hoyISO } from './fechas.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const normTxt = (s) => String(s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
@@ -358,11 +358,14 @@ async function ocGuardarOrden() {
 async function ocRenderLista() {
     const cont = document.getElementById('ocLista');
     try {
-        const { data, error } = await supabaseClient
+        const listaOc = (cols) => supabaseClient
             .from('ordenes_compra')
-            .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedores ( nombre ), ordenes_compra_detalle ( cantidad, cantidad_recibida, costo_unitario_estimado )')
+            .select(`id, folio, fecha, fecha_esperada, estatus, notas, proveedores ( nombre ), ordenes_compra_detalle ( ${cols} )`)
             .order('id', { ascending: false })
             .limit(200);
+        // importe_proveedor existe solo con sql/2026-10-23c: sin él se usa cantidad × costo.
+        let { data, error } = await listaOc('cantidad, cantidad_recibida, costo_unitario_estimado, importe_proveedor');
+        if (error && /does not exist|schema cache|could not find/i.test(error.message || '')) ({ data, error } = await listaOc('cantidad, cantidad_recibida, costo_unitario_estimado'));
         if (error) throw error;
         if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin órdenes de compra.</p>'; return; }
 
@@ -381,7 +384,7 @@ async function ocRenderLista() {
 
         data.forEach(o => {
             const det = o.ordenes_compra_detalle || [];
-            o._total = det.reduce((a, d) => a + importe(d.cantidad, d.costo_unitario_estimado), 0);
+            o._total = det.reduce((a, d) => a + importePartidaOdc(d), 0);
             const ped = det.reduce((a, d) => a + Number(d.cantidad || 0), 0);
             const rec = det.reduce((a, d) => a + Number(d.cantidad_recibida || 0), 0);
             o._pct = ped > 0 ? Math.round((rec / ped) * 100) : 0;
@@ -489,9 +492,14 @@ async function abrirDetalleOC(id) {
 
     let { data: o, error } = await supabaseClient
         .from('ordenes_compra')
-        .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, tipo_cambio, tipo_cambio_fuente, tipo_cambio_fecha, created_at, dias_credito, cotizacion_folio, cotizacion_contacto, cotizacion_telefono, cotizacion_email, cotizacion_fecha, cotizacion_vigencia, condicion_pago, forma_pago, anticipo_pct, anticipo_monto, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, productos ( nombre, sku ) )')
+        .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, tipo_cambio, tipo_cambio_fuente, tipo_cambio_fecha, created_at, dias_credito, cotizacion_folio, cotizacion_contacto, cotizacion_telefono, cotizacion_email, cotizacion_fecha, cotizacion_vigencia, condicion_pago, forma_pago, anticipo_pct, anticipo_monto, diferencias_cotizacion, diferencias_nota, diferencias_por, diferencias_en, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, cantidad_solicitada, costo_solicitado, cantidad_proveedor, clave_unidad_sat, clave_prod_serv_sat, precio_proveedor, importe_proveedor, productos ( nombre, sku ) )')
         .eq('id', id)
         .single();
+    if (error && /does not exist|schema cache|could not find/i.test(error.message || '')) ({ data: o, error } = await supabaseClient
+        .from('ordenes_compra')
+        .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, tipo_cambio, tipo_cambio_fuente, tipo_cambio_fecha, created_at, dias_credito, cotizacion_folio, cotizacion_contacto, cotizacion_telefono, cotizacion_email, cotizacion_fecha, cotizacion_vigencia, condicion_pago, forma_pago, anticipo_pct, anticipo_monto, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, productos ( nombre, sku ) )')
+        .eq('id', id)
+        .single());
     if (error && /does not exist|schema cache|could not find/i.test(error.message || '')) {
         // sin la migración de la ODC formal (cotización/condiciones): select de antes.
         ({ data: o, error } = await supabaseClient
@@ -529,7 +537,7 @@ async function abrirDetalleOC(id) {
 
 async function renderVistaOC(o, cuerpo) {
     const det = o.ordenes_compra_detalle || [];
-    const totalEst = det.reduce((a, d) => a + importe(d.cantidad, d.costo_unitario_estimado), 0);
+    const totalEst = det.reduce((a, d) => a + importePartidaOdc(d), 0);
     const nombreUnidad = (uid) => ocUnidades.find(u => u.id === uid)?.nombre || '';
     const fmtFecha = (iso) => { try { return new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso || '—'; } };
 
@@ -600,36 +608,52 @@ async function renderVistaOC(o, cuerpo) {
                 ${o.anticipo_pct ? `<span class="block text-[11px] text-slate-400">Anticipo comprometido: ${Number(o.anticipo_pct)}% = ${money(o.anticipo_monto)} (lo paga Finanzas antes de recibir)</span>` : '<span class="block text-[11px] text-slate-400">Sin anticipo</span>'}</div>` : ''}
         </div>` : ''}
         ${historiaPagosHtml}
+        ${Array.isArray(o.diferencias_cotizacion) && o.diferencias_cotizacion.length ? `<div class="mb-4 bg-amber-950/30 border border-amber-900/50 rounded-lg px-3 py-2 text-xs text-amber-200">
+            <b>Diferencias aceptadas entre lo solicitado y lo cotizado</b>${o.diferencias_por ? ` · ${esc(o.diferencias_por)}` : ''}${o.diferencias_en ? ` · ${esc(fmtFecha(o.diferencias_en))}` : ''}
+            <ul class="mt-1 text-[11px] text-amber-100/90 list-disc pl-4">${o.diferencias_cotizacion.map((x) => `<li>${esc(x.producto)}: pedido ${Number(x.solicitado?.cantidad || 0).toLocaleString('es-MX')} × ${money4(x.solicitado?.costo)} → cotizado ${Number(x.cotizado?.cantidad || 0).toLocaleString('es-MX')} × ${money4(x.cotizado?.costo)} (${Number(x.diferencia?.importe || 0) >= 0 ? '+' : ''}${money(x.diferencia?.importe)})</li>`).join('')}</ul>
+            ${o.diferencias_nota ? `<p class="mt-1 text-[11px]">Nota del comprador: ${esc(o.diferencias_nota)}</p>` : ''}</div>` : ''}
         ${o.notas ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Notas de la orden</span><p class="text-xs text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5">${esc(o.notas)}</p></div>` : ''}
-        <div class="overflow-x-auto border border-slate-800 rounded-lg">
-          <table class="w-full text-left text-xs text-slate-300">
-            <thead class="bg-slate-950 text-slate-500 uppercase"><tr>
-              <th class="p-2">Producto</th><th class="p-2 text-right">Cant.</th><th class="p-2 text-right">Recibido</th>
-              <th class="p-2 text-right">Costo unit.</th><th class="p-2 text-right">Subtotal</th><th class="p-2">Notas</th>
+        <div class="border border-slate-800 rounded-lg">
+          <table class="w-full text-left text-xs text-slate-300 table-fixed">
+            <colgroup><col style="width:10%"><col style="width:10%"><col style="width:12%"><col style="width:14%"><col><col style="width:15%"><col style="width:14%"></colgroup>
+            <thead class="bg-slate-950 text-slate-400 text-[10px] font-semibold"><tr>
+              <th class="px-1.5 py-1.5 text-right">Cant.</th><th class="px-1.5 py-1.5">Clave UM</th><th class="px-1.5 py-1.5">Clave SAT</th>
+              <th class="px-1.5 py-1.5">Número</th><th class="px-1.5 py-1.5">Descripción</th>
+              <th class="px-1.5 py-1.5 text-right">P. unitario</th><th class="px-1.5 py-1.5 text-right">Importe</th>
             </tr></thead>
             <tbody>
               ${det.map(d => {
-                  const tieneDatosProv = d.sku_proveedor || d.descripcion_proveedor || d.unidad_proveedor;
+                  // Lado del PROVEEDOR (su cantidad, unidad y precio, como cotizó) y, debajo, lo NUESTRO en la unidad del inventario.
+                  const conProv = d.cantidad_proveedor != null;
+                  const uInv = nombreUnidad(d.unidad_medida_id);
+                  const nombre = d.productos?.nombre || d.descripcion || '—';
+                  const cantP = conProv ? Number(d.cantidad_proveedor) : Number(d.cantidad || 0);
+                  const precioP = conProv ? Number(d.precio_proveedor) : Number(d.costo_unitario_estimado || 0);
+                  const solic = d.cantidad_solicitada != null && (Math.abs(Number(d.cantidad_solicitada) - Number(d.cantidad)) > 1e-6 || Math.abs(Number(d.costo_solicitado || 0) - Number(d.costo_unitario_estimado || 0)) >= 0.00005);
                   return `
-                <tr class="border-b border-slate-900 align-top">
-                  <td class="p-2">
-                    ${esc(d.productos?.nombre || d.descripcion || '—')}${d.productos?.sku ? `<span class="block text-[10px] text-slate-500">SKU ${esc(d.productos.sku)}</span>` : ''}
-                    ${tieneDatosProv ? `<span class="block text-[10px] text-sky-400 mt-1">Para el proveedor:${d.sku_proveedor ? ` SKU ${esc(d.sku_proveedor)}` : ''}</span>
-                        ${d.descripcion_proveedor ? `<span class="block text-[10px] text-slate-500">"${esc(d.descripcion_proveedor)}"</span>` : ''}
-                        ${d.unidad_proveedor ? `<span class="block text-[10px] text-slate-500">Unidad: ${esc(d.unidad_proveedor)}${d.factor_conversion_proveedor ? ` (×${d.factor_conversion_proveedor})` : ''}</span>` : ''}` : ''}
-                  </td>
-                  <td class="p-2 text-right font-mono">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })} ${esc(nombreUnidad(d.unidad_medida_id))}</td>
-                  <td class="p-2 text-right font-mono text-slate-400">${Number(d.cantidad_recibida || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</td>
-                  <td class="p-2 text-right font-mono">${money4(d.costo_unitario_estimado)}</td>
-                  <td class="p-2 text-right font-mono">${money(Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0))}</td>
-                  <td class="p-2 text-slate-400">${esc(d.notas || '')}</td>
-                </tr>`;
-              }).join('') || '<tr><td colspan="6" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
+                <tr class="border-t border-slate-800 align-top">
+                  <td class="px-1.5 pt-1.5 text-right font-mono">${Number(cantP).toLocaleString('es-MX', { maximumFractionDigits: 6 })}</td>
+                  <td class="px-1.5 pt-1.5 font-mono">${esc(d.clave_unidad_sat || (conProv ? '' : uInv))}</td>
+                  <td class="px-1.5 pt-1.5 font-mono">${esc(d.clave_prod_serv_sat || '')}</td>
+                  <td class="px-1.5 pt-1.5 font-mono">${esc(d.sku_proveedor || '')}</td>
+                  <td class="px-1.5 pt-1.5">${esc(d.descripcion_proveedor || nombre)}</td>
+                  <td class="px-1.5 pt-1.5 text-right font-mono">${conProv ? '$' + Number(precioP).toLocaleString('es-MX', { minimumFractionDigits: 4, maximumFractionDigits: 6 }) : money4(precioP)}</td>
+                  <td class="px-1.5 pt-1.5 text-right font-mono">${money(importePartidaOdc(d))}</td>
+                </tr>
+                <tr class="text-[10px] text-slate-500"><td colspan="7" class="px-1.5 pb-1.5">
+                  Nuestro: <span class="text-slate-300">${esc(nombre)}</span>${d.productos?.sku ? ` · SKU ${esc(d.productos.sku)}` : ''}
+                  · <span class="font-mono text-slate-300">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })} ${esc(uInv)}</span> × <span class="font-mono text-slate-300">${money4(d.costo_unitario_estimado)}</span> c/u
+                  ${d.clave_unidad_sat && d.factor_conversion_proveedor ? ` · 1 ${esc(d.unidad_proveedor || d.clave_unidad_sat)} = ${Number(d.factor_conversion_proveedor).toLocaleString('es-MX', { maximumFractionDigits: 6 })} ${esc(uInv)}` : ''}
+                  ${solic ? ` · <span class="text-amber-300/90">Solicitado: ${Number(d.cantidad_solicitada).toLocaleString('es-MX', { maximumFractionDigits: 4 })} ${esc(uInv)} × ${money4(d.costo_solicitado)}</span>` : ''}
+                  · Recibido: <span class="font-mono">${Number(d.cantidad_recibida || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</span>
+                  ${d.notas ? ` · ${esc(d.notas)}` : ''}
+                </td></tr>`;
+              }).join('') || '<tr><td colspan="7" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
             </tbody>
             <tfoot>
-              <tr><td colspan="4" class="p-2 text-right font-semibold text-slate-400">Subtotal estimado</td><td class="p-2 text-right font-mono font-semibold text-emerald-300">${money(totalEst)}</td><td></td></tr>
-              ${o.condicion_pago ? `<tr><td colspan="4" class="p-2 text-right text-slate-400">IVA 16% (estimado)</td><td class="p-2 text-right font-mono text-slate-300">${money(totalEst * 0.16)}</td><td></td></tr>
-              <tr><td colspan="4" class="p-2 text-right font-semibold text-slate-300">Total estimado</td><td class="p-2 text-right font-mono font-bold text-emerald-300">${money(totalEst * 1.16)}</td><td></td></tr>` : ''}
+              <tr class="border-t border-slate-800"><td colspan="6" class="px-1.5 py-1.5 text-right font-semibold text-slate-400">Subtotal estimado</td><td class="px-1.5 py-1.5 text-right font-mono font-semibold text-emerald-300">${money(totalEst)}</td></tr>
+              ${o.condicion_pago ? `<tr><td colspan="6" class="px-1.5 py-1 text-right text-slate-400">IVA 16% (estimado)</td><td class="px-1.5 py-1 text-right font-mono text-slate-300">${money(redondear2(totalEst * 0.16))}</td></tr>
+              <tr><td colspan="6" class="px-1.5 py-1.5 text-right font-semibold text-slate-300">Total estimado</td><td class="px-1.5 py-1.5 text-right font-mono font-bold text-emerald-300">${money(redondear2(totalEst * 1.16))}</td></tr>` : ''}
             </tfoot>
           </table>
         </div>

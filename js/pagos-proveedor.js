@@ -11,7 +11,7 @@ import { imprimirHtml, marcaDeEstatus } from './impresion.js';
 //  Requiere: sql/2026-09-02_pagos_proveedor.sql
 // =====================================================================
 
-import { money, money4, importe, redondear2 } from './formato.js';
+import { money, money4, importe, redondear2, importePartidaOdc } from './formato.js';
 import { hoyISO, diasDesdeHoyISO } from './fechas.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 // Forma de pago de la ODC (clave SAT c_forma_pago) → valor del selector "Forma de pago" de esta pantalla.
@@ -145,18 +145,21 @@ export async function cargarModuloPagosProveedor() {
 // =====================================================================
 async function cxpCargarOcPorPagar() {
     try {
-        const [rOc, rAnt] = await Promise.all([
-            supabaseClient.from('ordenes_compra')
-                .select('id, folio, fecha, fecha_esperada, proveedor_id, condicion_pago, dias_credito, forma_pago, anticipo_pct, anticipo_monto, proveedores ( nombre ), ordenes_compra_detalle ( cantidad, costo_unitario_estimado )')
+        const consultaOc = (cols) => supabaseClient.from('ordenes_compra')
+                .select(`id, folio, fecha, fecha_esperada, proveedor_id, condicion_pago, dias_credito, forma_pago, anticipo_pct, anticipo_monto, proveedores ( nombre ), ordenes_compra_detalle ( ${cols} )`)
                 .in('estatus', ['abierta', 'recibida_parcial'])
                 .not('condicion_pago', 'is', null)
-                .order('id', { ascending: false }),
+                .order('id', { ascending: false });
+        const [rOc0, rAnt] = await Promise.all([
+            // importe_proveedor existe solo con sql/2026-10-23c: sin él se usa cantidad × costo.
+            consultaOc('cantidad, costo_unitario_estimado, importe_proveedor'),
             supabaseClient.from('v_anticipos_oc').select('orden_compra_id, pagado').then((r) => r, () => ({ data: null })),
         ]);
+        const rOc = rOc0.error && /does not exist|schema cache|could not find/i.test(rOc0.error.message || '') ? await consultaOc('cantidad, costo_unitario_estimado') : rOc0;
         if (rOc.error) throw rOc.error;
         const pagadoPorOc = new Map((rAnt.data || []).map((a) => [a.orden_compra_id, Number(a.pagado || 0)]));
         return (rOc.data || []).map((o) => {
-            const sub = (o.ordenes_compra_detalle || []).reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0), 0);
+            const sub = (o.ordenes_compra_detalle || []).reduce((a, d) => a + importePartidaOdc(d), 0);
             const total = Math.round(sub * 1.16 * 100) / 100;
             const objetivo = Number(o.anticipo_monto) > 0 ? Number(o.anticipo_monto) : (o.condicion_pago === 'contado' ? total : 0);
             const pagado = pagadoPorOc.get(o.id) || 0;

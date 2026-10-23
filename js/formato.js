@@ -21,3 +21,7 @@ export const money4 = (n) => '$' + fmt(n, 4);
 export const num4 = (n) => fmt(n, 4);   // sin signo $ (celdas con "$" aparte)
 // Importe de una partida: cantidad × costo exacto, redondeado a 2 decimales.
 export const importe = (cantidad, costo) => redondear2(Number(cantidad || 0) * Number(costo || 0));
+
+// Importe OFICIAL de una partida de ODC: el del proveedor (cantidad × precio en SU unidad, sql/2026-10-23c) si lo trae; si no, cantidad × costo.
+// Nunca cantidad interna × costo interno: ese costo es derivado y puede diferir unos centavos.
+export const importePartidaOdc = (d) => (d && d.importe_proveedor != null ? Number(d.importe_proveedor) : importe(d?.cantidad, d?.costo_unitario_estimado));

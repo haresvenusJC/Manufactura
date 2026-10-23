@@ -15,18 +15,20 @@ import { supabaseClient } from './supabase.js';
 export async function obtenerInfoProveedorProducto(productoId, proveedorId) {
     if (!productoId || !proveedorId) return null;
 
-    let clave = await supabaseClient.from('producto_claves_proveedor')
-        .select('clave, descripcion_factura, unidad_factura, factor_conversion')
-        .eq('producto_id', productoId)
-        .eq('proveedor_id', proveedorId)
-        .limit(1);
-    if (clave.error && /does not exist|schema cache|could not find/i.test(clave.error.message || '')) {
-        // factor_conversion aún no existe: cae al select sin ella.
+    // Del más completo al más viejo: cada migración agregó columnas (factor, unidad SAT) y se degrada sin ellas.
+    const COLS = [
+        'clave, descripcion_factura, unidad_factura, factor_conversion, clave_unidad_sat, clave_sat',
+        'clave, descripcion_factura, unidad_factura, factor_conversion',
+        'clave, descripcion_factura, unidad_factura',
+    ];
+    let clave = { data: null };
+    for (const cols of COLS) {
         clave = await supabaseClient.from('producto_claves_proveedor')
-            .select('clave, descripcion_factura, unidad_factura')
+            .select(cols)
             .eq('producto_id', productoId)
             .eq('proveedor_id', proveedorId)
             .limit(1);
+        if (!clave.error || !/does not exist|schema cache|could not find/i.test(clave.error.message || '')) break;
     }
 
     const docs = await supabaseClient.from('documento_detalles')
@@ -53,6 +55,8 @@ export async function obtenerInfoProveedorProducto(productoId, proveedorId) {
         descripcionProveedor: claveRow?.descripcion_factura || null,
         unidadProveedor: claveRow?.unidad_factura || null,
         factorConversion: claveRow?.factor_conversion ?? null,
+        claveUnidadSat: claveRow?.clave_unidad_sat || null,
+        claveProdServSat: claveRow?.clave_sat || null,
         ultimoPrecio,
         ultimaFecha,
     };
