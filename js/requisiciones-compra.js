@@ -1348,7 +1348,7 @@ window.reqAutorizar = async (id) => {
 
           <div class="${card}">
             <h4 class="${h3}">📦 Partidas cotizadas <span class="font-normal normal-case text-slate-500">— tal como las cotizó el proveedor</span></h4>
-            <p class="text-[11px] text-slate-500 mb-3">${manual ? 'Captura cada producto con su cantidad y precio reales; si el proveedor vende en otra unidad (millar, kilo…), elige su Clave UM y el factor.' : 'Cantidad, unidad y precio como los cotizó el proveedor (pueden diferir de lo solicitado). Si vende en otra unidad que tu inventario (ej. MIL), elige su Clave UM: abajo de cada partida ves lo equivalente en TU unidad.'}</p>
+            <p class="text-[11px] text-slate-500 mb-3">${manual ? 'Captura cada producto como lo cotizó el proveedor.' : 'Captura lo que cotizó el proveedor. El renglón sombreado es lo que pidió la requisición.'} Si vende en otra unidad (ej. MIL), elige su Clave UM y captura el factor.</p>
             ${manual ? `
             <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 mb-3">
               <div class="grid grid-cols-2 sm:grid-cols-6 gap-2 items-end">
@@ -1413,31 +1413,22 @@ window.reqAutorizar = async (id) => {
     const fSelf = (i, k) => modal.querySelector(`[data-${k}="${i}"]`);
     const inpL = 'w-full bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-xs text-slate-100';
 
-    const textoNuestro = (l) => {
-        const ci = cantInt(l), co = costoInt(l);
-        const falta = l.claveUm && !((l.factor || 0) > 0);
-        let h = `<span class="text-slate-500">Nuestro:</span> <b class="text-slate-100">${esc(l.nombre)}</b>${l.sku ? ` <span class="font-mono text-slate-500">${esc(l.sku)}</span>` : ''}`;
-        h += falta
-            ? ` · <span class="text-amber-300">⚠ falta el factor para convertir a ${esc(l.unidad || 'tu unidad')}</span>`
-            : ` · = <b class="font-mono text-emerald-300">${formatoNum(ci)} ${esc(l.unidad || '')}</b> × <b class="font-mono text-emerald-300">${money4(co)}</b> c/u`;
-        if (l.cantSol != null) h += ` · <span class="text-slate-500">Solicitado: ${formatoNum(l.cantSol)} ${esc(l.unidad || '')} × ${money4(l.costoSol)}</span>`;
-        // Aviso de escala: si el costo por unidad nuestra se aleja mucho de lo solicitado, casi seguro el factor o el precio están mal.
-        if (!falta && l.costoSol > 0 && co > 0 && (co / l.costoSol > 5 || co / l.costoSol < 0.2)) {
-            h += ` <span class="text-amber-300">⚠ el costo por ${esc(l.unidad || 'unidad')} es muy distinto al solicitado: revisa la unidad, el factor y el precio.</span>`;
-        }
-        return h;
-    };
+    // Renglón sombreado: lo que pidió la requisición (cantidad, unidad, SKU, producto), alineado bajo las columnas de la cotización.
+    // Solo lleva un campo editable: el factor, y solo si el proveedor vende en otra unidad.
     const textoFactor = (l) => {
-        if (!l.claveUm) return l.umInvalida ? `<span class="text-amber-300">⚠ La clave «${esc(l.umInvalida)}» no está en el catálogo SAT.</span>` : '';
-        return `<span class="text-slate-400">${esc(l.nombreUm || l.claveUm)} [${esc(l.claveUm)}]: 1 = </span>
-            <input type="number" data-factor="" step="any" min="0" value="${l.factor ?? ''}" placeholder="factor" class="w-24 bg-slate-900 border ${(l.factor || 0) > 0 ? 'border-slate-700' : 'border-amber-500'} rounded px-1.5 py-0.5 text-xs text-right font-mono text-slate-100">
-            <span class="text-slate-400">${esc(l.unidad || 'unidades de tu inventario')}</span>
-            ${l.notaFactor ? `<span class="text-[10px] ${(l.factor || 0) > 0 ? 'text-slate-500' : 'text-amber-300'}">· ${esc(l.notaFactor)}</span>` : ''}`;
+        if (!l.claveUm) return l.umInvalida ? `<span class="text-amber-300" title="No está en el catálogo SAT">⚠ ${esc(l.umInvalida)}</span>` : '';
+        const ok = (l.factor || 0) > 0;
+        const ayuda = `Unidades de tu inventario (${l.unidad || '—'}) que trae 1 ${l.nombreUm || l.claveUm}.${l.notaFactor ? ' ' + l.notaFactor : ''}`;
+        return `<span class="inline-flex items-center gap-1" title="${esc(ayuda)}"><span class="text-slate-500">×</span>
+            <input type="number" data-factor="" step="any" min="0" value="${l.factor ?? ''}" placeholder="factor" class="w-full min-w-0 bg-slate-900 border ${ok ? 'border-slate-700' : 'border-amber-500'} rounded px-1.5 py-0.5 text-xs text-right font-mono text-slate-100"></span>`;
     };
     const pintarNuestro = (i) => {
         const l = lineas[i];
-        const t = fSelf(i, 'nuestro'); if (t) t.innerHTML = textoNuestro(l);
         const im = fSelf(i, 'imp'); if (im) im.textContent = money(impProv(l));
+        // Aviso de escala solo si algo no cuadra: costo por unidad muy lejos de lo solicitado.
+        const co = costoInt(l), c = fSelf(i, 'cant');
+        const raro = l.costoSol > 0 && co > 0 && (co / l.costoSol > 5 || co / l.costoSol < 0.2);
+        if (c) { c.classList.toggle('border-amber-500', raro); c.title = raro ? 'El costo por ' + (l.unidad || 'unidad') + ' queda muy distinto al solicitado: revisa la unidad, el factor y el precio.' : ''; }
     };
     const pintarFactor = (i) => {
         const l = lineas[i];
@@ -1499,10 +1490,14 @@ window.reqAutorizar = async (id) => {
             <td class="px-1.5 pt-2 pb-0.5 text-right font-mono text-slate-100" data-imp="${i}">${money(impProv(l))}</td>
             <td class="px-1 pt-2 pb-0.5 text-right">${manual ? `<button type="button" data-quitar="${i}" class="text-rose-400 hover:text-rose-300 text-xs px-1.5 py-0.5 bg-rose-950/40 rounded border border-rose-900/50">✕</button>` : ''}</td>
           </tr>
-          <tr class="bg-slate-950/60"><td colspan="8" class="px-2 py-1 text-[11px] leading-5">
-            <span data-nuestro="${i}">${textoNuestro(l)}</span>
-            <span data-factorbox="${i}" class="ml-2 inline-flex flex-wrap items-center gap-1">${textoFactor(l)}</span>
-          </td></tr>`).join('') || '<tr><td colspan="8" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>';
+          <tr class="bg-slate-800/70 text-[11px] text-slate-300 border-b border-slate-800">
+            <td class="px-1.5 py-1 text-right font-mono font-semibold">${formatoNum(l.cantSol != null ? l.cantSol : cantInt(l))}</td>
+            <td class="px-1.5 py-1 font-semibold">${esc(l.unidad || '')}</td>
+            <td class="px-1.5 py-1" data-factorbox="${i}">${textoFactor(l)}</td>
+            <td class="px-1.5 py-1 font-semibold">${l.sku ? 'SKU&nbsp;&nbsp;' + esc(l.sku) : ''}</td>
+            <td class="px-1.5 py-1 font-semibold" colspan="3">${esc(l.nombre)}</td>
+            <td></td>
+          </tr>`).join('') || '<tr><td colspan="8" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>';
         lineas.forEach((l, i) => {
             const on = (k, fn) => { const el = fSelf(i, k); if (el) el.oninput = () => fn(el); };
             on('cant', (el) => { l.cantProv = parseFloat(el.value) || 0; l.tocoCant = true; pintarNuestro(i); recalcular(); });
