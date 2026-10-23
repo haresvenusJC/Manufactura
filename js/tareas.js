@@ -38,8 +38,9 @@ let tareasDepartamento = null;
 let tareasSeleccionadas = new Set();
 let tareasProductosMapa = new Map();   // producto_id -> { nombre, proveedorId, proveedorNombre }
 
-export async function cargarModuloTareas(departamento) {
+export async function cargarModuloTareas(departamento, { limpiarBusqueda = false } = {}) {
     tareasDepartamento = departamento || null;
+    if (limpiarBusqueda) tareasFiltroTexto = ''; // al ABRIR la pantalla se parte sin búsqueda previa (si no, una búsqueda vieja puede esconder la tarea que buscas)
     cargarHistorialTareas();   // independiente: se ve aunque no haya pendientes
 
     const cont = document.getElementById('contenedorTareas');
@@ -126,6 +127,7 @@ function renderTareasActivas() {
         return;
     }
 
+    // Orden: PRIMERO lo contable (nómina pendiente / recordatorio del viernes, lo más urgente) y DESPUÉS las tareas de almacén.
     // Con selección activa, la barra "Generar requisición conjunta" se fija
     // arriba (sticky) y la lista se vuelve su propio scroll — si no, se
     // pierde de vista al bajar a marcar más tareas y parece que no hizo nada.
@@ -135,14 +137,14 @@ function renderTareasActivas() {
         <div class="sticky top-0 z-10 bg-slate-900 pb-2">${renderBarraSeleccion()}</div>
         <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
             ${recordatorio ? renderRecordatorio(recordatorio) : ''}
-            ${sistema.map(renderTareaSistema).join('')}
             ${borradores.map(renderNominaBorrador).join('')}
+            ${sistema.map(renderTareaSistema).join('')}
         </div>`
         : `
         <div class="space-y-3">
             ${recordatorio ? renderRecordatorio(recordatorio) : ''}
-            ${sistema.map(renderTareaSistema).join('')}
             ${borradores.map(renderNominaBorrador).join('')}
+            ${sistema.map(renderTareaSistema).join('')}
         </div>`);
 
     cont.querySelectorAll('.tarea-check').forEach((chk) => chk.addEventListener('change', () => {
