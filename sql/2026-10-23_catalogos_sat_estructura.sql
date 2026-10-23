@@ -7,7 +7,7 @@
 --  Orden de corrida (pegar completo en Supabase -> SQL Editor):
 --    1) ESTE archivo (tablas, índices, buscadores).
 --    2) sql/2026-10-23_catalogos_sat_datos_unidad.sql   (2,418 unidades).
---    3) sql/2026-10-23_catalogos_sat_datos_prodserv_01..05.sql (52,513 claves; en cualquier orden).
+--    3) sql/2026-10-23_catalogos_sat_datos_prodserv_01..10.sql (52,513 claves en 10 partes de ~320 KB; en cualquier orden).
 --    4) sql/2026-10-23_catalogos_sat_vinculo_unidades.sql (liga unidades_medida con su clave SAT).
 --
 --  Rapidez: el catálogo NUNCA se baja al navegador. La app consulta las
