@@ -3,6 +3,7 @@ import { abrirTablaUnidades, abrirTablaDensidades } from './catalogo.js';
 import { REGIMENES, cargarRegimenes } from './regimenes-fiscales.js';
 import { familiaDeUnidad, BASE_FAMILIA } from './conversion-unidades.js';
 import { vidaMesesDePct } from './categorias-depreciacion.js';
+import { cargarVisorSat } from './catalogos-sat.js';
 
 // =====================================================================
 // Configuración · Tablas
@@ -328,6 +329,7 @@ export async function cargarModuloTablas(tabla = 'unidades_medida') {
         abrirTablaDensidades();
         return;
     }
+    if (tabla === 'sat_unidad' || tabla === 'sat_prod_serv') return cargarVisorSat(cont, document.getElementById('tituloTablas'), tabla === 'sat_unidad' ? 'unidad' : 'prod_serv');
     if (tabla === 'regimenes') return cargarEditorRegimenes(cont, document.getElementById('tituloTablas'));
     if (tabla === 'depreciacion_fiscal') return cargarEditorDepreciacionFiscal(cont, document.getElementById('tituloTablas'));
     if (tabla === 'umbral_caducidad') return cargarEditorUmbralesCaducidad(cont, document.getElementById('tituloTablas'));

@@ -1,5 +1,5 @@
 {
- "v": "20261022221440",
+ "v": "20261023194953",
  "modulos": [
   "activos-fijos.js",
   "app.js",
@@ -17,6 +17,7 @@
   "buscador-productos.js",
   "buscador-select.js",
   "catalogo.js",
+  "catalogos-sat.js",
   "categorias-depreciacion.js",
   "centros-costo.js",
   "cfdi.js",

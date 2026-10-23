@@ -1,5 +1,6 @@
 import { avisarRegistroGuardado } from './vinculos.js';
 import { hoyISO } from './fechas.js';
+import { montarBuscadorClaveSat, describirClaveSat } from './catalogos-sat.js';
 import { supabaseClient } from './supabase.js';
 import { renderizarKardexProducto } from './kardex.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
@@ -317,8 +318,12 @@ export async function cargarModuloAltaArticulo() {
 
                                 <div>
                                     <label class="block text-[11px] text-slate-400 mb-1">Clave SAT (ClaveProdServ)</label>
-                                    <input type="text" id="prodClaveSat" inputmode="numeric" maxlength="8" placeholder="8 dígitos del catálogo c_ClaveProdServ" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
-                                    <p class="text-[10px] text-slate-500 mt-0.5">La del producto en sí. También se llena sola al importar facturas XML de tus proveedores.</p>
+                                    <div class="relative">
+                                        <input type="text" id="prodClaveSat" autocomplete="off" maxlength="60" placeholder="Busca por clave o por palabras (ej. envase plástico, 24121807)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                                        <div id="prodClaveSatCaja" class="hidden absolute z-30 left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-h-64 overflow-y-auto"></div>
+                                    </div>
+                                    <p id="prodClaveSatDetalle" class="text-[10px] min-h-[0.9rem] mt-0.5"></p>
+                                    <p class="text-[10px] text-slate-500">La del producto en sí (catálogo c_ClaveProdServ del SAT, 8 dígitos). También se llena sola al importar facturas XML de tus proveedores.</p>
                                 </div>
 
                                 <div id="bloqueProdDensidad">
@@ -378,7 +383,11 @@ export async function cargarModuloAltaArticulo() {
                                     </div>
                                     <div>
                                         <label class="block text-[10px] text-slate-400 mb-0.5">Clave SAT (ClaveProdServ)</label>
-                                        <input type="text" id="cpClaveSat" placeholder="Vacío = igual a la del producto (arriba)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                                        <div class="relative">
+                                            <input type="text" id="cpClaveSat" autocomplete="off" placeholder="Vacío = igual a la del producto (arriba)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                                            <div id="cpClaveSatCaja" class="hidden absolute z-30 left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-h-56 overflow-y-auto"></div>
+                                        </div>
+                                        <p id="cpClaveSatDetalle" class="text-[10px] min-h-[0.9rem] mt-0.5"></p>
                                     </div>
                                     <div class="col-span-2">
                                         <label class="block text-[10px] text-slate-400 mb-0.5">Descripción en la factura</label>
@@ -687,6 +696,7 @@ export async function cargarModuloAltaArticulo() {
                 document.getElementById('prodCantidadMinimaCompra').value = art.cantidad_minima_compra ?? '';
                 document.getElementById('prodClaveSat').value = art.clave_sat || '';
                 document.getElementById('prodClaveSat').dataset.tenia = art.clave_sat ? '1' : '';
+                document.getElementById('prodClaveSat').dispatchEvent(new Event('change'));
                 document.getElementById('prodDensidad').value = art.densidad_kg_l ?? '';
                 delete document.getElementById('prodDensidad').dataset.auto;
                 delete document.getElementById('prodDensidad').dataset.manual;
@@ -800,6 +810,7 @@ export async function cargarModuloAltaArticulo() {
             productoSeleccionadoId = null;
             document.getElementById('formCrearProducto').reset();
             document.getElementById('prodClaveSat').dataset.tenia = '';
+            document.getElementById('prodClaveSat').dispatchEvent(new Event('change'));
             document.getElementById('prodDensidad').dataset.tenia = '';
             delete document.getElementById('prodDensidad').dataset.auto;
             delete document.getElementById('prodDensidad').dataset.manual;
@@ -959,6 +970,10 @@ export async function cargarModuloAltaArticulo() {
             }
         };
 
+        // Buscadores del catálogo SAT (consultan al servidor; no se baja el catálogo completo).
+        montarBuscadorClaveSat({ tipo: 'prod_serv', input: document.getElementById('prodClaveSat'), caja: document.getElementById('prodClaveSatCaja'), detalle: document.getElementById('prodClaveSatDetalle') });
+        montarBuscadorClaveSat({ tipo: 'prod_serv', input: document.getElementById('cpClaveSat'), caja: document.getElementById('cpClaveSatCaja'), detalle: document.getElementById('cpClaveSatDetalle') });
+
         // ---- Claves de proveedor (una a varias por producto) ----
         function renderClavesProv() {
             const cont = document.getElementById('listaClavesProv');
@@ -1028,7 +1043,7 @@ export async function cargarModuloAltaArticulo() {
                 });
                 renderClavesProv();
                 document.getElementById('cpClave').value = '';
-                document.getElementById('cpClaveSat').value = '';
+                document.getElementById('cpClaveSat').value = ''; document.getElementById('cpClaveSat').dispatchEvent(new Event('change'));
                 document.getElementById('cpDescFactura').value = '';
                 selUnidadPreset.value = '';
                 document.getElementById('cpUnidadTexto').value = '';
@@ -2175,6 +2190,7 @@ const unidOrden = crearOrdenTabla('nombre', 'asc');
 let unidFiltro = '';
 let unidFilas = [];
 
+let unidSinClaveSat = false; // true si aún no se corrió el vínculo de unidades con la clave SAT
 export async function abrirTablaUnidades() {
     const idModal = window.idSubventana('modalUnidades');
     if (idModal === 'modalUnidades') document.getElementById('modalUnidades')?.remove();
@@ -2239,9 +2255,15 @@ export async function abrirTablaUnidades() {
 
     try {
         const [rUnid, rProd] = await Promise.all([
-            supabaseClient.from('unidades_medida').select('id, nombre, es_fraccionable').order('nombre', { ascending: true }),
+            supabaseClient.from('unidades_medida').select('id, nombre, es_fraccionable, clave_sat').order('nombre', { ascending: true }),
             supabaseClient.from('productos').select('unidad_medida_id'),
         ]);
+        // Sin sql/2026-10-23_catalogos_sat_vinculo_unidades.sql no existe la columna clave_sat: se lee sin ella.
+        unidSinClaveSat = !!rUnid.error && /clave_sat/i.test(rUnid.error.message || '');
+        if (unidSinClaveSat) {
+            const r2 = await supabaseClient.from('unidades_medida').select('id, nombre, es_fraccionable').order('nombre', { ascending: true });
+            rUnid.data = r2.data; rUnid.error = r2.error;
+        }
         if (rUnid.error) throw rUnid.error;
         const usoPorId = new Map();
         (rProd.data || []).forEach((p) => { if (p.unidad_medida_id) usoPorId.set(p.unidad_medida_id, (usoPorId.get(p.unidad_medida_id) || 0) + 1); });
@@ -2267,18 +2289,20 @@ function unidPintar(cuerpo) {
     cuerpo.innerHTML = `
         <table class="w-full text-left text-xs">
             <thead class="text-slate-500 uppercase sticky top-0 bg-slate-900"><tr>
-                ${thOrden(unidOrden, 'nombre', 'Nombre')}${thOrden(unidOrden, 'fraccionable', 'Fraccionable', 'text-center justify-center')}${thOrden(unidOrden, 'uso', 'En uso', 'text-right justify-end')}<th class="p-2"></th>
+                ${thOrden(unidOrden, 'nombre', 'Nombre')}${unidSinClaveSat ? '' : '<th class="p-2 font-medium" title="ClaveUnidad del SAT (c_ClaveUnidad) que se espera en los CFDI y se imprime en la cotización">Clave SAT</th>'}${thOrden(unidOrden, 'fraccionable', 'Fraccionable', 'text-center justify-center')}${thOrden(unidOrden, 'uso', 'En uso', 'text-right justify-end')}<th class="p-2"></th>
             </tr></thead>
             <tbody>
                 ${filas.map((u) => `
                 <tr class="border-t border-slate-800" data-id="${u.id}">
                     <td class="p-2"><input type="text" class="unid-nombre w-full bg-slate-950 border border-slate-800 rounded p-1 text-xs text-slate-100" value="${escaparHtml(u.nombre)}"></td>
+                    ${unidSinClaveSat ? '' : `<td class="p-2 relative w-32"><input type="text" class="unid-sat w-full bg-slate-950 border border-slate-800 rounded p-1 text-xs text-slate-100 font-mono uppercase" autocomplete="off" placeholder="Buscar…" value="${escaparHtml(u.clave_sat || '')}"><div class="unid-sat-caja hidden absolute z-30 left-2 top-full w-64 bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-h-52 overflow-y-auto"></div><p class="unid-sat-det text-[10px] min-h-[0.8rem] leading-tight"></p></td>`}
                     <td class="p-2 text-center"><input type="checkbox" class="unid-frac accent-sky-500" ${u.es_fraccionable ? 'checked' : ''}></td>
                     <td class="p-2 text-right font-mono text-slate-400" title="Productos que usan esta unidad">${u._uso}</td>
                     <td class="p-2 text-[10px] unid-estado text-slate-600"></td>
                 </tr>`).join('')}
             </tbody>
-        </table>`;
+        </table>
+        <div class="h-56"></div>`;
     wireOrdenTabla(cuerpo, unidOrden, () => unidPintar(cuerpo));
 
     const guardar = async (tr, campos) => {
@@ -2303,6 +2327,22 @@ function unidPintar(cuerpo) {
             const nombre = inp.value.trim();
             if (!nombre) { inp.focus(); return; }
             guardar(inp.closest('tr'), { nombre });
+        });
+    });
+    cuerpo.querySelectorAll('.unid-sat').forEach((inp) => {
+        const tr = inp.closest('tr');
+        const det = tr.querySelector('.unid-sat-det');
+        montarBuscadorClaveSat({ tipo: 'unidad', input: inp, caja: tr.querySelector('.unid-sat-caja'), detalle: det });
+        let previa = inp.value.trim();
+        inp.addEventListener('change', async () => {
+            const v = inp.value.trim().toUpperCase();
+            if (v === previa) return;
+            if (v && !(await describirClaveSat('unidad', v))) {
+                det.innerHTML = '<span class="text-rose-400">Esa clave no existe en el catálogo SAT: elige una de la lista.</span>';
+                inp.value = previa; return;
+            }
+            inp.value = v; previa = v;
+            guardar(tr, { clave_sat: v || null });
         });
     });
     cuerpo.querySelectorAll('.unid-frac').forEach((chk) => {
