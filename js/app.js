@@ -25,6 +25,7 @@ import { cargarModuloTablas } from './tablas.js';
 import { cargarModuloKardex } from './kardex.js';
 import { cargarRegimenes } from './regimenes-fiscales.js';
 import { cargarModuloImportadorClavesProveedor } from './importador-claves-proveedor.js';
+import { cargarModuloImportadorClaveSat } from './importador-clave-sat.js';
 import { cargarModuloImportadorBom } from './importador-bom.js';
 import { cargarModuloClientes } from './clientes.js';
 import { cargarModuloContabilidad, cargarModuloPolizas, cargarModuloGastos, cargarModuloReportesContables } from './contabilidad.js';
@@ -266,6 +267,9 @@ window.loadView = function(viewName, opciones = {}) {
         case 'importador':
             cargarModuloImportador();
             cargarModuloImportadorBom();
+            break;
+        case 'importador-clave-sat':
+            cargarModuloImportadorClaveSat();
             break;
         case 'importador-claves-proveedor':
             cargarModuloImportadorClavesProveedor();

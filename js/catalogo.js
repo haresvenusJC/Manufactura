@@ -1,4 +1,5 @@
 import { avisarRegistroGuardado } from './vinculos.js';
+import { montarBuscadorClaveSat } from './clave-sat.js';
 import { hoyISO } from './fechas.js';
 import { supabaseClient } from './supabase.js';
 import { renderizarKardexProducto } from './kardex.js';
@@ -7,6 +8,7 @@ import { factorConversion, tamanoTeoricoTanda, familiaDeUnidad } from './convers
 import { opcionesPresentacionHtml } from './presentaciones-proveedor.js';
 import { cargarCategoriasDep, opcionesCategoriaDep, textoCategoriaDep } from './categorias-depreciacion.js';
 
+let claveSatUI = null; // buscador de Clave SAT del formulario de Alta de artículo
 let catBusqueda = ''; // texto del buscador en vivo del Catálogo General (SKU y/o nombre)
 const catOrden = crearOrdenTabla('nombre', 'asc'); // ordenamiento de la tabla del Catálogo: alfabético por Nombre por defecto (clic en otra columna lo cambia)
 
@@ -317,7 +319,11 @@ export async function cargarModuloAltaArticulo() {
 
                                 <div>
                                     <label class="block text-[11px] text-slate-400 mb-1">Clave SAT (ClaveProdServ)</label>
-                                    <input type="text" id="prodClaveSat" inputmode="numeric" maxlength="8" placeholder="8 dígitos del catálogo c_ClaveProdServ" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                                    <div class="relative">
+                                        <input type="text" id="prodClaveSat" autocomplete="off" placeholder="Escribe palabras (ej. glicerina) o los 8 dígitos de la clave" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                                        <div id="prodClaveSatLista" class="hidden absolute z-30 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-slate-900 border border-slate-700 rounded-lg shadow-xl"></div>
+                                    </div>
+                                    <p id="prodClaveSatNota" class="text-[10px] text-slate-500 mt-0.5"></p>
                                     <p class="text-[10px] text-slate-500 mt-0.5">La del producto en sí. También se llena sola al importar facturas XML de tus proveedores.</p>
                                 </div>
 
@@ -687,6 +693,7 @@ export async function cargarModuloAltaArticulo() {
                 document.getElementById('prodCantidadMinimaCompra').value = art.cantidad_minima_compra ?? '';
                 document.getElementById('prodClaveSat').value = art.clave_sat || '';
                 document.getElementById('prodClaveSat').dataset.tenia = art.clave_sat ? '1' : '';
+                if (claveSatUI) claveSatUI.mostrarNota();
                 document.getElementById('prodDensidad').value = art.densidad_kg_l ?? '';
                 delete document.getElementById('prodDensidad').dataset.auto;
                 delete document.getElementById('prodDensidad').dataset.manual;
@@ -796,11 +803,15 @@ export async function cargarModuloAltaArticulo() {
             }
         }
 
+        // Clave SAT: buscador por palabras o clave, con la descripción del catálogo (c_clave_prod_serv).
+        claveSatUI = montarBuscadorClaveSat({ input: document.getElementById('prodClaveSat'), caja: document.getElementById('prodClaveSatLista'), nota: document.getElementById('prodClaveSatNota') });
+
         btnNuevoModo.addEventListener('click', async () => {
             productoSeleccionadoId = null;
             document.getElementById('formCrearProducto').reset();
             document.getElementById('prodClaveSat').dataset.tenia = '';
             document.getElementById('prodDensidad').dataset.tenia = '';
+            if (claveSatUI) claveSatUI.mostrarNota();
             delete document.getElementById('prodDensidad').dataset.auto;
             delete document.getElementById('prodDensidad').dataset.manual;
             document.getElementById('prodRendimientoLote').dataset.tenia = '';
@@ -1075,7 +1086,7 @@ export async function cargarModuloAltaArticulo() {
             const elClaveSat = document.getElementById('prodClaveSat');
             const claveSatVal = elClaveSat.value.trim();
             if (claveSatVal && !/^\d{8}$/.test(claveSatVal)) {
-                alert('La Clave SAT (ClaveProdServ) debe ser de 8 dígitos, como en el catálogo del SAT (ej. 24122000).');
+                alert('La Clave SAT (ClaveProdServ) debe ser de 8 dígitos, como en el catálogo del SAT (ej. 24122000). Si escribiste palabras, elige una de las opciones de la lista.');
                 elClaveSat.focus();
                 return;
             }

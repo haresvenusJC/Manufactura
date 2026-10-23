@@ -1,5 +1,5 @@
 {
- "v": "20261022221440",
+ "v": "20261023000843",
  "modulos": [
   "activos-fijos.js",
   "app.js",
@@ -21,6 +21,7 @@
   "centros-costo.js",
   "cfdi.js",
   "cierre-periodo.js",
+  "clave-sat.js",
   "clientes.js",
   "compras.js",
   "contabilidad.js",
@@ -41,6 +42,7 @@
   "fresh-start.js",
   "iconos-accesos.js",
   "importador-bom.js",
+  "importador-clave-sat.js",
   "importador-claves-proveedor.js",
   "importador.js",
   "impresion.js",
