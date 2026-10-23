@@ -5,7 +5,7 @@ import { supabaseClient } from './supabase.js';
 import { renderizarKardexProducto } from './kardex.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { factorConversion, tamanoTeoricoTanda, familiaDeUnidad } from './conversion-unidades.js';
-import { opcionesPresentacionHtml } from './presentaciones-proveedor.js';
+import { factorSugeridoSat } from './factor-unidad-sat.js';
 import { cargarCategoriasDep, opcionesCategoriaDep, textoCategoriaDep } from './categorias-depreciacion.js';
 
 let catBusqueda = ''; // texto del buscador en vivo del Catálogo General (SKU y/o nombre)
@@ -75,10 +75,15 @@ export async function cargarModuloAltaArticulo() {
         // 1. Cargar unidades de medida
         let unidadesMedida = [];
         const mapaUnidades = {};
-        const { data: resUm, error: errUm } = await supabaseClient
+        const mapaClaveUnidad = {};   // id de unidad del ERP -> su clave SAT (si ya se ligó)
+        let { data: resUm, error: errUm } = await supabaseClient
             .from('unidades_medida')
-            .select('id, nombre')
+            .select('id, nombre, clave_sat')
             .order('id', { ascending: true });
+        if (errUm && /clave_sat/i.test(errUm.message || '')) {
+            // Aún no se corrió sql/2026-10-23_catalogos_sat_vinculo_unidades.sql: se lee sin la clave SAT.
+            ({ data: resUm, error: errUm } = await supabaseClient.from('unidades_medida').select('id, nombre').order('id', { ascending: true }));
+        }
 
         if (errUm) {
             throw errUm;
@@ -86,6 +91,7 @@ export async function cargarModuloAltaArticulo() {
             unidadesMedida = resUm;
             unidadesMedida.forEach(u => {
                 mapaUnidades[u.id] = u.nombre;
+                mapaClaveUnidad[u.id] = u.clave_sat || '';
             });
         }
 
@@ -393,23 +399,21 @@ export async function cargarModuloAltaArticulo() {
                                         <label class="block text-[10px] text-slate-400 mb-0.5">Descripción en la factura</label>
                                         <input type="text" id="cpDescFactura" placeholder="Opcional · texto tal como llega en el XML" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
                                     </div>
-                                    <div>
-                                        <label class="block text-[10px] text-slate-400 mb-0.5">Unidad de venta del proveedor</label>
-                                        <select id="cpUnidadPreset" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
-                                            <option value="">Otra / escribir abajo…</option>
-                                            ${opcionesPresentacionHtml()}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="block text-[10px] text-slate-400 mb-0.5">Factor (unidades internas por unidad del proveedor)</label>
-                                        <input type="number" step="any" min="0.0001" id="cpFactor" value="1" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
-                                    </div>
                                     <div class="col-span-2">
-                                        <label class="block text-[10px] text-slate-400 mb-0.5">Unidad (texto, si elegiste "Otra")</label>
-                                        <input type="text" id="cpUnidadTexto" placeholder="Ej. Rollo 500 m" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                        <label class="block text-[10px] text-slate-400 mb-0.5">Unidad SAT con que vende este proveedor (ClaveUnidad)</label>
+                                        <div class="relative">
+                                            <input type="text" id="cpUnidadSat" autocomplete="off" placeholder="Busca: mil, pieza, kilogramo, caja… (H87, KGM, MIL)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono uppercase">
+                                            <div id="cpUnidadSatCaja" class="hidden absolute z-30 left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-h-56 overflow-y-auto"></div>
+                                        </div>
+                                        <p id="cpUnidadSatDetalle" class="text-[10px] min-h-[0.9rem] mt-0.5"></p>
                                     </div>
+                                    <div>
+                                        <label id="cpFactorEtiqueta" class="block text-[10px] text-slate-400 mb-0.5">Factor: unidades de tu inventario por 1 de las del proveedor</label>
+                                        <input type="number" step="any" min="0.000001" id="cpFactor" placeholder="Ej. 1000" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                                    </div>
+                                    <div class="flex items-end"><p id="cpFactorNota" class="text-[10px] text-slate-500 leading-snug"></p></div>
                                 </div>
-                                <p class="text-[10px] text-slate-500">Ej. el proveedor vende por "Millar" y tú le das entrada en piezas: elige el preset Millar — el factor (1000) queda listo para cuando conviertas la recepción en Recibo de mercancía.</p>
+                                <p class="text-[10px] text-slate-500">Cada proveedor puede vender el mismo producto en una unidad distinta (uno en MIL, otro en H87): se guarda una clave por proveedor. Con unidad SAT el factor es obligatorio — es lo que convierte lo que cotiza o factura el proveedor a la unidad de tu inventario (el stock y el BOM solo conocen UNA unidad por producto).</p>
                                 <button type="button" id="btnAgregarClaveProv" class="w-full lg:w-auto lg:px-6 bg-slate-800 hover:bg-slate-700 text-sky-300 font-medium py-1.5 rounded-lg text-xs transition">＋ Agregar clave de proveedor</button>
                                 <div id="listaClavesProv" class="text-xs text-slate-400 bg-slate-900 p-2 rounded-lg border border-slate-800 min-h-[32px]">Sin claves registradas.</div>
                             </div>
@@ -774,8 +778,15 @@ export async function cargarModuloAltaArticulo() {
                 try {
                     let { data: cps, error: errCps } = await supabaseClient
                         .from('producto_claves_proveedor')
-                        .select('proveedor_id, clave, clave_sat, descripcion_factura, unidad_factura, factor_conversion')
+                        .select('proveedor_id, clave, clave_sat, descripcion_factura, unidad_factura, factor_conversion, clave_unidad_sat')
                         .eq('producto_id', id);
+                    if (errCps && /clave_unidad_sat/i.test(errCps.message || '')) {
+                        // Aún no se corrió sql/2026-10-23b_claves_proveedor_unidad_sat.sql.
+                        ({ data: cps, error: errCps } = await supabaseClient
+                            .from('producto_claves_proveedor')
+                            .select('proveedor_id, clave, clave_sat, descripcion_factura, unidad_factura, factor_conversion')
+                            .eq('producto_id', id));
+                    }
                     if (errCps) {
                         // factor_conversion aún no existe: cae al select sin ella.
                         ({ data: cps, error: errCps } = await supabaseClient
@@ -792,6 +803,7 @@ export async function cargarModuloAltaArticulo() {
                             claveSat: c.clave_sat || '',
                             descFactura: c.descripcion_factura || '',
                             unidadFactura: c.unidad_factura || '',
+                            claveUnidadSat: c.clave_unidad_sat || null,
                             factorConversion: c.factor_conversion ?? null,
                         }));
                     }
@@ -986,7 +998,7 @@ export async function cargarModuloAltaArticulo() {
                         <span class="text-slate-500"> · ${escaparHtml(c.proveedorNombre || 'sin proveedor')}</span>
                         ${c.claveSat ? `<span class="text-slate-500"> · SAT ${escaparHtml(c.claveSat)}</span>` : ''}
                         ${c.descFactura ? `<span class="text-slate-500 block">"${escaparHtml(c.descFactura)}"</span>` : ''}
-                        ${c.unidadFactura ? `<span class="text-slate-500 block">Unidad proveedor: ${escaparHtml(c.unidadFactura)}${c.factorConversion ? ` (factor ${c.factorConversion})` : ''}</span>` : ''}
+                        ${c.unidadFactura ? `<span class="text-slate-500 block">Unidad proveedor: ${escaparHtml(c.unidadFactura)}${c.claveUnidadSat ? ` [${escaparHtml(c.claveUnidadSat)}]` : ''}${c.factorConversion ? ` · 1 = ${c.factorConversion.toLocaleString ? c.factorConversion.toLocaleString('es-MX', { maximumFractionDigits: 6 }) : c.factorConversion} ${escaparHtml(mapaUnidades[document.getElementById('prodUnidadMedidaId')?.value] || 'de tu inventario')}` : ''}</span>` : ''}
                     </span>
                     <button type="button" onclick="window.removerClaveProv(${i})" class="text-red-400 hover:text-red-300 text-xs shrink-0">Eliminar</button>
                 </div>`).join('');
@@ -997,20 +1009,42 @@ export async function cargarModuloAltaArticulo() {
             renderClavesProv();
         };
 
-        const selUnidadPreset = document.getElementById('cpUnidadPreset');
-        if (selUnidadPreset) {
-            selUnidadPreset.addEventListener('change', () => {
-                const factorInput = document.getElementById('cpFactor');
-                const textoInput = document.getElementById('cpUnidadTexto');
-                if (selUnidadPreset.value) {
-                    factorInput.value = selUnidadPreset.value;
-                    textoInput.value = '';
-                    textoInput.disabled = true;
-                } else {
-                    textoInput.disabled = false;
-                }
-            });
-        }
+        // ---- Unidad SAT con que vende el proveedor + factor a la unidad del inventario ----
+        const inpUnidadSat = document.getElementById('cpUnidadSat');
+        const detUnidadSat = document.getElementById('cpUnidadSatDetalle');
+        const inpFactorCp = document.getElementById('cpFactor');
+        const notaFactorCp = document.getElementById('cpFactorNota');
+        let unidadSatProv = null;   // { clave, nombre } de la unidad elegida, ya validada contra el catálogo
+        const selUnidadInv = () => document.getElementById('prodUnidadMedidaId');
+        const nombreUnidadInv = () => { const s = selUnidadInv(); return s && s.value ? (mapaUnidades[s.value] || '') : ''; };
+        const claveUnidadInv = () => { const s = selUnidadInv(); return s && s.value ? (mapaClaveUnidad[s.value] || '') : ''; };
+
+        const sugerirFactorCp = () => {
+            if (!unidadSatProv) { notaFactorCp.textContent = ''; return; }
+            const inv = nombreUnidadInv();
+            const etiq = document.getElementById('cpFactorEtiqueta');
+            if (etiq) etiq.textContent = `Factor: ${inv || 'unidades de tu inventario'} por 1 ${unidadSatProv.nombre}`;
+            if (!inv) { inpFactorCp.value = ''; notaFactorCp.textContent = 'Elige primero la Unidad de Medida del producto (arriba) para poder sugerir el factor.'; return; }
+            const sug = factorSugeridoSat({ claveProv: unidadSatProv.clave, nombreInv: inv, claveInv: claveUnidadInv() });
+            if (sug) {
+                inpFactorCp.value = String(sug.factor);
+                notaFactorCp.textContent = `Sugerido: 1 ${unidadSatProv.nombre} = ${sug.factor.toLocaleString('es-MX', { maximumFractionDigits: 6 })} ${inv}. ${sug.nota}`;
+            } else {
+                inpFactorCp.value = '';
+                notaFactorCp.textContent = `No se puede deducir sola: captura cuántos ${inv} trae 1 ${unidadSatProv.nombre} según lo que te vende este proveedor.`;
+            }
+        };
+        const resolverUnidadSat = async () => {
+            const v = inpUnidadSat.value.trim().toUpperCase();
+            if (!v) { unidadSatProv = null; notaFactorCp.textContent = ''; return; }
+            const r = await describirClaveSat('unidad', v);
+            unidadSatProv = r ? { clave: r.clave, nombre: r.texto } : null;
+            sugerirFactorCp();
+        };
+        montarBuscadorClaveSat({ tipo: 'unidad', input: inpUnidadSat, caja: document.getElementById('cpUnidadSatCaja'), detalle: detUnidadSat });
+        inpUnidadSat.addEventListener('change', resolverUnidadSat);
+        // Si cambia la Unidad de Medida del producto, el factor sugerido cambia con ella.
+        selUnidadInv()?.addEventListener('change', () => { if (unidadSatProv) sugerirFactorCp(); });
 
         const btnAddClaveProv = document.getElementById('btnAgregarClaveProv');
         if (btnAddClaveProv) {
@@ -1024,11 +1058,17 @@ export async function cargarModuloAltaArticulo() {
                     (c.proveedorId || null) === proveedorId && c.clave.toLowerCase() === clave.toLowerCase());
                 if (dup) { alert('Esa clave ya está en la lista para ese proveedor.'); return; }
 
-                const unidadPreset = selUnidadPreset.value ? (selUnidadPreset.options[selUnidadPreset.selectedIndex]?.dataset.etiqueta || selUnidadPreset.options[selUnidadPreset.selectedIndex]?.text) : '';
-                const unidadTexto = document.getElementById('cpUnidadTexto').value.trim();
-                const unidadFactura = unidadPreset || unidadTexto || '';
-                const factorVal = parseFloat(document.getElementById('cpFactor').value);
-                const factorConversion = unidadFactura && factorVal > 0 ? factorVal : null;
+                // Unidad SAT del proveedor: si hay, debe existir en el catálogo y el factor es obligatorio.
+                const textoUnidad = inpUnidadSat.value.trim();
+                if (textoUnidad && !unidadSatProv) { alert('La unidad SAT escrita no está en el catálogo: elige una de la lista (H87, KGM, MIL…).'); return; }
+                const factorVal = parseFloat(inpFactorCp.value);
+                if (unidadSatProv && !(factorVal > 0)) {
+                    alert(`Captura el factor: cuántas unidades de tu inventario (${nombreUnidadInv() || 'unidad del producto'}) trae 1 ${unidadSatProv.nombre}. Sin él no se puede convertir lo que cotiza o factura este proveedor.`);
+                    inpFactorCp.focus(); return;
+                }
+                const unidadFactura = unidadSatProv ? unidadSatProv.nombre : '';
+                const claveUnidadSat = unidadSatProv ? unidadSatProv.clave : null;
+                const factorConversion = unidadSatProv ? factorVal : null;
 
                 clavesProvTemp.push({
                     proveedorId,
@@ -1039,16 +1079,15 @@ export async function cargarModuloAltaArticulo() {
                     claveSat: document.getElementById('cpClaveSat').value.trim() || document.getElementById('prodClaveSat').value.trim(),
                     descFactura: document.getElementById('cpDescFactura').value.trim(),
                     unidadFactura,
+                    claveUnidadSat,
                     factorConversion,
                 });
                 renderClavesProv();
                 document.getElementById('cpClave').value = '';
                 document.getElementById('cpClaveSat').value = ''; document.getElementById('cpClaveSat').dispatchEvent(new Event('change'));
                 document.getElementById('cpDescFactura').value = '';
-                selUnidadPreset.value = '';
-                document.getElementById('cpUnidadTexto').value = '';
-                document.getElementById('cpUnidadTexto').disabled = false;
-                document.getElementById('cpFactor').value = '1';
+                inpUnidadSat.value = ''; unidadSatProv = null; detUnidadSat.textContent = '';
+                inpFactorCp.value = ''; notaFactorCp.textContent = '';
             });
         }
 
@@ -1232,11 +1271,17 @@ export async function cargarModuloAltaArticulo() {
                             descripcion_factura: c.descFactura || null,
                             unidad_factura: c.unidadFactura || null,
                             factor_conversion: c.factorConversion ?? null,
+                            clave_unidad_sat: c.claveUnidadSat || null,
                         }));
                         let { error: errCp } = await supabaseClient.from('producto_claves_proveedor').insert(filasCp);
+                        if (errCp && /clave_unidad_sat/i.test(errCp.message || '') && /does not exist|schema cache|could not find/i.test(errCp.message || '')) {
+                            // Aún no se corrió sql/2026-10-23b_claves_proveedor_unidad_sat.sql: se guarda sin la unidad SAT.
+                            const filasCpSinSat = filasCp.map(({ clave_unidad_sat, ...resto }) => resto);
+                            ({ error: errCp } = await supabaseClient.from('producto_claves_proveedor').insert(filasCpSinSat));
+                        }
                         if (errCp && /does not exist|schema cache|could not find/i.test(errCp.message || '')) {
                             // factor_conversion aún no existe: reintenta sin ella (falta correr el SQL).
-                            const filasCpSinFactor = filasCp.map(({ factor_conversion, ...resto }) => resto);
+                            const filasCpSinFactor = filasCp.map(({ factor_conversion, clave_unidad_sat, ...resto }) => resto);
                             ({ error: errCp } = await supabaseClient.from('producto_claves_proveedor').insert(filasCpSinFactor));
                         }
                         if (errCp) throw errCp;

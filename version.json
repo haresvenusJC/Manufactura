@@ -1,5 +1,5 @@
 {
- "v": "20261023195518",
+ "v": "20261023203504",
  "modulos": [
   "activos-fijos.js",
   "app.js",
@@ -35,6 +35,7 @@
   "enlaces-reporte.js",
   "entradas.js",
   "estado-vacio.js",
+  "factor-unidad-sat.js",
   "fechas.js",
   "filtro-columna.js",
   "folios.js",
