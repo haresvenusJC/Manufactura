@@ -6,7 +6,7 @@
     <title>Hares de México - Control de Inventarios y Producción</title>
     <link rel="icon" type="image/svg+xml" href="img/HARES_icono_tinta.svg">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="css/tema-base.css?v=20261016040000">
+    <link rel="stylesheet" href="css/tema-base.css?v=20261023150000">
     <style>
         .hidden { display: none !important; }
         summary { list-style: none; }
@@ -130,8 +130,8 @@
     <!-- Solo para el tema "Claro Ice" (data-theme="claro-ice"); los demás temas siguen con Inter. -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
     <!-- Capa visual moderna (radios, botones, campos, tablas). Usa las variables del tema de arriba. -->
-    <link rel="stylesheet" href="css/ui-moderno.css?v=20261016040000">
-    <link rel="stylesheet" href="css/bienvenida.css?v=20261016040000">
+    <link rel="stylesheet" href="css/ui-moderno.css?v=20261023150000">
+    <link rel="stylesheet" href="css/bienvenida.css?v=20261023150000">
     <script>
         /* aplica el tema guardado antes de pintar, para que no haya parpadeo */
         (function () {
@@ -773,14 +773,16 @@
             </section>
 
             <!-- Vista: Contabilidad - Tareas -->
-            <section id="view-tareas" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-sky-400">Contabilidad · Tareas</h2>
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-                    <input type="text" id="tareasBuscador" placeholder="🔍 Buscar por título o detalle..."
-                           class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 mb-3">
+            <section id="view-tareas" class="vista-seccion lista-completa hidden space-y-4">
+                <h2 class="text-xl font-bold text-sky-400">Tareas</h2>
+                <div class="flex items-end gap-1 border-b border-slate-800">
+                    <button type="button" id="tareasTabPend" class="px-4 py-2 text-sm font-semibold border-b-2 border-sky-500 text-sky-300 cursor-pointer">Pendientes</button>
+                    <button type="button" id="tareasTabHist" class="px-4 py-2 text-sm font-semibold border-b-2 border-transparent text-slate-400 cursor-pointer">Historial</button>
+                </div>
+                <div id="tareasPanelPend" class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorTareas">Cargando tareas...</div>
                 </div>
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                <div id="tareasPanelHist" class="hidden bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorTareasHistorial">Cargando historial...</div>
                 </div>
             </section>
