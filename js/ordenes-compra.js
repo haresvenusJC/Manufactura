@@ -614,8 +614,8 @@ async function renderVistaOC(o, cuerpo) {
             <ul class="mt-1 text-[11px] text-amber-100/90 list-disc pl-4">${o.diferencias_cotizacion.map((x) => `<li>${esc(x.producto)}: pedido ${Number(x.solicitado?.cantidad || 0).toLocaleString('es-MX')} × ${money4(x.solicitado?.costo)} → cotizado ${Number(x.cotizado?.cantidad || 0).toLocaleString('es-MX')} × ${money4(x.cotizado?.costo)} (${Number(x.diferencia?.importe || 0) >= 0 ? '+' : ''}${money(x.diferencia?.importe)})</li>`).join('')}</ul>
             ${o.diferencias_nota ? `<p class="mt-1 text-[11px]">Nota del comprador: ${esc(o.diferencias_nota)}</p>` : ''}</div>` : ''}
         ${o.notas ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Notas de la orden</span><p class="text-xs text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5">${esc(o.notas)}</p></div>` : ''}
-        <div class="border border-slate-800 rounded-lg mb-3">
-          <div class="px-2 py-1.5 text-[11px] font-semibold text-slate-300 bg-slate-950 border-b border-slate-800">Cotización del proveedor <span class="font-normal text-slate-500">· tal como la entregó</span></div>
+        <div class="border border-slate-800 rounded-lg">
+          <div class="px-2 py-1.5 text-[11px] font-semibold text-slate-300 bg-slate-950 border-b border-slate-800">Partidas <span class="font-normal text-slate-500">· arriba, tal como lo cotizó el proveedor; en el renglón sombreado, lo nuestro</span></div>
           <table class="w-full text-left text-xs text-slate-300 table-fixed">
             <colgroup><col style="width:4%"><col style="width:10%"><col style="width:9%"><col style="width:12%"><col style="width:14%"><col><col style="width:14%"><col style="width:13%"></colgroup>
             <thead class="text-slate-400 text-[10px] font-semibold"><tr>
@@ -630,16 +630,33 @@ async function renderVistaOC(o, cuerpo) {
                   const nombre = d.productos?.nombre || d.descripcion || '—';
                   const cantP = conProv ? Number(d.cantidad_proveedor) : Number(d.cantidad || 0);
                   const precioP = conProv ? Number(d.precio_proveedor) : Number(d.costo_unitario_estimado || 0);
+                  const solic = d.cantidad_solicitada != null && (Math.abs(Number(d.cantidad_solicitada) - Number(d.cantidad)) > 1e-6 || Math.abs(Number(d.costo_solicitado || 0) - Number(d.costo_unitario_estimado || 0)) >= 0.00005);
+                  const obs = [solic ? `Solicitado: ${Number(d.cantidad_solicitada).toLocaleString('es-MX', { maximumFractionDigits: 4 })} × ${money4(d.costo_solicitado)}` : '',
+                      `Recibido: ${Number(d.cantidad_recibida || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}`, d.notas || ''].filter(Boolean);
+                  const equiv = d.clave_unidad_sat && Number(d.factor_conversion_proveedor) > 0 ? `× ${Number(d.factor_conversion_proveedor).toLocaleString('es-MX', { maximumFractionDigits: 6 })}` : '';
                   return `
                 <tr class="border-t border-slate-800 align-top">
-                  <td class="px-1.5 py-1.5 text-slate-500">${i + 1}</td>
-                  <td class="px-1.5 py-1.5 text-right font-mono">${Number(cantP).toLocaleString('es-MX', { maximumFractionDigits: 6 })}</td>
-                  <td class="px-1.5 py-1.5 font-mono">${esc(d.clave_unidad_sat || (conProv ? '' : uInv))}</td>
-                  <td class="px-1.5 py-1.5 font-mono">${esc(d.clave_prod_serv_sat || '')}</td>
-                  <td class="px-1.5 py-1.5 font-mono">${esc(d.sku_proveedor || '')}</td>
-                  <td class="px-1.5 py-1.5">${esc(d.descripcion_proveedor || nombre)}</td>
-                  <td class="px-1.5 py-1.5 text-right font-mono">${conProv ? '$' + Number(precioP).toLocaleString('es-MX', { minimumFractionDigits: 4, maximumFractionDigits: 6 }) : money4(precioP)}</td>
-                  <td class="px-1.5 py-1.5 text-right font-mono">${money(importePartidaOdc(d))}</td>
+                  <td class="px-1.5 pt-1.5 pb-1 text-slate-500">${i + 1}</td>
+                  <td class="px-1.5 pt-1.5 pb-1 text-right font-mono">${Number(cantP).toLocaleString('es-MX', { maximumFractionDigits: 6 })}</td>
+                  <td class="px-1.5 pt-1.5 pb-1 font-mono">${esc(d.clave_unidad_sat || (conProv ? '' : uInv))}</td>
+                  <td class="px-1.5 pt-1.5 pb-1 font-mono">${esc(d.clave_prod_serv_sat || '')}</td>
+                  <td class="px-1.5 pt-1.5 pb-1 font-mono">${esc(d.sku_proveedor || '')}</td>
+                  <td class="px-1.5 pt-1.5 pb-1">${esc(d.descripcion_proveedor || nombre)}</td>
+                  <td class="px-1.5 pt-1.5 pb-1 text-right font-mono">${conProv ? '$' + Number(precioP).toLocaleString('es-MX', { minimumFractionDigits: 4, maximumFractionDigits: 6 }) : money4(precioP)}</td>
+                  <td class="px-1.5 pt-1.5 pb-1 text-right font-mono">${money(importePartidaOdc(d))}</td>
+                </tr>
+                <tr class="bg-slate-800/70 text-[11px] text-slate-300 font-semibold">
+                  <td></td>
+                  <td class="px-1.5 py-1 text-right font-mono">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</td>
+                  <td class="px-1.5 py-1">${esc(uInv)}</td>
+                  <td class="px-1.5 py-1 font-mono">${equiv}</td>
+                  <td class="px-1.5 py-1 font-mono">${d.productos?.sku ? 'SKU&nbsp;&nbsp;' + esc(d.productos.sku) : ''}</td>
+                  <td class="px-1.5 py-1">${esc(nombre)}</td>
+                  <td class="px-1.5 py-1 text-right font-mono">${money4(d.costo_unitario_estimado)}</td>
+                  <td></td>
+                </tr>
+                <tr class="bg-slate-800/70 text-[10px] text-slate-400 border-b border-slate-800">
+                  <td></td><td colspan="7" class="px-1.5 pb-1">${obs.map(esc).join(' · ')}</td>
                 </tr>`;
               }).join('') || '<tr><td colspan="8" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
             </tbody>
@@ -648,37 +665,6 @@ async function renderVistaOC(o, cuerpo) {
               ${o.condicion_pago ? `<tr><td colspan="7" class="px-1.5 py-1 text-right text-slate-400">IVA 16% (estimado)</td><td class="px-1.5 py-1 text-right font-mono text-slate-300">${money(redondear2(totalEst * 0.16))}</td></tr>
               <tr><td colspan="7" class="px-1.5 py-1.5 text-right font-semibold text-slate-300">Total estimado</td><td class="px-1.5 py-1.5 text-right font-mono font-bold text-emerald-300">${money(redondear2(totalEst * 1.16))}</td></tr>` : ''}
             </tfoot>
-          </table>
-        </div>
-        <div class="border border-slate-800 rounded-lg">
-          <div class="px-2 py-1.5 text-[11px] font-semibold text-slate-300 bg-slate-950 border-b border-slate-800">Nuestro inventario · notas y observaciones</div>
-          <table class="w-full text-left text-xs text-slate-300 table-fixed">
-            <colgroup><col style="width:4%"><col style="width:11%"><col><col style="width:11%"><col style="width:9%"><col style="width:12%"><col style="width:16%"><col style="width:21%"></colgroup>
-            <thead class="text-slate-400 text-[10px] font-semibold"><tr>
-              <th class="px-1.5 py-1.5">#</th><th class="px-1.5 py-1.5">SKU</th><th class="px-1.5 py-1.5">Producto</th>
-              <th class="px-1.5 py-1.5 text-right">Cantidad</th><th class="px-1.5 py-1.5">Unidad</th>
-              <th class="px-1.5 py-1.5 text-right">Costo c/u</th><th class="px-1.5 py-1.5">Equivalencia</th><th class="px-1.5 py-1.5">Observaciones</th>
-            </tr></thead>
-            <tbody>
-              ${det.map((d, i) => {
-                  const uInv = nombreUnidad(d.unidad_medida_id);
-                  const nombre = d.productos?.nombre || d.descripcion || '—';
-                  const solic = d.cantidad_solicitada != null && (Math.abs(Number(d.cantidad_solicitada) - Number(d.cantidad)) > 1e-6 || Math.abs(Number(d.costo_solicitado || 0) - Number(d.costo_unitario_estimado || 0)) >= 0.00005);
-                  const obs = [solic ? `Solicitado: ${Number(d.cantidad_solicitada).toLocaleString('es-MX', { maximumFractionDigits: 4 })} × ${money4(d.costo_solicitado)}` : '',
-                      `Recibido: ${Number(d.cantidad_recibida || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}`, d.notas || ''].filter(Boolean);
-                  return `
-                <tr class="border-t border-slate-800 align-top">
-                  <td class="px-1.5 py-1.5 text-slate-500">${i + 1}</td>
-                  <td class="px-1.5 py-1.5 font-mono">${esc(d.productos?.sku || '')}</td>
-                  <td class="px-1.5 py-1.5">${esc(nombre)}</td>
-                  <td class="px-1.5 py-1.5 text-right font-mono">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</td>
-                  <td class="px-1.5 py-1.5">${esc(uInv)}</td>
-                  <td class="px-1.5 py-1.5 text-right font-mono">${money4(d.costo_unitario_estimado)}</td>
-                  <td class="px-1.5 py-1.5">${d.clave_unidad_sat && d.factor_conversion_proveedor ? `1 ${esc(d.clave_unidad_sat)} = ${Number(d.factor_conversion_proveedor).toLocaleString('es-MX', { maximumFractionDigits: 6 })}` : ''}</td>
-                  <td class="px-1.5 py-1.5 text-[11px] text-slate-400">${obs.map(esc).join('<br>')}</td>
-                </tr>`;
-              }).join('')}
-            </tbody>
           </table>
         </div>
         ${o.condicion_pago ? `<div class="hidden print:grid grid-cols-2 gap-10 mt-10 text-[10px] text-slate-500">
