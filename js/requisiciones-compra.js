@@ -695,7 +695,7 @@ function reqRenderResurtir(idx) {
             <td class="px-1.5 pt-2 pb-0.5 text-right font-mono text-slate-100" data-k="imp">${money(importe(cantProv(p), p.precioProv))}</td>
             <td class="px-1 pt-2 pb-0.5 text-right"><button type="button" onclick="window.reqQuitarPartida(${i})" class="text-rose-400 hover:text-rose-300 text-xs px-1.5 py-0.5 bg-rose-950/40 rounded border border-rose-900/50" title="Quitar">✕</button></td>
           </tr>
-          <tr class="bg-slate-800/70 text-[11px] text-slate-300 border-b border-slate-800" data-rs="${i}">
+          <tr class="border-b border-slate-800 text-xs font-semibold" style="background:var(--bg-2);color:var(--tx-0)">
             <td class="px-1.5 py-1 text-right font-mono font-semibold" data-k="cantnuestra">${formatoNum(p.cantidad)}</td>
             <td class="px-1.5 py-1 font-semibold">${esc(p.unidadNombre || '')}</td>
             <td></td>
@@ -1565,7 +1565,7 @@ window.reqAutorizar = async (id) => {
 
           <div class="${card}">
             <h4 class="${h3}">📦 Partidas cotizadas <span class="font-normal normal-case text-slate-500">— tal como las cotizó el proveedor</span></h4>
-            <p class="text-[11px] text-slate-500 mb-3">${manual ? 'Captura cada producto como lo cotizó el proveedor.' : 'Captura lo que cotizó el proveedor. El renglón sombreado es lo que pidió la requisición.'} Si vende en otra unidad (ej. MIL), elige su Clave UM y captura el factor.</p>
+            <p class="text-[11px] text-slate-500 mb-3">${manual ? 'Captura cada producto como lo cotizó el proveedor.' : 'Captura lo que cotizó el proveedor. El renglón sombreado es lo que pidió la requisición.'} Si vende en otra unidad (ej. MIL), elige su Clave UM: el sistema reconoce la equivalencia solo.</p>
             ${manual ? `
             <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 mb-3">
               <div class="grid grid-cols-2 sm:grid-cols-6 gap-2 items-end">
@@ -1631,13 +1631,12 @@ window.reqAutorizar = async (id) => {
     const inpL = 'w-full bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-xs text-slate-100';
 
     // Renglón sombreado: lo que pidió la requisición (cantidad, unidad, SKU, producto), alineado bajo las columnas de la cotización.
-    // Solo lleva un campo editable: el factor, y solo si el proveedor vende en otra unidad.
+    // El factor NO se captura aquí: el sistema lo reconoce solo (Claves de proveedor o `factorSugeridoSat`: MIL → 1,000 piezas, KGM → kg...).
+    // Solo si no se puede deducir (caja, tambo, litro↔kilo...) avisa dónde capturarlo y la orden no se confirma hasta que exista.
     const textoFactor = (l) => {
-        if (!l.claveUm) return l.umInvalida ? `<span class="text-amber-300" title="No está en el catálogo SAT">⚠ ${esc(l.umInvalida)}</span>` : '';
-        const ok = (l.factor || 0) > 0;
-        const ayuda = `Unidades de tu inventario (${l.unidad || '—'}) que trae 1 ${l.nombreUm || l.claveUm}.${l.notaFactor ? ' ' + l.notaFactor : ''}`;
-        return `<span class="inline-flex items-center gap-1" title="${esc(ayuda)}"><span class="text-slate-500">×</span>
-            <input type="number" data-factor="" step="any" min="0" value="${l.factor ?? ''}" placeholder="factor" class="w-full min-w-0 bg-slate-900 border ${ok ? 'border-slate-700' : 'border-amber-500'} rounded px-1.5 py-0.5 text-xs text-right font-mono text-slate-100"></span>`;
+        if (!l.claveUm) return l.umInvalida ? `<span class="font-semibold" style="color:var(--warn,#b45309)" title="No está en el catálogo SAT">⚠ ${esc(l.umInvalida)}</span>` : '';
+        if ((l.factor || 0) > 0) return '';
+        return `<span class="font-semibold" style="color:var(--warn,#b45309)" title="${esc(`No se pudo deducir cuántas ${l.unidad || 'unidades de tu inventario'} trae 1 ${l.nombreUm || l.claveUm}. Captúralo en Alta de artículo → Claves de proveedor.`)}">⚠ Falta factor</span>`;
     };
     const pintarNuestro = (i) => {
         const l = lineas[i];
@@ -1707,7 +1706,7 @@ window.reqAutorizar = async (id) => {
             <td class="px-1.5 pt-2 pb-0.5 text-right font-mono text-slate-100" data-imp="${i}">${money(impProv(l))}</td>
             <td class="px-1 pt-2 pb-0.5 text-right">${manual ? `<button type="button" data-quitar="${i}" class="text-rose-400 hover:text-rose-300 text-xs px-1.5 py-0.5 bg-rose-950/40 rounded border border-rose-900/50">✕</button>` : ''}</td>
           </tr>
-          <tr class="bg-slate-800/70 text-[11px] text-slate-300 border-b border-slate-800">
+          <tr class="border-b border-slate-800 text-xs font-semibold" style="background:var(--bg-2);color:var(--tx-0)">
             <td class="px-1.5 py-1 text-right font-mono font-semibold">${formatoNum(l.cantSol != null ? l.cantSol : cantInt(l))}</td>
             <td class="px-1.5 py-1 font-semibold">${esc(l.unidad || '')}</td>
             <td class="px-1.5 py-1" data-factorbox="${i}">${textoFactor(l)}</td>
@@ -1947,7 +1946,7 @@ window.reqAutorizar = async (id) => {
         const umMala = lineas.find((l) => l.umInvalida);
         if (umMala) return err('La clave de unidad «' + umMala.umInvalida + '» (' + umMala.nombre + ') no está en el catálogo SAT. Elígela de la lista o déjala vacía.');
         const sinFactor = lineas.find((l) => l.claveUm && !(l.factor > 0));
-        if (sinFactor) return err('«' + sinFactor.nombre + '»: captura el factor de la unidad ' + sinFactor.claveUm + ' (cuántas ' + (sinFactor.unidad || 'unidades de tu inventario') + ' trae 1 ' + (sinFactor.nombreUm || sinFactor.claveUm) + ').');
+        if (sinFactor) return err('«' + sinFactor.nombre + '»: el sistema no pudo deducir cuántas ' + (sinFactor.unidad || 'unidades de tu inventario') + ' trae 1 ' + (sinFactor.nombreUm || sinFactor.claveUm) + '. Captúralo en Alta de artículo → Claves de proveedor (unidad SAT y factor) y vuelve a abrir esta orden.');
         const satMala = lineas.find((l) => l.claveSat && !/^\d{8}$/.test(l.claveSat));
         if (satMala) return err('«' + satMala.nombre + '»: la clave SAT del producto debe tener 8 dígitos.');
         const afMal = lineas.find((l) => l.productoId && reqProductos.find((p) => p.id === Number(l.productoId))?.tipo === 'activo_fijo' && cantInt(l) !== 1);

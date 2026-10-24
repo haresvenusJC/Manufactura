@@ -645,7 +645,7 @@ async function renderVistaOC(o, cuerpo) {
                   <td class="px-1.5 pt-1.5 pb-1 text-right font-mono">${conProv ? '$' + Number(precioP).toLocaleString('es-MX', { minimumFractionDigits: 4, maximumFractionDigits: 6 }) : money4(precioP)}</td>
                   <td class="px-1.5 pt-1.5 pb-1 text-right font-mono">${money(importePartidaOdc(d))}</td>
                 </tr>
-                <tr class="bg-slate-800/70 text-[11px] text-slate-300 font-semibold">
+                <tr class="text-xs font-semibold" style="background:var(--bg-2);color:var(--tx-0)">
                   <td></td>
                   <td class="px-1.5 py-1 text-right font-mono">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</td>
                   <td class="px-1.5 py-1">${esc(uInv)}</td>
@@ -655,7 +655,7 @@ async function renderVistaOC(o, cuerpo) {
                   <td class="px-1.5 py-1 text-right font-mono">${money4(d.costo_unitario_estimado)}</td>
                   <td></td>
                 </tr>
-                <tr class="bg-slate-800/70 text-[10px] text-slate-400 border-b border-slate-800">
+                <tr class="border-b border-slate-800 text-[11px]" style="background:var(--bg-2);color:var(--tx-0)">
                   <td></td><td colspan="7" class="px-1.5 pb-1">${obs.map(esc).join(' · ')}</td>
                 </tr>`;
               }).join('') || '<tr><td colspan="8" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
