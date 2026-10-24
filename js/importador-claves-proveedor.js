@@ -2,6 +2,7 @@ import { supabaseClient } from './supabase.js';
 import { parsearCfdi } from './cfdi.js';
 import { rmClasificarConceptos } from './ordenes-compra.js';
 import { montarGuia } from './asistente-contable.js';
+import { factorSugeridoSat } from './factor-unidad-sat.js';
 
 // =====================================================================
 //  Captura masiva de "Claves de proveedor" (SKU/UPC, descripción y unidad
@@ -144,6 +145,7 @@ async function iclProcesarArchivos() {
                     noId: cp.noId || '',
                     descripcion: cp.descripcion || '',
                     unidad: cp.unidad || cp.claveUnidad || '',
+                    claveUnidad: cp.claveUnidad || '',
                     productoId: prodId,
                     productoIdAuto: prodId,
                     incluir: true,
@@ -295,7 +297,19 @@ async function iclGuardarClaves() {
 
     const btn = document.getElementById('iclGuardar');
     btn.disabled = true;
-    let ok = 0, fallos = 0, satGuardadas = 0, satDistintas = 0, satSinColumna = false;
+    let ok = 0, fallos = 0, satGuardadas = 0, satDistintas = 0, satSinColumna = false, umGuardadas = 0, umSinFactor = 0;
+
+    // Unidad de inventario de cada producto, para deducir el factor de la unidad SAT del XML (solo si se puede con seguridad).
+    const unidadInv = new Map();
+    try {
+        const [{ data: pu }, { data: um }] = await Promise.all([
+            supabaseClient.from('productos').select('id, unidad_medida_id').in('id', [...new Set(aGuardar.map((f) => f.productoId))]),
+            supabaseClient.from('unidades_medida').select('id, nombre'),
+        ]);
+        const nombres = new Map((um || []).map((u) => [u.id, u.nombre]));
+        (pu || []).forEach((p) => unidadInv.set(p.id, nombres.get(p.unidad_medida_id) || ''));
+    } catch (_) { /* sin unidades: no se llena la unidad SAT */ }
+
     for (const f of aGuardar) {
         try {
             const { data: existente } = await supabaseClient.from('producto_claves_proveedor')
@@ -306,13 +320,26 @@ async function iclGuardarClaves() {
                 descripcion_factura: f.descripcion || null,
                 unidad_factura: f.unidad || null,
             };
-            if (existente) {
-                const { error } = await supabaseClient.from('producto_claves_proveedor').update(payload).eq('id', existente.id);
-                if (error) throw error;
-            } else {
-                const { error } = await supabaseClient.from('producto_claves_proveedor').insert([{ producto_id: f.productoId, proveedor_id: f.proveedorId, ...payload }]);
-                if (error) throw error;
+            // Unidad SAT del XML + factor: la base los exige JUNTOS, así que solo se guardan si el factor se deduce con seguridad
+            // (MIL→piezas, KGM→kg...). Si no (caja, tambo...), queda vacío y se captura en Alta de artículo → Claves de proveedor.
+            const um = String(f.claveUnidad || '').trim().toUpperCase();
+            let extraUm = {};
+            if (um) {
+                const s = factorSugeridoSat({ claveProv: um, nombreInv: unidadInv.get(f.productoId) || '', claveInv: '' });
+                if (s && s.factor > 0) extraUm = { clave_unidad_sat: um, factor_conversion: s.factor, unidad_factura: f.unidad || um };
             }
+            const guardar = async (extra) => {
+                if (existente) return supabaseClient.from('producto_claves_proveedor').update({ ...payload, ...extra }).eq('id', existente.id);
+                return supabaseClient.from('producto_claves_proveedor').insert([{ producto_id: f.productoId, proveedor_id: f.proveedorId, ...payload, ...extra }]);
+            };
+            let { error } = await guardar(extraUm);
+            if (error && Object.keys(extraUm).length) {
+                // La unidad no existe en el catálogo SAT o falta correr 2026-10-23b: se guarda la clave sola, como siempre.
+                extraUm = {};
+                ({ error } = await guardar({}));
+            }
+            if (error) throw error;
+            if (extraUm.clave_unidad_sat) umGuardadas++; else if (um) umSinFactor++;
             f._guardado = true;
             ok++;
 
@@ -348,6 +375,8 @@ async function iclGuardarClaves() {
         const extra = [];
         if (satGuardadas) extra.push(`Clave SAT guardada en ${satGuardadas} producto(s).`);
         if (satDistintas) extra.push(`${satDistintas} producto(s) ya tenían otra Clave SAT distinta a la de la factura — no se cambió, revísala en Productos.`);
+        if (umGuardadas) extra.push(`${umGuardadas} clave(s) con unidad SAT y factor guardados.`);
+        if (umSinFactor) extra.push(`${umSinFactor} clave(s) sin unidad SAT: el factor no se puede deducir solo (caja, tambo, litro↔kilo...); captúralo en Alta de artículo → Claves de proveedor.`);
         if (satSinColumna) extra.push('No se guardó la Clave SAT en Productos: falta correr sql/2026-10-15_productos_clave_sat.sql en Supabase.');
         msgFinal.textContent = `Guardadas ${ok} clave(s) de proveedor.` + (fallos ? ` ${fallos} con error — se quedan en la tabla para reintentar.` : '') + (extra.length ? ' ' + extra.join(' ') : '');
         msgFinal.className = 'text-xs min-h-[1rem] ' + ((fallos || satDistintas || satSinColumna) ? 'text-amber-400' : 'text-emerald-400');

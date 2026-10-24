@@ -6,6 +6,7 @@ import { parsearCfdi, extraerTextoPdf, parsearCfdiPdf } from './cfdi.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 import { obtenerInfoProveedorProducto } from './info-proveedor-producto.js';
+import { factorSugeridoSat } from './factor-unidad-sat.js';
 import { opcionesPresentacionHtml, sugerirPresetPorUnidadCfdi } from './presentaciones-proveedor.js';
 import './trazabilidad.js';
 import { convertirEnBuscador } from './buscador-select.js';
@@ -1120,6 +1121,16 @@ export async function cargarModuloReciboMercancia() {
             const m = new Map((pact || []).map((x) => [x.id, x]));
             ocs.forEach((o) => { const x = m.get(o.id); if (x) { o.condicion_pago = x.condicion_pago; o.forma_pago = x.forma_pago; } });
         } catch (_) { /* sin condiciones pactadas */ }
+        // La cotización del proveedor en SU unidad (sql/2026-10-23c): contra ella se compara el XML al recibir. Sin la migración no hay renglones con cotización y todo sigue como antes.
+        try {
+            if (ocs.length) {
+                const { data: cot } = await supabaseClient.from('ordenes_compra_detalle')
+                    .select('id, cantidad_proveedor, precio_proveedor, importe_proveedor, clave_unidad_sat, clave_prod_serv_sat, factor_conversion_proveedor, sku_proveedor')
+                    .in('orden_compra_id', ocs.map((o) => o.id));
+                const mc = new Map((cot || []).map((x) => [x.id, x]));
+                ocs.forEach((o) => (o.ordenes_compra_detalle || []).forEach((d) => { const x = mc.get(d.id); if (x) Object.assign(d, x); }));
+            }
+        } catch (_) { /* sin cotización del proveedor */ }
     } catch (err) {
         const m = err?.message || String(err);
         cont.innerHTML = /does not exist|schema cache|could not find/i.test(m)
@@ -2861,8 +2872,13 @@ function rmRenderDetalleXml(conceptos, meta) {
         const prod = prodId ? ocProductos.find(p => p.id === prodId) : null;
         if (prod) hits++;
         const reqCad = !!(prod && prod.requiere_caducidad);
+        // Si este proveedor ya vende este producto en una unidad SAT con factor guardado y el XML viene en ESA unidad, la partida entra ya en tu unidad.
+        const fu = prodId ? (meta.factores || new Map()).get(prodId) : null;
+        const convXml = fu && String(cp.claveUnidad || '').trim().toUpperCase() === fu.um ? fu.factor : 1;
+        const cantIni = Math.round((cp.cantidad || 0) * convXml * 1e6) / 1e6;
+        const costoIni = Number((cp.valorUnitario || 0) / convXml).toFixed(4);
         return `
-        <tr class="border-b border-slate-900" data-cpidx="${i}" data-prodid="${prodId || ''}" data-prodid-auto="${prodId || ''}" data-desc="${esc(cp.descripcion || 'Producto CFDI')}" data-unidadid="${prod ? (prod.unidad_medida_id || '') : ''}" data-reqcad="${reqCad ? 1 : 0}" data-nocfdi="${esc(cp.noId || '')}" data-clavesat="${esc(cp.claveSat || '')}">
+        <tr class="border-b border-slate-900" data-cpidx="${i}" data-prodid="${prodId || ''}" data-prodid-auto="${prodId || ''}" data-desc="${esc(cp.descripcion || 'Producto CFDI')}" data-unidadid="${prod ? (prod.unidad_medida_id || '') : ''}" data-reqcad="${reqCad ? 1 : 0}" data-nocfdi="${esc(cp.noId || '')}" data-clavesat="${esc(cp.claveSat || '')}" data-claveum="${esc(cp.claveUnidad || '')}">
           <td class="p-2 text-center"><input type="checkbox" class="rm-chk accent-emerald-500 w-4 h-4" checked></td>
           <td class="p-2 text-slate-100">
             <div class="text-[11px] text-slate-500">${esc(cp.descripcion || cp.noId || 'sin descripción')}</div>
@@ -2871,12 +2887,13 @@ function rmRenderDetalleXml(conceptos, meta) {
               ${optsProductos}
             </select>
             <p class="rm-prod-nota text-[10px] mt-0.5 ${prod ? 'text-emerald-400' : 'text-amber-400'}">${prod ? '✓ coincide con el catálogo' : 'sin coincidencia — elige el producto del catálogo o déjalo así para crearlo'}</p>
+            ${convXml !== 1 ? `<p class="text-[10px] mt-0.5 text-sky-300">Convertido con la clave del proveedor: ${Number(cp.cantidad).toLocaleString('es-MX', { maximumFractionDigits: 6 })} ${esc(fu.um)} × ${convXml.toLocaleString('es-MX', { maximumFractionDigits: 6 })}</p>` : ''}
           </td>
           <td class="p-2 font-mono text-slate-500 text-[10px]">${esc(cp.claveSat || '')}${cp.noId ? `<br>${esc(cp.noId)}` : ''}</td>
-          <td class="p-2"><input type="number" step="any" min="0" class="rm-cant w-20 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${cp.cantidad || 0}"></td>
+          <td class="p-2"><input type="number" step="any" min="0" class="rm-cant w-20 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${cantIni}"></td>
           <td class="p-2">
             <div class="flex items-center gap-1">
-              <input type="number" step="any" min="0" class="rm-costo w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${Number(cp.valorUnitario || 0).toFixed(4)}">
+              <input type="number" step="any" min="0" class="rm-costo w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${costoIni}">
               <button type="button" class="rm-conv-toggle text-[10px] text-sky-400 hover:text-sky-300 whitespace-nowrap" title="Convertir desde la presentación de la factura (millar, gruesa, docena...)">🔁 convertir</button>
             </div>
           </td>
@@ -2963,6 +2980,7 @@ async function rmConfirmarXml() {
             // este proveedor para ese producto y la próxima factura empareja sola.
             noIdCfdi: tr.dataset.nocfdi || '',
             claveSat: tr.dataset.clavesat || '',
+            claveUm: tr.dataset.claveum || '',
             homologar: !!prodId && prodId !== prodIdAuto,
         });
     });
@@ -3019,12 +3037,16 @@ async function rmConfirmarXml() {
             // factura del mismo proveedor empareje sola.
             if (l.homologar && l.noIdCfdi && rmXmlMeta?.proveedorId) {
                 try {
-                    await supabaseClient.from('producto_claves_proveedor').insert([{
+                    const base = {
                         producto_id: productoId,
                         proveedor_id: rmXmlMeta.proveedorId,
                         clave: l.noIdCfdi,
                         descripcion_factura: l.desc,
-                    }]);
+                    };
+                    // Con unidad SAT y factor solo si el factor se deduce con seguridad (la base los exige juntos); si la base lo rechaza, guarda la clave sola.
+                    const extraUm = rmClaveUmDeXml(productoId, l.claveUm);
+                    let { error: eCl } = await supabaseClient.from('producto_claves_proveedor').insert([{ ...base, ...extraUm }]);
+                    if (eCl && Object.keys(extraUm).length) await supabaseClient.from('producto_claves_proveedor').insert([base]);
                 } catch (_) { /* no bloquea la recepción si la tabla de claves no existe o ya había una */ }
             }
         }
@@ -3039,6 +3061,63 @@ async function rmConfirmarXml() {
         msg.className = 'text-xs text-rose-400';
         btn.disabled = false;
     }
+}
+
+// ---- Contra la cotización de la ODC (entrega 5) ----
+// Compara un concepto del XML con lo que el proveedor cotizó en SU unidad (cantidad, precio, importe, Clave UM, Clave SAT, número).
+// Solo informa: no bloquea la recepción. Devuelve null si la partida no trae cotización en unidad del proveedor.
+function rmCotizacionDeLinea(det, cp) {
+    if (!det || det.cantidad_proveedor == null || det.precio_proveedor == null) return null;
+    const um = String(det.clave_unidad_sat || '').trim().toUpperCase();
+    const umXml = String(cp.claveUnidad || '').trim().toUpperCase();
+    const factor = Number(det.factor_conversion_proveedor) > 0 ? Number(det.factor_conversion_proveedor) : null;
+    const mismaUnidad = !!um && !!umXml && um === umXml;
+    const diffs = [];
+    const f = (n) => Number(n).toLocaleString('es-MX', { maximumFractionDigits: 6 });
+    if (um && umXml && um !== umXml) diffs.push(`Clave UM: el XML trae ${umXml} y se cotizó en ${um}; revisa la conversión`);
+    if (mismaUnidad) {
+        const primeraVez = Number(det.cantidad_recibida || 0) === 0;
+        if (primeraVez && Math.abs(cp.cantidad - Number(det.cantidad_proveedor)) > 1e-6) diffs.push(`Cantidad: XML ${f(cp.cantidad)} · cotizada ${f(det.cantidad_proveedor)}`);
+        if (Math.abs(cp.valorUnitario - Number(det.precio_proveedor)) >= 0.00005) diffs.push(`Precio: XML ${money4(cp.valorUnitario)} · cotizado ${money4(Number(det.precio_proveedor))}`);
+        if (primeraVez && det.importe_proveedor != null) {
+            const impXml = importe(cp.cantidad, cp.valorUnitario);
+            if (Math.abs(impXml - Number(det.importe_proveedor)) >= 0.01) diffs.push(`Importe: XML ${money(impXml)} · cotizado ${money(Number(det.importe_proveedor))}`);
+        }
+    }
+    if (cp.claveSat && det.clave_prod_serv_sat && String(cp.claveSat).trim() !== String(det.clave_prod_serv_sat).trim()) diffs.push(`Clave SAT: XML ${cp.claveSat} · cotizada ${det.clave_prod_serv_sat}`);
+    if (cp.noId && det.sku_proveedor && normTxt(cp.noId) !== normTxt(det.sku_proveedor)) diffs.push(`Número: XML ${cp.noId} · cotizado ${det.sku_proveedor}`);
+    return { um, factor, mismaUnidad, diffs };
+}
+
+// Franja bajo la partida: ✓ si todo coincide, o las diferencias en ámbar (y, si se convirtió, cómo).
+function rmPintarCotizacion(tr, det, cp) {
+    let sig = tr.nextElementSibling;
+    if (sig && sig.classList.contains('rm-conv-row')) sig = sig.nextElementSibling;
+    if (sig && sig.classList.contains('rm-cot-row')) sig.remove();
+    const cot = rmCotizacionDeLinea(det, cp);
+    if (!cot) return;
+    const anclaje = tr.nextElementSibling && tr.nextElementSibling.classList.contains('rm-conv-row') ? tr.nextElementSibling : tr;
+    const convertido = cot.mismaUnidad && cot.factor
+        ? ` · Convertido: ${Number(cp.cantidad).toLocaleString('es-MX', { maximumFractionDigits: 6 })} ${esc(cot.um)} × ${cot.factor.toLocaleString('es-MX', { maximumFractionDigits: 6 })}`
+        : '';
+    const cuerpo = cot.diffs.length
+        ? `<span class="text-amber-400">⚠ Contra la cotización: ${cot.diffs.map(esc).join(' · ')}</span>`
+        : '<span class="text-emerald-400">✓ Coincide con la cotización de la ODC</span>';
+    const fila = document.createElement('tr');
+    fila.className = 'rm-cot-row border-b border-slate-900';
+    fila.innerHTML = `<td></td><td colspan="7" class="px-2 pb-2 text-[11px]">${cuerpo}<span class="text-slate-500">${convertido}</span></td>`;
+    anclaje.insertAdjacentElement('afterend', fila);
+}
+
+// Unidad SAT + factor para guardar junto con la clave del proveedor al homologar desde un XML.
+// La base exige las dos juntas: si el factor no se puede deducir con seguridad (caja, tambo, litro→kilo...) NO se guarda unidad.
+function rmClaveUmDeXml(productoId, claveUm) {
+    const um = String(claveUm || '').trim().toUpperCase();
+    if (!um) return {};
+    const prod = ocProductos.find((p) => p.id === productoId);
+    const nombreInv = ocUnidades.find((u) => u.id === prod?.unidad_medida_id)?.nombre || '';
+    const s = factorSugeridoSat({ claveProv: um, nombreInv, claveInv: '' });
+    return s && s.factor > 0 ? { clave_unidad_sat: um, factor_conversion: s.factor } : {};
 }
 
 // ---- Importar XML del CFDI: prellena impuestos y concilia partidas ----
@@ -3161,8 +3240,12 @@ async function rmProcesarDatosFactura(datos, { icono = '📄', fuente = 'XML' } 
                     // "Aplicar" o reteclée algo a mano (fuente típica de
                     // errores: escribir el 0.2 de la factura donde ya se
                     // había puesto 200, o multiplicar el precio dos veces).
-                    const preset = sugerirPresetPorUnidadCfdi(cp.claveUnidad, cp.unidad);
-                    const factorDetectado = preset ? preset.factor : 1;
+                    // Si la ODC trae la cotización en la unidad del proveedor (clave SAT + factor), manda ESE factor
+                    // (solo si el XML viene en esa misma unidad); si no, los presets de siempre.
+                    const cotL = rmCotizacionDeLinea(detById.get(Number(tr.dataset.detid)), cp);
+                    const usaCot = !!(cotL && cotL.factor && cotL.mismaUnidad);
+                    const preset = usaCot ? null : sugerirPresetPorUnidadCfdi(cp.claveUnidad, cp.unidad);
+                    const factorDetectado = usaCot ? cotL.factor : (preset ? preset.factor : 1);
 
                     // Si un operador ya contó físicamente esta partida (pre-recibo),
                     // esa cantidad manda — el XML no la pisa. La factura puede traer
@@ -3170,7 +3253,7 @@ async function rmProcesarDatosFactura(datos, { icono = '📄', fuente = 'XML' } 
                     // por eso existe el aviso "⚠ operador contó X" (ver rmRenderDetalle).
                     // El costo sí se toma del XML: de eso no tiene forma de enterarse
                     // un conteo físico.
-                    if (tr.dataset.capturado === '' && cp.cantidad > 0) tr.querySelector('.rm-cant').value = cp.cantidad * factorDetectado;
+                    if (tr.dataset.capturado === '' && cp.cantidad > 0) tr.querySelector('.rm-cant').value = Math.round(cp.cantidad * factorDetectado * 1e6) / 1e6;
                     if (cp.valorUnitario > 0) tr.querySelector('.rm-costo').value = (cp.valorUnitario / factorDetectado).toFixed(4);
 
                     // El conversor se deja precargado con los datos crudos de
@@ -3186,9 +3269,14 @@ async function rmProcesarDatosFactura(datos, { icono = '📄', fuente = 'XML' } 
                             convRow.querySelector('.rm-conv-factor').value = preset.factor;
                             const sug = convRow.querySelector('.rm-conv-sugerido');
                             if (sug) sug.textContent = `Del XML: unidad de compra "${cp.unidad || cp.claveUnidad}" → ${preset.etiqueta} (ya aplicado arriba en Cant. a ingresar / Costo real — usa "Aplicar →" solo si necesitas corregirlo)`;
+                        } else if (usaCot) {
+                            convRow.querySelector('.rm-conv-factor').value = factorDetectado;
+                            const sug = convRow.querySelector('.rm-conv-sugerido');
+                            if (sug) sug.textContent = `De la cotización de la ODC: 1 ${cotL.um} = ${factorDetectado.toLocaleString('es-MX', { maximumFractionDigits: 6 })} de tu unidad (ya aplicado arriba en Cant. a ingresar / Costo real)`;
                         }
                     }
                 }
+                rmPintarCotizacion(tr, detById.get(Number(tr.dataset.detid)), cp);
                 conc++;
             } else {
                 sinMatch.push(cp.descripcion || cp.noId || '(sin descripción)');
@@ -3208,14 +3296,18 @@ async function rmProcesarDatosFactura(datos, { icono = '📄', fuente = 'XML' } 
                 if (pv) provId = pv.id;
             }
         } catch (_) { /* proveedores sin columna rfc */ }
-        const clavesMap = new Map(), clavesSatMap = new Map();
+        const clavesMap = new Map(), clavesSatMap = new Map(), factoresMap = new Map();
         if (provId) {
             try {
-                const { data } = await supabaseClient.from('producto_claves_proveedor')
-                    .select('producto_id, clave, clave_sat').eq('proveedor_id', provId);
+                // Con unidad SAT y factor (sql/2026-10-23b); sin esas columnas cae a las claves de siempre.
+                let { data, error } = await supabaseClient.from('producto_claves_proveedor')
+                    .select('producto_id, clave, clave_sat, clave_unidad_sat, factor_conversion').eq('proveedor_id', provId);
+                if (error) ({ data } = await supabaseClient.from('producto_claves_proveedor')
+                    .select('producto_id, clave, clave_sat').eq('proveedor_id', provId));
                 (data || []).forEach(c => {
                     if (c.clave) clavesMap.set(normTxt(c.clave), c.producto_id);
                     if (c.clave_sat) clavesSatMap.set(String(c.clave_sat).trim(), c.producto_id);
+                    if (c.clave_unidad_sat && Number(c.factor_conversion) > 0) factoresMap.set(c.producto_id, { um: String(c.clave_unidad_sat).toUpperCase(), factor: Number(c.factor_conversion) });
                 });
             } catch (_) { /* tabla de claves aún no existe */ }
         }
@@ -3227,7 +3319,7 @@ async function rmProcesarDatosFactura(datos, { icono = '📄', fuente = 'XML' } 
         cargosDecision = await rmPreguntarLandedCost(cargos);
         rmCargosXml = cargosDecision.usar;
         rmRenderDetalleXml(conceptosProducto, {
-            proveedorId: provId, rfc: rfcEmisor, nombreEmisor, uuid, folio, claves: clavesMap, clavesSat: clavesSatMap,
+            proveedorId: provId, rfc: rfcEmisor, nombreEmisor, uuid, folio, claves: clavesMap, clavesSat: clavesSatMap, factores: factoresMap,
             regimenFiscal: regimenEmisor, usoCfdi, formaPago, metodoPago, moneda, cp: cpEmisor,
         });
     }
