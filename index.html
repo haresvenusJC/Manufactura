@@ -257,6 +257,7 @@
                             <li><button onclick="window.loadView('pagos-compras')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Pagos a proveedores</button></li>
                             <li><button onclick="window.loadView('compras')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Compra directa</button></li>
                             <li><button onclick="window.loadView('entradas-directas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Entradas Directas</button></li>
+                            <li><button onclick="window.loadView('proveedores')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Proveedores</button></li>
                         </ul>
                     </li>
 
@@ -272,6 +273,8 @@
                             <li><button onclick="window.loadView('kardex')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Kardex</button></li>
                             <li><button onclick="window.loadView('auditoria')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Auditoría de inventarios</button></li>
                             <li><button onclick="window.loadView('tareas', {departamento:'almacen'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Tareas de almacén</button></li>
+                            <li><button onclick="window.loadView('alta-articulo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Alta de artículo</button></li>
+                            <li><button onclick="window.loadView('catalogo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Productos</button></li>
                         </ul>
                     </li>
 
@@ -285,6 +288,8 @@
                             <li><button onclick="window.loadView('pedidos-venta')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Pedidos de venta</button></li>
                             <li><button onclick="window.loadView('salidas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Salidas / Ventas</button></li>
                             <li><button onclick="window.loadView('devoluciones')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Devoluciones</button></li>
+                            <li><button onclick="window.loadView('clientes', {tab:'clientes'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Clientes</button></li>
+                            <li><button onclick="window.loadView('clientes', {tab:'listas'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Listas de precio</button></li>
                         </ul>
                     </li>
 
@@ -297,6 +302,21 @@
                         <ul id="submenu-produccion" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
                             <li><button onclick="window.loadView('produccion')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Producción</button></li>
                             <li><button onclick="window.loadView('consulta-produccion')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Consulta de órdenes de producción</button></li>
+                        </ul>
+                    </li>
+
+                    <!-- Capital Humano (HR/HCM): personal, estructura y nómina -->
+                    <li>
+                        <button onclick="window.toggleSubmenu('submenu-capital-humano')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
+                            <span>Capital Humano</span>
+                            <span id="flecha-capital-humano" class="text-xs">▼</span>
+                        </button>
+                        <ul id="submenu-capital-humano" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
+                            <li><button onclick="window.loadView('empleados')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Empleados</button></li>
+                            <li><button onclick="window.loadView('departamentos')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Departamentos</button></li>
+                            <li><button onclick="window.loadView('organigrama')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Organigrama</button></li>
+                            <li><button onclick="window.loadView('nomina')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Nómina</button></li>
+                            <li><button onclick="window.loadView('isr')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Tabla ISR</button></li>
                         </ul>
                     </li>
 
@@ -314,7 +334,6 @@
                             <li><button onclick="window.loadView('pagos-proveedor')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Cuentas por pagar</button></li>
                             <li><button onclick="window.loadView('cuentas-por-cobrar')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Cuentas por cobrar</button></li>
                             <li><button onclick="window.loadView('bancos-tesoreria')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Bancos y Tesorería</button></li>
-                            <li><button onclick="window.loadView('nomina')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Nómina</button></li>
                             <li><button onclick="window.loadView('activos-fijos')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Activos fijos</button></li>
                             <li><button onclick="window.loadView('tareas', {departamento:'contable'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Tareas contables</button></li>
                         </ul>
@@ -329,23 +348,23 @@
                         <ul id="submenu-contabilidad-control" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
                             <li><button onclick="window.loadView('polizas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Pólizas</button></li>
                             <li><button onclick="window.loadView('plan-cuentas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Plan de cuentas</button></li>
-                            <!-- Submenú dentro de Contabilidad: configuración (planta → áreas → reparto) y, al final, la corrida mensual -->
-                            <li>
-                                <button onclick="window.toggleSubmenu('submenu-costos-prorrateo')" class="w-full flex justify-between items-center px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">
-                                    <span>Costos y prorrateo</span>
-                                    <span id="flecha-costos-prorrateo" class="text-[10px]">▼</span>
-                                </button>
-                                <ul id="submenu-costos-prorrateo" class="hidden pl-3 space-y-1 mt-1 border-l border-slate-800 ml-2">
+                            <li><button onclick="window.loadView('reportes-contables')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Reportes contables</button></li>
+                            <li><button onclick="window.loadView('cierre-periodo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Cierre de periodo</button></li>
+                        </ul>
+                    </li>
+
+                    <!-- Costos (CO): configuración (planta → áreas → reparto) y, al final, la corrida mensual -->
+                    <li>
+                        <button onclick="window.toggleSubmenu('submenu-costos-prorrateo')" class="w-full flex justify-between items-center px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 transition text-sm font-medium" style="cursor: pointer;">
+                            <span>Costos</span>
+                            <span id="flecha-costos-prorrateo" class="text-xs">▼</span>
+                        </button>
+                        <ul id="submenu-costos-prorrateo" class="hidden pl-4 space-y-1 mt-1 border-l border-slate-800 ml-3">
                                 <li><button onclick="window.abrirAsistenteProrrateo('inicio')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-sky-300 hover:text-sky-200 transition text-xs font-medium" style="cursor: pointer;">Asistente de llenado</button></li>
                                 <li><button onclick="window.loadView('centros-costo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Centros de costo</button></li>
                                 <li><button onclick="window.loadView('areas-prorrateo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Áreas y bases de prorrateo</button></li>
                                 <li><button onclick="window.loadView('reparto-plantillas')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Reparto de gastos compartidos</button></li>
                                 <li><button onclick="window.loadView('prorrateo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Prorrateo de gastos</button></li>
-                                </ul>
-                            </li>
-                            <li><button onclick="window.loadView('reportes-contables')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Reportes contables</button></li>
-                            <li><button onclick="window.loadView('cierre-periodo')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Cierre de periodo</button></li>
-                            <li><button onclick="window.loadView('isr')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Tabla ISR</button></li>
                         </ul>
                     </li>
 
@@ -803,7 +822,7 @@
 
             <!-- Vista: Contabilidad - Nómina -->
             <section id="view-nomina" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-sky-400">Contabilidad · Nómina</h2>
+                <h2 class="text-xl font-bold text-sky-400">Capital Humano · Nómina</h2>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorNomina">Cargando nómina...</div>
                 </div>
@@ -811,7 +830,7 @@
 
             <!-- Vista: Contabilidad - Tabla ISR -->
             <section id="view-isr" class="vista-seccion hidden space-y-4">
-                <h2 class="text-xl font-bold text-sky-400">Contabilidad · Tabla ISR</h2>
+                <h2 class="text-xl font-bold text-sky-400">Capital Humano · Tabla ISR</h2>
                 <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
                     <div id="contenedorIsr">Cargando tabla ISR...</div>
                 </div>

@@ -26,6 +26,7 @@ export const SECCIONES = [
             { v: 'recibo-mercancia', t: 'Recibo de mercancía', d: 'Recepción contra OC o desde el XML del CFDI; captura de lote y caducidad.' },
             { v: 'compras', t: 'Compra directa', d: 'Compra con afectación contable directa, sin pasar por Orden de compra → Recibo de mercancía.' },
             { v: 'entradas-directas', t: 'Entradas directas', d: 'Altas de inventario sin orden de compra.' },
+            { v: 'proveedores', t: 'Proveedores', d: 'Datos fiscales: RFC, régimen, uso CFDI, forma y método de pago, cuenta de gasto por defecto.', cfg: true },
         ],
     },
     {
@@ -35,6 +36,8 @@ export const SECCIONES = [
             { v: 'kardex', t: 'Kardex', d: 'Movimientos de inventario por periodo y por uno o varios productos: saldo inicial, entradas, salidas y saldo final. Se puede imprimir o bajar en CSV.' },
             { v: 'auditoria', t: 'Auditoría de inventarios', d: 'Toma física de inventario: crea auditorías, revisa el conteo de los operadores y compáralo contra el stock del sistema.' },
             { v: 'tareas', t: 'Tareas de almacén', d: 'Pendientes automáticos de almacén: inventario bajo mínimo, lotes por caducar.', extra: "{departamento:'almacen'}" },
+            { v: 'alta-articulo', t: 'Alta de artículo', d: 'Solo el formulario para dar de alta (o editar por nombre) un producto, materia prima o insumo: SKU, unidad, costo, bandera de control de caducidad.', cfg: true },
+            { v: 'catalogo', t: 'Productos', d: 'Listado general de artículos (buscar, exportar, editar) con su Kardex: movimientos de entrada y salida por producto, con el criterio FIFO/FEFO usado.', cfg: true },
         ],
     },
     {
@@ -42,12 +45,23 @@ export const SECCIONES = [
             { v: 'pedidos-venta', t: 'Pedidos de venta', d: 'El cliente pide y se surte después, total o en partes. Al surtir genera una salida real de inventario y queda enlazado al pedido.' },
             { v: 'salidas', t: 'Salidas / Ventas', d: 'Salidas de inventario y ventas.' },
             { v: 'devoluciones', t: 'Devoluciones', d: 'Devolución de cliente (regresa a inventario) y a proveedor (sale de un lote existente), con su póliza correspondiente.' },
+            { v: 'clientes', t: 'Clientes', d: 'Datos fiscales del cliente (RFC, régimen, uso CFDI), condición y días de crédito, cuenta de cobro y la lista de precios que le toca.', cfg: true, extra: "{tab:'clientes'}" },
+            { v: 'clientes', t: 'Listas de precio', d: 'Listas de precio y el precio de cada producto en cada una; se asignan desde la ficha del cliente.', cfg: true, extra: "{tab:'listas'}" },
         ],
     },
     {
         grupo: 'Producción', ancla: 'prod', items: [
             { v: 'produccion', t: 'Producción', d: 'Órdenes de producción: BOM, procesos con su centro de costo, cierre y costeo del lote.', cfg: true },
             { v: 'consulta-produccion', t: 'Consulta de órdenes de producción', d: 'Todas las órdenes (pendiente por insumos / en proceso / cerrada / cancelada), su detalle y costeo.' },
+        ],
+    },
+    {
+        grupo: 'Capital Humano', ancla: 'rh', items: [
+            { v: 'empleados', t: 'Empleados', d: 'Plantilla con foto, puesto, departamento y gerente (su jefe directo), costo por hora y PIN para la Orden de Trabajo en el celular.', cfg: true },
+            { v: 'departamentos', t: 'Departamentos', d: 'Catálogo de departamentos: tipo, centro de costo, responsable y el equipo que lo compone.', cfg: true },
+            { v: 'organigrama', t: 'Organigrama', d: 'Árbol de la empresa dibujado con el gerente de cada empleado; quien no tiene gerente es la cabeza.' },
+            { v: 'nomina', t: 'Nómina', d: 'Cálculo y contabilización de sueldos, IMSS/INFONAVIT e ISR.' },
+            { v: 'isr', t: 'Tabla ISR', d: 'Tarifas de retención de ISR sobre sueldos (Art. 96 LISR) y subsidio.', cfg: true },
         ],
     },
     {
@@ -61,7 +75,6 @@ export const SECCIONES = [
             { v: 'pagos-proveedor', t: 'Cuentas por pagar', d: 'Saldos por proveedor y registro de pagos.' },
             { v: 'cuentas-por-cobrar', t: 'Cuentas por cobrar', d: 'Saldos por cliente y registro de cobros.' },
             { v: 'bancos-tesoreria', t: 'Bancos y Tesorería', d: 'Catálogo de cuentas bancarias, conciliación de sus movimientos y un flujo proyectado simple (saldo + por cobrar − por pagar).' },
-            { v: 'nomina', t: 'Nómina', d: 'Cálculo y contabilización de sueldos, IMSS/INFONAVIT e ISR.' },
             { v: 'activos-fijos', t: 'Activos fijos', d: 'Catálogo de activos fijos y su depreciación mensual en línea recta (NIF C-6), con póliza e historial por mes.' },
             { v: 'tareas', t: 'Tareas contables', d: 'Pendientes automáticos de finanzas: nómina en borrador por autorizar, recordatorio de pre-ejecutar nómina.', extra: "{departamento:'contable'}" },
         ],
@@ -72,11 +85,10 @@ export const SECCIONES = [
             { v: 'plan-cuentas', t: 'Plan de cuentas', d: 'Catálogo de cuentas (Código Agrupador SAT). En las 503.xx se marca fijo o variable.', cfg: true },
             { v: 'reportes-contables', t: 'Reportes contables', d: 'Balanza de comprobación, estado de resultados, saldos por cuenta.' },
             { v: 'cierre-periodo', t: 'Cierre de periodo', d: 'Revisa pendientes contables del mes (documentos, gastos, nóminas, cobros, pagos, auditorías, pólizas descuadradas) antes de cerrarlo; permite reabrirlo si hace falta corregir algo.' },
-            { v: 'isr', t: 'Tabla ISR', d: 'Tarifas de retención de ISR sobre sueldos (Art. 96 LISR) y subsidio.', cfg: true },
         ],
     },
     {
-        grupo: 'Contabilidad › Costos y prorrateo', ancla: 'costos-prorrateo', items: [
+        grupo: 'Costos', ancla: 'costos-prorrateo', items: [
             { js: "window.abrirAsistenteProrrateo('inicio')", t: 'Asistente de llenado', d: 'Guía paso a paso (planta → áreas → luz y equipos → tus gastos → revisión): va llenando estas tablas por ti y solo guarda cuando confirmas. Empieza aquí.' },
             { v: 'centros-costo', t: 'Centros de costo', d: 'Las 3 etapas SURT / MEZ / ENV y su capacidad normal en horas de mano de obra al mes.', cfg: true },
             { v: 'areas-prorrateo', t: 'Áreas y bases de prorrateo', d: 'm², carga eléctrica (kW) y personas por área. De aquí salen los % con que se reparten renta, luz y servicios.', cfg: true },
