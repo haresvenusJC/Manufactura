@@ -20,6 +20,8 @@ import { cargarModuloBitacora } from './bitacora-cambios.js';
 import { cargarVistaDocumentos } from './documentos.js';
 import { cargarModuloPlantillas } from './plantillas.js';
 import { cargarModuloEmpleados } from './empleados.js';
+import { cargarModuloDepartamentos } from './departamentos.js';
+import { cargarModuloOrganigrama } from './organigrama.js';
 import { cargarModuloImportador } from './importador.js';
 import { cargarModuloTablas } from './tablas.js';
 import { cargarModuloKardex } from './kardex.js';
@@ -262,6 +264,12 @@ window.loadView = function(viewName, opciones = {}) {
             break;
         case 'empleados':
             cargarModuloEmpleados();
+            break;
+        case 'departamentos':
+            cargarModuloDepartamentos();
+            break;
+        case 'organigrama':
+            cargarModuloOrganigrama();
             break;
         case 'importador':
             cargarModuloImportador();

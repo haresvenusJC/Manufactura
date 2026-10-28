@@ -1,8 +1,23 @@
 import { supabaseClient } from './supabase.js';
+import { comprimirFoto, subirFotoEmpleado, borrarFoto, urlsFotos, avatarHtml } from './fotos-personal.js';
+
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const DEPARTAMENTOS_ANTERIORES = ['Producción', 'Administración', 'Ventas', 'Almacén'];
 
 export async function cargarModuloEmpleados() {
     const contenedor = document.getElementById('view-empleados');
     if (!contenedor) return;
+
+    // Departamentos desde su tabla. Si la migración no se ha corrido, la pantalla funciona como antes
+    // (selector fijo, sin Gerente ni foto) y avisa qué falta.
+    const resDeps = await supabaseClient.from('departamentos').select('id, nombre, responsable_id').eq('activo', true).order('nombre');
+    const hayEstructura = !resDeps.error;
+    const departamentos = hayEstructura ? (resDeps.data || []) : [];
+    let empleadosCache = [];
+
+    const opcionesDepartamento = hayEstructura
+        ? departamentos.map((d) => `<option value="${d.id}">${esc(d.nombre)}</option>`).join('')
+        : DEPARTAMENTOS_ANTERIORES.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
 
     contenedor.innerHTML = `
         <div class="space-y-6 max-w-3xl mx-auto">
@@ -12,17 +27,27 @@ export async function cargarModuloEmpleados() {
                     <button type="button" onclick="window.abrirManual('#m-empleados', 'Empleados')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
                 </div>
                 <p class="text-xs text-slate-400 mb-4">Captura el sueldo semanal y las horas semanales de cada empleado; el costo por hora se calcula automáticamente para usarse en los cronómetros de producción.</p>
+                ${hayEstructura ? '' : `<p class="text-[11px] text-amber-300 bg-amber-950/40 border border-amber-900/60 rounded-lg px-3 py-2 mb-4">Falta correr <span class="font-mono">sql/2026-10-28_departamentos_gerente_foto.sql</span> en Supabase para usar Departamentos, Gerente y foto. Mientras tanto la pantalla funciona como antes.</p>`}
 
                 <form id="formEmpleado" class="space-y-4">
                     <input type="hidden" id="empIdEditando" value="">
+                    ${hayEstructura ? `
+                    <div class="flex items-center gap-4">
+                        <div id="empFotoPreview" class="shrink-0"></div>
+                        <div class="min-w-0">
+                            <label class="block text-xs font-medium text-slate-400 mb-1">FOTO (opcional)</label>
+                            <input type="file" id="empFoto" accept="image/*" class="text-xs text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-700 file:bg-slate-800 file:text-slate-200">
+                            <button type="button" id="empFotoQuitar" class="hidden text-[11px] text-rose-400 hover:text-rose-300 mt-1">Quitar foto</button>
+                        </div>
+                    </div>` : ''}
                     <div>
                         <label class="block text-xs font-medium text-slate-400 mb-1">NOMBRE</label>
                         <input type="text" id="empNombre" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">PUESTO (opcional)</label>
-                            <input type="text" id="empPuesto" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                            <label class="block text-xs font-medium text-slate-400 mb-1">PUESTO DE TRABAJO (opcional)</label>
+                            <input type="text" id="empPuesto" placeholder="p. ej. Jefe de contabilidad" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-slate-400 mb-1">PIN MÓVIL (4 dígitos)</label>
@@ -32,20 +57,29 @@ export async function cargarModuloEmpleados() {
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">FECHA DE INGRESO (opcional)</label>
-                            <input type="date" id="empFechaIngreso" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-                        </div>
-                        <div>
                             <label class="block text-xs font-medium text-slate-400 mb-1">DEPARTAMENTO (opcional)</label>
                             <select id="empDepartamento" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                                 <option value="">(sin asignar)</option>
-                                <option value="Producción">Producción</option>
-                                <option value="Administración">Administración</option>
-                                <option value="Ventas">Ventas</option>
-                                <option value="Almacén">Almacén</option>
+                                ${opcionesDepartamento}
                             </select>
+                            ${hayEstructura ? `<button type="button" onclick="window.loadView('departamentos')" class="text-[11px] text-sky-400 hover:text-sky-300 mt-1">Administrar departamentos</button>` : ''}
                         </div>
+                        ${hayEstructura ? `
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">GERENTE (opcional)</label>
+                            <select id="empGerente" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select>
+                            <p id="empGerenteHint" class="text-[11px] text-slate-500 mt-1">Su jefe directo. Vacío = cabeza de la organización.</p>
+                        </div>` : `
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">FECHA DE INGRESO (opcional)</label>
+                            <input type="date" id="empFechaIngreso" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                        </div>`}
                     </div>
+                    ${hayEstructura ? `
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">FECHA DE INGRESO (opcional)</label>
+                        <input type="date" id="empFechaIngreso" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 sm:w-1/2">
+                    </div>` : ''}
                     <div class="grid grid-cols-3 gap-4">
                         <div>
                             <label class="block text-xs font-medium text-slate-400 mb-1">RFC (opcional)</label>
@@ -94,6 +128,72 @@ export async function cargarModuloEmpleados() {
         </div>
     `;
 
+    // Estado de la foto del formulario
+    let fotoNueva = null;       // Blob ya comprimido, pendiente de subir al guardar
+    let fotoQuitar = false;     // el usuario pidió quitar la foto actual
+    let fotoRutaActual = null;  // ruta guardada del empleado en edición
+    let fotoUrlActual = null;   // URL firmada de esa ruta (solo para mostrar)
+
+    function pintarVistaFoto(nombre) {
+        const cont = document.getElementById('empFotoPreview');
+        if (!cont) return;
+        const url = fotoNueva ? URL.createObjectURL(fotoNueva) : (fotoQuitar ? null : fotoUrlActual);
+        cont.innerHTML = avatarHtml(nombre || document.getElementById('empNombre').value, url, 72);
+        const btnQuitar = document.getElementById('empFotoQuitar');
+        if (btnQuitar) btnQuitar.classList.toggle('hidden', !(fotoNueva || (fotoRutaActual && !fotoQuitar)));
+    }
+
+    if (hayEstructura) {
+        document.getElementById('empFoto').onchange = async (ev) => {
+            const archivo = ev.target.files && ev.target.files[0];
+            if (!archivo) return;
+            try {
+                fotoNueva = await comprimirFoto(archivo);
+                fotoQuitar = false;
+                pintarVistaFoto();
+            } catch (e) {
+                alert('❌ No se pudo leer la imagen: ' + (e.message || e));
+                ev.target.value = '';
+            }
+        };
+        document.getElementById('empFotoQuitar').onclick = () => {
+            fotoNueva = null;
+            fotoQuitar = !!fotoRutaActual;
+            document.getElementById('empFoto').value = '';
+            pintarVistaFoto();
+        };
+        document.getElementById('empNombre').addEventListener('input', () => { if (!fotoNueva && !fotoUrlActual) pintarVistaFoto(); });
+    }
+
+    // Gerente: cualquier empleado activo menos el que se está editando (la base también impide los círculos).
+    function pintarOpcionesGerente(excluirId, seleccionado) {
+        const sel = document.getElementById('empGerente');
+        if (!sel) return;
+        const opciones = empleadosCache
+            .filter((e) => e.activo && e.id !== excluirId)
+            .map((e) => `<option value="${e.id}">${esc(e.nombre)}${e.puesto ? ' — ' + esc(e.puesto) : ''}</option>`)
+            .join('');
+        sel.innerHTML = `<option value="">(ninguno: cabeza de la organización)</option>${opciones}`;
+        sel.value = seleccionado ? String(seleccionado) : '';
+    }
+
+    // Como en Odoo: al elegir departamento, si aún no hay gerente, se sugiere el responsable del departamento.
+    function sugerirGerenteDelDepartamento() {
+        const selDep = document.getElementById('empDepartamento');
+        const selGer = document.getElementById('empGerente');
+        const hint = document.getElementById('empGerenteHint');
+        if (!selGer || !hayEstructura) return;
+        const dep = departamentos.find((d) => String(d.id) === selDep.value);
+        const idEditando = Number(document.getElementById('empIdEditando').value) || null;
+        if (dep && dep.responsable_id && dep.responsable_id !== idEditando && !selGer.value) {
+            selGer.value = String(dep.responsable_id);
+            if (hint) hint.textContent = 'Sugerido: el responsable del departamento. Puedes cambiarlo.';
+        } else if (hint) {
+            hint.textContent = 'Su jefe directo. Vacío = cabeza de la organización.';
+        }
+    }
+    if (hayEstructura) document.getElementById('empDepartamento').onchange = sugerirGerenteDelDepartamento;
+
     function actualizarPreviewCostoHora() {
         const sueldo = parseFloat(document.getElementById('empSueldo').value) || 0;
         const horas = parseFloat(document.getElementById('empHoras').value) || 0;
@@ -111,22 +211,30 @@ export async function cargarModuloEmpleados() {
             .order('nombre', { ascending: true });
 
         if (error) {
-            cont.innerHTML = `<p class="text-rose-400 text-xs">Error al cargar: ${error.message}</p>`;
+            cont.innerHTML = `<p class="text-rose-400 text-xs">Error al cargar: ${esc(error.message)}</p>`;
             return;
         }
         if (!data || !data.length) {
             cont.innerHTML = `<p class="text-slate-500 text-xs italic">Todavía no hay empleados registrados.</p>`;
             return;
         }
+        empleadosCache = data;
+        pintarOpcionesGerente(Number(document.getElementById('empIdEditando').value) || null, document.getElementById('empGerente')?.value);
+        const urls = hayEstructura ? await urlsFotos(data.map((e) => e.foto_path)) : new Map();
+        const nombreDe = (id) => data.find((e) => e.id === id)?.nombre || null;
 
         cont.innerHTML = data.map(emp => `
-            <div class="flex items-center justify-between bg-slate-950 border border-slate-800 rounded-lg p-3 ${!emp.activo ? 'opacity-50' : ''}">
-                <div>
-                    <p class="text-sm font-semibold text-slate-200">${emp.nombre} ${!emp.activo ? '<span class="text-[10px] text-rose-400">(inactivo)</span>' : ''}</p>
-                    <p class="text-[11px] text-slate-500">${emp.puesto || 'Sin puesto'}${emp.departamento ? ' · ' + emp.departamento : ''} · $${Number(emp.sueldo_semanal).toFixed(2)}/sem · ${Number(emp.horas_semanales)} hrs/sem</p>
-                    <p class="text-[11px] mt-0.5 ${emp.pin_hash ? 'text-emerald-500' : 'text-amber-500'}">${emp.pin_hash ? 'PIN móvil ✓' : 'Sin PIN móvil'}${emp.patron_hash ? ' · Patrón ✓' : ''}</p>
+            <div class="flex items-center justify-between gap-3 bg-slate-950 border border-slate-800 rounded-lg p-3 ${!emp.activo ? 'opacity-50' : ''}">
+                <div class="flex items-center gap-3 min-w-0">
+                    ${hayEstructura ? avatarHtml(emp.nombre, urls.get(emp.foto_path), 40) : ''}
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-slate-200">${esc(emp.nombre)} ${!emp.activo ? '<span class="text-[10px] text-rose-400">(inactivo)</span>' : ''}</p>
+                        <p class="text-[11px] text-slate-500">${esc(emp.puesto || 'Sin puesto')}${emp.departamento ? ' · ' + esc(emp.departamento) : ''} · $${Number(emp.sueldo_semanal).toFixed(2)}/sem · ${Number(emp.horas_semanales)} hrs/sem</p>
+                        ${hayEstructura ? `<p class="text-[11px] text-slate-500">${emp.gerente_id && nombreDe(emp.gerente_id) ? 'Gerente: ' + esc(nombreDe(emp.gerente_id)) : 'Sin gerente (cabeza de la organización)'}</p>` : ''}
+                        <p class="text-[11px] mt-0.5 ${emp.pin_hash ? 'text-emerald-500' : 'text-amber-500'}">${emp.pin_hash ? 'PIN móvil ✓' : 'Sin PIN móvil'}${emp.patron_hash ? ' · Patrón ✓' : ''}</p>
+                    </div>
                 </div>
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3 shrink-0">
                     <span class="font-mono text-emerald-400 font-bold text-sm">$${Number(emp.costo_hora).toFixed(2)}/hr</span>
                     <button type="button" class="btn-pin-emp text-slate-400 hover:text-emerald-400 text-xs" data-id="${emp.id}" title="Restablecer PIN móvil">🔑</button>
                     <button type="button" class="btn-editar-emp text-slate-400 hover:text-sky-400 text-xs" data-id="${emp.id}">✏️</button>
@@ -157,12 +265,22 @@ export async function cargarModuloEmpleados() {
                 document.getElementById('empNombre').value = emp.nombre;
                 document.getElementById('empPuesto').value = emp.puesto || '';
                 document.getElementById('empFechaIngreso').value = emp.fecha_ingreso || '';
-                document.getElementById('empDepartamento').value = emp.departamento || '';
+                document.getElementById('empDepartamento').value = hayEstructura ? (emp.departamento_id ? String(emp.departamento_id) : '') : (emp.departamento || '');
                 document.getElementById('empRfc').value = emp.rfc || '';
                 document.getElementById('empCurp').value = emp.curp || '';
                 document.getElementById('empNss').value = emp.nss || '';
                 document.getElementById('empSueldo').value = emp.sueldo_semanal;
                 document.getElementById('empHoras').value = emp.horas_semanales;
+                if (hayEstructura) {
+                    pintarOpcionesGerente(emp.id, emp.gerente_id);
+                    const hint = document.getElementById('empGerenteHint');
+                    if (hint) hint.textContent = 'Su jefe directo. Vacío = cabeza de la organización.';
+                    fotoNueva = null; fotoQuitar = false;
+                    fotoRutaActual = emp.foto_path || null;
+                    fotoUrlActual = urls.get(emp.foto_path) || null;
+                    document.getElementById('empFoto').value = '';
+                    pintarVistaFoto(emp.nombre);
+                }
                 actualizarPreviewCostoHora();
                 document.getElementById('btnCancelarEdicionEmp').classList.remove('hidden');
                 document.getElementById('btnGuardarEmpleado').textContent = '💾 Actualizar Empleado';
@@ -185,6 +303,11 @@ export async function cargarModuloEmpleados() {
         document.getElementById('empHoras').value = 48;
         document.getElementById('btnCancelarEdicionEmp').classList.add('hidden');
         document.getElementById('btnGuardarEmpleado').textContent = '💾 Guardar Empleado';
+        if (hayEstructura) {
+            fotoNueva = null; fotoQuitar = false; fotoRutaActual = null; fotoUrlActual = null;
+            pintarOpcionesGerente(null, null);
+            pintarVistaFoto('');
+        }
         actualizarPreviewCostoHora();
     }
 
@@ -193,17 +316,25 @@ export async function cargarModuloEmpleados() {
     document.getElementById('formEmpleado').onsubmit = async (e) => {
         e.preventDefault();
         const idEditando = document.getElementById('empIdEditando').value;
+        const selDep = document.getElementById('empDepartamento');
         const registro = {
             nombre: document.getElementById('empNombre').value.trim(),
             puesto: document.getElementById('empPuesto').value.trim() || null,
             fecha_ingreso: document.getElementById('empFechaIngreso').value || null,
-            departamento: document.getElementById('empDepartamento').value || null,
             rfc: document.getElementById('empRfc').value.trim().toUpperCase() || null,
             curp: document.getElementById('empCurp').value.trim().toUpperCase() || null,
             nss: document.getElementById('empNss').value.trim() || null,
             sueldo_semanal: parseFloat(document.getElementById('empSueldo').value) || 0,
             horas_semanales: parseFloat(document.getElementById('empHoras').value) || 1
         };
+        if (hayEstructura) {
+            const dep = departamentos.find((d) => String(d.id) === selDep.value);
+            registro.departamento_id = dep ? dep.id : null;
+            registro.departamento = dep ? dep.nombre : null;   // el texto se conserva por compatibilidad
+            registro.gerente_id = Number(document.getElementById('empGerente').value) || null;
+        } else {
+            registro.departamento = selDep.value || null;
+        }
 
         let empleadoId = idEditando ? Number(idEditando) : null;
         let error;
@@ -218,6 +349,19 @@ export async function cargarModuloEmpleados() {
         if (error) {
             alert('❌ Error al guardar: ' + error.message);
             return;
+        }
+
+        // Foto: se sube después de guardar (necesita el id del empleado)
+        if (hayEstructura && empleadoId && (fotoNueva || fotoQuitar)) {
+            try {
+                let nuevaRuta = null;
+                if (fotoNueva) nuevaRuta = await subirFotoEmpleado(empleadoId, fotoNueva, fotoRutaActual);
+                else if (fotoRutaActual) await borrarFoto(fotoRutaActual);
+                const { error: errFoto } = await supabaseClient.from('empleados').update({ foto_path: nuevaRuta }).eq('id', empleadoId);
+                if (errFoto) throw errFoto;
+            } catch (errFoto) {
+                alert('Empleado guardado, pero la foto no se pudo subir: ' + (errFoto.message || errFoto));
+            }
         }
 
         const pin = document.getElementById('empPin').value.trim();
@@ -238,5 +382,6 @@ export async function cargarModuloEmpleados() {
     };
 
     actualizarPreviewCostoHora();
+    if (hayEstructura) pintarVistaFoto('');
     await cargarLista();
 }

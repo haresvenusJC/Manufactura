@@ -5,6 +5,7 @@ import { montarGuia } from './asistente-contable.js';
 import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 import { obtenerInfoProveedorProducto } from './info-proveedor-producto.js';
 import './trazabilidad.js';
+import { cargarPersonal, empleadoDe, gerenteDe, datosFirma, autorizaEsperado, htmlBloqueFirmas } from './firmas.js';
 
 // =====================================================================
 //  Requisiciones de compra — paso previo a la Orden de compra. Se capturan
@@ -34,6 +35,7 @@ let reqProveedores = [];
 let reqUnidades = [];
 let reqMonedas = [];
 let reqProductos = [];
+let reqPersonal = { disponible: false, empleados: [], departamentos: [] };   // plantilla de empleados y departamentos (firmas)
 let reqPartidasTemp = [];
 let reqProdSel = null;
 let reqFiltro = 'pendiente';
@@ -62,11 +64,13 @@ const REQ_ESTATUS = {
 };
 
 async function reqCargarCatalogos() {
-    const [pv, um, mo] = await Promise.all([
+    const [pv, um, mo, personal] = await Promise.all([
         supabaseClient.from('proveedores').select('id, nombre').order('nombre'),
         supabaseClient.from('unidades_medida').select('id, nombre').order('nombre'),
         supabaseClient.from('monedas').select('id, codigo').order('id'),
+        cargarPersonal(),
     ]);
+    reqPersonal = personal;
     reqProveedores = pv.data || [];
     reqUnidades = um.data || [];
     reqMonedas = mo.data || [];
@@ -163,6 +167,13 @@ export async function cargarModuloRequisicionesCompra() {
             <input type="date" id="reqFecha" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
           <div class="lg:flex-1 lg:min-w-[240px]"><label class="block text-xs text-slate-400 mb-1">Notas</label>
             <input type="text" id="reqNotas" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></div>
+          ${reqPersonal.disponible ? `
+          <div class="lg:w-52"><label class="block text-xs text-slate-400 mb-1">Departamento</label>
+            <select id="reqDepto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+              <option value="">Elige...</option>${reqPersonal.departamentos.map((d) => `<option value="${d.id}">${esc(d.nombre)}</option>`).join('')}
+            </select></div>
+          <div class="lg:w-64"><label class="block text-xs text-slate-400 mb-1">Solicita</label>
+            <select id="reqSolicita" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select></div>` : ''}
         </div>
 
         <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-3 mb-3">
@@ -211,6 +222,7 @@ export async function cargarModuloRequisicionesCompra() {
     document.getElementById('reqFecha').value = hoyISO();
 
     reqWireFormulario();
+    reqWireSolicitante();
     document.getElementById('reqNuevaCerrar').onclick = reqCerrarNueva;
     await reqAplicarPreseleccion();
     // Si se llegó con partidas precargadas (Tareas, Producción, Pedidos), la captura se abre sola para que se vean.
@@ -218,6 +230,22 @@ export async function cargarModuloRequisicionesCompra() {
     reqPintarFiltros();
     await reqRenderLista();
     montarGuia(cont, 'requisiciones-compra');
+}
+
+// "Solicita": solo las personas del departamento elegido (fija la responsabilidad mientras no haya claves de acceso por persona).
+function reqWireSolicitante() {
+    const selD = document.getElementById('reqDepto');
+    const selS = document.getElementById('reqSolicita');
+    if (!selD || !selS) return;
+    const pintar = () => {
+        const depId = Number(selD.value) || null;
+        const gente = reqPersonal.empleados.filter((e) => e.departamento_id === depId);
+        selS.innerHTML = !depId ? '<option value="">Elige primero el departamento</option>'
+            : gente.length ? '<option value="">Elige quién solicita...</option>' + gente.map((e) => `<option value="${e.id}">${esc(e.nombre)}${e.puesto ? ' — ' + esc(e.puesto) : ''}</option>`).join('')
+            : '<option value="">(este departamento no tiene empleados asignados)</option>';
+    };
+    selD.onchange = pintar;
+    pintar();
 }
 
 // Abre / cierra la subventana de captura ("Crear" del encabezado). Los campos conservan sus ids: solo cambia dónde viven.
@@ -554,6 +582,13 @@ async function reqGuardarRequisicion() {
     const msg = document.getElementById('reqMsg');
     msg.textContent = ''; msg.className = 'text-xs mt-2 min-h-[1rem]';
     if (!reqPartidasTemp.length) { msg.textContent = 'Agrega al menos una partida.'; msg.className = 'text-xs mt-2 text-rose-400'; return; }
+    const deptoId = reqPersonal.disponible ? (Number(document.getElementById('reqDepto')?.value) || null) : null;
+    const solicitanteId = reqPersonal.disponible ? (Number(document.getElementById('reqSolicita')?.value) || null) : null;
+    if (reqPersonal.disponible && (!deptoId || !solicitanteId)) {
+        msg.textContent = 'Elige el departamento y quién solicita: queda como responsable en la requisición impresa.';
+        msg.className = 'text-xs mt-2 text-rose-400';
+        return;
+    }
 
     const btn = document.getElementById('reqGuardar');
     btn.disabled = true;
@@ -568,6 +603,11 @@ async function reqGuardarRequisicion() {
             estatus: 'pendiente',
             notas: notas || null,
         };
+        if (solicitanteId) {
+            filaReq.departamento_id = deptoId;
+            filaReq.solicitante_empleado_id = solicitanteId;
+            filaReq.solicitada_por = empleadoDe(reqPersonal, solicitanteId)?.nombre || null;   // el texto se conserva por compatibilidad
+        }
         if (reqOrdenProd) filaReq.orden_produccion_id = reqOrdenProd.id;
         if (reqPedido) filaReq.pedido_venta_id = reqPedido.id;
         let { data: req, error: e1 } = await supabaseClient.from('requisiciones_compra').insert([filaReq]).select('id, folio').single();
@@ -579,6 +619,11 @@ async function reqGuardarRequisicion() {
         if (e1 && reqPedido && /pedido_venta_id/i.test(e1.message || '')) {
             // aún sin sql/2026-11-04_pedido_venta_cobertura.sql: se guarda sin la liga al pedido.
             delete filaReq.pedido_venta_id;
+            ({ data: req, error: e1 } = await supabaseClient.from('requisiciones_compra').insert([filaReq]).select('id, folio').single());
+        }
+        if (e1 && /departamento_id|solicitante_empleado_id/i.test(e1.message || '')) {
+            // aún sin sql/2026-10-28b_firmas_requisicion.sql: se guarda sin los responsables (queda el nombre en texto).
+            delete filaReq.departamento_id; delete filaReq.solicitante_empleado_id;
             ({ data: req, error: e1 } = await supabaseClient.from('requisiciones_compra').insert([filaReq]).select('id, folio').single());
         }
         if (e1) throw e1;
@@ -619,6 +664,7 @@ async function reqGuardarRequisicion() {
         reqPartidasTemp = [];
         reqRenderPartidas();
         document.getElementById('reqNotas').value = '';
+        { const s = document.getElementById('reqSolicita'); if (s) s.value = ''; }
         reqFiltro = 'pendiente';
         reqPintarFiltros();
         await reqRenderLista();
@@ -837,6 +883,19 @@ async function abrirDetalleReq(id) {
         }
         if (error) throw error;
 
+        // Responsables (solicita / autoriza): salen de la plantilla de Empleados. Si aún no se corre
+        // sql/2026-10-28b_firmas_requisicion.sql, 'ext' queda vacío y la firma muestra solo el nombre en texto.
+        const [extRes, personal] = await Promise.all([
+            supabaseClient.from('requisiciones_compra').select('departamento_id, solicitante_empleado_id, autorizada_por_empleado_id, solicitada_por').eq('id', id).single(),
+            cargarPersonal(),
+        ]);
+        const ext = extRes.error ? {} : (extRes.data || {});
+        const solicitanteId = ext.solicitante_empleado_id || null;
+        const solicito = datosFirma(personal, solicitanteId) || (ext.solicitada_por ? { nombre: ext.solicitada_por, puesto: '', departamento: '' } : null);
+        const autorizo = autorizaEsperado(personal, ext.autorizada_por_empleado_id, solicitanteId);
+        const depNombre = personal.departamentos.find((d) => d.id === ext.departamento_id)?.nombre || solicito?.departamento || '';
+        const puedeEditarResp = personal.disponible && 'departamento_id' in ext && (r.estatus === 'pendiente' || r.estatus === 'autorizada');
+
         modal.querySelector('#tituloDetalleReqSub').textContent = r.folio || ('#' + r.id);
         modal.querySelector('#btnImprimirReq').onclick = () => imprimirConPlantilla('requisicion_compra', 'Requisición ' + (r.folio || '#' + r.id), idCuerpo, marcaDeEstatus(r.estatus));
 
@@ -858,6 +917,8 @@ async function abrirDetalleReq(id) {
                 <div><span class="block text-[10px] text-slate-500">Fecha</span><span class="text-slate-300">${r.fecha || '—'}</span></div>
                 <div><span class="block text-[10px] text-slate-500">Estatus</span><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${REQ_ESTATUS[r.estatus] || 'text-slate-400 bg-slate-800'}">${esc(reqEstLabel(r.estatus))}</span></div>
                 <div><span class="block text-[10px] text-slate-500">Origen</span><span class="text-slate-300">${r.origen === 'stock_bajo_minimo' ? 'Stock bajo mínimo' : 'Manual'}</span></div>
+                <div><span class="block text-[10px] text-slate-500">Solicita</span><span class="text-slate-300">${esc(solicito?.nombre || '—')}</span></div>
+                <div><span class="block text-[10px] text-slate-500">Departamento</span><span class="text-slate-300">${esc(depNombre || '—')}</span></div>
             </div>
             ${r.notas ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Notas</span><p class="text-xs text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5">${esc(r.notas)}</p></div>` : ''}
             ${bloqueRevision}
@@ -892,10 +953,56 @@ async function abrirDetalleReq(id) {
                 </tfoot>
               </table>
             </div>
-            <div class="grid grid-cols-2 gap-6 mt-8 pt-4 border-t border-slate-800 text-xs text-slate-400">
-                <div><p class="border-t border-slate-600 pt-1 mt-8">Solicitó</p></div>
-                <div><p class="border-t border-slate-600 pt-1 mt-8">Revisó y autorizó</p></div>
-            </div>`;
+            ${htmlBloqueFirmas(solicito, autorizo)}
+            ${puedeEditarResp ? `
+            <div data-f="resp" class="no-print mt-5 bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs">
+                <p class="text-slate-400 mb-2">Responsables del documento <span class="text-slate-600">(mientras no haya claves de acceso por persona)</span></p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div><label class="block text-[10px] text-slate-500 mb-1">Departamento</label><select data-f="rDepto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></select></div>
+                    <div><label class="block text-[10px] text-slate-500 mb-1">Solicita</label><select data-f="rSolicita" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></select></div>
+                    <div><label class="block text-[10px] text-slate-500 mb-1">Revisa y autoriza</label><select data-f="rAutoriza" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-100"></select></div>
+                </div>
+                <div class="flex items-center gap-3 mt-2">
+                    <button type="button" data-f="rGuardar" class="bg-sky-700 hover:bg-sky-600 text-white font-semibold px-3 py-1.5 rounded-lg">Guardar responsables</button>
+                    <span data-f="rMsg" class="text-[11px] text-rose-400"></span>
+                </div>
+            </div>` : ''}`;
+
+        if (puedeEditarResp) {
+            const f = (k) => cuerpo.querySelector(`[data-f="${k}"]`);
+            const selD = f('rDepto'), selS = f('rSolicita'), selA = f('rAutoriza');
+            selD.innerHTML = '<option value="">(sin departamento)</option>' + personal.departamentos.map((d) => `<option value="${d.id}">${esc(d.nombre)}</option>`).join('');
+            selD.value = ext.departamento_id ? String(ext.departamento_id) : '';
+            const pintarSolicita = (elegido) => {
+                const depId = Number(selD.value) || null;
+                const gente = depId ? personal.empleados.filter((e) => e.departamento_id === depId) : [];
+                selS.innerHTML = '<option value="">(sin asignar)</option>' + gente.map((e) => `<option value="${e.id}">${esc(e.nombre)}${e.puesto ? ' — ' + esc(e.puesto) : ''}</option>`).join('');
+                selS.value = elegido && gente.some((e) => e.id === Number(elegido)) ? String(elegido) : '';
+            };
+            const pintarAutoriza = (elegido) => {
+                const sug = gerenteDe(personal, Number(selS.value) || null);
+                selA.innerHTML = '<option value="">' + (sug ? `(Gerente del solicitante: ${esc(sug.nombre)})` : '(sin asignar)') + '</option>'
+                    + personal.empleados.map((e) => `<option value="${e.id}">${esc(e.nombre)}${e.puesto ? ' — ' + esc(e.puesto) : ''}</option>`).join('');
+                selA.value = elegido ? String(elegido) : '';
+            };
+            pintarSolicita(solicitanteId);
+            pintarAutoriza(ext.autorizada_por_empleado_id);
+            selD.onchange = () => { pintarSolicita(null); pintarAutoriza(selA.value); };
+            selS.onchange = () => pintarAutoriza(selA.value);
+            f('rGuardar').onclick = async () => {
+                const msgR = f('rMsg'); msgR.textContent = '';
+                const cambios = {
+                    departamento_id: Number(selD.value) || null,
+                    solicitante_empleado_id: Number(selS.value) || null,
+                    autorizada_por_empleado_id: Number(selA.value) || null,
+                    solicitada_por: empleadoDe(personal, Number(selS.value) || null)?.nombre || ext.solicitada_por || null,
+                };
+                const { error: eR } = await supabaseClient.from('requisiciones_compra').update(cambios).eq('id', id);
+                if (eR) { msgR.textContent = 'No se pudo guardar: ' + (eR.message || eR); return; }
+                cerrar();
+                abrirDetalleReq(id);
+            };
+        }
     } catch (err) {
         modal.querySelector('#' + idCuerpo).innerHTML = `<p class="text-rose-400 text-xs">Error al cargar la requisición: ${esc(err.message || err)}</p>`;
     }
@@ -1065,7 +1172,7 @@ window.reqAutorizar = async (id) => {
     // id == null → ODC "manual" (sin requisición): mismo documento formal, partidas capturadas aquí.
     const manual = (id == null);
     if (manual) await reqCargarCatalogos();
-    const [rq, pv, fp, em] = await Promise.all([
+    const [rq, pv, fp, em, rqResp] = await Promise.all([
         manual ? Promise.resolve({ data: { id: null, folio: null, fecha: hoyISO(), origen: 'captura directa', solicitada_por: null, requisiciones_compra_detalle: [] } })
             : supabaseClient.from('requisiciones_compra')
                 .select(`id, folio, fecha, origen, solicitada_por, notas,
@@ -1075,7 +1182,8 @@ window.reqAutorizar = async (id) => {
         supabaseClient.from('proveedores')
             .select('id, nombre, rfc, contacto, telefono, email, condicion_pago, dias_credito, forma_pago').order('nombre'),
         supabaseClient.from('c_forma_pago').select('clave, descripcion').order('clave'),
-        manual ? supabaseClient.from('empleados').select('id, nombre').eq('activo', true).order('nombre') : Promise.resolve({ data: [] }),
+        supabaseClient.from('empleados').select('id, nombre').eq('activo', true).order('nombre'),   // también para requisiciones: "Solicitado por" sale ya elegido
+        manual ? Promise.resolve({ data: null }) : supabaseClient.from('requisiciones_compra').select('solicitante_empleado_id').eq('id', id).single(),
     ]);
     if (rq.error) { alert('No se pudo cargar la requisición: ' + (rq.error.message || rq.error)); return; }
     const r = rq.data;
@@ -1424,8 +1532,10 @@ window.reqAutorizar = async (id) => {
     pintarCondicion();
     if (f('proveedor').value) prellenar();
     // Solicitante: si la requisición trae un nombre que coincide con un empleado, ya viene elegido.
-    if (!manual && r.solicitada_por && f('solicitante')) {
-        const emp = empleados.find((e) => String(e.nombre || '').trim().toLowerCase() === String(r.solicitada_por).trim().toLowerCase());
+    if (!manual && f('solicitante')) {
+        const idSol = rqResp?.data?.solicitante_empleado_id || null;   // lo fijado en la requisición (si ya corrió sql/2026-10-28b)
+        const emp = idSol ? empleados.find((e) => e.id === idSol)
+            : (r.solicitada_por ? empleados.find((e) => String(e.nombre || '').trim().toLowerCase() === String(r.solicitada_por).trim().toLowerCase()) : null);
         if (emp) f('solicitante').value = String(emp.id);
     }
 

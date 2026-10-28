@@ -239,6 +239,8 @@
                             <li><button onclick="window.loadView('clientes', {tab:'clientes'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Clientes</button></li>
                             <li><button onclick="window.loadView('clientes', {tab:'listas'})" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Listas de precio</button></li>
                             <li><button onclick="window.loadView('empleados')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Empleados</button></li>
+                            <li><button onclick="window.loadView('departamentos')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Departamentos</button></li>
+                            <li><button onclick="window.loadView('organigrama')" class="w-full text-left px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-xs font-medium" style="cursor: pointer;">Organigrama</button></li>
                         </ul>
                     </li>
 
@@ -637,6 +639,16 @@
             <!-- Vista: Empleados -->
             <section id="view-empleados" class="vista-seccion hidden space-y-4">
                 <!-- Se inyecta dinámicamente el contenido generado por empleados.js -->
+            </section>
+
+            <!-- Vista: Departamentos -->
+            <section id="view-departamentos" class="vista-seccion hidden space-y-4">
+                <!-- Se inyecta dinámicamente el contenido generado por departamentos.js -->
+            </section>
+
+            <!-- Vista: Organigrama -->
+            <section id="view-organigrama" class="vista-seccion hidden space-y-4">
+                <!-- Se inyecta dinámicamente el contenido generado por organigrama.js -->
             </section>
 
             <!-- Vista: Importador de datos (Excel / CSV) -->

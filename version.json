@@ -1,5 +1,5 @@
 {
- "v": "20261016150000",
+ "v": "20261028164146",
  "modulos": [
   "activos-fijos.js",
   "app.js",
@@ -26,16 +26,19 @@
   "conteo-inventario.js",
   "conversion-unidades.js",
   "cuentas-por-cobrar.js",
+  "departamentos.js",
   "devoluciones.js",
   "dialogos.js",
   "documentos.js",
   "empleados.js",
   "enlaces-reporte.js",
+  "entradas.js",
   "estado-vacio.js",
   "fechas.js",
   "filtro-columna.js",
-  "entradas.js",
+  "firmas.js",
   "folios.js",
+  "fotos-personal.js",
   "fresh-start.js",
   "iconos-accesos.js",
   "importador-bom.js",
@@ -52,6 +55,7 @@
   "orden-trabajo.js",
   "ordenes-compra.js",
   "ordenes-produccion.js",
+  "organigrama.js",
   "pagos-compras.js",
   "pagos-proveedor.js",
   "patron-login.js",
@@ -76,5 +80,3 @@
   "trazabilidad.js"
  ]
 }
-
-

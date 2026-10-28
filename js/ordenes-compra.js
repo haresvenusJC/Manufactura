@@ -10,6 +10,7 @@ import { opcionesPresentacionHtml, sugerirPresetPorUnidadCfdi } from './presenta
 import './trazabilidad.js';
 import { convertirEnBuscador } from './buscador-select.js';
 import { etiquetaPoliza, linkPoliza } from './enlaces-reporte.js';
+import { resolverFirmas, htmlBloqueFirmas } from './firmas.js';
 import { fechaLocalTxt } from './fechas.js';
 
 // =====================================================================
@@ -533,6 +534,26 @@ async function renderVistaOC(o, cuerpo) {
     const nombreUnidad = (uid) => ocUnidades.find(u => u.id === uid)?.nombre || '';
     const fmtFecha = (iso) => { try { return new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso || '—'; } };
 
+    // Firmas de la versión impresa: quien solicitó (el de la ODC o, si no hay, el de su requisición) y quien autorizó
+    // (el fijado en la requisición o, si no, el Gerente del solicitante). Sin los datos, quedan las líneas en blanco.
+    let htmlFirmasImpresion = '';
+    if (o.condicion_pago) {
+        let bloque = null;
+        try {
+            const [resOc, resReq] = await Promise.all([
+                supabaseClient.from('ordenes_compra').select('solicitante_empleado_id').eq('id', o.id).single(),
+                supabaseClient.from('requisiciones_compra').select('solicitante_empleado_id, autorizada_por_empleado_id').eq('orden_compra_id', o.id).limit(1),
+            ]);
+            const rq = (resReq.data || [])[0] || null;
+            const f = await resolverFirmas({
+                solicitanteId: resOc.data?.solicitante_empleado_id || rq?.solicitante_empleado_id || null,
+                autorizaId: rq?.autorizada_por_empleado_id || null,
+            });
+            bloque = htmlBloqueFirmas(f.solicito, f.autorizo, 'Autorizó compra');
+        } catch (_) { /* sin datos de responsables: quedan las líneas en blanco */ }
+        htmlFirmasImpresion = `<div class="hidden print:block mt-10 text-[10px] text-slate-500">${bloque || htmlBloqueFirmas(null, null, 'Autorizó compra')}</div>`;
+    }
+
     const recibido = o.estatus === 'recibida';
     let pagado = false;
     if (o.estatus === 'recibida' || o.estatus === 'recibida_parcial') {
@@ -633,8 +654,7 @@ async function renderVistaOC(o, cuerpo) {
             </tfoot>
           </table>
         </div>
-        ${o.condicion_pago ? `<div class="hidden print:grid grid-cols-2 gap-10 mt-10 text-[10px] text-slate-500">
-            <div class="border-t border-slate-500 pt-1">Solicitó</div><div class="border-t border-slate-500 pt-1">Autorizó compra</div></div>` : ''}`;
+        ${htmlFirmasImpresion}`;
 }
 
 // ---- Edición de una OC ya guardada (solo mientras nada se ha recibido) ----
