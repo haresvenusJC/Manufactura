@@ -5,7 +5,7 @@ import { montarGuia } from './asistente-contable.js';
 import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 import { obtenerInfoProveedorProducto } from './info-proveedor-producto.js';
 import './trazabilidad.js';
-import { cargarPersonal, empleadoDe, gerenteDe, datosFirma, autorizaEsperado, htmlBloqueFirmas } from './firmas.js';
+import { cargarPersonal, empleadoDe, gerenteDe, datosFirma, autorizaEsperado, htmlBloqueFirmas, conFotos, htmlIconoPersona } from './firmas.js';
 
 // =====================================================================
 //  Requisiciones de compra — paso previo a la Orden de compra. Se capturan
@@ -893,6 +893,7 @@ async function abrirDetalleReq(id) {
         const solicitanteId = ext.solicitante_empleado_id || null;
         const solicito = datosFirma(personal, solicitanteId) || (ext.solicitada_por ? { nombre: ext.solicitada_por, puesto: '', departamento: '' } : null);
         const autorizo = autorizaEsperado(personal, ext.autorizada_por_empleado_id, solicitanteId);
+        await conFotos(solicito, autorizo);
         const depNombre = personal.departamentos.find((d) => d.id === ext.departamento_id)?.nombre || solicito?.departamento || '';
         const puedeEditarResp = personal.disponible && 'departamento_id' in ext && (r.estatus === 'pendiente' || r.estatus === 'autorizada');
 
@@ -917,7 +918,7 @@ async function abrirDetalleReq(id) {
                 <div><span class="block text-[10px] text-slate-500">Fecha</span><span class="text-slate-300">${r.fecha || '—'}</span></div>
                 <div><span class="block text-[10px] text-slate-500">Estatus</span><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${REQ_ESTATUS[r.estatus] || 'text-slate-400 bg-slate-800'}">${esc(reqEstLabel(r.estatus))}</span></div>
                 <div><span class="block text-[10px] text-slate-500">Origen</span><span class="text-slate-300">${r.origen === 'stock_bajo_minimo' ? 'Stock bajo mínimo' : 'Manual'}</span></div>
-                <div><span class="block text-[10px] text-slate-500">Solicita</span><span class="text-slate-300">${esc(solicito?.nombre || '—')}</span></div>
+                <div><span class="block text-[10px] text-slate-500">Solicita</span><span class="text-slate-300">${htmlIconoPersona(solicito)}${esc(solicito?.nombre || '—')}</span></div>
                 <div><span class="block text-[10px] text-slate-500">Departamento</span><span class="text-slate-300">${esc(depNombre || '—')}</span></div>
             </div>
             ${r.notas ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Notas</span><p class="text-xs text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5">${esc(r.notas)}</p></div>` : ''}

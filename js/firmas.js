@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { urlsFotos, avatarHtml } from './fotos-personal.js';
 
 // =====================================================================
 //  Firmas de los documentos: quién solicita y quién autoriza.
@@ -14,7 +15,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 // Empleados activos y departamentos, en paralelo.
 export async function cargarPersonal() {
     const [e, d] = await Promise.all([
-        supabaseClient.from('empleados').select('id, nombre, puesto, departamento_id, departamento, gerente_id').eq('activo', true).order('nombre'),
+        supabaseClient.from('empleados').select('id, nombre, puesto, departamento_id, departamento, gerente_id, foto_path').eq('activo', true).order('nombre'),
         supabaseClient.from('departamentos').select('id, nombre, responsable_id').eq('activo', true).order('nombre'),
     ]);
     if (e.error || d.error) {
@@ -35,7 +36,7 @@ export function datosFirma(personal, id) {
     const emp = empleadoDe(personal, id);
     if (!emp) return null;
     const dep = personal.departamentos.find((d) => d.id === emp.departamento_id);
-    return { nombre: emp.nombre, puesto: emp.puesto || '', departamento: dep ? dep.nombre : (emp.departamento || '') };
+    return { nombre: emp.nombre, foto_path: emp.foto_path || null, puesto: emp.puesto || '', departamento: dep ? dep.nombre : (emp.departamento || '') };
 }
 
 // Quién autoriza: el elegido; si no hay, el Gerente del solicitante.
@@ -43,11 +44,24 @@ export function autorizaEsperado(personal, autorizaId, solicitanteId) {
     return datosFirma(personal, autorizaId) || datosFirma(personal, gerenteDe(personal, solicitanteId)?.id);
 }
 
+// Agrega `url` (foto firmada) a cada firma que tenga foto; solo para pantalla, nunca se imprime.
+export async function conFotos(...firmas) {
+    const lista = firmas.filter(Boolean);
+    const mapa = await urlsFotos(lista.map((f) => f.foto_path));
+    lista.forEach((f) => { f.url = mapa.get(f.foto_path) || null; });
+    return firmas;
+}
+
+// Icono pequeño (foto o iniciales) para pantallas digitales; oculto al imprimir.
+export function htmlIconoPersona(firma, tam = 28) {
+    return firma ? `<span class="print:hidden inline-flex align-middle mr-1.5">${avatarHtml(firma.nombre, firma.url, tam)}</span>` : '';
+}
+
 // Un renglón de firma: el nombre sobre la línea; debajo, el rol y el puesto.
 export function htmlFirma(rol, firma) {
     const detalle = firma ? [firma.puesto, firma.departamento].filter(Boolean).join(' · ') : '';
     return `<div>
-        <p class="mt-8 min-h-[1.25rem] text-sm font-medium text-slate-100">${firma ? esc(firma.nombre) : ''}</p>
+        <p class="mt-8 min-h-[1.25rem] text-sm font-medium text-slate-100 flex items-center gap-1.5">${htmlIconoPersona(firma, 24)}${firma ? esc(firma.nombre) : ''}</p>
         <p class="border-t border-slate-600 pt-1">${esc(rol)}${detalle ? ` <span class="text-slate-500">· ${esc(detalle)}</span>` : ''}</p>
     </div>`;
 }
@@ -61,8 +75,8 @@ export function htmlBloqueFirmas(solicito, autorizo, rolAutoriza = 'Revisó y au
 // Para documentos que ya traen sus ids (ej. la orden de compra): arma las dos firmas.
 export async function resolverFirmas({ solicitanteId, autorizaId }) {
     const personal = await cargarPersonal();
-    return {
-        solicito: datosFirma(personal, solicitanteId),
-        autorizo: autorizaEsperado(personal, autorizaId, solicitanteId),
-    };
+    const solicito = datosFirma(personal, solicitanteId);
+    const autorizo = autorizaEsperado(personal, autorizaId, solicitanteId);
+    await conFotos(solicito, autorizo);
+    return { solicito, autorizo };
 }
