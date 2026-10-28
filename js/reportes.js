@@ -16,7 +16,7 @@ const repInvOrden = crearOrdenTabla('valor', 'desc');
 // =====================================================================
 
 // ---------- Helpers compartidos (mismo patrón que contabilidad.js) ----------
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2 } from './formato.js';
 const numero = (n) => Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 });
 import { hoyISO } from './fechas.js';
 const primerDiaMesISO = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); };
@@ -140,7 +140,7 @@ async function fetchInventarioValorizado() {
         .limit(2000);
     if (error) throw error;
 
-    return (data || []).map((p) => ({
+    return (data || []).filter((p) => p.tipo !== 'activo_fijo').map((p) => ({
         producto: p.nombre,
         sku: p.sku || '',
         tipo: p.tipo || 'sin_tipo',

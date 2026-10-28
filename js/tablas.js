@@ -2,6 +2,8 @@ import { supabaseClient } from './supabase.js';
 import { abrirTablaUnidades, abrirTablaDensidades } from './catalogo.js';
 import { REGIMENES, cargarRegimenes } from './regimenes-fiscales.js';
 import { familiaDeUnidad, BASE_FAMILIA } from './conversion-unidades.js';
+import { vidaMesesDePct } from './categorias-depreciacion.js';
+import { cargarVisorSat } from './catalogos-sat.js';
 
 // =====================================================================
 // Configuración · Tablas
@@ -18,6 +20,7 @@ const TABLAS = {
     c_forma_pago: { titulo: '🧾 SAT · Forma de pago', desc: 'Catálogo c_FormaPago del SAT (01 Efectivo, 03 Transferencia...).', orden: 'clave' },
     c_metodo_pago: { titulo: '🧾 SAT · Método de pago', desc: 'Catálogo c_MetodoPago del SAT (PUE / PPD).', orden: 'clave' },
     regimenes: { titulo: '🧾 SAT · Regímenes fiscales', desc: '', orden: 'clave' },
+    depreciacion_fiscal: { titulo: '🏭 SAT · Depreciación fiscal', desc: '', orden: 'orden' },
     monedas: { titulo: '💱 Monedas', desc: 'Monedas disponibles en Órdenes de compra y Compra directa (MXN, USD...).', orden: 'id' },
 };
 
@@ -119,6 +122,117 @@ async function cargarEditorRegimenes(cont, titulo) {
     });
 }
 
+// Depreciación fiscal (c_categoria_depreciacion): tasas máximas anuales de la LISR (arts. 33-36) por categoría de bien.
+// Todo editable. Para un cambio de ley "año con año" NO se pisa el % viejo: "Nueva vigencia" cierra la fila (vigente_hasta)
+// y crea otra desde el ejercicio indicado, así un equipo conserva el % del año en que se compró. Requiere sql/2026-10-22_categorias_depreciacion_fiscal.sql.
+async function cargarEditorDepreciacionFiscal(cont, titulo) {
+    if (titulo) titulo.textContent = TABLAS.depreciacion_fiscal.titulo;
+    cont.innerHTML = '<p class="text-sm text-slate-400">Cargando…</p>';
+    const { data, error } = await supabaseClient.from('c_categoria_depreciacion').select('*').order('orden').order('vigente_desde', { ascending: false });
+    if (error) {
+        cont.innerHTML = `<div class="text-xs text-amber-300 bg-amber-950/30 border border-amber-800 rounded-lg p-3">Para ver y editar esta tabla corre primero <code>sql/2026-10-22_categorias_depreciacion_fiscal.sql</code> en Supabase (${esc(error.message)}).</div>`;
+        return;
+    }
+    const filas = data || [];
+    const conCuentas = filas.length > 0 && 'cuenta_activo_id' in filas[0];   // falta sql/2026-10-22d si no
+    let cuentas = [];
+    if (conCuentas) {
+        const rc = await supabaseClient.from('cuentas_contables').select('id, codigo, nombre').eq('afectable', true).eq('activa', true).order('codigo');
+        cuentas = rc.data || [];
+    }
+    const selCta = (campo, valor, etiqueta) => `<label class="block text-[9px] text-slate-500 leading-tight">${etiqueta}<select data-campo="${campo}" class="w-full bg-slate-950 border border-slate-800 rounded p-0.5 text-[10px] text-slate-100"><option value="">—</option>${cuentas.map((c) => `<option value="${c.id}" ${c.id === valor ? 'selected' : ''}>${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('')}</select></label>`;
+    const anioHoy = new Date().getFullYear();
+    const rige = (r) => r.activo && r.vigente_desde <= anioHoy && (r.vigente_hasta == null || r.vigente_hasta >= anioHoy);
+    const inp = 'w-full bg-slate-950 border border-slate-800 rounded p-1 text-xs text-slate-100';
+    const fila = (r) => `
+        <tr data-id="${r.id}" class="${rige(r) ? '' : 'opacity-60'}">
+          <td class="px-2 py-1.5"><select data-campo="grupo" class="${inp}"><option value="depreciacion" ${r.grupo === 'depreciacion' ? 'selected' : ''}>Depreciación</option><option value="amortizacion" ${r.grupo === 'amortizacion' ? 'selected' : ''}>Amortización</option></select></td>
+          <td class="px-2 py-1.5 min-w-[7rem]"><input data-campo="articulo" value="${esc(r.articulo)}" class="${inp}"></td>
+          <td class="px-2 py-1.5 min-w-[14rem]"><input data-campo="categoria" value="${esc(r.categoria)}" class="${inp}">
+            ${r.notas ? `<input data-campo="notas" value="${esc(r.notas)}" class="${inp} mt-1 text-slate-400" placeholder="Notas">` : `<input data-campo="notas" value="" class="${inp} mt-1 text-slate-400" placeholder="Notas">`}</td>
+          <td class="px-2 py-1.5 w-20"><input data-campo="pct_anual" type="number" step="0.01" min="0.01" max="100" value="${r.pct_anual}" class="${inp} text-right"></td>
+          <td class="px-2 py-1.5 text-center text-[10px] text-slate-500">${vidaMesesDePct(r.pct_anual)} m</td>
+          <td class="px-2 py-1.5 w-28"><input data-campo="tope_deducible" type="number" step="0.01" min="0" value="${r.tope_deducible ?? ''}" placeholder="—" class="${inp} text-right"></td>
+          <td class="px-2 py-1.5 w-20"><input data-campo="vigente_desde" type="number" min="2000" max="2100" value="${r.vigente_desde}" class="${inp} text-right"></td>
+          <td class="px-2 py-1.5 w-20"><input data-campo="vigente_hasta" type="number" min="2000" max="2100" value="${r.vigente_hasta ?? ''}" placeholder="vigente" class="${inp} text-right"></td>
+          ${conCuentas ? `<td class="px-2 py-1.5 min-w-[13rem]">${selCta('cuenta_activo_id', r.cuenta_activo_id, 'Activo (compra)')}${selCta('cuenta_dep_acum_id', r.cuenta_dep_acum_id, 'Dep. acumulada')}${selCta('cuenta_gasto_cif_id', r.cuenta_gasto_cif_id, 'Gasto · producción (CIF)')}${selCta('cuenta_gasto_admin_id', r.cuenta_gasto_admin_id, 'Gasto · administración')}</td>` : ''}
+          <td class="px-2 py-1.5 text-center"><input data-campo="activo" type="checkbox" class="accent-sky-500" ${r.activo ? 'checked' : ''}></td>
+          <td class="px-2 py-1.5 whitespace-nowrap">${rige(r) ? `<span class="text-[10px] text-emerald-400 font-semibold">Rige ${anioHoy}</span> ` : ''}<button type="button" data-nueva class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded" title="Cierra esta fila y crea otra con el % nuevo desde el ejercicio que indiques">Nueva vigencia</button></td>
+        </tr>`;
+    cont.innerHTML = `
+        <p class="text-xs text-slate-400 mb-1">Tasas <strong>máximas</strong> anuales de deducción de inversiones (LISR arts. 33, 34, 35 y 36), tomadas de la tabla vigente 2026 de cpcongroup.mx. Al dar de alta un equipo eliges su categoría y el sistema trae el % (y la vida útil que le corresponde, ≈ 100 ÷ %). Los cambios se guardan solos.</p>
+        <p class="text-xs text-slate-400 mb-3"><strong>Si la ley cambia un %:</strong> usa <em>Nueva vigencia</em> — la fila vieja queda cerrada en el año anterior y los equipos ya comprados conservan el % de su ejercicio. Edita directamente solo para corregir un error. Verifica cada fundamento contra la LISR: la fuente es un resumen.</p>
+        <details class="mb-3 bg-slate-950/60 border border-slate-800 rounded-lg"><summary class="cursor-pointer select-none text-xs font-semibold text-sky-400 px-3 py-2">＋ Agregar categoría</summary>
+          <div class="flex flex-wrap gap-2 items-end p-3 pt-1">
+            <div><label class="block text-[10px] text-slate-400 mb-0.5">Tipo</label><select id="cdGrupo" class="${inp}"><option value="depreciacion">Depreciación</option><option value="amortizacion">Amortización</option></select></div>
+            <div><label class="block text-[10px] text-slate-400 mb-0.5">Fundamento</label><input id="cdArt" placeholder="Art. 34 Fracc. IX" class="${inp} w-36"></div>
+            <div class="flex-1 min-w-[12rem]"><label class="block text-[10px] text-slate-400 mb-0.5">Categoría</label><input id="cdCat" class="${inp}"></div>
+            <div><label class="block text-[10px] text-slate-400 mb-0.5">% anual</label><input id="cdPct" type="number" step="0.01" class="${inp} w-20"></div>
+            <div><label class="block text-[10px] text-slate-400 mb-0.5">Tope deducible</label><input id="cdTope" type="number" step="0.01" placeholder="—" class="${inp} w-28"></div>
+            <div><label class="block text-[10px] text-slate-400 mb-0.5">Desde (año)</label><input id="cdDesde" type="number" value="${anioHoy}" class="${inp} w-20"></div>
+            <button type="button" id="cdAgregar" class="text-xs bg-sky-600 hover:bg-sky-500 text-white font-medium px-3 py-1.5 rounded-lg">Agregar</button>
+          </div></details>
+        <p id="cdMsg" class="text-[11px] min-h-[1rem] mb-2"></p>
+        <div class="overflow-x-auto border border-slate-800 rounded-lg"><table class="w-full text-sm text-left">
+          <thead class="bg-slate-950 text-[11px] uppercase text-slate-400"><tr>
+            <th class="px-2 py-2">Tipo</th><th class="px-2 py-2">Fundamento</th><th class="px-2 py-2">Categoría</th><th class="px-2 py-2 text-right">% anual</th><th class="px-2 py-2 text-center">Vida</th>
+            <th class="px-2 py-2 text-right">Tope deducible</th><th class="px-2 py-2 text-right">Desde</th><th class="px-2 py-2 text-right">Hasta</th>${conCuentas ? '<th class="px-2 py-2">Cuentas contables</th>' : ''}<th class="px-2 py-2 text-center">Activo</th><th class="px-2 py-2"></th></tr></thead>
+          <tbody class="divide-y divide-slate-800 text-slate-200">${filas.map(fila).join('')}</tbody></table></div>`;
+
+    const msg = cont.querySelector('#cdMsg');
+    const aviso = (t, ok) => { msg.textContent = t; msg.className = `text-[11px] min-h-[1rem] mb-2 ${ok ? 'text-emerald-400' : 'text-rose-400'}`; };
+    const num = (v) => (v === '' || v == null ? null : Number(v));
+    cont.querySelectorAll('tbody tr').forEach((tr) => {
+        const id = Number(tr.dataset.id);
+        const val = (c) => tr.querySelector(`[data-campo="${c}"]`);
+        tr.querySelectorAll('[data-campo]').forEach((el) => el.addEventListener('change', async () => {
+            const cambios = {
+                grupo: val('grupo').value, articulo: val('articulo').value.trim(), categoria: val('categoria').value.trim(),
+                notas: val('notas').value.trim() || null, pct_anual: num(val('pct_anual').value), tope_deducible: num(val('tope_deducible').value),
+                vigente_desde: num(val('vigente_desde').value), vigente_hasta: num(val('vigente_hasta').value), activo: val('activo').checked,
+            };
+            if (conCuentas) ['cuenta_activo_id', 'cuenta_dep_acum_id', 'cuenta_gasto_cif_id', 'cuenta_gasto_admin_id'].forEach((k) => { cambios[k] = num(val(k).value); });
+            if (!cambios.articulo || !cambios.categoria) return aviso('Fundamento y categoría no pueden quedar vacíos.', false);
+            if (!(cambios.pct_anual > 0 && cambios.pct_anual <= 100)) return aviso('El % debe estar entre 0.01 y 100.', false);
+            if (cambios.vigente_hasta != null && cambios.vigente_hasta < cambios.vigente_desde) return aviso('"Hasta" no puede ser menor que "Desde".', false);
+            const { error: e } = await supabaseClient.from('c_categoria_depreciacion').update(cambios).eq('id', id);
+            if (e) return aviso(`No se guardó: ${e.message}`, false);
+            aviso(`✔ Guardado. Los equipos ya dados de alta conservan su copia del % de su año.`, true);
+            if (el.dataset.campo === 'pct_anual') await cargarEditorDepreciacionFiscal(cont, titulo);
+        }));
+        tr.querySelector('[data-nueva]').addEventListener('click', async () => {
+            const r = filas.find((x) => x.id === id);
+            const anio = parseInt(prompt(`Nueva vigencia de «${r.categoria}»\n\n¿Desde qué ejercicio (año) rige el nuevo %?`, String(anioHoy + 1)), 10);
+            if (!Number.isInteger(anio)) return;
+            if (anio <= r.vigente_desde) return aviso(`El año nuevo debe ser posterior a ${r.vigente_desde}.`, false);
+            const pct = parseFloat(prompt(`¿Cuál es el nuevo % máximo anual desde ${anio}? (hoy ${r.pct_anual}%)`, String(r.pct_anual)));
+            if (!(pct > 0 && pct <= 100)) return;
+            const { error: e1 } = await supabaseClient.from('c_categoria_depreciacion').update({ vigente_hasta: anio - 1 }).eq('id', id);
+            if (e1) return aviso(`No se pudo cerrar la fila: ${e1.message}`, false);
+            const { error: e2 } = await supabaseClient.from('c_categoria_depreciacion').insert({
+                grupo: r.grupo, articulo: r.articulo, categoria: r.categoria, pct_anual: pct, tope_deducible: r.tope_deducible,
+                vigente_desde: anio, activo: r.activo, orden: r.orden, notas: r.notas,
+                ...(conCuentas ? { cuenta_activo_id: r.cuenta_activo_id, cuenta_dep_acum_id: r.cuenta_dep_acum_id, cuenta_gasto_cif_id: r.cuenta_gasto_cif_id, cuenta_gasto_admin_id: r.cuenta_gasto_admin_id } : {}) });
+            if (e2) return aviso(`Se cerró la fila pero no se creó la nueva: ${e2.message}`, false);
+            await cargarEditorDepreciacionFiscal(cont, titulo);
+            const m2 = cont.querySelector('#cdMsg'); if (m2) { m2.textContent = `✔ «${r.categoria}»: ${r.pct_anual}% hasta ${anio - 1} y ${pct}% desde ${anio}.`; m2.className = 'text-[11px] min-h-[1rem] mb-2 text-emerald-400'; }
+        });
+    });
+    cont.querySelector('#cdAgregar').addEventListener('click', async () => {
+        const row = {
+            grupo: cont.querySelector('#cdGrupo').value, articulo: cont.querySelector('#cdArt').value.trim(), categoria: cont.querySelector('#cdCat').value.trim(),
+            pct_anual: num(cont.querySelector('#cdPct').value), tope_deducible: num(cont.querySelector('#cdTope').value),
+            vigente_desde: num(cont.querySelector('#cdDesde').value), activo: true, orden: 900,
+        };
+        if (!row.articulo || !row.categoria) return aviso('Escribe el fundamento y la categoría.', false);
+        if (!(row.pct_anual > 0 && row.pct_anual <= 100)) return aviso('El % debe estar entre 0.01 y 100.', false);
+        if (!Number.isInteger(row.vigente_desde)) return aviso('Indica el año desde el que rige.', false);
+        const { error: e } = await supabaseClient.from('c_categoria_depreciacion').insert(row);
+        if (e) return aviso(`No se agregó: ${e.message}`, false);
+        await cargarEditorDepreciacionFiscal(cont, titulo);
+    });
+}
+
 // Umbrales de caducidad (public.alertas_caducidad_umbrales): a cuántos días de vida de un lote se avisa y con qué prioridad.
 // Vivía en Tareas de almacén; ahora es una tabla de apoyo de Configuración. Al cambiar cualquier umbral se vuelve a correr
 // tareas_sync_caducidad para que las Tareas de almacén reflejen el cambio. Requiere sql/2026-09-09_tareas_caducidad.sql.
@@ -215,7 +329,9 @@ export async function cargarModuloTablas(tabla = 'unidades_medida') {
         abrirTablaDensidades();
         return;
     }
+    if (tabla === 'sat_unidad' || tabla === 'sat_prod_serv') return cargarVisorSat(cont, document.getElementById('tituloTablas'), tabla === 'sat_unidad' ? 'unidad' : 'prod_serv');
     if (tabla === 'regimenes') return cargarEditorRegimenes(cont, document.getElementById('tituloTablas'));
+    if (tabla === 'depreciacion_fiscal') return cargarEditorDepreciacionFiscal(cont, document.getElementById('tituloTablas'));
     if (tabla === 'umbral_caducidad') return cargarEditorUmbralesCaducidad(cont, document.getElementById('tituloTablas'));
     if (tabla === 'conversiones') {
         cont.innerHTML = '<p class="text-sm text-slate-400">Cargando…</p>';

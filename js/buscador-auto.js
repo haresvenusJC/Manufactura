@@ -12,6 +12,26 @@
 //  Para excluir uno puntual: data-sin-buscador en el <select>.
 // =====================================================================
 import { convertirEnBuscador } from './buscador-select.js';
+import { supabaseClient } from './supabase.js';
+import { abrirAltaVinculada } from './vinculos.js';
+
+const PH_PROV = 'Escribe para buscar proveedor…';
+const PH_CLI = 'Escribe para buscar cliente…';
+// «Crear y editar…» al final de la lista: abre la pantalla de alta real del catálogo encima y, al guardar,
+// deja el registro nuevo seleccionado en el campo (js/vinculos.js). Solo en campos de CAPTURA, no en filtros/reportes.
+const SIN_CREAR = new Set(['selectFiltroProveedor', 'cxcFiltroCliente', 'rpProveedor', 'aaProveedor', 'pcProveedor']);
+const crearDe = (entidad, tabla) => (texto, select) => abrirAltaVinculada(entidad, {
+    nombre: texto,
+    onGuardado: async ({ id }) => {
+        const { data } = await supabaseClient.from(tabla).select('id, nombre').eq('id', id).single();
+        if (!data) return;
+        if (![...select.options].some((o) => o.value === String(data.id))) select.add(new Option(data.nombre, data.id));
+        select.value = String(data.id);
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+    },
+});
+const CREAR_POR_PH = { [PH_PROV]: crearDe('proveedor', 'proveedores'), [PH_CLI]: crearDe('cliente', 'clientes') };
+const MIN_OPCIONES_AUTO = 15;   // cualquier otro select con tantas opciones también se vuelve buscador (↑ ↓ Enter)
 
 const POR_ID = {
     // Proveedores
@@ -45,20 +65,31 @@ const POR_SELECTOR = {
     'select[data-f="proveedor"]': 'Escribe para buscar proveedor…',
 };
 
-function intentar(select) {
+function intentar(select, forzar = false) {
     if (!(select instanceof HTMLSelectElement) || select.multiple || select.dataset.buscador === '1' || 'sinBuscador' in select.dataset) return;
     let placeholder = POR_ID[select.id];
     if (!placeholder) {
         for (const [sel, ph] of Object.entries(POR_SELECTOR)) { if (select.matches(sel)) { placeholder = ph; break; } }
     }
-    if (!placeholder) return;
-    try { convertirEnBuscador(select, { placeholder }); } catch (e) { console.warn('buscador-auto:', select.id, e); }
+    if (!placeholder) {
+        // Selects largos sin registro aquí: se revisan un momento después (sus opciones se llenan al abrir la pantalla).
+        if (!select.dataset.revisado) {
+            select.dataset.revisado = '1';
+            setTimeout(() => {
+                if (select.isConnected && [...select.options].filter((o) => o.value !== '').length >= MIN_OPCIONES_AUTO) intentar(select, true);
+            }, 700);
+        }
+        if (!forzar) return;
+        placeholder = 'Escribe para buscar…';
+    }
+    const crear = SIN_CREAR.has(select.id) ? null : (CREAR_POR_PH[placeholder] || null);
+    try { convertirEnBuscador(select, { placeholder, crear }); } catch (e) { console.warn('buscador-auto:', select.id, e); }
 }
 
 function recorrer(nodo) {
     if (!(nodo instanceof Element)) return;
     if (nodo.tagName === 'SELECT') intentar(nodo);
-    nodo.querySelectorAll?.('select').forEach(intentar);
+    nodo.querySelectorAll?.('select').forEach((s) => intentar(s));
 }
 
 new MutationObserver((muts) => { for (const m of muts) m.addedNodes.forEach(recorrer); })

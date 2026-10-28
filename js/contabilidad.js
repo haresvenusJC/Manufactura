@@ -343,7 +343,7 @@ async function eliminar(id) {
 //  registrar_poliza). Requiere: sql/2026-08-28_contabilidad_polizas.sql
 // =====================================================================
 
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2 } from './formato.js';
 import { hoyISO } from './fechas.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const primerDiaMesISO = () => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10); };
@@ -699,7 +699,14 @@ async function cancelarPoliza(id, ds) {
         // 1) confirmar que es reversible (ningún lote consumido)
         const { data: diag, error: eDiag } = await supabaseClient.rpc('recibo_reversible', { p_documento_id: docId });
         if (eDiag) { alert('No se pudo verificar el recibo #' + docId + ':\n' + (eDiag.message || eDiag)); return; }
-        if (!diag || !diag.length) { alert('El recibo #' + docId + ' no tiene movimientos de inventario que revertir.'); return; }
+        // Activos fijos que dio de alta esa recepción (sql/2026-10-21_activo_fijo_en_compras.sql): sin movimientos de
+        // inventario, pero también se retiran al cancelar. Sin la migración la consulta falla y se omite.
+        let activos = [];
+        try {
+            const rAf = await supabaseClient.from('activos_fijos').select('id, nombre, pendiente').eq('documento_id', docId);
+            if (!rAf.error) activos = rAf.data || [];
+        } catch (_) { /* migración sin correr */ }
+        if ((!diag || !diag.length) && !activos.length) { alert('El recibo #' + docId + ' no tiene movimientos de inventario que revertir.'); return; }
 
         const consumidos = diag.filter((d) => !d.ok);
         if (consumidos.length) {
@@ -709,8 +716,11 @@ async function cancelarPoliza(id, ds) {
             return;
         }
 
-        const resumen = diag.map((d) => `· ${d.producto_nombre} · lote ${d.numero_lote}: −${d.recibido}`).join('\n');
-        if (!confirm(`✅ El recibo #${docId} SÍ es cancelable: ningún lote se ha consumido.\n\nSe cancelará la póliza (contra-asiento) y se revertirá el inventario:\n${resumen}\n\n¿Continuar?`)) return;
+        const resumen = [
+            ...diag.map((d) => `· ${d.producto_nombre} · lote ${d.numero_lote}: −${d.recibido}`),
+            ...activos.map((a) => `· Activo fijo «${a.nombre}» (${a.pendiente ? 'pendiente de completar' : 'ya completado'}): se retira de Activos fijos`),
+        ].join('\n');
+        if (!confirm(`✅ El recibo #${docId} SÍ es cancelable${diag.length ? ': ningún lote se ha consumido' : ''}.\n\nSe cancelará la póliza (contra-asiento)${diag.length ? ' y se revertirá el inventario' : ''}:\n${resumen}\n\n¿Continuar?`)) return;
 
         const motivo = prompt('Motivo de la cancelación:', 'Cancelación de recibo');
         if (motivo === null) return;

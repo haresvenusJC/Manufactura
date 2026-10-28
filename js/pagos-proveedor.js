@@ -11,7 +11,7 @@ import { imprimirHtml, marcaDeEstatus } from './impresion.js';
 //  Requiere: sql/2026-09-02_pagos_proveedor.sql
 // =====================================================================
 
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2, importePartidaOdc } from './formato.js';
 import { hoyISO, diasDesdeHoyISO } from './fechas.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 // Forma de pago de la ODC (clave SAT c_forma_pago) → valor del selector "Forma de pago" de esta pantalla.
@@ -145,18 +145,21 @@ export async function cargarModuloPagosProveedor() {
 // =====================================================================
 async function cxpCargarOcPorPagar() {
     try {
-        const [rOc, rAnt] = await Promise.all([
-            supabaseClient.from('ordenes_compra')
-                .select('id, folio, fecha, fecha_esperada, proveedor_id, condicion_pago, dias_credito, forma_pago, anticipo_pct, anticipo_monto, proveedores ( nombre ), ordenes_compra_detalle ( cantidad, costo_unitario_estimado )')
+        const consultaOc = (cols) => supabaseClient.from('ordenes_compra')
+                .select(`id, folio, fecha, fecha_esperada, proveedor_id, condicion_pago, dias_credito, forma_pago, anticipo_pct, anticipo_monto, proveedores ( nombre ), ordenes_compra_detalle ( ${cols} )`)
                 .in('estatus', ['abierta', 'recibida_parcial'])
                 .not('condicion_pago', 'is', null)
-                .order('id', { ascending: false }),
+                .order('id', { ascending: false });
+        const [rOc0, rAnt] = await Promise.all([
+            // importe_proveedor existe solo con sql/2026-10-23c: sin él se usa cantidad × costo.
+            consultaOc('cantidad, costo_unitario_estimado, importe_proveedor'),
             supabaseClient.from('v_anticipos_oc').select('orden_compra_id, pagado').then((r) => r, () => ({ data: null })),
         ]);
+        const rOc = rOc0.error && /does not exist|schema cache|could not find/i.test(rOc0.error.message || '') ? await consultaOc('cantidad, costo_unitario_estimado') : rOc0;
         if (rOc.error) throw rOc.error;
         const pagadoPorOc = new Map((rAnt.data || []).map((a) => [a.orden_compra_id, Number(a.pagado || 0)]));
         return (rOc.data || []).map((o) => {
-            const sub = (o.ordenes_compra_detalle || []).reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0), 0);
+            const sub = (o.ordenes_compra_detalle || []).reduce((a, d) => a + importePartidaOdc(d), 0);
             const total = Math.round(sub * 1.16 * 100) / 100;
             const objetivo = Number(o.anticipo_monto) > 0 ? Number(o.anticipo_monto) : (o.condicion_pago === 'contado' ? total : 0);
             const pagado = pagadoPorOc.get(o.id) || 0;
@@ -645,7 +648,7 @@ function cxpPintarVentanaPago(docs, provId, detalle, proveedorInfo) {
         <div class="overflow-x-auto border border-slate-800 rounded-lg">
           <table class="w-full text-left text-[11px] text-slate-300">
             <thead class="bg-slate-900 text-slate-500 uppercase"><tr><th class="p-1.5">Código</th><th class="p-1.5">Descripción</th><th class="p-1.5">Cta.</th><th class="p-1.5 text-right">Cant.</th><th class="p-1.5 text-right">P. Unit.</th><th class="p-1.5 text-right">Importe</th></tr></thead>
-            <tbody>${detalle.lineas.map((l) => `<tr class="border-t border-slate-900"><td class="p-1.5 font-mono">${esc(l.productos?.sku || '—')}</td><td class="p-1.5">${esc(l.productos?.nombre || '—')}</td><td class="p-1.5 font-mono">${esc(l.productos?.cuentas_contables?.codigo || '115.01')}</td><td class="p-1.5 text-right font-mono">${l.cantidad}</td><td class="p-1.5 text-right font-mono">${money(l.costo_unitario)}</td><td class="p-1.5 text-right font-mono">${money(l.subtotal)}</td></tr>`).join('')}</tbody>
+            <tbody>${detalle.lineas.map((l) => `<tr class="border-t border-slate-900"><td class="p-1.5 font-mono">${esc(l.productos?.sku || '—')}</td><td class="p-1.5">${esc(l.productos?.nombre || '—')}</td><td class="p-1.5 font-mono">${esc(l.productos?.cuentas_contables?.codigo || '115.01')}</td><td class="p-1.5 text-right font-mono">${l.cantidad}</td><td class="p-1.5 text-right font-mono">${money4(l.costo_unitario)}</td><td class="p-1.5 text-right font-mono">${money(l.subtotal)}</td></tr>`).join('')}</tbody>
           </table>
         </div>
         <div class="text-xs text-slate-400 space-y-0.5 text-right pr-1">

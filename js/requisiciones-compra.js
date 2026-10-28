@@ -1,11 +1,15 @@
+import { cargarCategoriasDep, opcionesCategoriaDep, textoCategoriaDep } from './categorias-depreciacion.js';
 import { supabaseClient } from './supabase.js';
 import { siguienteFolio } from './folios.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { montarGuia } from './asistente-contable.js';
 import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
-import { obtenerInfoProveedorProducto } from './info-proveedor-producto.js';
+import { obtenerInfoProveedorProducto, obtenerUltimaCompraPagada } from './info-proveedor-producto.js';
 import './trazabilidad.js';
 import { cargarPersonal, empleadoDe, gerenteDe, datosFirma, autorizaEsperado, htmlBloqueFirmas, conFotos, htmlIconoPersona } from './firmas.js';
+import { abrirAltaVinculada } from './vinculos.js';
+import { montarBuscadorClaveSat, describirClaveSat } from './catalogos-sat.js';
+import { factorSugeridoSat } from './factor-unidad-sat.js';
 
 // =====================================================================
 //  Requisiciones de compra — paso previo a la Orden de compra. Se capturan
@@ -16,7 +20,7 @@ import { cargarPersonal, empleadoDe, gerenteDe, datosFirma, autorizaEsperado, ht
 //  resulta de autorizarla.
 // =====================================================================
 
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear, redondear2 } from './formato.js';
 import { hoyISO } from './fechas.js';
 // Hoy + N días hábiles (lunes a viernes), en hora local — para "Fecha esperada" al autorizar.
 function fechaHabilesDesdeHoy(n) {
@@ -38,6 +42,7 @@ let reqProductos = [];
 let reqPersonal = { disponible: false, empleados: [], departamentos: [] };   // plantilla de empleados y departamentos (firmas)
 let reqPartidasTemp = [];
 let reqProdSel = null;
+let reqModo = 'R';   // pestaña de captura: 'R' = Resurtir (trae los datos de la última compra recibida y pagada), 'N' = Compra nueva
 let reqFiltro = 'pendiente';
 // Orden de producción de la que salió la requisición ({ id, folio }), vía window.__reqPreOrden
 // ("Faltantes para producir"). Se guarda en requisiciones_compra.orden_produccion_id.
@@ -63,6 +68,36 @@ const REQ_ESTATUS = {
     cancelada: 'text-slate-400 bg-slate-800',
 };
 
+// =====================================================================
+//  Alta rápida de un ACTIVO FIJO (equipo) desde la requisición o la ODC manual.
+//  Si el equipo no está en el catálogo, esta subventana lo crea SIN salir de lo que se
+//  está capturando: la pantalla de atrás (partidas, fecha, notas...) no se toca. Al guardar
+//  devuelve el producto nuevo (tipo 'activo_fijo') a quien la abrió para dejarlo seleccionado.
+//  Un equipo no es inventario: al recibirlo no genera lote ni existencia; su costo va a la
+//  cuenta de activo (152.xx) y la recepción lo da de alta, pendiente de completar, en Activos fijos.
+// =====================================================================
+// Búsqueda de producto: coincidencias desde la primera letra (nombre o SKU).
+const reqNorm = (x) => String(x ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const reqFiltrarProductos = (texto) => {
+    const palabras = reqNorm(texto).split(/\s+/).filter(Boolean);   // "sey envase" = "envase sey": cada palabra en cualquier orden
+    return reqProductos.filter(p => { const h = reqNorm(`${p.nombre || ''} ${p.sku || ''}`); return palabras.every(w => h.includes(w)); }).slice(0, 12);
+};
+// Al final de la lista, como en Odoo: «Crear y editar…» abre el Alta de artículo real (una sola plantilla) y regresa aquí.
+const reqFilaCrear = (texto, clsExtra = '') => texto.length < 2 ? ''
+    : `<div class="px-3 py-2 text-xs text-sky-300 hover:bg-sky-600 hover:text-white cursor-pointer border-t border-slate-700 ${clsExtra}" data-nuevo="1">➕ Crear y editar «${esc(texto)}»…</div>`;
+function reqCrearYEditarProducto(nombre, onCreado) {
+    abrirAltaVinculada('producto', {
+        nombre,
+        onGuardado: async ({ id }) => {
+            const { data } = await supabaseClient.from('productos')
+                .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id, cantidad_minima_compra, tipo').eq('id', id).single();
+            if (!data) return;
+            reqProductos = [...reqProductos.filter(p => p.id !== data.id), data].sort((x, y) => (x.nombre || '').localeCompare(y.nombre || ''));
+            onCreado(data);
+        },
+    });
+}
+
 async function reqCargarCatalogos() {
     const [pv, um, mo, personal] = await Promise.all([
         supabaseClient.from('proveedores').select('id, nombre').order('nombre'),
@@ -76,7 +111,7 @@ async function reqCargarCatalogos() {
     reqMonedas = mo.data || [];
 
     const pr = await supabaseClient.from('productos')
-        .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id, cantidad_minima_compra').order('nombre');
+        .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id, cantidad_minima_compra, tipo').order('nombre');
     reqProductos = pr.data || [];
 }
 
@@ -92,6 +127,7 @@ function reqMoqDe(productoId) {
 // políticas de venta del proveedor.
 function reqHtmlMoq(p, i) {
     if (!p.productoId) return '<span class="text-slate-600">—</span>';
+    if (reqProductos.find((x) => x.id === Number(p.productoId))?.tipo === 'activo_fijo') return '<span class="text-slate-600" title="Un equipo se pide de uno en uno; no aplica MOQ">—</span>';
     const moq = reqMoqDe(p.productoId);
     const u = esc(p.unidadNombre || '');
     const cant = Number(p.cantidad || 0);
@@ -149,8 +185,9 @@ export async function cargarModuloRequisicionesCompra() {
 
     reqPartidasTemp = [];
     reqProdSel = null;
+    reqModo = 'R';
 
-    const optProv = '<option value="">Proveedor sugerido...</option>' + reqProveedores.map(p => `<option value="${p.id}">${esc(p.nombre)}</option>`).join('');
+    const optProv ='<option value="">Proveedor sugerido...</option>' + reqProveedores.map(p => `<option value="${p.id}">${esc(p.nombre)}</option>`).join('');
     const optUni = '<option value="">Unidad...</option>' + reqUnidades.map(u => `<option value="${u.id}">${esc(u.nombre)}</option>`).join('');
 
     cont.innerHTML = `
@@ -176,6 +213,10 @@ export async function cargarModuloRequisicionesCompra() {
             <select id="reqSolicita" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select></div>` : ''}
         </div>
 
+        <div class="flex gap-1 ml-2 -mb-px relative z-10" role="tablist">
+          <button type="button" id="reqTabR" role="tab" class="px-4 py-2 text-xs font-semibold rounded-t-lg border border-b-0"></button>
+          <button type="button" id="reqTabN" role="tab" class="px-4 py-2 text-xs font-semibold rounded-t-lg border border-b-0"></button>
+        </div>
         <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-3 mb-3">
           <div class="grid grid-cols-2 md:grid-cols-5 lg:flex lg:flex-wrap lg:items-end gap-2">
             <div class="col-span-2 lg:flex-1 lg:min-w-[260px] relative">
@@ -192,9 +233,12 @@ export async function cargarModuloRequisicionesCompra() {
             <div class="lg:self-end"><button type="button" id="reqAddPartida" class="w-full lg:w-auto bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-5 py-2 rounded-lg text-xs">Solicitar</button></div>
           </div>
           <div id="reqInfoProveedor" class="hidden mt-2 text-[11px] text-slate-300 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-2"></div>
+          <p id="reqModoAyuda" class="mt-2 text-[11px] text-slate-500"></p>
         </div>
 
-        <div class="overflow-x-auto border border-slate-800 rounded-lg mb-3">
+        <!-- Líneas de Resurtir: mismo formato que la generación de la ODC (renglón del proveedor + renglón sombreado con lo nuestro). -->
+        <div id="reqTablaResurtir" class="hidden overflow-x-auto border border-slate-800 rounded-lg mb-3"></div>
+        <div id="reqTablaNueva" class="overflow-x-auto border border-slate-800 rounded-lg mb-3">
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="bg-slate-900 text-slate-400 uppercase"><tr>
               <th class="p-2">Mi catálogo (interno)</th><th class="p-2 text-right">Cantidad</th><th class="p-2 text-right">MOQ</th>
@@ -261,6 +305,45 @@ function reqCerrarNueva() {
     w.classList.remove('flex'); w.classList.add('hidden');
 }
 window.reqAbrirNueva = reqAbrirNueva;
+
+// Pregunta de dos botones (con destello opcional) para sugerir Resurtir / Compra nueva. Resuelve true si eligen el botón principal.
+// No usa confirm() (el visor lo ignora y no deja dar formato): es un cuadro propio, con Enter = principal y Esc = secundario.
+function reqPregunta({ titulo, texto, btnSec, btnPri, destello = false }) {
+    if (!document.getElementById('req-glow-css')) {
+        const st = document.createElement('style');
+        st.id = 'req-glow-css';
+        st.textContent = `
+            @keyframes reqGlow{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,0),0 14px 34px rgba(0,0,0,.45)}50%{box-shadow:0 0 0 4px rgba(245,158,11,.45),0 0 28px 6px rgba(245,158,11,.5),0 14px 34px rgba(0,0,0,.45)}}
+            @keyframes reqPulso{0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0)}50%{box-shadow:0 0 0 5px rgba(16,185,129,.45)}}
+            .req-glow{border-color:#f59e0b !important;animation:reqGlow 1.6s ease-in-out infinite}
+            .req-pulso{animation:reqPulso 1.6s ease-in-out infinite}
+            @media (prefers-reduced-motion:reduce){.req-glow,.req-pulso{animation:none}}`;
+        document.head.appendChild(st);
+    }
+    return new Promise((resolve) => {
+        const ov = document.createElement('div');
+        ov.className = 'fixed inset-0 z-[80] bg-slate-950/40 flex items-center justify-center p-4';
+        ov.setAttribute('data-no-movible', '');   // es una pregunta de dos botones, no una subventana: sin semáforo ni arrastre
+        ov.innerHTML = `
+          <div class="w-full max-w-md bg-slate-900 border border-slate-700 rounded-xl p-4 ${destello ? 'req-glow' : ''}" role="dialog" aria-modal="true">
+            <h4 class="text-sm font-semibold text-slate-100 mb-1">${esc(titulo)}</h4>
+            <p class="text-xs text-slate-400 mb-4">${esc(texto)}</p>
+            <div class="flex flex-wrap gap-2 justify-end">
+              <button type="button" data-r="0" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold px-4 py-2 rounded-lg">${esc(btnSec)}</button>
+              <button type="button" data-r="1" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg ${destello ? 'req-pulso' : ''}">${esc(btnPri)}</button>
+            </div>
+          </div>`;
+        const fin = (v) => { document.removeEventListener('keydown', tecla, true); ov.remove(); resolve(v); };
+        const tecla = (e) => {
+            if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fin(false); }
+            else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); fin(true); }
+        };
+        ov.querySelectorAll('[data-r]').forEach((b) => { b.onclick = () => fin(b.dataset.r === '1'); });
+        document.addEventListener('keydown', tecla, true);
+        document.body.appendChild(ov);
+        ov.querySelector('[data-r="1"]').focus();
+    });
+}
 
 // Aviso breve (esquina inferior derecha) cuando la subventana de captura se cierra sola tras guardar.
 function reqToast(texto) {
@@ -382,22 +465,36 @@ function reqWireFormulario() {
         reqActualizarInfoProveedor();
         const t = inp.value.toLowerCase().trim();
         if (!t) { sug.classList.add('hidden'); return; }
-        const hits = reqProductos.filter(p =>
-            (p.nombre && p.nombre.toLowerCase().includes(t)) || (p.sku && p.sku.toLowerCase().includes(t))
-        ).slice(0, 12);
-        if (!hits.length) { sug.classList.add('hidden'); return; }
+        const hits = reqFiltrarProductos(t);
+        const filaNuevo = reqFilaCrear(inp.value.trim(), 'req-sug req-sug-nuevo');
+        if (!hits.length && !filaNuevo) { sug.classList.add('hidden'); return; }
         sug.innerHTML = hits.map(p => `
             <div class="px-3 py-2 text-xs text-slate-200 hover:bg-emerald-600 hover:text-white cursor-pointer border-b border-slate-800/50 last:border-0 req-sug" data-id="${p.id}">
-                ${esc(p.nombre)} <span class="text-[10px] text-slate-400">${p.sku ? 'SKU ' + esc(p.sku) : ''}</span>
-            </div>`).join('');
+                ${esc(p.nombre)} <span class="text-[10px] text-slate-400">${p.tipo === 'activo_fijo' ? '🏭 activo fijo' : (p.sku ? 'SKU ' + esc(p.sku) : '')}</span>
+            </div>`).join('') + filaNuevo;
         sug.classList.remove('hidden');
         sug.querySelectorAll('.req-sug').forEach(el => {
             el.onclick = () => {
+                if (el.dataset.nuevo) {
+                    sug.classList.add('hidden');
+                    reqCrearYEditarProducto(inp.value.trim(), (p) => {
+                            // El equipo nuevo queda seleccionado en el formulario; lo ya capturado no se toca.
+                            reqProdSel = p;
+                            inp.value = p.nombre;
+                            if (p.unidad_medida_id) document.getElementById('reqProdUnidad').value = p.unidad_medida_id;
+                            if (p.proveedor_id) document.getElementById('reqProdProveedor').value = p.proveedor_id;
+                            if (p.tipo === 'activo_fijo') document.getElementById('reqProdCant').value = '1';
+                            reqActualizarInfoProveedor();
+                            document.getElementById('reqProdCant').focus();
+                    });
+                    return;
+                }
                 const p = reqProductos.find(x => x.id === Number(el.dataset.id));
                 reqProdSel = p || null;
                 inp.value = p ? p.nombre : inp.value;
                 if (p && p.unidad_medida_id) document.getElementById('reqProdUnidad').value = p.unidad_medida_id;
                 if (p && p.proveedor_id) document.getElementById('reqProdProveedor').value = p.proveedor_id;
+                if (p && p.tipo === 'activo_fijo') document.getElementById('reqProdCant').value = '1';   // un equipo por partida
                 sug.classList.add('hidden');
                 reqActualizarInfoProveedor();
             };
@@ -424,8 +521,9 @@ function reqWireFormulario() {
         else if (e.key === 'ArrowUp' && abierta) { e.preventDefault(); reqSugMarcar(reqSugIdx < 0 ? -1 : reqSugIdx - 1); }
         else if (e.key === 'Enter' && abierta) {
             e.preventDefault();
-            reqSugItems()[reqSugIdx < 0 ? 0 : reqSugIdx].click();
-            document.getElementById('reqProdCant')?.focus();
+            const elegido = reqSugItems()[reqSugIdx < 0 ? 0 : reqSugIdx];
+            elegido.click();
+            if (!elegido.dataset.nuevo) document.getElementById('reqProdCant')?.focus();
         } else if (e.key === 'Escape' && abierta) { e.preventDefault(); e.stopPropagation(); sug.classList.add('hidden'); }
     });
     document.addEventListener('click', (e) => {
@@ -433,14 +531,66 @@ function reqWireFormulario() {
     });
     document.getElementById('reqProdProveedor').addEventListener('change', reqActualizarInfoProveedor);
 
+    // ---- Pestañas Resurtir / Compra nueva ----
+    // Resurtir: el buscador lista TODO el catálogo; al «Solicitar», si el producto ya tiene una compra recibida y pagada, la línea
+    // llega con los datos de esa factura (editables). Compra nueva: el formato de siempre. Ninguna de las dos impide seguir:
+    // en la misma requisición pueden mezclarse líneas completas e incompletas.
+    const pintarPestanas = () => {
+        const on = 'bg-slate-900/50 border-slate-700 text-emerald-300';
+        const off = 'bg-slate-950 border-slate-800 text-slate-500 opacity-70 hover:opacity-100';
+        const tR = document.getElementById('reqTabR'), tN = document.getElementById('reqTabN');
+        tR.textContent = 'Resurtir'; tN.textContent = 'Compra nueva';
+        tR.className = `px-4 py-2 text-xs font-semibold rounded-t-lg border border-b-0 ${reqModo === 'R' ? on : off}`;
+        tN.className = `px-4 py-2 text-xs font-semibold rounded-t-lg border border-b-0 ${reqModo === 'N' ? on : off}`;
+        tR.setAttribute('aria-selected', reqModo === 'R'); tN.setAttribute('aria-selected', reqModo === 'N');
+        inp.placeholder = reqModo === 'R' ? 'Buscar en todo el catálogo...' : 'Buscar o escribir uno nuevo...';
+        document.getElementById('reqModoAyuda').textContent = reqModo === 'R'
+            ? 'Resurtir: si el artículo ya tiene una compra recibida y pagada, se cargan los datos de esa factura. Si no, se avisa.'
+            : 'Compra nueva: el formato de siempre; los datos del proveedor se confirman en la orden de compra. Si el artículo ya se compró, se sugiere Resurtir.';
+    };
+    const ponerModo = (m) => { reqModo = m; pintarPestanas(); };
+    document.getElementById('reqTabR').onclick = () => ponerModo('R');
+    document.getElementById('reqTabN').onclick = () => ponerModo('N');
+    pintarPestanas();
+
     document.getElementById('reqAddPartida').onclick = async () => {
         const nombre = inp.value.trim();
         const cantidad = parseFloat(document.getElementById('reqProdCant').value) || 0;
         const unidadId = document.getElementById('reqProdUnidad').value ? parseInt(document.getElementById('reqProdUnidad').value) : null;
         const proveedorId = document.getElementById('reqProdProveedor').value ? parseInt(document.getElementById('reqProdProveedor').value) : null;
         if (!nombre || cantidad <= 0) { alert('Indica el producto y una cantidad mayor a 0.'); return; }
+        if (reqProdSel && reqProdSel.tipo === 'activo_fijo' && cantidad !== 1) {
+            alert('«' + reqProdSel.nombre + '» es un activo fijo: se pide de uno en uno. Si necesitas varios equipos, agrega una partida por cada uno (cantidad 1).');
+            return;
+        }
 
-        await reqAgregarPartida({ productoId: reqProdSel ? reqProdSel.id : null, nombre, cantidad, unidadId, proveedorId });
+        // ¿Ya se compró (recibida y pagada)? Solo aplica a un producto del catálogo.
+        const compra = reqProdSel ? await obtenerUltimaCompraPagada(reqProdSel.id).catch(() => null) : null;
+        let resurtir = null;
+        if (reqModo === 'R') {
+            if (compra) resurtir = compra;
+            else {
+                const aNueva = await reqPregunta({
+                    titulo: 'Este producto no se ha comprado anteriormente',
+                    texto: '¿Desea continuar como Compra nueva?',
+                    btnSec: 'Cancelar', btnPri: 'Ir a Compra nueva', destello: true,
+                });
+                if (!aNueva) return;
+                ponerModo('N');
+            }
+        } else if (compra) {
+            const irAResurtir = await reqPregunta({
+                titulo: 'Este producto ya se ha comprado anteriormente',
+                texto: '¿Desea Resurtirlo o continuar como Compra nueva?',
+                btnSec: 'Continuar como compra nueva', btnPri: 'Ir a Resurtir', destello: true,
+            });
+            if (irAResurtir) { ponerModo('R'); resurtir = compra; }
+        }
+
+        await reqAgregarPartida({
+            productoId: reqProdSel ? reqProdSel.id : null, nombre, cantidad, unidadId,
+            proveedorId: resurtir && !proveedorId ? resurtir.proveedorId : proveedorId, resurtir,
+        });
         reqRenderPartidas();
         inp.value = ''; document.getElementById('reqProdCant').value = '';
         document.getElementById('reqProdUnidad').value = ''; document.getElementById('reqProdProveedor').value = '';
@@ -454,7 +604,7 @@ function reqWireFormulario() {
 // Agrega una partida a reqPartidasTemp (no repinta ni limpia el formulario —
 // eso lo hace quien la llama). Compartida entre el botón "Agregar partida" y
 // la preselección masiva desde Tareas (reqAplicarPreseleccion).
-async function reqAgregarPartida({ productoId, nombre, cantidad, unidadId, proveedorId, tareaId = null, necesario = null }) {
+async function reqAgregarPartida({ productoId, nombre, cantidad, unidadId, proveedorId, tareaId = null, necesario = null, resurtir = null }) {
     const prod = productoId ? reqProductos.find((x) => x.id === Number(productoId)) : null;
     const uNom = reqUnidades.find((u) => u.id === unidadId)?.nombre || '';
     const provNom = reqProveedores.find((p) => p.id === proveedorId)?.nombre || '';
@@ -478,19 +628,36 @@ async function reqAgregarPartida({ productoId, nombre, cantidad, unidadId, prove
         } catch (_) { /* sin datos del proveedor: la partida se agrega igual */ }
     }
 
+    // Resurtir: los datos salen de la última compra recibida y pagada (proveedor, Clave UM, Clave SAT, número, descripción,
+    // precio del proveedor y factor). El costo nuestro = su precio ÷ factor (a 4 decimales); la cantidad del proveedor = la nuestra ÷ factor.
+    const rs = resurtir ? {
+        modo: 'resurtir',
+        claveUm: resurtir.claveUm || '',
+        claveSat: resurtir.claveSat || '',
+        numeroProv: resurtir.numero || '',
+        descProv: resurtir.descripcion || '',
+        factorRs: resurtir.factor || null,
+        precioProv: Number(resurtir.precioProveedor || 0),
+        origenFactura: resurtir.folio || '',
+    } : { modo: 'nueva' };
+    const factorEf = rs.modo === 'resurtir' && rs.claveUm && rs.factorRs > 0 ? rs.factorRs : 1;
+    const costoRs = rs.modo === 'resurtir' ? Math.round((rs.precioProv / factorEf) * 1e4) / 1e4 : null;
+
     reqPartidasTemp.push({
         productoId: prod ? prod.id : null,
         skuInterno: prod ? (prod.sku || '') : '',
         nombre,
         cantidad,
         necesario,
-        costo: prod ? Number(prod.costo_unitario || 0) : 0,
+        costo: costoRs != null ? costoRs : (prod ? Number(prod.costo_unitario || 0) : 0),
         unidadId,
         unidadNombre: uNom,
         proveedorId,
-        proveedorNombre: provNom,
+        proveedorNombre: provNom || (resurtir?.proveedorNombre || ''),
         tareaId,
         ...datosProveedor,
+        ...rs,
+        ...(rs.modo === 'resurtir' ? { skuProveedor: rs.numeroProv || datosProveedor.skuProveedor, descripcionProveedor: rs.descProv || datosProveedor.descripcionProveedor, factorConversion: rs.claveUm ? rs.factorRs : datosProveedor.factorConversion } : {}),
     });
 }
 
@@ -523,13 +690,80 @@ async function reqActualizarInfoProveedor() {
     }
 }
 
+// Líneas de Resurtir: mismo formato que la generación de la ODC. Renglón editable con lo que el proveedor facturó la última vez
+// (Cant. en SU unidad, Clave UM, Clave SAT, Número, Descripción, P. unitario, Importe) y, debajo, el renglón sombreado con lo
+// que se pidió: cantidad, unidad, SKU y producto. `idx` = posiciones de esas líneas en reqPartidasTemp.
+function reqRenderResurtir(idx) {
+    const box = document.getElementById('reqTablaResurtir');
+    if (!box) return;
+    if (!idx.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+    box.classList.remove('hidden');
+    const ic = 'w-full bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-xs text-slate-100';
+    const fac = (p) => (p.claveUm && p.factorRs > 0 ? p.factorRs : 1);
+    const cantProv = (p) => redondear(Number(p.cantidad || 0) / fac(p), 6);
+    box.innerHTML = `
+      <table class="w-full text-left text-xs text-slate-300 table-fixed" style="min-width:760px">
+        <colgroup><col style="width:9%"><col style="width:10%"><col style="width:12%"><col style="width:13%"><col><col style="width:13%"><col style="width:13%"><col style="width:5%"></colgroup>
+        <thead class="bg-slate-900 text-slate-400 text-[10px] font-semibold"><tr>
+          <th class="px-1.5 py-2 text-right">Cant.</th><th class="px-1.5 py-2">Clave UM</th><th class="px-1.5 py-2">Clave SAT</th><th class="px-1.5 py-2">Número</th>
+          <th class="px-1.5 py-2">Descripción</th><th class="px-1.5 py-2 text-right">P. unitario</th><th class="px-1.5 py-2 text-right">Importe</th><th></th>
+        </tr></thead>
+        <tbody>${idx.map((i) => {
+            const p = reqPartidasTemp[i];
+            return `
+          <tr class="border-t border-slate-800 align-middle" data-ri="${i}">
+            <td class="px-1.5 pt-2 pb-0.5"><input type="number" data-k="cant" min="0" step="any" value="${cantProv(p)}" class="${ic} text-right font-mono"></td>
+            <td class="px-1.5 pt-2 pb-0.5 relative"><input type="text" data-k="um" maxlength="3" autocomplete="off" value="${esc(p.claveUm)}" placeholder="—" class="${ic} font-mono uppercase" title="Unidad SAT con que vende el proveedor">
+              <div data-k="umcaja" class="hidden absolute left-0 mt-1 w-72 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-40 max-h-52 overflow-y-auto"></div></td>
+            <td class="px-1.5 pt-2 pb-0.5 relative"><input type="text" data-k="sat" maxlength="8" autocomplete="off" value="${esc(p.claveSat)}" placeholder="8 dígitos" class="${ic} font-mono">
+              <div data-k="satcaja" class="hidden absolute left-0 mt-1 w-96 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-40 max-h-52 overflow-y-auto"></div></td>
+            <td class="px-1.5 pt-2 pb-0.5"><input type="text" data-k="num" value="${esc(p.numeroProv || '')}" class="${ic} font-mono"></td>
+            <td class="px-1.5 pt-2 pb-0.5"><input type="text" data-k="desc" value="${esc(p.descProv || '')}" class="${ic}"></td>
+            <td class="px-1.5 pt-2 pb-0.5"><span class="relative block"><span class="absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">$</span><input type="number" data-k="precio" min="0" step="0.0001" value="${Number(p.precioProv || 0).toFixed(4)}" class="${ic} pl-4 text-right font-mono" title="Precio por UNA unidad del proveedor"></span></td>
+            <td class="px-1.5 pt-2 pb-0.5 text-right font-mono text-slate-100" data-k="imp">${money(importe(cantProv(p), p.precioProv))}</td>
+            <td class="px-1 pt-2 pb-0.5 text-right"><button type="button" onclick="window.reqQuitarPartida(${i})" class="text-rose-400 hover:text-rose-300 text-xs px-1.5 py-0.5 bg-rose-950/40 rounded border border-rose-900/50" title="Quitar">✕</button></td>
+          </tr>
+          <tr class="bg-slate-800/70 text-[11px] text-slate-300 border-b border-slate-800" data-rs="${i}">
+            <td class="px-1.5 py-1 text-right font-mono font-semibold" data-k="cantnuestra">${formatoNum(p.cantidad)}</td>
+            <td class="px-1.5 py-1 font-semibold">${esc(p.unidadNombre || '')}</td>
+            <td></td>
+            <td class="px-1.5 py-1 font-semibold">${p.skuInterno ? 'SKU&nbsp;&nbsp;' + esc(p.skuInterno) : ''}</td>
+            <td class="px-1.5 py-1 font-semibold" colspan="3">${esc(p.nombre)}</td>
+            <td></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`;
+    idx.forEach((i) => {
+        const p = reqPartidasTemp[i];
+        const tr = box.querySelector(`tr[data-ri="${i}"]`);
+        const g = (k) => tr.querySelector(`[data-k="${k}"]`);
+        const pintarImp = () => {
+            g('imp').textContent = money(importe(cantProv(p), p.precioProv));
+            const sh = box.querySelector(`tr[data-rs="${i}"] [data-k="cantnuestra"]`); if (sh) sh.textContent = formatoNum(p.cantidad);
+        };
+        g('cant').oninput = () => { p.cantidad = redondear((parseFloat(g('cant').value) || 0) * fac(p), 6); pintarImp(); };
+        g('precio').oninput = () => { p.precioProv = parseFloat(g('precio').value) || 0; p.costo = redondear(p.precioProv / fac(p), 4); pintarImp(); };
+        g('num').oninput = () => { p.numeroProv = g('num').value; p.skuProveedor = g('num').value; };
+        g('desc').oninput = () => { p.descProv = g('desc').value; p.descripcionProveedor = g('desc').value; };
+        g('sat').oninput = () => { p.claveSat = g('sat').value.trim(); };
+        g('um').oninput = () => { p.claveUm = g('um').value.trim().toUpperCase(); };
+        montarBuscadorClaveSat({ tipo: 'unidad', input: g('um'), caja: g('umcaja') });
+        montarBuscadorClaveSat({ tipo: 'prod_serv', input: g('sat'), caja: g('satcaja'), alElegir: (r) => { p.claveSat = r.clave; } });
+    });
+}
+
 function reqRenderPartidas() {
     const b = document.getElementById('reqPartidasBody');
-    if (!reqPartidasTemp.length) {
+    const idxR = [], idxN = [];
+    reqPartidasTemp.forEach((p, i) => (p.modo === 'resurtir' ? idxR : idxN).push(i));
+    document.getElementById('reqTablaNueva')?.classList.toggle('hidden', !idxN.length && !!idxR.length);
+    reqRenderResurtir(idxR);
+    if (!idxN.length) {
         b.innerHTML = '<tr><td colspan="7" class="p-3 text-center text-slate-500 italic">Sin partidas.</td></tr>';
         return;
     }
-    b.innerHTML = reqPartidasTemp.map((p, i) => {
+    b.innerHTML = idxN.map((i) => {
+        const p = reqPartidasTemp[i];
         const tieneDatosProv = p.skuProveedor || p.descripcionProveedor || p.unidadProveedor;
         const importe = Number(p.cantidad || 0) * Number(p.costo || 0);
         return `
@@ -640,12 +874,24 @@ async function reqGuardarRequisicion() {
             descripcion_proveedor: p.descripcionProveedor || null,
             unidad_proveedor: p.unidadProveedor || null,
             factor_conversion_proveedor: p.factorConversion ?? null,
+            // Resurtir / Compra nueva (sql/2026-10-24_requisicion_resurtir.sql): lo que el proveedor facturó la última vez, solo en Resurtir.
+            modo_captura: p.modo === 'resurtir' ? 'resurtir' : 'nueva',
+            clave_unidad_sat: p.modo === 'resurtir' ? (p.claveUm || null) : null,
+            clave_prod_serv_sat: p.modo === 'resurtir' ? (p.claveSat || null) : null,
+            precio_proveedor: p.modo === 'resurtir' ? Number(p.precioProv || 0) : null,
+            origen_factura: p.modo === 'resurtir' ? (p.origenFactura || null) : null,
         }));
+        const COLS_RESURTIR = ['modo_captura', 'clave_unidad_sat', 'clave_prod_serv_sat', 'precio_proveedor', 'origen_factura'];
         let { error: e2 } = await supabaseClient.from('requisiciones_compra_detalle').insert(filas);
         if (e2 && /does not exist|schema cache|could not find/i.test(e2.message || '')) {
-            // columnas de datos del proveedor aún no existen: reintenta sin ellas.
-            const filasSinProveedor = filas.map(({ sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, ...resto }) => resto);
-            ({ error: e2 } = await supabaseClient.from('requisiciones_compra_detalle').insert(filasSinProveedor));
+            // Aún sin la migración de Resurtir: se guarda sin esas columnas (los datos del proveedor de siempre sí van).
+            const sinResurtir = filas.map((f) => { const o = { ...f }; COLS_RESURTIR.forEach((c) => delete o[c]); return o; });
+            ({ error: e2 } = await supabaseClient.from('requisiciones_compra_detalle').insert(sinResurtir));
+            if (e2 && /does not exist|schema cache|could not find/i.test(e2.message || '')) {
+                // columnas de datos del proveedor aún no existen: reintenta sin ellas.
+                const filasSinProveedor = sinResurtir.map(({ sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, ...resto }) => resto);
+                ({ error: e2 } = await supabaseClient.from('requisiciones_compra_detalle').insert(filasSinProveedor));
+            }
         }
         if (e2) throw e2;
 
@@ -763,7 +1009,7 @@ async function reqRenderLista() {
 
         (data || []).forEach(r => {
             const det = r.requisiciones_compra_detalle || [];
-            r._total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_estimado || 0), 0);
+            r._total = det.reduce((a, d) => a + importe(d.cantidad, d.costo_estimado), 0);
             r._resumen = det.map(d => d.productos?.nombre || '(sin producto)').join(', ');
         });
         aplicarOrden(reqListaOrden, data, (r, campo) => {
@@ -863,21 +1109,33 @@ async function abrirDetalleReq(id) {
     }, 0);
 
     try {
+        // Del más completo al más viejo: Resurtir (…10-24) → datos del proveedor → solo lo básico.
         let { data: r, error } = await supabaseClient
             .from('requisiciones_compra')
             .select(`id, folio, fecha, estatus, origen, notas, revisada_por, revisada_en, motivo_rechazo, orden_compra_id,
                 ordenes_compra ( folio ),
-                requisiciones_compra_detalle ( id, producto_id, descripcion, cantidad, costo_estimado,
+                requisiciones_compra_detalle ( id, producto_id, descripcion, cantidad, costo_estimado, proveedor_sugerido_id,
                     sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor,
+                    modo_captura, clave_unidad_sat, clave_prod_serv_sat, precio_proveedor, origen_factura,
                     productos ( nombre, sku ), unidades_medida ( nombre ), proveedores ( nombre ) )`)
             .eq('id', id).single();
+        if (error && /does not exist|schema cache|could not find/i.test(error.message || '')) {
+            ({ data: r, error } = await supabaseClient
+                .from('requisiciones_compra')
+                .select(`id, folio, fecha, estatus, origen, notas, revisada_por, revisada_en, motivo_rechazo, orden_compra_id,
+                    ordenes_compra ( folio ),
+                    requisiciones_compra_detalle ( id, producto_id, descripcion, cantidad, costo_estimado, proveedor_sugerido_id,
+                        sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor,
+                        productos ( nombre, sku ), unidades_medida ( nombre ), proveedores ( nombre ) )`)
+                .eq('id', id).single());
+        }
         if (error && /does not exist|schema cache|could not find/i.test(error.message || '')) {
             // columnas de datos del proveedor aún no existen: cae al select sin ellas.
             ({ data: r, error } = await supabaseClient
                 .from('requisiciones_compra')
                 .select(`id, folio, fecha, estatus, origen, notas, revisada_por, revisada_en, motivo_rechazo, orden_compra_id,
                     ordenes_compra ( folio ),
-                    requisiciones_compra_detalle ( id, producto_id, descripcion, cantidad, costo_estimado,
+                    requisiciones_compra_detalle ( id, producto_id, descripcion, cantidad, costo_estimado, proveedor_sugerido_id,
                         productos ( nombre, sku ), unidades_medida ( nombre ), proveedores ( nombre ) )`)
                 .eq('id', id).single());
         }
@@ -902,7 +1160,11 @@ async function abrirDetalleReq(id) {
 
         const cuerpo = modal.querySelector('#' + idCuerpo);
         const det = r.requisiciones_compra_detalle || [];
-        const total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_estimado || 0), 0);
+        // Una requisición NO lleva datos confirmados del proveedor: solo las líneas de «Resurtir» traen lo que el proveedor facturó
+        // la última vez (guardado en la línea). Las de «Compra nueva» muestran solo lo nuestro, el proveedor sugerido y el costo estimado.
+        const esRs = (d) => d.modo_captura === 'resurtir';
+        const factorRs = (d) => (d.clave_unidad_sat && Number(d.factor_conversion_proveedor) > 0 ? Number(d.factor_conversion_proveedor) : 1);
+        const total = det.reduce((a, d) => a + importe(d.cantidad, d.costo_estimado), 0);
         const fmtFecha = (iso) => { try { return new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso || '—'; } };
 
         const bloqueRevision = r.estatus === 'autorizada'
@@ -923,34 +1185,63 @@ async function abrirDetalleReq(id) {
             </div>
             ${r.notas ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Notas</span><p class="text-xs text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5">${esc(r.notas)}</p></div>` : ''}
             ${bloqueRevision}
-            <div class="overflow-x-auto border border-slate-800 rounded-lg mb-4">
-              <table class="w-full text-left text-xs text-slate-300">
-                <thead class="bg-slate-950 text-slate-500 uppercase"><tr>
-                  <th class="p-2">Mi catálogo (interno)</th><th class="p-2 text-right">Cantidad</th>
-                  <th class="p-2">Datos del proveedor (para la OC)</th>
-                  <th class="p-2 text-right">Costo est.</th><th class="p-2 text-right">Importe</th>
+            ${det.some(esRs) ? `<div class="border border-slate-800 rounded-lg mb-3">
+              <div class="px-2 py-1.5 text-[11px] font-semibold text-slate-300 bg-slate-950 border-b border-slate-800">Resurtido · como lo facturó el proveedor la última vez <span class="font-normal text-slate-500">· referencia; la cotización real se captura en la orden de compra</span></div>
+              <table class="w-full text-left text-xs text-slate-300 table-fixed">
+                <colgroup><col style="width:4%"><col style="width:10%"><col style="width:9%"><col style="width:12%"><col style="width:14%"><col><col style="width:14%"><col style="width:13%"></colgroup>
+                <thead class="text-slate-400 text-[10px] font-semibold"><tr>
+                  <th class="px-1.5 py-1.5">#</th><th class="px-1.5 py-1.5 text-right">Cant.</th><th class="px-1.5 py-1.5">Clave UM</th><th class="px-1.5 py-1.5">Clave SAT</th>
+                  <th class="px-1.5 py-1.5">Número</th><th class="px-1.5 py-1.5">Descripción</th>
+                  <th class="px-1.5 py-1.5 text-right">P. unitario</th><th class="px-1.5 py-1.5 text-right">Importe</th>
                 </tr></thead>
                 <tbody>
-                  ${det.map(d => {
-                      const tieneDatosProv = d.sku_proveedor || d.descripcion_proveedor || d.unidad_proveedor;
+                  ${det.map((d, i) => {
+                      if (!esRs(d)) return '';
+                      const f = factorRs(d);
+                      const cantP = Number(d.cantidad || 0) / f;
+                      const precioP = d.precio_proveedor != null ? Number(d.precio_proveedor) : Number(d.costo_estimado || 0) * f;
                       return `
-                    <tr class="border-b border-slate-900 align-top">
-                      <td class="p-2">${esc(d.productos?.nombre || d.descripcion || '—')}${d.productos?.sku ? `<span class="block text-[10px] text-slate-500">SKU ${esc(d.productos.sku)}</span>` : ''}</td>
-                      <td class="p-2 text-right font-mono">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })} ${esc(d.unidades_medida?.nombre || '')}</td>
-                      <td class="p-2 text-slate-400 text-[11px]">
-                        ${d.proveedores?.nombre ? `<span class="text-slate-300">${esc(d.proveedores.nombre)}</span>` : '<span class="italic text-slate-600">sin proveedor sugerido</span>'}
-                        ${tieneDatosProv ? `${d.sku_proveedor ? `<span class="block">SKU proveedor: <span class="font-mono">${esc(d.sku_proveedor)}</span></span>` : ''}
-                            ${d.descripcion_proveedor ? `<span class="block">"${esc(d.descripcion_proveedor)}"</span>` : ''}
-                            ${d.unidad_proveedor ? `<span class="block">Unidad: ${esc(d.unidad_proveedor)}${d.factor_conversion_proveedor ? ` (×${d.factor_conversion_proveedor})` : ''}</span>` : ''}`
-                            : (d.proveedores?.nombre ? '<span class="block italic text-slate-600">sin claves capturadas para este proveedor</span>' : '')}
-                      </td>
-                      <td class="p-2 text-right font-mono">${money(d.costo_estimado)}</td>
-                      <td class="p-2 text-right font-mono">${money(Number(d.cantidad || 0) * Number(d.costo_estimado || 0))}</td>
+                    <tr class="border-t border-slate-800 align-top">
+                      <td class="px-1.5 py-1.5 text-slate-500">${i + 1}</td>
+                      <td class="px-1.5 py-1.5 text-right font-mono">${Number(cantP).toLocaleString('es-MX', { maximumFractionDigits: 6 })}</td>
+                      <td class="px-1.5 py-1.5 font-mono">${esc(d.clave_unidad_sat || d.unidades_medida?.nombre || '')}</td>
+                      <td class="px-1.5 py-1.5 font-mono">${esc(d.clave_prod_serv_sat || '')}</td>
+                      <td class="px-1.5 py-1.5 font-mono">${esc(d.sku_proveedor || '')}</td>
+                      <td class="px-1.5 py-1.5">${esc(d.descripcion_proveedor || d.productos?.nombre || d.descripcion || '—')}</td>
+                      <td class="px-1.5 py-1.5 text-right font-mono">${money4(precioP)}</td>
+                      <td class="px-1.5 py-1.5 text-right font-mono">${money(importe(cantP, precioP))}</td>
                     </tr>`;
-                  }).join('') || '<tr><td colspan="5" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>` : ''}
+            <div class="border border-slate-800 rounded-lg mb-4">
+              <div class="px-2 py-1.5 text-[11px] font-semibold text-slate-300 bg-slate-950 border-b border-slate-800">Nuestro inventario · notas y observaciones</div>
+              <table class="w-full text-left text-xs text-slate-300 table-fixed">
+                <colgroup><col style="width:4%"><col style="width:11%"><col><col style="width:11%"><col style="width:9%"><col style="width:12%"><col style="width:16%"><col style="width:21%"></colgroup>
+                <thead class="text-slate-400 text-[10px] font-semibold"><tr>
+                  <th class="px-1.5 py-1.5">#</th><th class="px-1.5 py-1.5">SKU</th><th class="px-1.5 py-1.5">Producto</th>
+                  <th class="px-1.5 py-1.5 text-right">Cantidad</th><th class="px-1.5 py-1.5">Unidad</th>
+                  <th class="px-1.5 py-1.5 text-right">Costo c/u</th><th class="px-1.5 py-1.5">Equivalencia</th><th class="px-1.5 py-1.5">Observaciones</th>
+                </tr></thead>
+                <tbody>
+                  ${det.map((d, i) => {
+                      const conUm = esRs(d) && d.clave_unidad_sat && factorRs(d) > 0;
+                      return `
+                    <tr class="border-t border-slate-800 align-top">
+                      <td class="px-1.5 py-1.5 text-slate-500">${i + 1}</td>
+                      <td class="px-1.5 py-1.5 font-mono">${esc(d.productos?.sku || '')}</td>
+                      <td class="px-1.5 py-1.5">${esc(d.productos?.nombre || d.descripcion || '—')}</td>
+                      <td class="px-1.5 py-1.5 text-right font-mono">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</td>
+                      <td class="px-1.5 py-1.5">${esc(d.unidades_medida?.nombre || '')}</td>
+                      <td class="px-1.5 py-1.5 text-right font-mono">${money4(d.costo_estimado)}</td>
+                      <td class="px-1.5 py-1.5">${conUm ? `1 ${esc(d.clave_unidad_sat)} = ${factorRs(d).toLocaleString('es-MX', { maximumFractionDigits: 6 })}` : ''}</td>
+                      <td class="px-1.5 py-1.5 text-[11px] text-slate-400">${d.proveedores?.nombre ? esc(d.proveedores.nombre) : '<i>sin proveedor sugerido</i>'}${esRs(d) && d.origen_factura ? `<br>Resurtido · factura ${esc(d.origen_factura)}` : ''}</td>
+                    </tr>`;
+                  }).join('')}
                 </tbody>
                 <tfoot>
-                  <tr><td colspan="4" class="p-2 text-right font-semibold text-slate-400">Total estimado</td><td class="p-2 text-right font-mono font-semibold text-emerald-300">${money(total)}</td></tr>
+                  <tr class="border-t border-slate-800"><td colspan="5" class="px-1.5 py-1.5 text-right font-semibold text-slate-400">Total estimado</td><td colspan="3" class="px-1.5 py-1.5 text-right font-mono font-semibold text-emerald-300">${money(total)}</td></tr>
                 </tfoot>
               </table>
             </div>
@@ -1166,6 +1457,51 @@ window.reqEditar = async (id) => {
 const IVA_ODC = 0.16;
 const DIAS_CREDITO_ODC = [7, 15, 30, 60];
 
+// Aviso al generar la ODC cuando lo cotizado difiere de lo solicitado (cantidad, costo o importe). No bloquea: el comprador sabe cómo
+// se maneja cada proveedor y decide; la nota es opcional y queda guardada junto con quién y cuándo.
+function reqConfirmarDiferencias(difs) {
+    return new Promise((resolve) => {
+        const ov = document.createElement('div');
+        ov.className = 'fixed inset-0 bg-slate-950/40 z-[70] flex justify-center items-start p-3 overflow-y-auto';
+        const sg = (n, f4) => (n > 0 ? '+' : '') + (f4 ? Number(n).toFixed(4) : formatoNum(n));
+        const col = (n) => (n > 0 ? 'text-amber-300' : n < 0 ? 'text-sky-300' : 'text-slate-500');
+        ov.innerHTML = `
+          <div class="bg-slate-900 border border-amber-700/60 rounded-2xl shadow-2xl w-full max-w-4xl my-6">
+            <div class="p-4 border-b border-slate-800">
+              <h3 class="text-base font-semibold text-amber-300">⚠ Lo cotizado no coincide con lo solicitado</h3>
+              <p class="text-xs text-slate-400 mt-1">Hay diferencia en cantidad, costo o importe en ${difs.length} partida(s). Tú conoces al proveedor y al mercado: revisa y decide. Todo se compara en la unidad de tu inventario.</p>
+            </div>
+            <div class="p-4">
+              <table class="w-full text-xs text-slate-300">
+                <thead class="text-[10px] font-semibold text-slate-400"><tr>
+                  <th class="text-left px-1.5 py-1">Producto</th><th class="text-right px-1.5 py-1">Solicitado</th><th class="text-right px-1.5 py-1">Cotizado</th>
+                  <th class="text-right px-1.5 py-1">Dif. cantidad</th><th class="text-right px-1.5 py-1">Dif. costo c/u</th><th class="text-right px-1.5 py-1">Dif. importe</th></tr></thead>
+                <tbody>${difs.map((d) => `
+                  <tr class="border-t border-slate-800 align-top">
+                    <td class="px-1.5 py-1.5"><b class="text-slate-100">${esc(d.producto)}</b>${d.cotizado.unidad_proveedor ? `<span class="block text-[10px] text-slate-500">Proveedor: ${formatoNum(d.cotizado.cantidad_proveedor)} ${esc(d.cotizado.unidad_proveedor)} × ${money4(d.cotizado.precio_proveedor)}</span>` : ''}</td>
+                    <td class="px-1.5 py-1.5 text-right font-mono">${formatoNum(d.solicitado.cantidad)} ${esc(d.solicitado.unidad || '')}<span class="block text-slate-500">${money4(d.solicitado.costo)} c/u · ${money(d.solicitado.importe)}</span></td>
+                    <td class="px-1.5 py-1.5 text-right font-mono">${formatoNum(d.cotizado.cantidad)} ${esc(d.cotizado.unidad || '')}<span class="block text-slate-500">${money4(d.cotizado.costo)} c/u · ${money(d.cotizado.importe)}</span></td>
+                    <td class="px-1.5 py-1.5 text-right font-mono ${col(d.diferencia.cantidad)}">${d.diferencia.cantidad ? sg(d.diferencia.cantidad) : '—'}</td>
+                    <td class="px-1.5 py-1.5 text-right font-mono ${col(d.diferencia.costo)}">${d.diferencia.costo ? sg(d.diferencia.costo, true) : '—'}</td>
+                    <td class="px-1.5 py-1.5 text-right font-mono ${col(d.diferencia.importe)}">${d.diferencia.importe ? (d.diferencia.importe > 0 ? '+' : '') + money(d.diferencia.importe) : '—'}</td>
+                  </tr>`).join('')}</tbody>
+              </table>
+              <label class="block text-[11px] text-slate-400 mt-4 mb-1">Nota para dejar constancia · opcional</label>
+              <textarea data-nota rows="2" placeholder="Ej. El proveedor vende por lote; la cantidad real se factura al contarla." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-2 text-sm text-slate-100"></textarea>
+              <p class="text-[10px] text-slate-500 mt-1">Quedan guardados estas diferencias, tu usuario y la fecha en la orden de compra.</p>
+            </div>
+            <div class="flex justify-end gap-2 p-4 border-t border-slate-800">
+              <button type="button" data-no class="text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium px-4 py-2 rounded-lg">Volver a revisar</button>
+              <button type="button" data-si class="text-sm bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 rounded-lg">Aceptar diferencias y generar ODC</button>
+            </div>
+          </div>`;
+        document.body.appendChild(ov);
+        const fin = (ok) => { const nota = ov.querySelector('[data-nota]').value.trim(); ov.remove(); resolve({ ok, nota }); };
+        ov.querySelector('[data-no]').onclick = () => fin(false);
+        ov.querySelector('[data-si]').onclick = () => fin(true);
+    });
+}
+
 window.reqAutorizar = async (id) => {
     const idModal = window.idSubventana('modalAutorizarReq');
     if (idModal === 'modalAutorizarReq') document.getElementById('modalAutorizarReq')?.remove();
@@ -1178,7 +1514,9 @@ window.reqAutorizar = async (id) => {
             : supabaseClient.from('requisiciones_compra')
                 .select(`id, folio, fecha, origen, solicitada_por, notas,
                     requisiciones_compra_detalle ( id, producto_id, descripcion, cantidad, costo_estimado, unidad_medida_id, notas, proveedor_sugerido_id,
-                        sku_proveedor, productos ( nombre, sku ) )`)
+                        sku_proveedor, descripcion_proveedor, factor_conversion_proveedor,
+                        modo_captura, clave_unidad_sat, clave_prod_serv_sat, precio_proveedor, origen_factura,
+                        productos ( nombre, sku ), unidades_medida ( nombre ) )`)
                 .eq('id', id).single(),
         supabaseClient.from('proveedores')
             .select('id, nombre, rfc, contacto, telefono, email, condicion_pago, dias_credito, forma_pago').order('nombre'),
@@ -1186,6 +1524,15 @@ window.reqAutorizar = async (id) => {
         supabaseClient.from('empleados').select('id, nombre').eq('activo', true).order('nombre'),   // también para requisiciones: "Solicitado por" sale ya elegido
         manual ? Promise.resolve({ data: null }) : supabaseClient.from('requisiciones_compra').select('solicitante_empleado_id').eq('id', id).single(),
     ]);
+    if (rq.error && !manual && /does not exist|schema cache|could not find/i.test(rq.error.message || '')) {
+        // Aún sin las columnas de Resurtir / datos del proveedor: cae al select de siempre.
+        const rq2 = await supabaseClient.from('requisiciones_compra')
+            .select(`id, folio, fecha, origen, solicitada_por, notas,
+                requisiciones_compra_detalle ( id, producto_id, descripcion, cantidad, costo_estimado, unidad_medida_id, notas, proveedor_sugerido_id,
+                    sku_proveedor, productos ( nombre, sku ), unidades_medida ( nombre ) )`)
+            .eq('id', id).single();
+        rq.error = rq2.error; rq.data = rq2.data;
+    }
     if (rq.error) { alert('No se pudo cargar la requisición: ' + (rq.error.message || rq.error)); return; }
     const r = rq.data;
     const provs = pv.data || [];
@@ -1196,16 +1543,40 @@ window.reqAutorizar = async (id) => {
     const optUni = '<option value="">Unidad...</option>' + reqUnidades.map((u) => `<option value="${u.id}">${esc(u.nombre)}</option>`).join('');
     const optEmp = '<option value="">— sin especificar —</option>' + empleados.map((e) => `<option value="${e.id}">${esc(e.nombre)}</option>`).join('');
 
-    const lineas = (r.requisiciones_compra_detalle || []).slice().sort((a, b) => a.id - b.id).map((d) => ({
+    // Cada partida lleva DOS lados: lo que cotizó el PROVEEDOR (su cantidad, su unidad SAT, su precio) y lo NUESTRO (la
+    // cantidad y el costo en la unidad del inventario, que se derivan con el factor). Lo solicitado en la requisición
+    // (cantSol/costoSol) se conserva para compararlo al confirmar.
+    const nuevaLinea = (o) => ({
+        reqDetId: null, productoId: null, descripcion: null, nombre: '', sku: '', unidad: '', unidadId: null,
+        cantSol: null, costoSol: null, cantProv: 0, precioProv: 0,
+        claveUm: '', nombreUm: '', umInvalida: '', claveSat: '', numero: '', descProv: '', factor: null, notaFactor: '',
+        tocoCant: false, tocoPrecio: false, tocoProv: false, ...o,
+    });
+    const lineas = (r.requisiciones_compra_detalle || []).slice().sort((a, b) => a.id - b.id).map((d) => nuevaLinea({
         reqDetId: d.id,
         productoId: d.producto_id,
         descripcion: d.descripcion,
         nombre: d.productos?.nombre || d.descripcion || '(sin nombre)',
         sku: d.productos?.sku || '',
-        cantidad: Number(d.cantidad || 0),
-        costo: Number(d.costo_estimado || 0),
-        unidad: nombreUnidad(d.unidad_medida_id),
-        skuProveedor: d.sku_proveedor || '',
+        unidad: d.unidades_medida?.nombre || nombreUnidad(d.unidad_medida_id),
+        unidadId: d.unidad_medida_id ?? null,
+        cantSol: Number(d.cantidad || 0),
+        costoSol: Number(d.costo_estimado || 0),
+        cantProv: Number(d.cantidad || 0),
+        precioProv: Number(d.costo_estimado || 0),
+        numero: d.sku_proveedor || '',
+        // Resurtir: la línea trae lo que el proveedor facturó la última vez (Clave UM, Clave SAT, número, descripción, factor y precio
+        // en SU unidad). Se precarga tal cual y es editable aquí; la cantidad del proveedor = la nuestra ÷ factor.
+        ...(d.modo_captura === 'resurtir' ? (() => {
+            const fct = d.clave_unidad_sat && Number(d.factor_conversion_proveedor) > 0 ? Number(d.factor_conversion_proveedor) : 1;
+            const precio = d.precio_proveedor != null ? Number(d.precio_proveedor) : Number(d.costo_estimado || 0) * fct;
+            return {
+                resurtir: true, tocoCant: true, tocoPrecio: true,
+                cantProv: redondear(Number(d.cantidad || 0) / fct, 6), precioProv: precio,
+                claveSat: d.clave_prod_serv_sat || '', descProv: d.descripcion_proveedor || '',
+                umPendiente: d.clave_unidad_sat || '', factorPendiente: fct > 0 && d.clave_unidad_sat ? fct : null,
+            };
+        })() : {}),
     }));
     const provSugerido = (r.requisiciones_compra_detalle || []).find((d) => d.proveedor_sugerido_id)?.proveedor_sugerido_id || '';
 
@@ -1225,7 +1596,7 @@ window.reqAutorizar = async (id) => {
     modal.id = idModal;
     modal.className = 'fixed inset-0 bg-slate-950/40 z-50 flex justify-center items-start p-3 overflow-y-auto';
     modal.innerHTML = `
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-3xl my-2">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-6xl my-2">
         <div class="flex justify-between items-center p-4 border-b border-slate-800">
             <h3 class="text-base font-semibold text-slate-100">Generación de Orden de Compra ${manual ? '' : `<span class="text-emerald-300 font-mono">· ${esc(r.folio || '#' + r.id)}</span>`}</h3>
             <button type="button" data-x class="text-slate-400 hover:text-slate-200 text-xl leading-none">&times;</button>
@@ -1302,8 +1673,8 @@ window.reqAutorizar = async (id) => {
           </div>
 
           <div class="${card}">
-            <h4 class="${h3}">📦 Partidas cotizadas</h4>
-            <p class="text-[11px] text-slate-500 mb-3">${manual ? 'Captura cada producto con el precio real que cotizó el proveedor.' : 'Precio real del proveedor — puede diferir del costo estimado de la requisición.'}</p>
+            <h4 class="${h3}">📦 Partidas cotizadas <span class="font-normal normal-case text-slate-500">— tal como las cotizó el proveedor</span></h4>
+            <p class="text-[11px] text-slate-500 mb-3">${manual ? 'Captura cada producto como lo cotizó el proveedor.' : 'Captura lo que cotizó el proveedor. El renglón sombreado es lo que pidió la requisición.'} Si vende en otra unidad (ej. MIL), elige su Clave UM y captura el factor.</p>
             ${manual ? `
             <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 mb-3">
               <div class="grid grid-cols-2 sm:grid-cols-6 gap-2 items-end">
@@ -1311,19 +1682,19 @@ window.reqAutorizar = async (id) => {
                   <input type="text" data-f="pInput" autocomplete="off" placeholder="Buscar o escribir uno nuevo..." class="${inp}">
                   <div data-f="pSug" class="hidden absolute left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-40 max-h-44 overflow-y-auto"></div></div>
                 <div><label class="${lbl}">Cantidad</label><input type="number" step="any" min="0" data-f="pCant" class="${inp}"></div>
-                <div><label class="${lbl}">Costo unit.</label><span class="relative block"><span class="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none">$</span><input type="number" step="0.0001" min="0" data-f="pCosto" title="Hasta 4 decimales" class="${inp} pl-5"></span></div>
-                <div><label class="${lbl}">Unidad</label><select data-f="pUni" class="${inp}">${optUni}</select></div>
+                <div><label class="${lbl}">Precio unit.</label><span class="relative block"><span class="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none">$</span><input type="number" step="any" min="0" data-f="pCosto" title="Como lo cotizó el proveedor" class="${inp} pl-5"></span></div>
+                <div><label class="${lbl}">Unidad de tu inventario</label><select data-f="pUni" class="${inp}">${optUni}</select></div>
               </div>
               <button type="button" data-f="pAdd" class="mt-2 text-xs bg-slate-800 hover:bg-slate-700 text-emerald-300 font-medium px-4 py-1.5 rounded-lg">＋ Agregar partida</button>
             </div>` : ''}
-            <div class="overflow-x-auto">
-              <table class="w-full text-xs text-slate-300">
-                <thead class="text-[10px] uppercase text-slate-500"><tr>
-                  <th class="text-left p-2">Producto</th><th class="text-left p-2">SKU proveedor</th><th class="text-right p-2">Cant.</th>
-                  <th class="text-right p-2">Costo unit.</th><th class="text-right p-2">Subtotal</th><th></th></tr></thead>
-                <tbody data-f="partidas"></tbody>
-              </table>
-            </div>
+            <table class="w-full text-xs text-slate-300 table-fixed">
+              <colgroup><col style="width:9%"><col style="width:9%"><col style="width:11%"><col style="width:13%"><col><col style="width:13%"><col style="width:12%"><col style="width:3.5%"></colgroup>
+              <thead class="text-[10px] font-semibold text-slate-400"><tr>
+                <th class="text-right px-1.5 py-1">Cant.</th><th class="text-left px-1.5 py-1">Clave UM</th><th class="text-left px-1.5 py-1">Clave SAT</th>
+                <th class="text-left px-1.5 py-1">Número</th><th class="text-left px-1.5 py-1">Descripción</th>
+                <th class="text-right px-1.5 py-1">P. unitario</th><th class="text-right px-1.5 py-1">Importe</th><th></th></tr></thead>
+              <tbody data-f="partidas"></tbody>
+            </table>
             <div class="flex justify-end gap-6 mt-3 pt-2 border-t border-slate-800 text-xs">
               <div class="text-right"><span class="block text-[10px] uppercase text-slate-500">Subtotal</span><span data-f="tSub" class="font-mono text-slate-200">$0.00</span></div>
               <div class="text-right"><span class="block text-[10px] uppercase text-slate-500">IVA 16% (estimado)</span><span data-f="tIva" class="font-mono text-slate-200">$0.00</span></div>
@@ -1358,33 +1729,127 @@ window.reqAutorizar = async (id) => {
     modal.querySelectorAll('[data-x]').forEach((b) => { b.onclick = cerrar; });
 
     // ---- Partidas ----
+    // Conversión PROVEEDOR → INVENTARIO (la parte donde no hay que confundir escalas):
+    //   cantidad nuestra = cantidad del proveedor × factor      (21 MIL × 1000 = 21,000 piezas)
+    //   costo nuestro    = precio del proveedor ÷ factor        ($3,560.5689 ÷ 1000 = $3.5606 por pieza)
+    //   importe OFICIAL  = cantidad del proveedor × su precio   (21 × 3,560.5689 = $74,771.95)
+    const cantInt = (l) => (l.claveUm ? redondear(l.cantProv * (l.factor || 0), 6) : Number(l.cantProv) || 0);
+    const costoInt = (l) => (l.claveUm ? ((l.factor || 0) > 0 ? redondear(l.precioProv / l.factor, 4) : 0) : redondear(l.precioProv, 4));
+    const impProv = (l) => importe(l.cantProv, l.precioProv);
+    const fSelf = (i, k) => modal.querySelector(`[data-${k}="${i}"]`);
+    const inpL = 'w-full bg-slate-900 border border-slate-800 rounded px-1.5 py-1 text-xs text-slate-100';
+
+    // Renglón sombreado: lo que pidió la requisición (cantidad, unidad, SKU, producto), alineado bajo las columnas de la cotización.
+    // Solo lleva un campo editable: el factor, y solo si el proveedor vende en otra unidad.
+    const textoFactor = (l) => {
+        if (!l.claveUm) return l.umInvalida ? `<span class="text-amber-300" title="No está en el catálogo SAT">⚠ ${esc(l.umInvalida)}</span>` : '';
+        const ok = (l.factor || 0) > 0;
+        const ayuda = `Unidades de tu inventario (${l.unidad || '—'}) que trae 1 ${l.nombreUm || l.claveUm}.${l.notaFactor ? ' ' + l.notaFactor : ''}`;
+        return `<span class="inline-flex items-center gap-1" title="${esc(ayuda)}"><span class="text-slate-500">×</span>
+            <input type="number" data-factor="" step="any" min="0" value="${l.factor ?? ''}" placeholder="factor" class="w-full min-w-0 bg-slate-900 border ${ok ? 'border-slate-700' : 'border-amber-500'} rounded px-1.5 py-0.5 text-xs text-right font-mono text-slate-100"></span>`;
+    };
+    const pintarNuestro = (i) => {
+        const l = lineas[i];
+        const im = fSelf(i, 'imp'); if (im) im.textContent = money(impProv(l));
+        // Aviso de escala solo si algo no cuadra: costo por unidad muy lejos de lo solicitado.
+        const co = costoInt(l), c = fSelf(i, 'cant');
+        const raro = l.costoSol > 0 && co > 0 && (co / l.costoSol > 5 || co / l.costoSol < 0.2);
+        if (c) { c.classList.toggle('border-amber-500', raro); c.title = raro ? 'El costo por ' + (l.unidad || 'unidad') + ' queda muy distinto al solicitado: revisa la unidad, el factor y el precio.' : ''; }
+    };
+    const pintarFactor = (i) => {
+        const l = lineas[i];
+        const box = fSelf(i, 'factorbox'); if (!box) return;
+        box.innerHTML = textoFactor(l);
+        const fi = box.querySelector('[data-factor]');
+        if (fi) fi.oninput = () => {
+            l.factor = parseFloat(fi.value) || null; l.notaFactor = '';
+            fi.classList.toggle('border-amber-500', !(l.factor > 0)); fi.classList.toggle('border-slate-700', l.factor > 0);
+            reescalar(i); pintarNuestro(i); recalcular();
+        };
+    };
+    // Mientras el comprador NO haya capturado cantidad ni precio, al cambiar la unidad/factor se reexpresa lo solicitado
+    // en la unidad del proveedor (20,000 piezas × $3.00 con MIL×1000 → 20 MIL × $3,000.00). Lo ya capturado a mano no se toca.
+    const reescalar = (i) => {
+        const l = lineas[i];
+        if (l.tocoCant || l.tocoPrecio || l.cantSol == null) return;
+        const f = l.claveUm ? (l.factor || 0) : 1;
+        if (!(f > 0)) return;
+        l.cantProv = redondear(l.cantSol / f, 6);
+        l.precioProv = redondear(l.costoSol * f, 6);
+        const c = fSelf(i, 'cant'), pr = fSelf(i, 'precio');
+        if (c) c.value = l.cantProv; if (pr) pr.value = l.precioProv;
+    };
+    // Aplica una unidad SAT del proveedor a la partida; `factorPreset` viene de "Claves de proveedor" si ya se capturó.
+    const aplicarUm = async (i, clave, factorPreset = null) => {
+        const l = lineas[i];
+        const v = String(clave || '').trim().toUpperCase();
+        l.umInvalida = '';
+        if (!v) { l.claveUm = ''; l.nombreUm = ''; l.factor = null; l.notaFactor = ''; }
+        else {
+            const d = await describirClaveSat('unidad', v);
+            if (d === null) { l.claveUm = ''; l.nombreUm = ''; l.factor = null; l.notaFactor = ''; l.umInvalida = v; }
+            else {
+                l.claveUm = v; l.nombreUm = d?.texto || v;
+                if (factorPreset > 0) { l.factor = factorPreset; l.notaFactor = 'De Claves de proveedor.'; }
+                else {
+                    const sug = factorSugeridoSat({ claveProv: v, nombreInv: l.unidad });
+                    l.factor = sug ? sug.factor : null;
+                    l.notaFactor = sug ? sug.nota : `Captúralo: cuántas ${l.unidad || 'unidades de tu inventario'} trae 1 ${l.nombreUm || v}.`;
+                }
+            }
+        }
+        const um = fSelf(i, 'um'); if (um) um.value = l.claveUm || l.umInvalida;
+        reescalar(i); pintarFactor(i); pintarNuestro(i); recalcular();
+    };
+
     const pintarPartidas = () => {
         f('partidas').innerHTML = lineas.map((l, i) => `
           <tr class="border-t border-slate-800 align-middle">
-            <td class="p-2"><span class="text-slate-100 font-semibold">${esc(l.nombre)}</span><span class="block text-[10px] text-slate-500">${l.sku ? 'interno: ' + esc(l.sku) + ' · ' : ''}${esc(l.unidad)}</span></td>
-            <td class="p-2"><input type="text" data-sku="${i}" value="${esc(l.skuProveedor)}" class="w-28 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-100"></td>
-            <td class="p-2 text-right font-mono">${manual
-                ? `<input type="number" data-cant="${i}" min="0" step="any" value="${l.cantidad}" class="w-20 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-right font-mono text-xs text-slate-100">`
-                : formatoNum(l.cantidad)}</td>
-            <td class="p-2 text-right"><span class="relative inline-block"><span class="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none">$</span><input type="number" data-costo="${i}" min="0" step="0.0001" title="Hasta 4 decimales (diezmilésimas)" value="${Number(l.costo || 0).toFixed(4)}" class="w-28 bg-slate-900 border border-slate-800 rounded-lg pl-5 pr-2 py-1.5 text-right font-mono text-xs text-slate-100"></span></td>
-            <td class="p-2 text-right font-mono" data-sub="${i}">${money(l.cantidad * l.costo)}</td>
-            <td class="p-2 text-right">${manual ? `<button type="button" data-quitar="${i}" class="text-rose-400 hover:text-rose-300 text-xs px-2 py-1 bg-rose-950/40 rounded border border-rose-900/50">✕</button>` : ''}</td>
-          </tr>`).join('') || '<tr><td colspan="6" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>';
-        f('partidas').querySelectorAll('[data-cant]').forEach((el) => { el.oninput = () => { lineas[Number(el.dataset.cant)].cantidad = parseFloat(el.value) || 0; recalcular(); }; });
-        f('partidas').querySelectorAll('[data-quitar]').forEach((el) => { el.onclick = () => { lineas.splice(Number(el.dataset.quitar), 1); pintarPartidas(); recalcular(); }; });
-        f('partidas').querySelectorAll('[data-sku]').forEach((el) => { el.oninput = () => { lineas[Number(el.dataset.sku)].skuProveedor = el.value; }; });
-        f('partidas').querySelectorAll('[data-costo]').forEach((el) => {
-            el.oninput = () => { lineas[Number(el.dataset.costo)].costo = parseFloat(el.value) || 0; recalcular(); };
-            el.onchange = () => { const v = Math.round((parseFloat(el.value) || 0) * 10000) / 10000; lineas[Number(el.dataset.costo)].costo = v; el.value = v.toFixed(4); recalcular(); };
+            <td class="px-1.5 pt-2 pb-0.5"><input type="number" data-cant="${i}" min="0" step="any" value="${l.cantProv}" class="${inpL} text-right font-mono"></td>
+            <td class="px-1.5 pt-2 pb-0.5 relative"><input type="text" data-um="${i}" maxlength="3" autocomplete="off" value="${esc(l.claveUm || l.umInvalida)}" placeholder="MIL" title="Unidad SAT con que vende el proveedor (déjala vacía si vende en tu misma unidad)" class="${inpL} font-mono uppercase">
+              <div data-umcaja="${i}" class="hidden absolute left-0 mt-1 w-72 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-40 max-h-52 overflow-y-auto"></div></td>
+            <td class="px-1.5 pt-2 pb-0.5 relative"><input type="text" data-sat="${i}" maxlength="8" autocomplete="off" value="${esc(l.claveSat)}" placeholder="8 dígitos" title="ClaveProdServ del SAT que usa el proveedor" class="${inpL} font-mono">
+              <div data-satcaja="${i}" class="hidden absolute left-0 mt-1 w-96 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-40 max-h-52 overflow-y-auto"></div></td>
+            <td class="px-1.5 pt-2 pb-0.5"><input type="text" data-num="${i}" value="${esc(l.numero)}" title="Su clave / número interno de este producto" class="${inpL} font-mono"></td>
+            <td class="px-1.5 pt-2 pb-0.5"><input type="text" data-desc="${i}" value="${esc(l.descProv)}" title="Descripción con que el proveedor lo vende" class="${inpL}"></td>
+            <td class="px-1.5 pt-2 pb-0.5"><span class="relative block"><span class="absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">$</span><input type="number" data-precio="${i}" min="0" step="any" value="${l.precioProv}" title="Precio por UNA unidad del proveedor, como lo cotizó" class="${inpL} pl-4 text-right font-mono"></span></td>
+            <td class="px-1.5 pt-2 pb-0.5 text-right font-mono text-slate-100" data-imp="${i}">${money(impProv(l))}</td>
+            <td class="px-1 pt-2 pb-0.5 text-right">${manual ? `<button type="button" data-quitar="${i}" class="text-rose-400 hover:text-rose-300 text-xs px-1.5 py-0.5 bg-rose-950/40 rounded border border-rose-900/50">✕</button>` : ''}</td>
+          </tr>
+          <tr class="bg-slate-800/70 text-[11px] text-slate-300 border-b border-slate-800">
+            <td class="px-1.5 py-1 text-right font-mono font-semibold">${formatoNum(l.cantSol != null ? l.cantSol : cantInt(l))}</td>
+            <td class="px-1.5 py-1 font-semibold">${esc(l.unidad || '')}</td>
+            <td class="px-1.5 py-1" data-factorbox="${i}">${textoFactor(l)}</td>
+            <td class="px-1.5 py-1 font-semibold">${l.sku ? 'SKU&nbsp;&nbsp;' + esc(l.sku) : ''}</td>
+            <td class="px-1.5 py-1 font-semibold" colspan="3">${esc(l.nombre)}</td>
+            <td></td>
+          </tr>`).join('') || '<tr><td colspan="8" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>';
+        lineas.forEach((l, i) => {
+            const on = (k, fn) => { const el = fSelf(i, k); if (el) el.oninput = () => fn(el); };
+            on('cant', (el) => { l.cantProv = parseFloat(el.value) || 0; l.tocoCant = true; pintarNuestro(i); recalcular(); });
+            on('precio', (el) => { l.precioProv = parseFloat(el.value) || 0; l.tocoPrecio = true; pintarNuestro(i); recalcular(); });
+            on('num', (el) => { l.numero = el.value; l.tocoProv = true; });
+            on('desc', (el) => { l.descProv = el.value; l.tocoProv = true; });
+            on('sat', (el) => { l.claveSat = el.value.trim(); l.tocoProv = true; });
+            const um = fSelf(i, 'um');
+            if (um) {
+                montarBuscadorClaveSat({ tipo: 'unidad', input: um, caja: fSelf(i, 'umcaja') });
+                um.addEventListener('change', () => { l.tocoProv = true; aplicarUm(i, um.value); });
+            }
+            const sat = fSelf(i, 'sat');
+            if (sat) montarBuscadorClaveSat({ tipo: 'prod_serv', input: sat, caja: fSelf(i, 'satcaja'), alElegir: (r) => { l.claveSat = r.clave; l.tocoProv = true; } });
+            pintarFactor(i);
         });
+        modal.querySelectorAll('[data-quitar]').forEach((el) => { el.onclick = () => { lineas.splice(Number(el.dataset.quitar), 1); pintarPartidas(); recalcular(); }; });
     };
     const totales = () => {
-        const sub = lineas.reduce((a, l) => a + l.cantidad * l.costo, 0);
-        return { sub, iva: sub * IVA_ODC, tot: sub * (1 + IVA_ODC) };
+        const sub = lineas.reduce((a, l) => a + impProv(l), 0);
+        const iva = redondear2(sub * IVA_ODC);
+        return { sub: redondear2(sub), iva, tot: redondear2(sub + iva) };
     };
     function recalcular() {
         const t = totales();
-        lineas.forEach((l, i) => { const c = modal.querySelector(`[data-sub="${i}"]`); if (c) c.textContent = money(l.cantidad * l.costo); });
+        lineas.forEach((l, i) => { const c = fSelf(i, 'imp'); if (c) c.textContent = money(impProv(l)); });
         f('tSub').textContent = money(t.sub);
         f('tIva').textContent = money(t.iva);
         f('tTot').textContent = money(t.tot);
@@ -1450,14 +1915,26 @@ window.reqAutorizar = async (id) => {
         f('dias').value = condicion === 'credito' ? String(DIAS_CREDITO_ODC.includes(d) ? d : 30) : '';
         if (p.forma_pago && [...f('forma').options].some((o) => o.value === p.forma_pago)) f('forma').value = p.forma_pago;
         pintarCondicion();
-        for (const l of lineas) {
-            if (l.skuProveedor || !l.productoId) continue;
-            try {
-                const info = await obtenerInfoProveedorProducto(l.productoId, p.id);
-                if (info?.claveProveedor) l.skuProveedor = info.claveProveedor;
-            } catch (_) { /* sin datos del proveedor: se captura a mano */ }
-        }
+        // Datos con que ESTE proveedor vende cada producto (Claves de proveedor): su número, descripción, clave SAT, unidad y factor.
+        // Solo se sobreescribe lo que el comprador no ha tocado.
+        // Las líneas de Resurtir ya traen los datos de la última factura: el catálogo de claves no las pisa.
+        const infos = await Promise.all(lineas.map((l) => (l.productoId && !l.tocoProv && !l.resurtir
+            ? obtenerInfoProveedorProducto(l.productoId, p.id).catch(() => null) : Promise.resolve(null))));
+        lineas.forEach((l, i) => {
+            const info = infos[i];
+            if (!info || l.tocoProv) return;
+            l.numero = info.claveProveedor || l.numero || '';
+            l.descProv = info.descripcionProveedor || '';
+            l.claveSat = info.claveProdServSat || '';
+            l.claveUm = ''; l.nombreUm = ''; l.umInvalida = ''; l.factor = null; l.notaFactor = '';
+        });
         pintarPartidas();
+        // La unidad SAT y el factor se aplican ya con las filas dibujadas (reescalan la cantidad y el precio si aún no se capturan).
+        for (let i = 0; i < lineas.length; i++) {
+            const info = infos[i];
+            if (info?.claveUnidadSat && !lineas[i].tocoProv) await aplicarUm(i, info.claveUnidadSat, Number(info.factorConversion) || null);
+        }
+        recalcular();
     };
     f('proveedor').onchange = prellenar;
 
@@ -1486,17 +1963,31 @@ window.reqAutorizar = async (id) => {
             prodSel = null;
             const t = pInput.value.toLowerCase().trim();
             if (!t) { pSug.classList.add('hidden'); return; }
-            const hits = reqProductos.filter((p) => (p.nombre && p.nombre.toLowerCase().includes(t)) || (p.sku && p.sku.toLowerCase().includes(t))).slice(0, 12);
-            if (!hits.length) { pSug.classList.add('hidden'); return; }
-            pSug.innerHTML = hits.map((p) => `<div class="px-3 py-2 text-xs text-slate-200 hover:bg-emerald-600 hover:text-white cursor-pointer border-b border-slate-800/50 last:border-0" data-pid="${p.id}">${esc(p.nombre)} <span class="text-[10px] text-slate-400">${p.sku ? 'SKU ' + esc(p.sku) : ''}</span></div>`).join('');
+            const hits = reqFiltrarProductos(t);
+            const filaNuevo = reqFilaCrear(pInput.value.trim());
+            if (!hits.length && !filaNuevo) { pSug.classList.add('hidden'); return; }
+            pSug.innerHTML = hits.map((p) => `<div class="px-3 py-2 text-xs text-slate-200 hover:bg-emerald-600 hover:text-white cursor-pointer border-b border-slate-800/50 last:border-0" data-pid="${p.id}">${esc(p.nombre)} <span class="text-[10px] text-slate-400">${p.tipo === 'activo_fijo' ? '🏭 activo fijo' : (p.sku ? 'SKU ' + esc(p.sku) : '')}</span></div>`).join('') + filaNuevo;
             pSug.classList.remove('hidden');
-            pSug.querySelectorAll('[data-pid]').forEach((el) => {
+            pSug.querySelectorAll('[data-pid], [data-nuevo]').forEach((el) => {
                 el.onclick = () => {
+                    if (el.dataset.nuevo) {
+                        pSug.classList.add('hidden');
+                        reqCrearYEditarProducto(pInput.value.trim(), (p) => {
+                            // El artículo nuevo queda seleccionado; la orden que se está capturando no se toca.
+                            prodSel = p;
+                            pInput.value = p.nombre;
+                            if (p.unidad_medida_id) f('pUni').value = p.unidad_medida_id;
+                            if (p.tipo === 'activo_fijo') f('pCant').value = '1';
+                            f('pCosto').focus();
+                        });
+                        return;
+                    }
                     const p = reqProductos.find((x) => x.id === Number(el.dataset.pid));
                     prodSel = p || null;
                     pInput.value = p ? p.nombre : pInput.value;
                     if (p && p.costo_unitario != null) f('pCosto').value = p.costo_unitario;
                     if (p && p.unidad_medida_id) f('pUni').value = p.unidad_medida_id;
+                    if (p && p.tipo === 'activo_fijo') f('pCant').value = '1';   // un equipo por partida
                     pSug.classList.add('hidden');
                 };
             });
@@ -1505,32 +1996,41 @@ window.reqAutorizar = async (id) => {
             const nombre = pInput.value.trim();
             const cantidad = parseFloat(f('pCant').value) || 0;
             if (!nombre || cantidad <= 0) { alert('Indica el producto y una cantidad mayor a 0.'); return; }
+            if (prodSel && prodSel.tipo === 'activo_fijo' && cantidad !== 1) {
+                alert('«' + prodSel.nombre + '» es un activo fijo: se pide de uno en uno. Si necesitas varios equipos, agrega una partida por cada uno (cantidad 1).');
+                return;
+            }
             const uId = f('pUni').value ? Number(f('pUni').value) : null;
-            const linea = {
-                reqDetId: null, productoId: prodSel ? prodSel.id : null, descripcion: prodSel ? null : nombre, nombre,
-                sku: prodSel ? (prodSel.sku || '') : '', cantidad, costo: parseFloat(f('pCosto').value) || 0,
-                unidad: nombreUnidad(uId), unidadId: uId, skuProveedor: '', descripcionProveedor: null, unidadProveedor: null, factorConversion: null,
-            };
+            const linea = nuevaLinea({
+                productoId: prodSel ? prodSel.id : null, descripcion: prodSel ? null : nombre, nombre,
+                sku: prodSel ? (prodSel.sku || '') : '', unidad: nombreUnidad(uId), unidadId: uId,
+                cantProv: cantidad, precioProv: parseFloat(f('pCosto').value) || 0, tocoCant: true, tocoPrecio: true,
+            });
             const provId = f('proveedor').value ? Number(f('proveedor').value) : null;
+            let infoProv = null;
             if (prodSel && provId) {
                 try {
-                    const info = await obtenerInfoProveedorProducto(prodSel.id, provId);
-                    if (info) {
-                        linea.skuProveedor = info.claveProveedor || '';
-                        linea.descripcionProveedor = info.descripcionProveedor || null;
-                        linea.unidadProveedor = info.unidadProveedor || null;
-                        linea.factorConversion = info.factorConversion ?? null;
+                    infoProv = await obtenerInfoProveedorProducto(prodSel.id, provId);
+                    if (infoProv) {
+                        linea.numero = infoProv.claveProveedor || '';
+                        linea.descProv = infoProv.descripcionProveedor || '';
+                        linea.claveSat = infoProv.claveProdServSat || '';
                     }
                 } catch (_) { /* sin datos del proveedor: la partida se agrega igual */ }
             }
             lineas.push(linea);
+            const idxNueva = lineas.length - 1;
             pInput.value = ''; f('pCant').value = ''; f('pCosto').value = ''; f('pUni').value = ''; prodSel = null;
-            pintarPartidas(); recalcular(); pInput.focus();
+            pintarPartidas(); recalcular();
+            if (infoProv?.claveUnidadSat) await aplicarUm(idxNueva, infoProv.claveUnidadSat, Number(infoProv.factorConversion) || null);
+            pInput.focus();
         };
     }
 
     pintarPartidas();
     pintarCondicion();
+    // Líneas de Resurtir: valida su unidad SAT contra el catálogo y fija el factor guardado (sin reescalar lo ya capturado).
+    lineas.forEach((l, i) => { if (l.resurtir && l.umPendiente) aplicarUm(i, l.umPendiente, l.factorPendiente); });
     if (f('proveedor').value) prellenar();
     // Solicitante: si la requisición trae un nombre que coincide con un empleado, ya viene elegido.
     if (!manual && f('solicitante')) {
@@ -1553,10 +2053,46 @@ window.reqAutorizar = async (id) => {
         if (f('cotVigencia').value < f('cotFecha').value) return err('La vigencia no puede ser anterior a la fecha de la cotización.');
         if (!f('fechaEsp').value) return err('Captura la fecha esperada de entrega.');
         if (!lineas.length) return err(manual ? 'Agrega al menos una partida.' : 'La requisición no tiene partidas.');
-        if (lineas.some((l) => !(l.costo > 0))) return err('Captura el costo unitario cotizado de todas las partidas.');
+        if (lineas.some((l) => !(l.cantProv > 0))) return err('Captura la cantidad cotizada de todas las partidas.');
+        if (lineas.some((l) => !(l.precioProv > 0))) return err('Captura el precio unitario cotizado de todas las partidas.');
+        const umMala = lineas.find((l) => l.umInvalida);
+        if (umMala) return err('La clave de unidad «' + umMala.umInvalida + '» (' + umMala.nombre + ') no está en el catálogo SAT. Elígela de la lista o déjala vacía.');
+        const sinFactor = lineas.find((l) => l.claveUm && !(l.factor > 0));
+        if (sinFactor) return err('«' + sinFactor.nombre + '»: captura el factor de la unidad ' + sinFactor.claveUm + ' (cuántas ' + (sinFactor.unidad || 'unidades de tu inventario') + ' trae 1 ' + (sinFactor.nombreUm || sinFactor.claveUm) + ').');
+        const satMala = lineas.find((l) => l.claveSat && !/^\d{8}$/.test(l.claveSat));
+        if (satMala) return err('«' + satMala.nombre + '»: la clave SAT del producto debe tener 8 dígitos.');
+        const afMal = lineas.find((l) => l.productoId && reqProductos.find((p) => p.id === Number(l.productoId))?.tipo === 'activo_fijo' && cantInt(l) !== 1);
+        if (afMal) return err('«' + afMal.nombre + '» es un activo fijo: va de uno en uno (cantidad 1). Para varios equipos, una partida por cada uno.');
         const conAnticipo = f('chkAnt').checked;
         const pct = conAnticipo ? (parseFloat(f('antPct').value) || 0) : 0;
         if (conAnticipo && (pct <= 0 || pct > 100)) return err('El % de anticipo debe estar entre 1 y 100.');
+
+        // Diferencias entre lo SOLICITADO y lo COTIZADO (ya convertido a tu unidad): el comprador decide, no se bloquea.
+        // Se ignora lo menor a $0.01 en importe y a media diezmilésima en costo.
+        const difs = [];
+        for (const l of lineas) {
+            if (l.cantSol == null) continue;
+            const ci = cantInt(l), co = costoInt(l);
+            const impSol = importe(l.cantSol, l.costoSol), impCot = impProv(l);
+            const dCant = Math.abs(ci - l.cantSol) > 1e-6;
+            const dCosto = l.costoSol > 0 && Math.abs(co - l.costoSol) >= 0.00005;
+            const dImp = l.costoSol > 0 && Math.abs(impCot - impSol) >= 0.01;
+            if (!(dCant || dCosto || dImp)) continue;
+            difs.push({
+                producto: l.nombre, sku: l.sku || null,
+                solicitado: { cantidad: l.cantSol, costo: l.costoSol, importe: impSol, unidad: l.unidad },
+                cotizado: { cantidad: ci, costo: co, importe: impCot, unidad: l.unidad, cantidad_proveedor: l.cantProv, unidad_proveedor: l.claveUm || null, precio_proveedor: l.precioProv },
+                diferencia: { cantidad: redondear(ci - l.cantSol, 6), costo: redondear(co - l.costoSol, 4), importe: redondear2(impCot - impSol) },
+            });
+        }
+        let notaDif = null;
+        if (difs.length) {
+            const dec = await reqConfirmarDiferencias(difs);
+            if (!dec.ok) return;
+            notaDif = dec.nota || null;
+        }
+        let revisor = null;
+        try { revisor = (await supabaseClient.auth.getSession())?.data?.session?.user?.email || null; } catch (_) { /* sin sesión legible: queda vacío */ }
 
         const t = totales();
         const btn = f('ok');
@@ -1588,16 +2124,25 @@ window.reqAutorizar = async (id) => {
                     dias_credito: condicion === 'credito' ? Number(f('dias').value) : 0,
                     forma_pago: f('forma').value || null,
                     anticipo_pct: conAnticipo ? pct : null,
+                    revisada_por: revisor,
+                    diferencias: difs.length ? difs : null,
+                    diferencias_nota: notaDif,
                     partidas: lineas.map((l) => ({
                         requisicion_detalle_id: l.reqDetId, producto_id: l.productoId, descripcion: l.productoId ? null : l.nombre,
-                        cantidad: l.cantidad, costo: l.costo, unidad_medida_id: l.unidadId ?? null,
-                        sku_proveedor: l.skuProveedor.trim() || null, descripcion_proveedor: l.descripcionProveedor || null,
-                        unidad_proveedor: l.unidadProveedor || null, factor_conversion_proveedor: l.factorConversion ?? null,
+                        // Lo cotizado, en la unidad del proveedor; la base convierte con el factor y deriva el costo de tu inventario.
+                        cantidad_proveedor: l.cantProv, precio_proveedor: l.precioProv,
+                        clave_unidad_sat: l.claveUm || null, clave_prod_serv_sat: l.claveSat || null,
+                        factor_conversion_proveedor: l.claveUm ? l.factor : null,
+                        // Compatibilidad (en tu unidad): la base usa estos solo si faltan los de arriba.
+                        cantidad: cantInt(l), costo: costoInt(l), unidad_medida_id: l.unidadId ?? null,
+                        sku_proveedor: (l.numero || '').trim() || null, descripcion_proveedor: (l.descProv || '').trim() || null,
+                        unidad_proveedor: l.claveUm ? (l.nombreUm || l.claveUm) : null,
                     })),
                 },
             });
             if (error) {
-                if (/odc_generar|schema cache|could not find the function/i.test(error.message || '')) throw new Error('Falta correr sql/2026-10-12_odc_generar.sql en Supabase.');
+                if (/odc_generar|could not find the function/i.test(error.message || '')) throw new Error('Falta correr sql/2026-10-12_odc_generar.sql en Supabase.');
+                if (/does not exist|schema cache/i.test(error.message || '')) throw new Error('Falta correr sql/2026-10-23c_odc_cotizacion_proveedor.sql en Supabase.');
                 throw error;
             }
             const ocId = data?.oc_id;

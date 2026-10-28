@@ -318,7 +318,7 @@ window.loadView = function(viewName, opciones = {}) {
             cargarModuloNomina();
             break;
         case 'tareas':
-            cargarModuloTareas(opciones.departamento);
+            cargarModuloTareas(opciones.departamento, { limpiarBusqueda: true });
             break;
         case 'isr':
             cargarModuloIsr();

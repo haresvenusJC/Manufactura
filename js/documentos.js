@@ -4,6 +4,7 @@ import './trazabilidad.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { fechaLocalTxt } from './fechas.js';
 
+import { money, money4, importe, redondear2 } from './formato.js';
 let documentosCache = [];
 let docActualParaImprimir = null; // compat: instancia "de siempre" (modalDetalleDocKardex)
 const docsParaImprimirPorModal = new Map(); // idModal -> { tipoDocumento, titulo } — una entrada por subventana abierta con Ctrl+clic
@@ -471,7 +472,7 @@ window.abrirDetalleDocumentoGlobal = async function(docId) {
                             <span class="text-slate-400 print:text-gray-700">Importe: <strong class="text-emerald-400 print:text-black">$${importeVenta.toFixed(2)}</strong></span>
                         </div>`
                     : `<div class="flex justify-between items-center text-xs font-mono pt-1 campo-costo">
-                            <span class="text-slate-400 print:text-gray-700">Costo Unitario: <strong class="text-emerald-400 print:text-black">$${Number(det.costo_unitario || 0).toFixed(2)}${monedaCodigo ? ` ${monedaCodigo}` : ''}</strong>${(monedaCodigo && tipoCambio !== 1) ? ` <span class="text-[10px] text-slate-500">(TC: ${tipoCambio})</span>` : ''}</span>
+                            <span class="text-slate-400 print:text-gray-700">Costo Unitario: <strong class="text-emerald-400 print:text-black">${money4(det.costo_unitario)}${monedaCodigo ? ` ${monedaCodigo}` : ''}</strong>${(monedaCodigo && tipoCambio !== 1) ? ` <span class="text-[10px] text-slate-500">(TC: ${tipoCambio})</span>` : ''}</span>
                             <span class="text-slate-400 print:text-gray-700">Subtotal: <strong class="text-amber-300 print:text-black">$${Number(det.subtotal || 0).toFixed(2)}</strong></span>
                         </div>`;
 
@@ -594,7 +595,14 @@ window.cancelarReciboDesdeDoc = async function(docId) {
             : 'No se pudo verificar el recibo #' + docId + ':\n' + (eDiag.message || eDiag));
         return;
     }
-    if (!diag || !diag.length) { alert('El recibo #' + docId + ' no tiene movimientos de inventario que revertir.'); return; }
+    // Activos fijos que dio de alta esta recepción (sql/2026-10-21_activo_fijo_en_compras.sql): no llevan
+    // movimientos de inventario, pero también se retiran al cancelar. Sin la migración, la consulta falla y se omite.
+    let activos = [];
+    try {
+        const rAf = await supabaseClient.from('activos_fijos').select('id, nombre, pendiente').eq('documento_id', docId);
+        if (!rAf.error) activos = rAf.data || [];
+    } catch (_) { /* migración sin correr */ }
+    if ((!diag || !diag.length) && !activos.length) { alert('El recibo #' + docId + ' no tiene movimientos de inventario que revertir.'); return; }
 
     const consumidos = diag.filter((d) => !d.ok);
     if (consumidos.length) {
@@ -604,8 +612,11 @@ window.cancelarReciboDesdeDoc = async function(docId) {
         return;
     }
 
-    const resumen = diag.map((d) => `· ${d.producto_nombre} · lote ${d.numero_lote}: −${d.recibido}`).join('\n');
-    if (!confirm(`✅ El recibo #${docId} SÍ es cancelable: ningún lote se ha consumido.\n\nSe revertirá el inventario y se cancelará su póliza:\n${resumen}\n\n¿Continuar?`)) return;
+    const resumen = [
+        ...diag.map((d) => `· ${d.producto_nombre} · lote ${d.numero_lote}: −${d.recibido}`),
+        ...activos.map((a) => `· Activo fijo «${a.nombre}» (${a.pendiente ? 'pendiente de completar' : 'ya completado'}): se retira de Activos fijos`),
+    ].join('\n');
+    if (!confirm(`✅ El recibo #${docId} SÍ es cancelable${diag.length ? ': ningún lote se ha consumido' : ''}.\n\nSe ${diag.length ? 'revertirá el inventario y se ' : ''}cancelará su póliza:\n${resumen}\n\n¿Continuar?`)) return;
 
     const motivo = prompt('Motivo de la cancelación:', 'Cancelación de recibo');
     if (motivo === null) return;

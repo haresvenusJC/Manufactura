@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { avisarRegistroGuardado } from './vinculos.js';
 import { cargarRegimenes, opcionesRegimen } from './regimenes-fiscales.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 
@@ -7,7 +8,7 @@ import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-
 //  Requiere: sql/2026-09-01_clientes_listas_precio.sql
 // =====================================================================
 
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2 } from './formato.js';
 const cliOrden = crearOrdenTabla('nombre');
 
 const USOS_CFDI = [
@@ -267,16 +268,19 @@ async function guardarCliente(e) {
     };
     if (!payload.nombre) { msg.textContent = 'El nombre es obligatorio.'; msg.className = 'text-xs text-rose-400'; return; }
     try {
+        let idGuardado = cliEditId;
         if (cliEditId) {
             const { error } = await supabaseClient.from('clientes').update(payload).eq('id', cliEditId);
             if (error) throw error;
         } else {
-            const { error } = await supabaseClient.from('clientes').insert([payload]);
+            const { data, error } = await supabaseClient.from('clientes').insert([payload]).select('id').single();
             if (error) throw error;
+            idGuardado = data?.id;
         }
         limpiarCliForm();
         await recargarClientes();
         msg.textContent = 'Guardado.'; msg.className = 'text-xs text-emerald-400';
+        if (idGuardado) avisarRegistroGuardado('cliente', idGuardado);
     } catch (err) {
         msg.textContent = err.message || String(err); msg.className = 'text-xs text-rose-400';
     }
@@ -364,7 +368,7 @@ function renderTablaLista() {
                         <tr class="border-b border-slate-900">
                             <td class="p-2 font-mono text-slate-500">${p.sku || '—'}</td>
                             <td class="p-2 text-slate-200">${p.nombre}</td>
-                            <td class="p-2 text-right font-mono text-slate-500">${p.precio_venta != null ? money(p.precio_venta) : '—'}</td>
+                            <td class="p-2 text-right font-mono text-slate-500">${p.precio_venta != null ? money4(p.precio_venta) : '—'}</td>
                             <td class="p-2 text-right">
                                 <input type="number" step="0.01" min="0" data-pid="${p.id}"
                                     value="${itemsLista.has(p.id) ? itemsLista.get(p.id) : ''}" placeholder="(usa base)"

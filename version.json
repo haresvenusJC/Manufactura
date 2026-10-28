@@ -1,5 +1,5 @@
 {
- "v": "20261028164903",
+ "v": "20261028164918",
  "modulos": [
   "activos-fijos.js",
   "app.js",
@@ -17,6 +17,8 @@
   "buscador-productos.js",
   "buscador-select.js",
   "catalogo.js",
+  "catalogos-sat.js",
+  "categorias-depreciacion.js",
   "centros-costo.js",
   "cfdi.js",
   "cierre-periodo.js",
@@ -34,10 +36,12 @@
   "enlaces-reporte.js",
   "entradas.js",
   "estado-vacio.js",
+  "factor-unidad-sat.js",
   "fechas.js",
   "filtro-columna.js",
   "firmas.js",
   "folios.js",
+  "formato.js",
   "fotos-personal.js",
   "fresh-start.js",
   "iconos-accesos.js",
@@ -77,6 +81,7 @@
   "supabase.js",
   "tablas.js",
   "tareas.js",
-  "trazabilidad.js"
+  "trazabilidad.js",
+  "vinculos.js"
  ]
 }

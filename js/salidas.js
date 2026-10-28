@@ -4,6 +4,7 @@ import { cargarInventarioCompleto, registrarMovimientoAlmacen } from './inventar
 import { linkDoc, linkPoliza, etiquetaPoliza } from './enlaces-reporte.js';
 import { fechaLocalTxt } from './fechas.js';
 
+import { money, money4, importe, redondear2 } from './formato.js';
 let partidasSalidaTemp = [];
 let reservadoPorProductoSal = {};   // producto_id -> { reservado, disponible } (pedidos pendientes)
 let listaProductosGlobal = [];
@@ -179,7 +180,7 @@ export async function cargarModuloSalidas() {
                     .select('id, nombre, sku, stock_actual, tipo'));
             }
             if (!errProd && productos) {
-                listaProductosGlobal = productos;
+                listaProductosGlobal = productos.filter((p) => p.tipo !== 'activo_fijo');   // un equipo no sale por una salida de inventario
             }
             // Mercancía apartada por pedidos pendientes (vista de sql/2026-11-03; sin ella, queda vacío).
             reservadoPorProductoSal = {};
@@ -422,7 +423,7 @@ async function seleccionarProducto(id, nombre) {
                     <span class="font-mono font-bold text-amber-300">Lote: ${l.numero_lote || 'SIN-LOTE'}</span>
                     <span class="font-mono text-emerald-400">${l.stock_actual} disp.</span>
                 </div>
-                <div class="text-[11px] text-slate-400 mt-1">Costo: $${Number(l.costo_unitario || 0).toFixed(2)} | Ingreso: ${l.fecha_ingreso ? fechaLocalTxt(l.fecha_ingreso) : 'N/D'}</div>
+                <div class="text-[11px] text-slate-400 mt-1">Costo: ${money4(l.costo_unitario)} | Ingreso: ${l.fecha_ingreso ? fechaLocalTxt(l.fecha_ingreso) : 'N/D'}</div>
             </div>
         `;
     });
@@ -468,7 +469,7 @@ function renderizarTablaPartidasTemp() {
                 <td class="p-2.5 font-medium text-slate-100">${p.productoNombre}</td>
                 <td class="p-2.5 font-mono text-amber-300">Lote: ${p.numeroLote}</td>
                 <td class="p-2.5 font-mono text-red-400 font-bold">${p.cantidad} un.</td>
-                <td class="p-2.5 font-mono text-slate-300">$${Number(p.costoUnitario).toFixed(2)}</td>
+                <td class="p-2.5 font-mono text-slate-300">${money4(p.costoUnitario)}</td>
                 <td class="p-2.5">
                     <div class="flex items-center gap-1">
                         <span class="text-slate-500">$</span>

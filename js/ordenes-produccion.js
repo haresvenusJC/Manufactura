@@ -177,7 +177,7 @@ function pintarTabla() {
                 <td class="p-3 font-mono text-amber-400">${folio}</td>
                 <td class="p-3 text-slate-200">${o.productos?.nombre || 'Producto'}</td>
                 <td class="p-3 text-right font-mono text-slate-300">${formatoCantidad(o.cantidad_producida)}</td>
-                <td class="p-3 text-right font-mono text-emerald-400">${Number(o.costo_unitario_final) > 0 ? '$' + Number(o.costo_unitario_final).toFixed(2) : '<span class="text-slate-600">—</span>'}</td>
+                <td class="p-3 text-right font-mono text-emerald-400">${Number(o.costo_unitario_final) > 0 ? money4(o.costo_unitario_final) : '<span class="text-slate-600">—</span>'}</td>
                 <td class="p-3 text-slate-400">${o.numero_lote || 'S/L'}</td>
                 <td class="p-3">${badgeEstado(o.estado)}${o.estado === 'en_proceso' && todasLasTareasFinalizadas(o) ? '<div class="text-[10px] text-emerald-400 mt-1">✅ Todas las tareas finalizadas, falta cerrar la orden</div>' : ''}</td>
                 <td class="p-3 text-slate-500 text-xs">${creada}</td>
@@ -269,7 +269,7 @@ async function cancelarOrdenPendiente(ordenId) {
 // ---------------------------------------------------------------------
 const escD = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fechaHora = (iso) => iso ? new Date(iso).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }) : '—';
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2 } from './formato.js';
 function duracion(seg) {
     const s = Math.max(0, Math.round(seg || 0));
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
@@ -521,7 +521,7 @@ async function armarDocumentoEstado(ordenId) {
                 <td style="${ST.td}">${i === 0 ? `<b>${escD(g.nombre)}</b>` : ''}</td>
                 <td style="${ST.td}" class="campo-lote">${escD(l.lote)}</td>
                 <td style="${ST.tdR}">${formatoCantidad(l.cant)} ${escD(g.unidad)}</td>
-                <td style="${ST.tdR}" class="campo-costo">${money(l.cu)}</td>
+                <td style="${ST.tdR}" class="campo-costo">${money4(l.cu)}</td>
                 <td style="${ST.tdR}" class="campo-costo">${money(l.sub)}</td>
                 <td style="${ST.tdR}">${i === 0 && rec ? `${formatoCantidad(rec.requerido)} ${escD(rec.unidad)}` : ''}</td>
                 <td style="${ST.tdR}${i === 0 && dif !== null && Math.abs(dif) >= 0.0005 ? 'color:#b45309;font-weight:700;' : ''}">${i === 0 ? difTxt : ''}</td>
@@ -586,7 +586,7 @@ async function armarDocumentoEstado(ordenId) {
         const cuAct = Number(o.costo_unitario_final || 0);
         const cuAnt = anterior ? Number(anterior.costo_unitario_final || 0) : 0;
         const varTxt = anterior && cuAnt > 0
-            ? `${money(cuAnt)} en ${escD(anterior.folio || '#' + anterior.id)} → ${cuAct >= cuAnt ? '▲' : '▼'} ${((cuAct - cuAnt) / cuAnt * 100).toFixed(1)}%`
+            ? `${money4(cuAnt)} en ${escD(anterior.folio || '#' + anterior.id)} → ${cuAct >= cuAnt ? '▲' : '▼'} ${((cuAct - cuAnt) / cuAnt * 100).toFixed(1)}%`
             : 'Sin orden cerrada anterior de este producto para comparar.';
         const matGuardado = Number(o.costo_total_materiales || 0);
         const moGuardado = Number(o.costo_total_mano_obra || 0);

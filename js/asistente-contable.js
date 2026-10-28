@@ -253,14 +253,17 @@ export const GUIAS = {
     },
     'tareas': {
         titulo: 'Tareas',
-        paraQue: 'Avisos y pendientes que el sistema genera solo: inventario bajo mínimo, lotes por caducar, nómina por generar.',
+        paraQue: 'Avisos y pendientes que el sistema genera solo: inventario bajo mínimo, lotes por caducar y la nómina por autorizar. Todo en una tabla que se filtra y se ordena.',
         pasos: [
-            'Revisa las tarjetas.',
-            'Marca cada una como atendida, o descártala si no aplica.',
-            'En el historial ves quién resolvió cada tarea y cuándo.',
+            'Arriba están los contadores clicables (Prioridad alta, Compras, Caducidad, Contables, Reaparecidas): un clic filtra, otro clic quita el filtro.',
+            'Usa el menú ▼ del encabezado de Prioridad, Tipo, Área, Proveedor o Estatus, y el buscador (acepta tarea, detalle o proveedor). "Quitar filtros" regresa a todo.',
+            'Por default lo contable (nómina) va primero, luego prioridad alta y las más antiguas.',
+            'Cada renglón tiene su acción principal (Generar requisición, Ver en inventario, Autorizar) y un menú ⋯ con Atendida, No aceptada o Cancelar.',
+            'Marca varias casillas (o la de arriba para todas las visibles) para generar una requisición por proveedor, o poner "No aceptada" / "Cancelar" a todas de golpe.',
+            'La pestaña Historial muestra quién resolvió cada tarea y cuándo.',
         ],
         cuando: 'A diario, o cada vez que entras al ERP.',
-        errores: ['Descartar una tarea sin resolver el problema de fondo.'],
+        errores: ['Cancelar una tarea sin resolver el problema de fondo: si la condición sigue, volverá a aparecer.'],
     },
     'requisiciones-compra': {
         titulo: 'Requisiciones de compra',
@@ -326,6 +329,10 @@ export const GUIAS = {
         paraQue: 'Llevar el catálogo de tu maquinaria, equipo y vehículos, y su depreciación mensual en línea recta (NIF C-6) — cuánto valen en libros y cuánto gasto de depreciación cae cada mes.',
         pasos: [
             'Da de alta el activo: costo de adquisición, valor residual (lo que valdría al final de su vida útil, puede ser 0), vida útil en meses, y sus 3 cuentas (activo, gasto de depreciación, depreciación acumulada).',
+            'Elige su "Categoría fiscal" (LISR): trae el % máximo anual, sugiere la vida útil (ajustable) y avisa si hay tope deducible (ej. automóviles $175,000). La tabla se edita en Configuración → Tablas → SAT · Depreciación fiscal; si la ley cambia un %, usa "Nueva vigencia".',
+            'Si el equipo lo compraste por requisición → orden de compra → recepción, ya aparece aquí solo como "⏳ pendiente de completar" con su costo real: pulsa "Completar" y captura área, si se deprecia, vida útil y etapas.',
+            'Equipos que ya tenías antes del ERP: botón "Cargar equipo existente" — captura costo histórico, fecha original, vida útil y fecha de corte; calcula la depreciación acumulada y genera la póliza de apertura APE (304.01 por defecto). Al darlos de baja se genera la póliza BAJ. La categoría fiscal es obligatoria; si el equipo es usado, márcalo para editar vida restante, residual y % fiscal.',
+            'Para un equipo viejo que ya no se deprecia pero quieres tener en el listado: márcalo "No depreciable", pon su fecha de adquisición original y, si quieres, su costo histórico (solo informativo).',
             'En "Depreciación del mes", elige año y mes y pulsa "Calcular" — es una vista previa, no aplica nada todavía.',
             'Si todo cuadra, "Aplicar depreciación de [mes]" — genera UNA póliza con todos los activos de ese mes.',
             'Si algo salió mal, "Cancelar" ese mes desde el historial — revierte la póliza y lo deja listo para corregir y volver a aplicar.',

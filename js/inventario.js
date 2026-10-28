@@ -6,7 +6,7 @@ import { fechaLocalTxt } from './fechas.js';
 
 const invResumenOrden = crearOrdenTabla('nombre', 'asc');
 const invLotesOrden = crearOrdenTabla();
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2 } from './formato.js';
 
 /**
  * Función auxiliar centralizada para registrar movimientos de almacén mediante FIFO (RPC de Supabase).
@@ -81,7 +81,7 @@ export async function cargarInventarioCompleto() {
 
             if (errProd) throw errProd;
 
-            invProductosCache = productos || [];
+            invProductosCache = (productos || []).filter((p) => p.tipo !== 'activo_fijo');   // un equipo no es existencia
 
             // Reservado / disponible por producto (sin la migración de reservas queda vacío y no se muestran las columnas).
             invReservas = {};
@@ -208,7 +208,7 @@ function renderInventarioResumen() {
                 ${conReservas ? `
                 <td class="p-3 text-right font-mono ${res > 0 ? 'text-sky-300' : 'text-slate-600'}">${esTerm ? res : '—'}</td>
                 <td class="p-3 text-right font-mono ${esTerm && res > 0 ? 'text-amber-300 font-semibold' : 'text-slate-400'}">${esTerm ? libreDe(item) : '—'}</td>` : ''}
-                <td class="p-3 text-right font-mono text-slate-300">$${Number(item.costo_unitario || 0).toFixed(2)} <span class="text-[10px] text-slate-500">${codigoMoneda}</span></td>
+                <td class="p-3 text-right font-mono text-slate-300">${money4(item.costo_unitario)} <span class="text-[10px] text-slate-500">${codigoMoneda}</span></td>
             </tr>`;
     }).join('');
 
@@ -342,7 +342,7 @@ async function renderizarTablaLotes(contenedorLotes) {
                     <td class="px-3 py-1 font-medium text-slate-100">${nombreProd}${l.productos?.sku ? `<span class="block text-[10px] font-mono text-slate-500">${escLote(l.productos.sku)}</span>` : ''}</td>
                     <td class="px-3 py-1 text-xs uppercase text-slate-400">${tipoProd}</td>
                     <td class="px-3 py-1 font-mono text-amber-300 font-semibold">${l.stock_actual}</td>
-                    <td class="px-3 py-1 font-mono text-slate-300">$${Number(l.costo_unitario || 0).toFixed(2)}</td>
+                    <td class="px-3 py-1 font-mono text-slate-300">${money4(l.costo_unitario)}</td>
                     <td class="px-3 py-1 text-xs text-slate-400">${fechaIng}</td>
                 </tr>
             `;
@@ -539,7 +539,7 @@ window.verDetalleLoteMovimiento = async function(loteId) {
         let info = `📋 INFORMACIÓN DEL LOTE / TRAZABILIDAD\n-----------------------------------\n` +
                    `• Producto: ${nombreProd}\n• Identificador de Lote: ${numLoteStr}\n` +
                    `• Stock Actual en Lote: ${loteInfo.stock_actual}\n` +
-                   `• Costo Unitario: $${Number(loteInfo.costo_unitario || 0).toFixed(2)}\n` +
+                   `• Costo Unitario: ${money4(loteInfo.costo_unitario)}\n` +
                    `• Fecha de Ingreso: ${loteInfo.fecha_ingreso ? fechaLocalTxt(loteInfo.fecha_ingreso) : 'N/D'}\n\n`;
 
         if (doc) {

@@ -1,9 +1,12 @@
+import { avisarRegistroGuardado } from './vinculos.js';
 import { hoyISO } from './fechas.js';
+import { montarBuscadorClaveSat, describirClaveSat } from './catalogos-sat.js';
 import { supabaseClient } from './supabase.js';
 import { renderizarKardexProducto } from './kardex.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { factorConversion, tamanoTeoricoTanda, familiaDeUnidad } from './conversion-unidades.js';
-import { opcionesPresentacionHtml } from './presentaciones-proveedor.js';
+import { factorSugeridoSat } from './factor-unidad-sat.js';
+import { cargarCategoriasDep, opcionesCategoriaDep, textoCategoriaDep } from './categorias-depreciacion.js';
 
 let catBusqueda = ''; // texto del buscador en vivo del Catálogo General (SKU y/o nombre)
 const catOrden = crearOrdenTabla('nombre', 'asc'); // ordenamiento de la tabla del Catálogo: alfabético por Nombre por defecto (clic en otra columna lo cambia)
@@ -72,10 +75,15 @@ export async function cargarModuloAltaArticulo() {
         // 1. Cargar unidades de medida
         let unidadesMedida = [];
         const mapaUnidades = {};
-        const { data: resUm, error: errUm } = await supabaseClient
+        const mapaClaveUnidad = {};   // id de unidad del ERP -> su clave SAT (si ya se ligó)
+        let { data: resUm, error: errUm } = await supabaseClient
             .from('unidades_medida')
-            .select('id, nombre')
+            .select('id, nombre, clave_sat')
             .order('id', { ascending: true });
+        if (errUm && /clave_sat/i.test(errUm.message || '')) {
+            // Aún no se corrió sql/2026-10-23_catalogos_sat_vinculo_unidades.sql: se lee sin la clave SAT.
+            ({ data: resUm, error: errUm } = await supabaseClient.from('unidades_medida').select('id, nombre').order('id', { ascending: true }));
+        }
 
         if (errUm) {
             throw errUm;
@@ -83,6 +91,7 @@ export async function cargarModuloAltaArticulo() {
             unidadesMedida = resUm;
             unidadesMedida.forEach(u => {
                 mapaUnidades[u.id] = u.nombre;
+                mapaClaveUnidad[u.id] = u.clave_sat || '';
             });
         }
 
@@ -147,6 +156,8 @@ export async function cargarModuloAltaArticulo() {
                 .order('codigo', { ascending: true });
             cuentasContables = resCtas || [];
         } catch (_) { /* modulo de contabilidad aun no instalado */ }
+        // Categorías fiscales de depreciación (LISR), para el tipo Activo fijo. Vacío si falta sql/2026-10-22_categorias_depreciacion_fiscal.sql.
+        const categoriasDep = await cargarCategoriasDep();
 
         const opcionesCuentas = (tiposPreferidos = []) => {
             const pref = cuentasContables.filter(c => tiposPreferidos.includes(c.tipo));
@@ -160,7 +171,7 @@ export async function cargarModuloAltaArticulo() {
         let opcionesBomHtml = '<option value="">Seleccione insumo o componente...</option>';
         if (todosArticulos && todosArticulos.length > 0) {
             const materiasPrimas = todosArticulos.filter(a => a.tipo === 'materia_prima');
-            const productosTerminados = todosArticulos.filter(a => a.tipo !== 'materia_prima');
+            const productosTerminados = todosArticulos.filter(a => a.tipo !== 'materia_prima' && a.tipo !== 'activo_fijo');   // un equipo no es componente de una fórmula
 
             if (materiasPrimas.length > 0) {
                 opcionesBomHtml += '<optgroup label="Materias Primas">';
@@ -204,12 +215,14 @@ export async function cargarModuloAltaArticulo() {
                                 <option value="semiterminado">Semiterminado (granel)</option>
                                 <option value="materia_prima">Materia Prima</option>
                                 <option value="insumo">Insumo / Componente Auxiliar</option>
+                                <option value="activo_fijo">Activo fijo (equipo)</option>
                             </select>
-                            <div id="tipoElementoBotones" class="grid grid-cols-1 sm:grid-cols-4 gap-1.5">
+                            <div id="tipoElementoBotones" class="grid grid-cols-1 sm:grid-cols-5 gap-1.5">
                                 <button type="button" data-tipo="producto" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Producto terminado</button>
                                 <button type="button" data-tipo="semiterminado" title="Se fabrica y se usa como componente de otros productos (ej. granel). Un granel se da de alta aquí, con Unidad de Medida en Litros o Kilogramos." class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Semiterminado</button>
                                 <button type="button" data-tipo="materia_prima" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Materia prima</button>
                                 <button type="button" data-tipo="insumo" class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Insumo</button>
+                                <button type="button" data-tipo="activo_fijo" title="Un equipo o maquinaria que se compra para usarse, no para venderse ni consumirse. No entra al inventario: al recibirlo se da de alta en Activos fijos." class="tipo-elemento-btn text-xs font-medium py-2 rounded-lg border transition">Activo fijo</button>
                             </div>
                         </div>
 
@@ -244,23 +257,36 @@ export async function cargarModuloAltaArticulo() {
                                 </select>
                                 <p class="text-[10px] text-slate-500 mt-0.5">Granel: Litros o Kilogramos, nunca Pieza.</p>
                             </div>
-                            <div>
+                            <div id="bloqueProdCosto">
                                 <label class="block text-[11px] text-slate-400 mb-1">Costo Unitario</label>
-                                <input type="number" step="0.01" id="prodCosto" value="0" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                <input type="number" step="0.0001" min="0" id="prodCosto" value="0" title="Hasta 4 decimales (diezmilésimas)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
                             </div>
-                            <div>
+                            <div id="bloqueProdPrecio">
                                 <label class="block text-[11px] text-slate-400 mb-1">Precio de venta</label>
-                                <input type="number" step="0.01" min="0" id="prodPrecioVenta" placeholder="s/IVA" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                <input type="number" step="0.0001" min="0" id="prodPrecioVenta" title="Hasta 4 decimales (diezmilésimas)" placeholder="s/IVA" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
                             </div>
-                            <div>
+                            <div id="bloqueProdMoneda">
                                 <label class="block text-[11px] text-slate-400 mb-1">Moneda</label>
                                 <select id="prodMonedaId" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-medium" required>
                                     ${opcionesMonedas}
                                 </select>
                             </div>
-                            <div>
+                            <div id="bloqueProdStockMin">
                                 <label class="block text-[11px] text-slate-400 mb-1" title="Cuando la existencia baje de aquí, Inventario lo marca como 'hay que comprar'.">Stock mínimo</label>
                                 <input type="number" step="0.0001" min="0" id="prodStockMinimo" value="0" title="Cuando la existencia baje de aquí, Inventario lo marca como 'hay que comprar'." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                            </div>
+                            <div id="bloqueProdCategoriaDep" class="hidden col-span-2 sm:col-span-1 xl:col-span-4">
+                            <label class="block text-[11px] text-slate-400 mb-1">Categoría fiscal del equipo <span class="text-rose-400">*</span> <span class="text-slate-500">· define su % máximo, su cuenta y su depreciación (LISR)</span></label>
+                            <select id="prodCategoriaDep" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100"></select>
+                            <p id="prodCategoriaDepInfo" class="text-[10px] text-slate-500 mt-1">${categoriasDep.length ? 'Al recibir la compra, el equipo se da de alta en Finanzas → Activos fijos con esta categoría y su % ya cargado.' : 'Falta correr sql/2026-10-22_categorias_depreciacion_fiscal.sql en Supabase para poder elegir la categoría.'}</p>
+                        </div>
+                        </div>
+                        <div id="bloqueProdModoEquipo" class="hidden border border-slate-800 rounded-lg p-3 bg-slate-900/40 space-y-2">
+                            <label class="flex items-start gap-2 text-xs text-slate-200"><input type="radio" name="prodModoEquipo" value="comprar" checked class="mt-0.5 accent-emerald-500"> <span><b>Lo voy a comprar</b> — se guarda aquí y se pide por requisición; al recibirlo se da de alta solo en Activos fijos con las cuentas de su categoría.</span></label>
+                            <label class="flex items-start gap-2 text-xs text-slate-200"><input type="radio" name="prodModoEquipo" value="tengo" class="mt-0.5 accent-emerald-500"> <span><b>Ya lo tengo</b> — carga inicial de un equipo que ya existe (nuevo o <b>usado</b>): captura su depreciación acumulada y genera la póliza de apertura APE.</span></label>
+                            <div id="prodModoTengoWrap" class="hidden pt-1">
+                                <button type="button" id="btnProdCargaInicial" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2 px-4 rounded-lg text-xs">Abrir carga inicial del equipo…</button>
+                                <p class="text-[10px] text-slate-500 mt-1">Se abre el formulario de carga inicial con el nombre y la categoría que ya elegiste. No crea un artículo en Productos: el equipo vive en Finanzas → Activos fijos.</p>
                             </div>
                         </div>
 
@@ -298,8 +324,12 @@ export async function cargarModuloAltaArticulo() {
 
                                 <div>
                                     <label class="block text-[11px] text-slate-400 mb-1">Clave SAT (ClaveProdServ)</label>
-                                    <input type="text" id="prodClaveSat" inputmode="numeric" maxlength="8" placeholder="8 dígitos del catálogo c_ClaveProdServ" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
-                                    <p class="text-[10px] text-slate-500 mt-0.5">La del producto en sí. También se llena sola al importar facturas XML de tus proveedores.</p>
+                                    <div class="relative">
+                                        <input type="text" id="prodClaveSat" autocomplete="off" maxlength="60" placeholder="Busca por clave o por palabras (ej. envase plástico, 24121807)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                                        <div id="prodClaveSatCaja" class="hidden absolute z-30 left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-h-64 overflow-y-auto"></div>
+                                    </div>
+                                    <p id="prodClaveSatDetalle" class="text-[10px] min-h-[0.9rem] mt-0.5"></p>
+                                    <p class="text-[10px] text-slate-500">La del producto en sí (catálogo c_ClaveProdServ del SAT, 8 dígitos). También se llena sola al importar facturas XML de tus proveedores.</p>
                                 </div>
 
                                 <div id="bloqueProdDensidad">
@@ -359,29 +389,31 @@ export async function cargarModuloAltaArticulo() {
                                     </div>
                                     <div>
                                         <label class="block text-[10px] text-slate-400 mb-0.5">Clave SAT (ClaveProdServ)</label>
-                                        <input type="text" id="cpClaveSat" placeholder="Vacío = igual a la del producto (arriba)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                                        <div class="relative">
+                                            <input type="text" id="cpClaveSat" autocomplete="off" placeholder="Vacío = igual a la del producto (arriba)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                                            <div id="cpClaveSatCaja" class="hidden absolute z-30 left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-h-56 overflow-y-auto"></div>
+                                        </div>
+                                        <p id="cpClaveSatDetalle" class="text-[10px] min-h-[0.9rem] mt-0.5"></p>
                                     </div>
                                     <div class="col-span-2">
                                         <label class="block text-[10px] text-slate-400 mb-0.5">Descripción en la factura</label>
                                         <input type="text" id="cpDescFactura" placeholder="Opcional · texto tal como llega en el XML" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
                                     </div>
-                                    <div>
-                                        <label class="block text-[10px] text-slate-400 mb-0.5">Unidad de venta del proveedor</label>
-                                        <select id="cpUnidadPreset" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
-                                            <option value="">Otra / escribir abajo…</option>
-                                            ${opcionesPresentacionHtml()}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="block text-[10px] text-slate-400 mb-0.5">Factor (unidades internas por unidad del proveedor)</label>
-                                        <input type="number" step="any" min="0.0001" id="cpFactor" value="1" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
-                                    </div>
                                     <div class="col-span-2">
-                                        <label class="block text-[10px] text-slate-400 mb-0.5">Unidad (texto, si elegiste "Otra")</label>
-                                        <input type="text" id="cpUnidadTexto" placeholder="Ej. Rollo 500 m" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">
+                                        <label class="block text-[10px] text-slate-400 mb-0.5">Unidad SAT con que vende este proveedor (ClaveUnidad)</label>
+                                        <div class="relative">
+                                            <input type="text" id="cpUnidadSat" autocomplete="off" placeholder="Busca: mil, pieza, kilogramo, caja… (H87, KGM, MIL)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono uppercase">
+                                            <div id="cpUnidadSatCaja" class="hidden absolute z-30 left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-h-56 overflow-y-auto"></div>
+                                        </div>
+                                        <p id="cpUnidadSatDetalle" class="text-[10px] min-h-[0.9rem] mt-0.5"></p>
                                     </div>
+                                    <div>
+                                        <label id="cpFactorEtiqueta" class="block text-[10px] text-slate-400 mb-0.5">Factor: unidades de tu inventario por 1 de las del proveedor</label>
+                                        <input type="number" step="any" min="0.000001" id="cpFactor" placeholder="Ej. 1000" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-mono">
+                                    </div>
+                                    <div class="flex items-end"><p id="cpFactorNota" class="text-[10px] text-slate-500 leading-snug"></p></div>
                                 </div>
-                                <p class="text-[10px] text-slate-500">Ej. el proveedor vende por "Millar" y tú le das entrada en piezas: elige el preset Millar — el factor (1000) queda listo para cuando conviertas la recepción en Recibo de mercancía.</p>
+                                <p class="text-[10px] text-slate-500">Cada proveedor puede vender el mismo producto en una unidad distinta (uno en MIL, otro en H87): se guarda una clave por proveedor. Con unidad SAT el factor es obligatorio — es lo que convierte lo que cotiza o factura el proveedor a la unidad de tu inventario (el stock y el BOM solo conocen UNA unidad por producto).</p>
                                 <button type="button" id="btnAgregarClaveProv" class="w-full lg:w-auto lg:px-6 bg-slate-800 hover:bg-slate-700 text-sky-300 font-medium py-1.5 rounded-lg text-xs transition">＋ Agregar clave de proveedor</button>
                                 <div id="listaClavesProv" class="text-xs text-slate-400 bg-slate-900 p-2 rounded-lg border border-slate-800 min-h-[32px]">Sin claves registradas.</div>
                             </div>
@@ -482,6 +514,7 @@ export async function cargarModuloAltaArticulo() {
         }
         function sincronizarAbastecimiento() {
             const esProducto = selectTipoElemento.value === 'producto';
+            const esEquipo = selectTipoElemento.value === 'activo_fijo';
             const semi = esSemiForm();
             if (semi) inputAbast.value = 'fabricado';          // un semiterminado siempre se fabrica
             const comprado = esProducto && inputAbast.value === 'comprado';
@@ -490,12 +523,33 @@ export async function cargarModuloAltaArticulo() {
             // Densidad es para lo que se fabrica en granel (semiterminado) y también para materia
             // prima/insumo cuando la fórmula del granel los pide en otra unidad — un Producto
             // terminado ya recibe el granel en la unidad que necesita su BOM, no aplica.
-            document.getElementById('bloqueProdDensidad')?.classList.toggle('hidden', esProducto);
+            document.getElementById('bloqueProdDensidad')?.classList.toggle('hidden', esProducto || esEquipo);
             // Rendimiento del lote es SOLO de quien tiene su propia fórmula/BOM (el semiterminado);
             // materia prima e insumo son componentes de esa fórmula, no aplica.
             document.getElementById('bloqueProdRendimientoLote')?.classList.toggle('hidden', !semi);
             // Control de caducidad tampoco se pregunta para Producto terminado en esta pantalla.
-            document.getElementById('bloqueProdCaducidad')?.classList.toggle('hidden', esProducto);
+            document.getElementById('bloqueProdCaducidad')?.classList.toggle('hidden', esProducto || esEquipo);
+            // Un equipo no se vende ni se lleva en stock: su costo real sale de la compra. Se ocultan costo, precio, moneda y stock mínimo.
+            ['bloqueProdCosto', 'bloqueProdPrecio', 'bloqueProdMoneda', 'bloqueProdStockMin'].forEach((bid) => document.getElementById(bid)?.classList.toggle('hidden', esEquipo));
+            const selMon = document.getElementById('prodMonedaId'); if (selMon) selMon.required = !esEquipo;   // un required oculto bloquearía el envío
+            // Categoría fiscal (LISR): solo para equipos.
+            const bloqueCat = document.getElementById('bloqueProdCategoriaDep');
+            if (bloqueCat) {
+                bloqueCat.classList.toggle('hidden', !esEquipo || !categoriasDep.length);
+                const selCat = document.getElementById('prodCategoriaDep');
+                if (esEquipo && !selCat.options.length) selCat.innerHTML = opcionesCategoriaDep(categoriasDep, new Date().getFullYear());
+                selCat.required = esEquipo && categoriasDep.length > 0;   // un equipo siempre lleva categoría fiscal
+            }
+            document.getElementById('bloqueProdModoEquipo')?.classList.toggle('hidden', !esEquipo || !!productoSeleccionadoId);
+            sincronizarModoEquipo();
+            // Un equipo (activo fijo) no es inventario: su cuenta es de activo (152.xx), no de inventario.
+            if (esEquipo) {
+                const selCta = document.getElementById('prodCtaInventario');
+                if (selCta && !selCta.value) {
+                    const op = [...selCta.options].find((o) => /^152\.01\b/.test(o.textContent.trim()));
+                    if (op) selCta.value = op.value;
+                }
+            }
             const llevaBom = semi || (esProducto && !comprado);
             seccionBomContainer.classList.toggle('hidden', !llevaBom);
             if (!llevaBom) {
@@ -506,6 +560,34 @@ export async function cargarModuloAltaArticulo() {
             marcarBotonTipoActivo();
             pintarAnalisisTandaForm();
         }
+        // "Ya lo tengo": la carga inicial se hace en su propia subventana (póliza APE); aquí no se guarda un artículo.
+        function sincronizarModoEquipo() {
+            const esEquipo = selectTipoElemento.value === 'activo_fijo';
+            const tengo = esEquipo && !productoSeleccionadoId && document.querySelector('input[name="prodModoEquipo"]:checked')?.value === 'tengo';
+            document.getElementById('prodModoTengoWrap')?.classList.toggle('hidden', !tengo);
+            document.getElementById('btnGuardarProd')?.classList.toggle('hidden', tengo);
+        }
+        document.querySelectorAll('input[name="prodModoEquipo"]').forEach((r) => r.addEventListener('change', sincronizarModoEquipo));
+        document.getElementById('btnProdCargaInicial')?.addEventListener('click', async () => {
+            const catId = document.getElementById('prodCategoriaDep')?.value;
+            if (categoriasDep.length && !catId) { alert('Primero elige la categoría fiscal del equipo.'); return; }
+            const { afAbrirAperturaDesde } = await import('./activos-fijos.js');
+            afAbrirAperturaDesde({ nombre: document.getElementById('prodNombre').value.trim(), cat: catId, modelo: document.getElementById('prodSku').value.trim() });
+        });
+        document.getElementById('prodCategoriaDep')?.addEventListener('change', (e) => {
+            const f = categoriasDep.find((c) => c.id === Number(e.target.value));
+            const info = document.getElementById('prodCategoriaDepInfo');
+            if (info) info.innerHTML = f ? textoCategoriaDep(f) : 'Al recibir la compra, el equipo se da de alta en Finanzas → Activos fijos.';
+            // Acción del usuario (no la carga de un artículo existente): la cuenta de activo sale de la categoría
+            if (f && e.isTrusted && f.cuenta_activo_id) {
+                const selCta = document.getElementById('prodCtaInventario');
+                if (selCta && [...selCta.options].some((o) => o.value === String(f.cuenta_activo_id))) {
+                    selCta.value = String(f.cuenta_activo_id);
+                    const txt = selCta.options[selCta.selectedIndex]?.textContent?.trim();
+                    if (info && txt) info.innerHTML += ` · <b>Al recibirlo se carga a ${escaparHtml(txt)}</b>`;
+                }
+            }
+        });
         document.querySelectorAll('.abast-btn').forEach((b) => {
             b.addEventListener('click', () => {
                 inputAbast.value = b.dataset.abast;
@@ -618,6 +700,7 @@ export async function cargarModuloAltaArticulo() {
                 document.getElementById('prodCantidadMinimaCompra').value = art.cantidad_minima_compra ?? '';
                 document.getElementById('prodClaveSat').value = art.clave_sat || '';
                 document.getElementById('prodClaveSat').dataset.tenia = art.clave_sat ? '1' : '';
+                document.getElementById('prodClaveSat').dispatchEvent(new Event('change'));
                 document.getElementById('prodDensidad').value = art.densidad_kg_l ?? '';
                 delete document.getElementById('prodDensidad').dataset.auto;
                 delete document.getElementById('prodDensidad').dataset.manual;
@@ -636,6 +719,15 @@ export async function cargarModuloAltaArticulo() {
                 document.getElementById('prodProveedorId').value = art.proveedor_id || '';
                 document.getElementById('prodDesc').value = art.descripcion || '';
                 document.getElementById('prodRequiereCaducidad').checked = !!art.requiere_caducidad;
+                {
+                    const selCat = document.getElementById('prodCategoriaDep');
+                    if (selCat) {
+                        selCat.innerHTML = opcionesCategoriaDep(categoriasDep, new Date().getFullYear(), art.categoria_depreciacion_id);
+                        selCat.value = art.categoria_depreciacion_id || '';
+                        selCat.dispatchEvent(new Event('change'));
+                    }
+                    formArticulo.dataset.tieneCatDep = art.categoria_depreciacion_id ? '1' : '';
+                }
 
                 // Datos contables (si el modulo esta instalado)
                 const elTasaIva = document.getElementById('prodTasaIva');
@@ -686,8 +778,15 @@ export async function cargarModuloAltaArticulo() {
                 try {
                     let { data: cps, error: errCps } = await supabaseClient
                         .from('producto_claves_proveedor')
-                        .select('proveedor_id, clave, clave_sat, descripcion_factura, unidad_factura, factor_conversion')
+                        .select('proveedor_id, clave, clave_sat, descripcion_factura, unidad_factura, factor_conversion, clave_unidad_sat')
                         .eq('producto_id', id);
+                    if (errCps && /clave_unidad_sat/i.test(errCps.message || '')) {
+                        // Aún no se corrió sql/2026-10-23b_claves_proveedor_unidad_sat.sql.
+                        ({ data: cps, error: errCps } = await supabaseClient
+                            .from('producto_claves_proveedor')
+                            .select('proveedor_id, clave, clave_sat, descripcion_factura, unidad_factura, factor_conversion')
+                            .eq('producto_id', id));
+                    }
                     if (errCps) {
                         // factor_conversion aún no existe: cae al select sin ella.
                         ({ data: cps, error: errCps } = await supabaseClient
@@ -704,6 +803,7 @@ export async function cargarModuloAltaArticulo() {
                             claveSat: c.clave_sat || '',
                             descFactura: c.descripcion_factura || '',
                             unidadFactura: c.unidad_factura || '',
+                            claveUnidadSat: c.clave_unidad_sat || null,
                             factorConversion: c.factor_conversion ?? null,
                         }));
                     }
@@ -722,6 +822,7 @@ export async function cargarModuloAltaArticulo() {
             productoSeleccionadoId = null;
             document.getElementById('formCrearProducto').reset();
             document.getElementById('prodClaveSat').dataset.tenia = '';
+            document.getElementById('prodClaveSat').dispatchEvent(new Event('change'));
             document.getElementById('prodDensidad').dataset.tenia = '';
             delete document.getElementById('prodDensidad').dataset.auto;
             delete document.getElementById('prodDensidad').dataset.manual;
@@ -735,6 +836,7 @@ export async function cargarModuloAltaArticulo() {
             marcarBotonTipoActivo('producto');
             inputAbast.value = 'fabricado';
             formArticulo.dataset.tieneAbast = '';
+            formArticulo.dataset.tieneCatDep = '';
             sincronizarAbastecimiento();
             document.getElementById('prodExistenciaActual').classList.add('hidden');
             tituloForm.textContent = "Alta de productos";
@@ -880,6 +982,10 @@ export async function cargarModuloAltaArticulo() {
             }
         };
 
+        // Buscadores del catálogo SAT (consultan al servidor; no se baja el catálogo completo).
+        montarBuscadorClaveSat({ tipo: 'prod_serv', input: document.getElementById('prodClaveSat'), caja: document.getElementById('prodClaveSatCaja'), detalle: document.getElementById('prodClaveSatDetalle') });
+        montarBuscadorClaveSat({ tipo: 'prod_serv', input: document.getElementById('cpClaveSat'), caja: document.getElementById('cpClaveSatCaja'), detalle: document.getElementById('cpClaveSatDetalle') });
+
         // ---- Claves de proveedor (una a varias por producto) ----
         function renderClavesProv() {
             const cont = document.getElementById('listaClavesProv');
@@ -892,7 +998,7 @@ export async function cargarModuloAltaArticulo() {
                         <span class="text-slate-500"> · ${escaparHtml(c.proveedorNombre || 'sin proveedor')}</span>
                         ${c.claveSat ? `<span class="text-slate-500"> · SAT ${escaparHtml(c.claveSat)}</span>` : ''}
                         ${c.descFactura ? `<span class="text-slate-500 block">"${escaparHtml(c.descFactura)}"</span>` : ''}
-                        ${c.unidadFactura ? `<span class="text-slate-500 block">Unidad proveedor: ${escaparHtml(c.unidadFactura)}${c.factorConversion ? ` (factor ${c.factorConversion})` : ''}</span>` : ''}
+                        ${c.unidadFactura ? `<span class="text-slate-500 block">Unidad proveedor: ${escaparHtml(c.unidadFactura)}${c.claveUnidadSat ? ` [${escaparHtml(c.claveUnidadSat)}]` : ''}${c.factorConversion ? ` · 1 = ${c.factorConversion.toLocaleString ? c.factorConversion.toLocaleString('es-MX', { maximumFractionDigits: 6 }) : c.factorConversion} ${escaparHtml(mapaUnidades[document.getElementById('prodUnidadMedidaId')?.value] || 'de tu inventario')}` : ''}</span>` : ''}
                     </span>
                     <button type="button" onclick="window.removerClaveProv(${i})" class="text-red-400 hover:text-red-300 text-xs shrink-0">Eliminar</button>
                 </div>`).join('');
@@ -903,20 +1009,42 @@ export async function cargarModuloAltaArticulo() {
             renderClavesProv();
         };
 
-        const selUnidadPreset = document.getElementById('cpUnidadPreset');
-        if (selUnidadPreset) {
-            selUnidadPreset.addEventListener('change', () => {
-                const factorInput = document.getElementById('cpFactor');
-                const textoInput = document.getElementById('cpUnidadTexto');
-                if (selUnidadPreset.value) {
-                    factorInput.value = selUnidadPreset.value;
-                    textoInput.value = '';
-                    textoInput.disabled = true;
-                } else {
-                    textoInput.disabled = false;
-                }
-            });
-        }
+        // ---- Unidad SAT con que vende el proveedor + factor a la unidad del inventario ----
+        const inpUnidadSat = document.getElementById('cpUnidadSat');
+        const detUnidadSat = document.getElementById('cpUnidadSatDetalle');
+        const inpFactorCp = document.getElementById('cpFactor');
+        const notaFactorCp = document.getElementById('cpFactorNota');
+        let unidadSatProv = null;   // { clave, nombre } de la unidad elegida, ya validada contra el catálogo
+        const selUnidadInv = () => document.getElementById('prodUnidadMedidaId');
+        const nombreUnidadInv = () => { const s = selUnidadInv(); return s && s.value ? (mapaUnidades[s.value] || '') : ''; };
+        const claveUnidadInv = () => { const s = selUnidadInv(); return s && s.value ? (mapaClaveUnidad[s.value] || '') : ''; };
+
+        const sugerirFactorCp = () => {
+            if (!unidadSatProv) { notaFactorCp.textContent = ''; return; }
+            const inv = nombreUnidadInv();
+            const etiq = document.getElementById('cpFactorEtiqueta');
+            if (etiq) etiq.textContent = `Factor: ${inv || 'unidades de tu inventario'} por 1 ${unidadSatProv.nombre}`;
+            if (!inv) { inpFactorCp.value = ''; notaFactorCp.textContent = 'Elige primero la Unidad de Medida del producto (arriba) para poder sugerir el factor.'; return; }
+            const sug = factorSugeridoSat({ claveProv: unidadSatProv.clave, nombreInv: inv, claveInv: claveUnidadInv() });
+            if (sug) {
+                inpFactorCp.value = String(sug.factor);
+                notaFactorCp.textContent = `Sugerido: 1 ${unidadSatProv.nombre} = ${sug.factor.toLocaleString('es-MX', { maximumFractionDigits: 6 })} ${inv}. ${sug.nota}`;
+            } else {
+                inpFactorCp.value = '';
+                notaFactorCp.textContent = `No se puede deducir sola: captura cuántos ${inv} trae 1 ${unidadSatProv.nombre} según lo que te vende este proveedor.`;
+            }
+        };
+        const resolverUnidadSat = async () => {
+            const v = inpUnidadSat.value.trim().toUpperCase();
+            if (!v) { unidadSatProv = null; notaFactorCp.textContent = ''; return; }
+            const r = await describirClaveSat('unidad', v);
+            unidadSatProv = r ? { clave: r.clave, nombre: r.texto } : null;
+            sugerirFactorCp();
+        };
+        montarBuscadorClaveSat({ tipo: 'unidad', input: inpUnidadSat, caja: document.getElementById('cpUnidadSatCaja'), detalle: detUnidadSat });
+        inpUnidadSat.addEventListener('change', resolverUnidadSat);
+        // Si cambia la Unidad de Medida del producto, el factor sugerido cambia con ella.
+        selUnidadInv()?.addEventListener('change', () => { if (unidadSatProv) sugerirFactorCp(); });
 
         const btnAddClaveProv = document.getElementById('btnAgregarClaveProv');
         if (btnAddClaveProv) {
@@ -930,11 +1058,17 @@ export async function cargarModuloAltaArticulo() {
                     (c.proveedorId || null) === proveedorId && c.clave.toLowerCase() === clave.toLowerCase());
                 if (dup) { alert('Esa clave ya está en la lista para ese proveedor.'); return; }
 
-                const unidadPreset = selUnidadPreset.value ? (selUnidadPreset.options[selUnidadPreset.selectedIndex]?.dataset.etiqueta || selUnidadPreset.options[selUnidadPreset.selectedIndex]?.text) : '';
-                const unidadTexto = document.getElementById('cpUnidadTexto').value.trim();
-                const unidadFactura = unidadPreset || unidadTexto || '';
-                const factorVal = parseFloat(document.getElementById('cpFactor').value);
-                const factorConversion = unidadFactura && factorVal > 0 ? factorVal : null;
+                // Unidad SAT del proveedor: si hay, debe existir en el catálogo y el factor es obligatorio.
+                const textoUnidad = inpUnidadSat.value.trim();
+                if (textoUnidad && !unidadSatProv) { alert('La unidad SAT escrita no está en el catálogo: elige una de la lista (H87, KGM, MIL…).'); return; }
+                const factorVal = parseFloat(inpFactorCp.value);
+                if (unidadSatProv && !(factorVal > 0)) {
+                    alert(`Captura el factor: cuántas unidades de tu inventario (${nombreUnidadInv() || 'unidad del producto'}) trae 1 ${unidadSatProv.nombre}. Sin él no se puede convertir lo que cotiza o factura este proveedor.`);
+                    inpFactorCp.focus(); return;
+                }
+                const unidadFactura = unidadSatProv ? unidadSatProv.nombre : '';
+                const claveUnidadSat = unidadSatProv ? unidadSatProv.clave : null;
+                const factorConversion = unidadSatProv ? factorVal : null;
 
                 clavesProvTemp.push({
                     proveedorId,
@@ -945,16 +1079,15 @@ export async function cargarModuloAltaArticulo() {
                     claveSat: document.getElementById('cpClaveSat').value.trim() || document.getElementById('prodClaveSat').value.trim(),
                     descFactura: document.getElementById('cpDescFactura').value.trim(),
                     unidadFactura,
+                    claveUnidadSat,
                     factorConversion,
                 });
                 renderClavesProv();
                 document.getElementById('cpClave').value = '';
-                document.getElementById('cpClaveSat').value = '';
+                document.getElementById('cpClaveSat').value = ''; document.getElementById('cpClaveSat').dispatchEvent(new Event('change'));
                 document.getElementById('cpDescFactura').value = '';
-                selUnidadPreset.value = '';
-                document.getElementById('cpUnidadTexto').value = '';
-                document.getElementById('cpUnidadTexto').disabled = false;
-                document.getElementById('cpFactor').value = '1';
+                inpUnidadSat.value = ''; unidadSatProv = null; detUnidadSat.textContent = '';
+                inpFactorCp.value = ''; notaFactorCp.textContent = '';
             });
         }
 
@@ -1036,6 +1169,11 @@ export async function cargarModuloAltaArticulo() {
                 ? { abastecimiento: abastVal }
                 : {};
 
+            // Categoría fiscal del equipo (solo se manda si se eligió o si ya tenía una, para no romper sin la migración)
+            const selCatDep = document.getElementById('prodCategoriaDep');
+            const catDepPayload = (tipo === 'activo_fijo' && selCatDep && (selCatDep.value || formArticulo.dataset.tieneCatDep === '1'))
+                ? { categoria_depreciacion_id: selCatDep.value ? Number(selCatDep.value) : null } : {};
+
             // Datos contables (opcionales; solo si el modulo esta instalado)
             const elTasaIva = document.getElementById('prodTasaIva');
             const datosContables = {};
@@ -1050,6 +1188,11 @@ export async function cargarModuloAltaArticulo() {
 
             if (!nombre) {
                 alert("El nombre del artículo es obligatorio.");
+                return;
+            }
+            if (tipo === 'activo_fijo' && categoriasDep.length && !selCatDep?.value) {
+                alert("Elige la categoría fiscal del equipo: de ella salen su cuenta de activo y su depreciación automática.");
+                selCatDep?.focus();
                 return;
             }
             if (!sku) {
@@ -1078,6 +1221,7 @@ export async function cargarModuloAltaArticulo() {
                     ...densidadPayload,
                     ...rendimientoLotePayload,
                     ...abastPayload,
+                    ...catDepPayload,
                     ...datosContables
                 };
 
@@ -1127,11 +1271,17 @@ export async function cargarModuloAltaArticulo() {
                             descripcion_factura: c.descFactura || null,
                             unidad_factura: c.unidadFactura || null,
                             factor_conversion: c.factorConversion ?? null,
+                            clave_unidad_sat: c.claveUnidadSat || null,
                         }));
                         let { error: errCp } = await supabaseClient.from('producto_claves_proveedor').insert(filasCp);
+                        if (errCp && /clave_unidad_sat/i.test(errCp.message || '') && /does not exist|schema cache|could not find/i.test(errCp.message || '')) {
+                            // Aún no se corrió sql/2026-10-23b_claves_proveedor_unidad_sat.sql: se guarda sin la unidad SAT.
+                            const filasCpSinSat = filasCp.map(({ clave_unidad_sat, ...resto }) => resto);
+                            ({ error: errCp } = await supabaseClient.from('producto_claves_proveedor').insert(filasCpSinSat));
+                        }
                         if (errCp && /does not exist|schema cache|could not find/i.test(errCp.message || '')) {
                             // factor_conversion aún no existe: reintenta sin ella (falta correr el SQL).
-                            const filasCpSinFactor = filasCp.map(({ factor_conversion, ...resto }) => resto);
+                            const filasCpSinFactor = filasCp.map(({ factor_conversion, clave_unidad_sat, ...resto }) => resto);
                             ({ error: errCp } = await supabaseClient.from('producto_claves_proveedor').insert(filasCpSinFactor));
                         }
                         if (errCp) throw errCp;
@@ -1156,6 +1306,7 @@ export async function cargarModuloAltaArticulo() {
                 if (typeof window.refrescarResumenSiEsProducto === 'function') await window.refrescarResumenSiEsProducto(articuloId);
                 btnNuevoModo.click();
                 await renderizarTablaProductos(mapaUnidades);
+                avisarRegistroGuardado('producto', articuloId);
 
             } catch (err) {
                 console.error("Error al guardar el artículo:", err);
@@ -1452,6 +1603,7 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
             semiterminado: 'Semiterminado',
             materia_prima: 'Materia prima',
             insumo: 'Insumo',
+            activo_fijo: 'Activo fijo',
         };
 
         productosData.forEach(item => {
@@ -1459,6 +1611,7 @@ async function renderizarTablaProductos(mapaUnidades = {}) {
             let tipoColor = "text-sky-400 border-sky-800";
             if (tipoActual === 'materia_prima') tipoColor = "text-amber-400 border-amber-800";
             if (tipoActual === 'insumo') tipoColor = "text-emerald-400 border-emerald-800";
+            if (tipoActual === 'activo_fijo') tipoColor = "text-teal-300 border-teal-800";
             let etiquetaTipo = OPCIONES_TIPO_LABEL[tipoActual] || tipoActual;
             if (tipoActual === 'semiterminado') {
                 tipoColor = "text-indigo-400 border-indigo-800";
@@ -1536,7 +1689,7 @@ const ORDEN_CAMPOS_PRODUCTO = [
     'sku', 'nombre', 'tipo', 'descripcion', 'clave_sat', 'densidad_kg_l', 'rendimiento_lote_bom', 'lote_minimo_fabricacion',
     'unidad_medida_id', 'proveedor_id', 'moneda_id',
     'costo_unitario', 'precio_venta', 'tasa_iva', 'tasa_ieps',
-    'cuenta_inventario_id', 'cuenta_costo_id',
+    'cuenta_inventario_id', 'cuenta_costo_id', 'categoria_depreciacion_id',
     'stock_actual', 'stock_minimo', 'cantidad_minima_compra', 'tiempo_entrega_dias',
     'requiere_caducidad',
 ];
@@ -2082,6 +2235,7 @@ const unidOrden = crearOrdenTabla('nombre', 'asc');
 let unidFiltro = '';
 let unidFilas = [];
 
+let unidSinClaveSat = false; // true si aún no se corrió el vínculo de unidades con la clave SAT
 export async function abrirTablaUnidades() {
     const idModal = window.idSubventana('modalUnidades');
     if (idModal === 'modalUnidades') document.getElementById('modalUnidades')?.remove();
@@ -2146,9 +2300,15 @@ export async function abrirTablaUnidades() {
 
     try {
         const [rUnid, rProd] = await Promise.all([
-            supabaseClient.from('unidades_medida').select('id, nombre, es_fraccionable').order('nombre', { ascending: true }),
+            supabaseClient.from('unidades_medida').select('id, nombre, es_fraccionable, clave_sat').order('nombre', { ascending: true }),
             supabaseClient.from('productos').select('unidad_medida_id'),
         ]);
+        // Sin sql/2026-10-23_catalogos_sat_vinculo_unidades.sql no existe la columna clave_sat: se lee sin ella.
+        unidSinClaveSat = !!rUnid.error && /clave_sat/i.test(rUnid.error.message || '');
+        if (unidSinClaveSat) {
+            const r2 = await supabaseClient.from('unidades_medida').select('id, nombre, es_fraccionable').order('nombre', { ascending: true });
+            rUnid.data = r2.data; rUnid.error = r2.error;
+        }
         if (rUnid.error) throw rUnid.error;
         const usoPorId = new Map();
         (rProd.data || []).forEach((p) => { if (p.unidad_medida_id) usoPorId.set(p.unidad_medida_id, (usoPorId.get(p.unidad_medida_id) || 0) + 1); });
@@ -2174,18 +2334,20 @@ function unidPintar(cuerpo) {
     cuerpo.innerHTML = `
         <table class="w-full text-left text-xs">
             <thead class="text-slate-500 uppercase sticky top-0 bg-slate-900"><tr>
-                ${thOrden(unidOrden, 'nombre', 'Nombre')}${thOrden(unidOrden, 'fraccionable', 'Fraccionable', 'text-center justify-center')}${thOrden(unidOrden, 'uso', 'En uso', 'text-right justify-end')}<th class="p-2"></th>
+                ${thOrden(unidOrden, 'nombre', 'Nombre')}${unidSinClaveSat ? '' : '<th class="p-2 font-medium" title="ClaveUnidad del SAT (c_ClaveUnidad) que se espera en los CFDI y se imprime en la cotización">Clave SAT</th>'}${thOrden(unidOrden, 'fraccionable', 'Fraccionable', 'text-center justify-center')}${thOrden(unidOrden, 'uso', 'En uso', 'text-right justify-end')}<th class="p-2"></th>
             </tr></thead>
             <tbody>
                 ${filas.map((u) => `
                 <tr class="border-t border-slate-800" data-id="${u.id}">
                     <td class="p-2"><input type="text" class="unid-nombre w-full bg-slate-950 border border-slate-800 rounded p-1 text-xs text-slate-100" value="${escaparHtml(u.nombre)}"></td>
+                    ${unidSinClaveSat ? '' : `<td class="p-2 relative w-32"><input type="text" class="unid-sat w-full bg-slate-950 border border-slate-800 rounded p-1 text-xs text-slate-100 font-mono uppercase" autocomplete="off" placeholder="Buscar…" value="${escaparHtml(u.clave_sat || '')}"><div class="unid-sat-caja hidden absolute z-30 left-2 top-full w-64 bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-h-52 overflow-y-auto"></div><p class="unid-sat-det text-[10px] min-h-[0.8rem] leading-tight"></p></td>`}
                     <td class="p-2 text-center"><input type="checkbox" class="unid-frac accent-sky-500" ${u.es_fraccionable ? 'checked' : ''}></td>
                     <td class="p-2 text-right font-mono text-slate-400" title="Productos que usan esta unidad">${u._uso}</td>
                     <td class="p-2 text-[10px] unid-estado text-slate-600"></td>
                 </tr>`).join('')}
             </tbody>
-        </table>`;
+        </table>
+        <div class="h-56"></div>`;
     wireOrdenTabla(cuerpo, unidOrden, () => unidPintar(cuerpo));
 
     const guardar = async (tr, campos) => {
@@ -2212,6 +2374,22 @@ function unidPintar(cuerpo) {
             guardar(inp.closest('tr'), { nombre });
         });
     });
+    cuerpo.querySelectorAll('.unid-sat').forEach((inp) => {
+        const tr = inp.closest('tr');
+        const det = tr.querySelector('.unid-sat-det');
+        montarBuscadorClaveSat({ tipo: 'unidad', input: inp, caja: tr.querySelector('.unid-sat-caja'), detalle: det });
+        let previa = inp.value.trim();
+        inp.addEventListener('change', async () => {
+            const v = inp.value.trim().toUpperCase();
+            if (v === previa) return;
+            if (v && !(await describirClaveSat('unidad', v))) {
+                det.innerHTML = '<span class="text-rose-400">Esa clave no existe en el catálogo SAT: elige una de la lista.</span>';
+                inp.value = previa; return;
+            }
+            inp.value = v; previa = v;
+            guardar(tr, { clave_sat: v || null });
+        });
+    });
     cuerpo.querySelectorAll('.unid-frac').forEach((chk) => {
         chk.addEventListener('change', () => guardar(chk.closest('tr'), { es_fraccionable: chk.checked }));
     });
@@ -2236,6 +2414,7 @@ const ETIQUETAS_CAMPO_PRODUCTO = {
     sku: 'SKU / Código', clave_sat: 'Clave SAT (ClaveProdServ)', densidad_kg_l: 'Densidad (kg por litro)',
     rendimiento_lote_bom: 'Rendimiento del lote (para el BOM)', unidad_medida_id: 'Unidad de Medida',
     descripcion: 'Descripción', lote_minimo_fabricacion: 'Lote mínimo de fabricación',
+    categoria_depreciacion_id: 'Categoría fiscal (LISR)',
 };
 // Pistas bajo cada campo de "Editar artículo" (las mismas ideas que el formulario del Catálogo).
 const PISTAS_CAMPO_PRODUCTO = {
@@ -2260,6 +2439,7 @@ const ETIQUETA_TIPO_PRODUCTO = {
     semiterminado: 'Semiterminado (granel)',
     materia_prima: 'Materia prima',
     insumo: 'Insumo / componente',
+    activo_fijo: 'Activo fijo (equipo)',
 };
 
 
@@ -2565,7 +2745,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
         await abrirResumenCompletoProducto(id, nombreConocido, skuConocido, soloLectura);
     };
     try {
-        const [{ data: art, error }, resProv, resMon, resUm, resCta, resClaves, resBom] = await Promise.all([
+        const [{ data: art, error }, resProv, resMon, resUm, resCta, resClaves, resBom, filasCatDep] = await Promise.all([
             supabaseClient.from('productos').select('*').eq('id', id).single(),
             supabaseClient.from('proveedores').select('id, nombre').order('nombre', { ascending: true }),
             supabaseClient.from('monedas').select('id, codigo').order('id', { ascending: true }),
@@ -2573,6 +2753,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
             supabaseClient.from('cuentas_contables').select('id, codigo, nombre').order('codigo', { ascending: true }),
             supabaseClient.from('producto_claves_proveedor').select('*').eq('producto_id', id),
             supabaseClient.from('bom').select('componente_id, cantidad_requerida, unidad_medida').eq('producto_id', id).order('id', { ascending: true }),
+            cargarCategoriasDep(),
         ]);
         if (error) throw error;
 
@@ -2607,6 +2788,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
             unidad_medida_id: construirOpcionesSelector(resUm.data, art.unidad_medida_id, (r) => r.nombre, '(sin unidad)'),
             cuenta_inventario_id: construirOpcionesSelector(resCta.data, art.cuenta_inventario_id, (r) => `${r.codigo} · ${r.nombre}`, '(sin cuenta)'),
             cuenta_costo_id: construirOpcionesSelector(resCta.data, art.cuenta_costo_id, (r) => `${r.codigo} · ${r.nombre}`, '(sin cuenta)'),
+            categoria_depreciacion_id: construirOpcionesSelector(filasCatDep, art.categoria_depreciacion_id, (r) => `${r.categoria} · ${r.pct_anual}% (${r.articulo}, desde ${r.vigente_desde})`, '(sin categoría fiscal)'),
         };
 
         // Solo para "Ver artículo": el texto ya resuelto de cada llave
@@ -2621,6 +2803,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
             unidad_medida_id: buscarEnLista(resUm.data, art.unidad_medida_id, (r) => r.nombre),
             cuenta_inventario_id: buscarEnLista(resCta.data, art.cuenta_inventario_id, (r) => `${r.codigo} · ${r.nombre}`),
             cuenta_costo_id: buscarEnLista(resCta.data, art.cuenta_costo_id, (r) => `${r.codigo} · ${r.nombre}`),
+            categoria_depreciacion_id: buscarEnLista(filasCatDep, art.categoria_depreciacion_id, (r) => `${r.categoria} · ${r.pct_anual}% (${r.articulo})`),
         };
 
         // "activo" ya no va en la cuadrícula: vive fijo en el pie del modal
@@ -2632,9 +2815,12 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
         // su BOM. Rendimiento del lote es solo de quien tiene su propia fórmula/BOM (el
         // semiterminado) — materia prima e insumo son componentes de esa fórmula, no aplica.
         const camposOcultosPorTipo = new Set(
-            art.tipo === 'producto' ? ['densidad_kg_l', 'rendimiento_lote_bom', 'requiere_caducidad'] : []
+            art.tipo === 'producto' ? ['densidad_kg_l', 'rendimiento_lote_bom', 'requiere_caducidad']
+                : art.tipo === 'activo_fijo' ? ['densidad_kg_l', 'rendimiento_lote_bom', 'requiere_caducidad', 'lote_minimo_fabricacion', 'stock_minimo', 'cantidad_minima_compra']   // un equipo no es inventario
+                : []
         );
         if (art.tipo !== 'semiterminado') camposOcultosPorTipo.add('rendimiento_lote_bom');
+        if (art.tipo !== 'activo_fijo') camposOcultosPorTipo.add('categoria_depreciacion_id');   // la categoría fiscal es solo de equipos
         // Lote mínimo de fabricación: solo de lo que se fabrica (producto terminado o semiterminado).
         if (art.tipo !== 'semiterminado' && art.tipo !== 'producto') camposOcultosPorTipo.add('lote_minimo_fabricacion');
         const claves = Object.keys(art)
@@ -2678,6 +2864,7 @@ async function abrirResumenCompletoProducto(id, nombreConocido, skuConocido, sol
                                     <option value="semiterminado" ${valor === 'semiterminado' ? 'selected' : ''}>Semiterminado (granel)</option>
                                     <option value="materia_prima" ${valor === 'materia_prima' ? 'selected' : ''}>Materia prima</option>
                                     <option value="insumo" ${valor === 'insumo' ? 'selected' : ''}>Insumo</option>
+                                    <option value="activo_fijo" ${valor === 'activo_fijo' ? 'selected' : ''}>Activo fijo (equipo)</option>
                                 </select>
                                 ${pistaCampo(clave)}
                             </div>`;

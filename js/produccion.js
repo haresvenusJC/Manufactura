@@ -7,6 +7,7 @@ import { ordenarCentrosProduccion } from './centros-costo.js';
 import { factorConversion } from './conversion-unidades.js';
 
 
+import { money, money4, importe, redondear2 } from './formato.js';
 // Tarjetas de "Centro de costo" (Procesos y equipo de trabajo): ícono + color por código.
 // Cualquier centro fuera de estos 4 (ej. PROD) usa el ícono/color genérico — no se oculta.
 const ICONO_CENTRO = {
@@ -1614,7 +1615,7 @@ export async function cerrarOrdenDeProduccion(ordenId, cantidadReal = null) {
         const msgRend = Math.abs(cantidadObtenida - cantidadProducida) > 1e-9
             ? ` Planeado ${formatoCantidad(cantidadProducida)}, obtenido ${formatoCantidad(cantidadObtenida)} (${cantidadObtenida < cantidadProducida ? 'merma' : 'excedente'} ${formatoCantidad(Math.abs(cantidadProducida - cantidadObtenida) / cantidadProducida * 100)}%).`
             : '';
-        return { success: true, mensaje: `Orden cerrada. Costo unitario: $${costoUnitarioFinal.toFixed(2)}.${msgRend}${msgContab}` };
+        return { success: true, mensaje: `Orden cerrada. Costo unitario: ${money4(costoUnitarioFinal)}.${msgRend}${msgContab}` };
     } catch (error) {
         console.error("Error al cerrar la orden:", error.message);
         return { success: false, error: error.message };
@@ -1996,7 +1997,7 @@ async function renderizarDetalleOrden(idSeleccionado, ordenes, contenedorDetalle
                         </td>
                         <td class="py-2.5 px-3 font-mono text-amber-300">${cantidadDescontada.toFixed(4)}</td>
                         <td class="py-2.5 px-3 text-slate-400">${unidadMedidaTexto}</td>
-                        <td class="py-2.5 px-3 font-mono text-slate-300 campo-costo">$${costoUnitario.toFixed(2)}</td>
+                        <td class="py-2.5 px-3 font-mono text-slate-300 campo-costo">${money4(costoUnitario)}</td>
                         <td class="py-2.5 px-3 font-mono text-emerald-400 text-right font-semibold campo-costo">$${subtotal.toFixed(2)}</td>
                     </tr>
                 `;
@@ -2097,7 +2098,7 @@ async function renderizarDetalleOrden(idSeleccionado, ordenes, contenedorDetalle
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3 campo-costo">
                 <div class="bg-slate-900 p-3 rounded-lg border border-slate-800"><span class="text-xs text-slate-400 block">Materiales</span><span class="font-mono text-base text-slate-200 font-bold">$${materialTotalFinal.toFixed(2)}</span></div>
                 <div class="bg-slate-900 p-3 rounded-lg border border-slate-800"><span class="text-xs text-slate-400 block">Mano de Obra</span><span class="font-mono text-base text-slate-200 font-bold">$${mobTotal.toFixed(2)}</span></div>
-                <div class="bg-slate-900 p-3 rounded-lg border border-slate-800"><span class="text-xs text-slate-400 block">Costo Unitario</span><span class="font-mono text-base text-emerald-400 font-bold">$${unitFinal.toFixed(2)}</span></div>
+                <div class="bg-slate-900 p-3 rounded-lg border border-slate-800"><span class="text-xs text-slate-400 block">Costo Unitario</span><span class="font-mono text-base text-emerald-400 font-bold">${money4(unitFinal)}</span></div>
                 <div class="bg-slate-900 p-3 rounded-lg border border-slate-800"><span class="text-xs text-slate-400 block">Total Lote</span><span class="font-mono text-base text-amber-300 font-bold">$${(cantidadProducidaLote * unitFinal).toFixed(2)}</span></div>
             </div>`;
     } catch (err) { 

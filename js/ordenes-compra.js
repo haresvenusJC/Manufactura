@@ -6,6 +6,7 @@ import { parsearCfdi, extraerTextoPdf, parsearCfdiPdf } from './cfdi.js';
 import { crearOrdenTabla, thOrden, wireOrdenTabla, aplicarOrden } from './orden-tabla.js';
 import { imprimirConPlantilla, marcaDeEstatus } from './impresion.js';
 import { obtenerInfoProveedorProducto } from './info-proveedor-producto.js';
+import { factorSugeridoSat } from './factor-unidad-sat.js';
 import { opcionesPresentacionHtml, sugerirPresetPorUnidadCfdi } from './presentaciones-proveedor.js';
 import './trazabilidad.js';
 import { convertirEnBuscador } from './buscador-select.js';
@@ -21,7 +22,7 @@ import { fechaLocalTxt } from './fechas.js';
 //  Fase 2: importar XML del CFDI.  Fase 3: leer el QR del CFDI.
 // =====================================================================
 
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2, importePartidaOdc } from './formato.js';
 import { hoyISO } from './fechas.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const normTxt = (s) => String(s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
@@ -57,10 +58,10 @@ async function ocCargarCatalogos() {
 
     // requiere_caducidad puede no existir aún: cae al select básico
     let pr = await supabaseClient.from('productos')
-        .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id, requiere_caducidad').order('nombre');
+        .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id, requiere_caducidad, tipo').order('nombre');
     if (pr.error) {
         pr = await supabaseClient.from('productos')
-            .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id').order('nombre');
+            .select('id, nombre, sku, costo_unitario, unidad_medida_id, proveedor_id, tipo').order('nombre');
     }
     ocProductos = pr.data || [];
 }
@@ -233,7 +234,7 @@ function ocRenderPartidas() {
                     ${p.unidadProveedor ? `<span class="block">Unidad: ${esc(p.unidadProveedor)}${p.factorConversion ? ` (×${p.factorConversion})` : ''}</span>` : ''}`
                     : '<span class="italic text-slate-600">sin claves capturadas para este proveedor</span>'}
             </td>
-            <td class="p-2 text-right font-mono">${money(p.costo)}</td>
+            <td class="p-2 text-right font-mono">${money4(p.costo)}</td>
             <td class="p-2 text-right font-mono text-emerald-400">${money(p.cantidad * p.costo)}</td>
             <td class="p-2 text-right"><button type="button" onclick="window.ocQuitarPartida(${i})" class="text-rose-400 hover:text-rose-300 text-xs px-2 py-1 bg-rose-950/40 rounded border border-rose-900/50">✕</button></td>
         </tr>`;
@@ -359,11 +360,14 @@ async function ocGuardarOrden() {
 async function ocRenderLista() {
     const cont = document.getElementById('ocLista');
     try {
-        const { data, error } = await supabaseClient
+        const listaOc = (cols) => supabaseClient
             .from('ordenes_compra')
-            .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedores ( nombre ), ordenes_compra_detalle ( cantidad, cantidad_recibida, costo_unitario_estimado )')
+            .select(`id, folio, fecha, fecha_esperada, estatus, notas, proveedores ( nombre ), ordenes_compra_detalle ( ${cols} )`)
             .order('id', { ascending: false })
             .limit(200);
+        // importe_proveedor existe solo con sql/2026-10-23c: sin él se usa cantidad × costo.
+        let { data, error } = await listaOc('cantidad, cantidad_recibida, costo_unitario_estimado, importe_proveedor');
+        if (error && /does not exist|schema cache|could not find/i.test(error.message || '')) ({ data, error } = await listaOc('cantidad, cantidad_recibida, costo_unitario_estimado'));
         if (error) throw error;
         if (!data || !data.length) { cont.innerHTML = '<p class="text-slate-500 text-sm">Sin órdenes de compra.</p>'; return; }
 
@@ -382,7 +386,7 @@ async function ocRenderLista() {
 
         data.forEach(o => {
             const det = o.ordenes_compra_detalle || [];
-            o._total = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0), 0);
+            o._total = det.reduce((a, d) => a + importePartidaOdc(d), 0);
             const ped = det.reduce((a, d) => a + Number(d.cantidad || 0), 0);
             const rec = det.reduce((a, d) => a + Number(d.cantidad_recibida || 0), 0);
             o._pct = ped > 0 ? Math.round((rec / ped) * 100) : 0;
@@ -490,9 +494,14 @@ async function abrirDetalleOC(id) {
 
     let { data: o, error } = await supabaseClient
         .from('ordenes_compra')
-        .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, tipo_cambio, tipo_cambio_fuente, tipo_cambio_fecha, created_at, dias_credito, cotizacion_folio, cotizacion_contacto, cotizacion_telefono, cotizacion_email, cotizacion_fecha, cotizacion_vigencia, condicion_pago, forma_pago, anticipo_pct, anticipo_monto, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, productos ( nombre, sku ) )')
+        .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, tipo_cambio, tipo_cambio_fuente, tipo_cambio_fecha, created_at, dias_credito, cotizacion_folio, cotizacion_contacto, cotizacion_telefono, cotizacion_email, cotizacion_fecha, cotizacion_vigencia, condicion_pago, forma_pago, anticipo_pct, anticipo_monto, diferencias_cotizacion, diferencias_nota, diferencias_por, diferencias_en, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, cantidad_solicitada, costo_solicitado, cantidad_proveedor, clave_unidad_sat, clave_prod_serv_sat, precio_proveedor, importe_proveedor, productos ( nombre, sku ) )')
         .eq('id', id)
         .single();
+    if (error && /does not exist|schema cache|could not find/i.test(error.message || '')) ({ data: o, error } = await supabaseClient
+        .from('ordenes_compra')
+        .select('id, folio, fecha, fecha_esperada, estatus, notas, proveedor_id, moneda_id, tipo_cambio, tipo_cambio_fuente, tipo_cambio_fecha, created_at, dias_credito, cotizacion_folio, cotizacion_contacto, cotizacion_telefono, cotizacion_email, cotizacion_fecha, cotizacion_vigencia, condicion_pago, forma_pago, anticipo_pct, anticipo_monto, proveedores ( nombre, rfc ), monedas ( codigo ), ordenes_compra_detalle ( id, producto_id, descripcion, cantidad, cantidad_recibida, costo_unitario_estimado, unidad_medida_id, notas, sku_proveedor, descripcion_proveedor, unidad_proveedor, factor_conversion_proveedor, productos ( nombre, sku ) )')
+        .eq('id', id)
+        .single());
     if (error && /does not exist|schema cache|could not find/i.test(error.message || '')) {
         // sin la migración de la ODC formal (cotización/condiciones): select de antes.
         ({ data: o, error } = await supabaseClient
@@ -530,7 +539,7 @@ async function abrirDetalleOC(id) {
 
 async function renderVistaOC(o, cuerpo) {
     const det = o.ordenes_compra_detalle || [];
-    const totalEst = det.reduce((a, d) => a + Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0), 0);
+    const totalEst = det.reduce((a, d) => a + importePartidaOdc(d), 0);
     const nombreUnidad = (uid) => ocUnidades.find(u => u.id === uid)?.nombre || '';
     const fmtFecha = (iso) => { try { return new Date(iso).toLocaleString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return iso || '—'; } };
 
@@ -621,36 +630,61 @@ async function renderVistaOC(o, cuerpo) {
                 ${o.anticipo_pct ? `<span class="block text-[11px] text-slate-400">Anticipo comprometido: ${Number(o.anticipo_pct)}% = ${money(o.anticipo_monto)} (lo paga Finanzas antes de recibir)</span>` : '<span class="block text-[11px] text-slate-400">Sin anticipo</span>'}</div>` : ''}
         </div>` : ''}
         ${historiaPagosHtml}
+        ${Array.isArray(o.diferencias_cotizacion) && o.diferencias_cotizacion.length ? `<div class="mb-4 bg-amber-950/30 border border-amber-900/50 rounded-lg px-3 py-2 text-xs text-amber-200">
+            <b>Diferencias aceptadas entre lo solicitado y lo cotizado</b>${o.diferencias_por ? ` · ${esc(o.diferencias_por)}` : ''}${o.diferencias_en ? ` · ${esc(fmtFecha(o.diferencias_en))}` : ''}
+            <ul class="mt-1 text-[11px] text-amber-100/90 list-disc pl-4">${o.diferencias_cotizacion.map((x) => `<li>${esc(x.producto)}: pedido ${Number(x.solicitado?.cantidad || 0).toLocaleString('es-MX')} × ${money4(x.solicitado?.costo)} → cotizado ${Number(x.cotizado?.cantidad || 0).toLocaleString('es-MX')} × ${money4(x.cotizado?.costo)} (${Number(x.diferencia?.importe || 0) >= 0 ? '+' : ''}${money(x.diferencia?.importe)})</li>`).join('')}</ul>
+            ${o.diferencias_nota ? `<p class="mt-1 text-[11px]">Nota del comprador: ${esc(o.diferencias_nota)}</p>` : ''}</div>` : ''}
         ${o.notas ? `<div class="mb-4"><span class="block text-[10px] text-slate-500 mb-1">Notas de la orden</span><p class="text-xs text-slate-300 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5">${esc(o.notas)}</p></div>` : ''}
-        <div class="overflow-x-auto border border-slate-800 rounded-lg">
-          <table class="w-full text-left text-xs text-slate-300">
-            <thead class="bg-slate-950 text-slate-500 uppercase"><tr>
-              <th class="p-2">Producto</th><th class="p-2 text-right">Cant.</th><th class="p-2 text-right">Recibido</th>
-              <th class="p-2 text-right">Costo unit.</th><th class="p-2 text-right">Subtotal</th><th class="p-2">Notas</th>
+        <div class="border border-slate-800 rounded-lg">
+          <div class="px-2 py-1.5 text-[11px] font-semibold text-slate-300 bg-slate-950 border-b border-slate-800">Partidas <span class="font-normal text-slate-500">· arriba, tal como lo cotizó el proveedor; en el renglón sombreado, lo nuestro</span></div>
+          <table class="w-full text-left text-xs text-slate-300 table-fixed">
+            <colgroup><col style="width:4%"><col style="width:10%"><col style="width:9%"><col style="width:12%"><col style="width:14%"><col><col style="width:14%"><col style="width:13%"></colgroup>
+            <thead class="text-slate-400 text-[10px] font-semibold"><tr>
+              <th class="px-1.5 py-1.5">#</th><th class="px-1.5 py-1.5 text-right">Cant.</th><th class="px-1.5 py-1.5">Clave UM</th><th class="px-1.5 py-1.5">Clave SAT</th>
+              <th class="px-1.5 py-1.5">Número</th><th class="px-1.5 py-1.5">Descripción</th>
+              <th class="px-1.5 py-1.5 text-right">P. unitario</th><th class="px-1.5 py-1.5 text-right">Importe</th>
             </tr></thead>
             <tbody>
-              ${det.map(d => {
-                  const tieneDatosProv = d.sku_proveedor || d.descripcion_proveedor || d.unidad_proveedor;
+              ${det.map((d, i) => {
+                  const conProv = d.cantidad_proveedor != null;
+                  const uInv = nombreUnidad(d.unidad_medida_id);
+                  const nombre = d.productos?.nombre || d.descripcion || '—';
+                  const cantP = conProv ? Number(d.cantidad_proveedor) : Number(d.cantidad || 0);
+                  const precioP = conProv ? Number(d.precio_proveedor) : Number(d.costo_unitario_estimado || 0);
+                  const solic = d.cantidad_solicitada != null && (Math.abs(Number(d.cantidad_solicitada) - Number(d.cantidad)) > 1e-6 || Math.abs(Number(d.costo_solicitado || 0) - Number(d.costo_unitario_estimado || 0)) >= 0.00005);
+                  const obs = [solic ? `Solicitado: ${Number(d.cantidad_solicitada).toLocaleString('es-MX', { maximumFractionDigits: 4 })} × ${money4(d.costo_solicitado)}` : '',
+                      `Recibido: ${Number(d.cantidad_recibida || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}`, d.notas || ''].filter(Boolean);
+                  const equiv = d.clave_unidad_sat && Number(d.factor_conversion_proveedor) > 0 ? `× ${Number(d.factor_conversion_proveedor).toLocaleString('es-MX', { maximumFractionDigits: 6 })}` : '';
                   return `
-                <tr class="border-b border-slate-900 align-top">
-                  <td class="p-2">
-                    ${esc(d.productos?.nombre || d.descripcion || '—')}${d.productos?.sku ? `<span class="block text-[10px] text-slate-500">SKU ${esc(d.productos.sku)}</span>` : ''}
-                    ${tieneDatosProv ? `<span class="block text-[10px] text-sky-400 mt-1">Para el proveedor:${d.sku_proveedor ? ` SKU ${esc(d.sku_proveedor)}` : ''}</span>
-                        ${d.descripcion_proveedor ? `<span class="block text-[10px] text-slate-500">"${esc(d.descripcion_proveedor)}"</span>` : ''}
-                        ${d.unidad_proveedor ? `<span class="block text-[10px] text-slate-500">Unidad: ${esc(d.unidad_proveedor)}${d.factor_conversion_proveedor ? ` (×${d.factor_conversion_proveedor})` : ''}</span>` : ''}` : ''}
-                  </td>
-                  <td class="p-2 text-right font-mono">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })} ${esc(nombreUnidad(d.unidad_medida_id))}</td>
-                  <td class="p-2 text-right font-mono text-slate-400">${Number(d.cantidad_recibida || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</td>
-                  <td class="p-2 text-right font-mono">${money(d.costo_unitario_estimado)}</td>
-                  <td class="p-2 text-right font-mono">${money(Number(d.cantidad || 0) * Number(d.costo_unitario_estimado || 0))}</td>
-                  <td class="p-2 text-slate-400">${esc(d.notas || '')}</td>
+                <tr class="border-t border-slate-800 align-top">
+                  <td class="px-1.5 pt-1.5 pb-1 text-slate-500">${i + 1}</td>
+                  <td class="px-1.5 pt-1.5 pb-1 text-right font-mono">${Number(cantP).toLocaleString('es-MX', { maximumFractionDigits: 6 })}</td>
+                  <td class="px-1.5 pt-1.5 pb-1 font-mono">${esc(d.clave_unidad_sat || (conProv ? '' : uInv))}</td>
+                  <td class="px-1.5 pt-1.5 pb-1 font-mono">${esc(d.clave_prod_serv_sat || '')}</td>
+                  <td class="px-1.5 pt-1.5 pb-1 font-mono">${esc(d.sku_proveedor || '')}</td>
+                  <td class="px-1.5 pt-1.5 pb-1">${esc(d.descripcion_proveedor || nombre)}</td>
+                  <td class="px-1.5 pt-1.5 pb-1 text-right font-mono">${conProv ? '$' + Number(precioP).toLocaleString('es-MX', { minimumFractionDigits: 4, maximumFractionDigits: 6 }) : money4(precioP)}</td>
+                  <td class="px-1.5 pt-1.5 pb-1 text-right font-mono">${money(importePartidaOdc(d))}</td>
+                </tr>
+                <tr class="bg-slate-800/70 text-[11px] text-slate-300 font-semibold">
+                  <td></td>
+                  <td class="px-1.5 py-1 text-right font-mono">${Number(d.cantidad || 0).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</td>
+                  <td class="px-1.5 py-1">${esc(uInv)}</td>
+                  <td class="px-1.5 py-1 font-mono">${equiv}</td>
+                  <td class="px-1.5 py-1 font-mono">${d.productos?.sku ? 'SKU&nbsp;&nbsp;' + esc(d.productos.sku) : ''}</td>
+                  <td class="px-1.5 py-1">${esc(nombre)}</td>
+                  <td class="px-1.5 py-1 text-right font-mono">${money4(d.costo_unitario_estimado)}</td>
+                  <td></td>
+                </tr>
+                <tr class="bg-slate-800/70 text-[10px] text-slate-400 border-b border-slate-800">
+                  <td></td><td colspan="7" class="px-1.5 pb-1">${obs.map(esc).join(' · ')}</td>
                 </tr>`;
-              }).join('') || '<tr><td colspan="6" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
+              }).join('') || '<tr><td colspan="8" class="p-3 text-center text-slate-500">Sin partidas.</td></tr>'}
             </tbody>
             <tfoot>
-              <tr><td colspan="4" class="p-2 text-right font-semibold text-slate-400">Subtotal estimado</td><td class="p-2 text-right font-mono font-semibold text-emerald-300">${money(totalEst)}</td><td></td></tr>
-              ${o.condicion_pago ? `<tr><td colspan="4" class="p-2 text-right text-slate-400">IVA 16% (estimado)</td><td class="p-2 text-right font-mono text-slate-300">${money(totalEst * 0.16)}</td><td></td></tr>
-              <tr><td colspan="4" class="p-2 text-right font-semibold text-slate-300">Total estimado</td><td class="p-2 text-right font-mono font-bold text-emerald-300">${money(totalEst * 1.16)}</td><td></td></tr>` : ''}
+              <tr class="border-t border-slate-800"><td colspan="7" class="px-1.5 py-1.5 text-right font-semibold text-slate-400">Subtotal estimado</td><td class="px-1.5 py-1.5 text-right font-mono font-semibold text-emerald-300">${money(totalEst)}</td></tr>
+              ${o.condicion_pago ? `<tr><td colspan="7" class="px-1.5 py-1 text-right text-slate-400">IVA 16% (estimado)</td><td class="px-1.5 py-1 text-right font-mono text-slate-300">${money(redondear2(totalEst * 0.16))}</td></tr>
+              <tr><td colspan="7" class="px-1.5 py-1.5 text-right font-semibold text-slate-300">Total estimado</td><td class="px-1.5 py-1.5 text-right font-mono font-bold text-emerald-300">${money(redondear2(totalEst * 1.16))}</td></tr>` : ''}
             </tfoot>
           </table>
         </div>
@@ -1093,6 +1127,16 @@ export async function cargarModuloReciboMercancia() {
             const m = new Map((pact || []).map((x) => [x.id, x]));
             ocs.forEach((o) => { const x = m.get(o.id); if (x) { o.condicion_pago = x.condicion_pago; o.forma_pago = x.forma_pago; } });
         } catch (_) { /* sin condiciones pactadas */ }
+        // La cotización del proveedor en SU unidad (sql/2026-10-23c): contra ella se compara el XML al recibir. Sin la migración no hay renglones con cotización y todo sigue como antes.
+        try {
+            if (ocs.length) {
+                const { data: cot } = await supabaseClient.from('ordenes_compra_detalle')
+                    .select('id, cantidad_proveedor, precio_proveedor, importe_proveedor, clave_unidad_sat, clave_prod_serv_sat, factor_conversion_proveedor, sku_proveedor')
+                    .in('orden_compra_id', ocs.map((o) => o.id));
+                const mc = new Map((cot || []).map((x) => [x.id, x]));
+                ocs.forEach((o) => (o.ordenes_compra_detalle || []).forEach((d) => { const x = mc.get(d.id); if (x) Object.assign(d, x); }));
+            }
+        } catch (_) { /* sin cotización del proveedor */ }
     } catch (err) {
         const m = err?.message || String(err);
         cont.innerHTML = /does not exist|schema cache|could not find/i.test(m)
@@ -1975,15 +2019,16 @@ async function rmRenderDetalle(oc) {
     const filas = (oc.ordenes_compra_detalle || []).map((d) => {
         const pend = pendienteSeguro(d.cantidad, d.cantidad_recibida);
         const prod = d.producto_id ? ocProductos.find(p => p.id === d.producto_id) : null;
-        const reqCad = !!(prod && prod.requiere_caducidad);
+        const esAf = !!(prod && prod.tipo === 'activo_fijo');   // equipo: no lleva lote ni caducidad, no entra al inventario
+        const reqCad = !!(prod && prod.requiere_caducidad) && !esAf;
         const capturado = capturaOperador[d.id];
         const valorInicial = capturado != null ? capturado : pend;
         const difiere = capturado != null && capturado !== pend;
         const yaRecibido = Number(d.cantidad_recibida || 0);
         return `
-        <tr class="border-b border-slate-900" data-detid="${d.id}" data-prodid="${d.producto_id || ''}" data-reqcad="${reqCad ? 1 : 0}" data-capturado="${capturado != null ? capturado : ''}">
+        <tr class="border-b border-slate-900" data-detid="${d.id}" data-prodid="${d.producto_id || ''}" data-reqcad="${reqCad ? 1 : 0}" data-af="${esAf ? 1 : 0}" data-capturado="${capturado != null ? capturado : ''}">
           <td class="p-2 text-center"><input type="checkbox" class="rm-chk accent-emerald-500 w-4 h-4" ${(capturado != null ? capturado > 0 : pend > 0) ? 'checked' : ''}></td>
-          <td class="p-2 text-slate-100">${esc(nombreProd(d))}${d.producto_id ? '' : ' <span class="text-[10px] text-amber-400">(nuevo)</span>'}${reqCad ? ' <span class="text-[10px] text-amber-400">· caducidad requerida</span>' : ''}</td>
+          <td class="p-2 text-slate-100">${esc(nombreProd(d))}${d.producto_id ? '' : ' <span class="text-[10px] text-amber-400">(nuevo)</span>'}${reqCad ? ' <span class="text-[10px] text-amber-400">· caducidad requerida</span>' : ''}${esAf ? ' <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-950/60 text-sky-300 font-semibold">🏭 Activo fijo</span><span class="block text-[10px] text-sky-300/80">No entra al inventario: se da de alta en Activos fijos (pendiente de completar).</span>' : ''}</td>
           <td class="p-2 text-right font-mono text-slate-400">
             ${d.cantidad}
             ${yaRecibido > 0 ? `<p class="text-[10px] text-slate-500 whitespace-nowrap">ya recibiste ${yaRecibido} · pendiente ${pend}</p>` : ''}
@@ -1999,8 +2044,8 @@ async function rmRenderDetalle(oc) {
               <button type="button" class="rm-conv-toggle text-[10px] text-sky-400 hover:text-sky-300 whitespace-nowrap" title="Convertir desde la presentación de la factura (millar, gruesa, docena...)">🔁 convertir</button>
             </div>
           </td>
-          <td class="p-2"><input type="text" class="rm-lote w-28 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono" placeholder="lote del proveedor"></td>
-          <td class="p-2"><input type="date" class="rm-cad w-32 bg-slate-900 border ${reqCad ? 'border-amber-600' : 'border-slate-800'} rounded px-2 py-1 text-xs text-slate-100 font-mono"></td>
+          <td class="p-2"><input type="text" class="rm-lote w-28 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 font-mono ${esAf ? 'opacity-40' : ''}" placeholder="${esAf ? 'no aplica' : 'lote del proveedor'}" ${esAf ? 'disabled' : ''}></td>
+          <td class="p-2"><input type="date" class="rm-cad w-32 bg-slate-900 border ${reqCad ? 'border-amber-600' : 'border-slate-800'} rounded px-2 py-1 text-xs text-slate-100 font-mono ${esAf ? 'opacity-40' : ''}" ${esAf ? 'disabled' : ''}></td>
         </tr>
         ${rmFilaConversion(pend, d.costo_unitario_estimado, capturado != null)}`;
     }).join('');
@@ -2124,6 +2169,11 @@ window.rmAbrirEdicionRecepcion = async (documentoId) => {
         return;
     }
 
+    if (detalles.some((d) => ocProductos.find((p) => p.id === d.producto_id)?.tipo === 'activo_fijo')) {
+        alert('Esta recepción trae un activo fijo (no tiene lote que editar). Para corregirla, cancélala desde el historial y vuelve a capturarla.');
+        return;
+    }
+
     const nombreProd = (pid) => ocProductos.find(p => p.id === pid)?.nombre || `Producto #${pid}`;
     const consumidoPorProducto = {};
     reversible.forEach(r => { consumidoPorProducto[r.producto_id] = Number(r.consumido) || 0; });
@@ -2222,8 +2272,8 @@ export function rmClasificarConceptos(conceptos) {
 // para que quede claro renglón por renglón (no solo al momento del diálogo).
 function rmxNotaTexto(cap) {
     return cap
-        ? '✓ Se capitaliza a 115.xx (inventario) — es la opción que recomienda NIF C-4.'
-        : '⚠ Va a gasto 601.14 — NIF C-4 solo lo recomienda si el cargo no es atribuible a la mercancía recibida.';
+        ? '✓ Se suma al costo de lo recibido: inventario 115.xx (NIF C-4) o, si es un activo fijo, a su cuenta 152.xx (NIF C-6) — es la opción que recomiendan.'
+        : '⚠ Va a gasto 601.xx — NIF C-4 / C-6 solo lo aceptan si el cargo no es atribuible a lo recibido (p. ej. no es necesario para dejarlo en su lugar y condiciones de uso).';
 }
 
 function rmExtraFila(concepto, monto, cap) {
@@ -2469,6 +2519,18 @@ function rmAplicarLanded(lineas, tc) {
     return { extras, matSubtotal, capTotal };
 }
 
+// Activo fijo: solo el renglón del documento, SIN lote ni kardex (un equipo no es inventario).
+// El subtotal lleva el costo con los cargos capitalizables (flete, seguro...) porque, según la NIF C-6,
+// forman parte del costo de adquisición; contabilizar_compra lo carga a la cuenta de activo (152.xx)
+// y da de alta el activo en Activos fijos con ese mismo costo.
+async function rmAplicarEntradaActivo(documentoId, productoId, cantidad, costo, landedUnit) {
+    const unit = (landedUnit != null && landedUnit > 0) ? landedUnit : costo;
+    const { error } = await supabaseClient.from('documento_detalles').insert([{
+        documento_id: documentoId, producto_id: productoId, cantidad, costo_unitario: unit, subtotal: cantidad * unit,
+    }]);
+    if (error) throw error;
+}
+
 // Inserta el detalle (costo MATERIAL) + mueve inventario FIFO (costo LANDED) +
 // guarda lote del proveedor, caducidad y la parte adicional del costo.
 async function rmAplicarEntradaLinea(documentoId, productoId, cantidad, costo, lote, caducidad, landedUnit, adicUnit) {
@@ -2642,14 +2704,26 @@ async function rmConfirmar(ocs) {
         const nom = det?.producto_id
             ? (ocProductos.find(p => p.id === det.producto_id)?.nombre || `#${det.producto_id}`)
             : (det?.descripcion || 'partida');
+        const esAf = tr.dataset.af === '1';
         const lote = tr.querySelector('.rm-lote').value.trim();
         const caducidad = tr.querySelector('.rm-cad').value || null;
-        if (!lote) errores.push(`Falta el lote del proveedor de "${nom}".`);
-        if (tr.dataset.reqcad === '1' && !caducidad) errores.push(`Falta la caducidad de "${nom}".`);
-        lineas.push({ det, label: nom, cantidad: cant, costo: parseFloat(tr.querySelector('.rm-costo').value) || 0, lote, caducidad });
+        if (esAf) {
+            // Un equipo se recibe de uno en uno y no lleva lote ni caducidad.
+            if (cant !== 1) errores.push(`"${nom}" es un activo fijo: se recibe de uno en uno por partida (cantidad 1). Si compraste varios equipos, pide una partida por cada uno.`);
+        } else {
+            if (!lote) errores.push(`Falta el lote del proveedor de "${nom}".`);
+            if (tr.dataset.reqcad === '1' && !caducidad) errores.push(`Falta la caducidad de "${nom}".`);
+        }
+        lineas.push({ det, label: nom, cantidad: cant, costo: parseFloat(tr.querySelector('.rm-costo').value) || 0, lote, caducidad, esAf });
     });
     if (!lineas.length) { msg.textContent = 'Marca al menos una partida con cantidad mayor a 0.'; msg.className = 'text-xs text-rose-400'; return; }
     if (errores.length) { alert('⚠ Revisa:\n' + errores.join('\n')); return; }
+    // El activo fijo se da de alta al contabilizar la recepción (su costo va a la cuenta de activo):
+    // sin contabilizar no habría ni póliza ni activo.
+    if (lineas.some((l) => l.esAf) && (rmSinContab || !document.getElementById('rmContabilizar')?.checked)) {
+        alert('⚠ Esta recepción trae un activo fijo: debe contabilizarse (marca «Generar póliza») para que su costo llegue a la cuenta de activo y se dé de alta en Activos fijos.');
+        return;
+    }
     if (!confirm(`¿Confirmar recepción de ${lineas.length} partida(s) de la orden ${oc.folio}?\n\nRevisa el costo unitario de cada una — así se va a guardar:\n\n${rmResumenLineas(lineas, (l) => l.label)}`)) return;
 
     const tc = rmTcActual();
@@ -2709,7 +2783,8 @@ async function rmConfirmar(ocs) {
                 await supabaseClient.from('ordenes_compra_detalle').update({ producto_id: productoId }).eq('id', l.det.id);
             }
 
-            await rmAplicarEntradaLinea(documentoId, productoId, l.cantidad, l.costo, l.lote, l.caducidad, l.landedUnit, l.adicUnit);
+            if (l.esAf) await rmAplicarEntradaActivo(documentoId, productoId, l.cantidad, l.costo, l.landedUnit);
+            else await rmAplicarEntradaLinea(documentoId, productoId, l.cantidad, l.costo, l.lote, l.caducidad, l.landedUnit, l.adicUnit);
             // Deja el costo del catálogo con el último costo de compra (landed, en MXN).
             await supabaseClient.from('productos').update({ costo_unitario: (l.landedUnit ?? l.costo) }).eq('id', productoId);
 
@@ -2752,7 +2827,10 @@ async function rmConfirmar(ocs) {
         } catch (_) { /* no bloquea la recepción ya registrada */ }
         rmPrereciboEnProceso = null;   // terminó: "Pre-recibos por validar" vuelve a mostrar todos
 
-        alert(`✅ Recepción registrada (documento #${documentoId}).${msgContab}\nLa orden ${oc.folio} quedó "${nuevo}".`);
+        const avisoAf = lineas.some((l) => l.esAf)
+            ? '\n\n🏭 El activo fijo quedó dado de alta como PENDIENTE DE COMPLETAR: entra a Finanzas → Activos fijos y captura su área, vida útil y etapas para que empiece a depreciarse.'
+            : '';
+        alert(`✅ Recepción registrada (documento #${documentoId}).${msgContab}\nLa orden ${oc.folio} quedó "${nuevo}".${avisoAf}`);
 
         if (typeof cargarInventarioCompleto === 'function') await cargarInventarioCompleto();
         await cargarModuloReciboMercancia();
@@ -2800,8 +2878,13 @@ function rmRenderDetalleXml(conceptos, meta) {
         const prod = prodId ? ocProductos.find(p => p.id === prodId) : null;
         if (prod) hits++;
         const reqCad = !!(prod && prod.requiere_caducidad);
+        // Si este proveedor ya vende este producto en una unidad SAT con factor guardado y el XML viene en ESA unidad, la partida entra ya en tu unidad.
+        const fu = prodId ? (meta.factores || new Map()).get(prodId) : null;
+        const convXml = fu && String(cp.claveUnidad || '').trim().toUpperCase() === fu.um ? fu.factor : 1;
+        const cantIni = Math.round((cp.cantidad || 0) * convXml * 1e6) / 1e6;
+        const costoIni = Number((cp.valorUnitario || 0) / convXml).toFixed(4);
         return `
-        <tr class="border-b border-slate-900" data-cpidx="${i}" data-prodid="${prodId || ''}" data-prodid-auto="${prodId || ''}" data-desc="${esc(cp.descripcion || 'Producto CFDI')}" data-unidadid="${prod ? (prod.unidad_medida_id || '') : ''}" data-reqcad="${reqCad ? 1 : 0}" data-nocfdi="${esc(cp.noId || '')}" data-clavesat="${esc(cp.claveSat || '')}">
+        <tr class="border-b border-slate-900" data-cpidx="${i}" data-prodid="${prodId || ''}" data-prodid-auto="${prodId || ''}" data-desc="${esc(cp.descripcion || 'Producto CFDI')}" data-unidadid="${prod ? (prod.unidad_medida_id || '') : ''}" data-reqcad="${reqCad ? 1 : 0}" data-nocfdi="${esc(cp.noId || '')}" data-clavesat="${esc(cp.claveSat || '')}" data-claveum="${esc(cp.claveUnidad || '')}">
           <td class="p-2 text-center"><input type="checkbox" class="rm-chk accent-emerald-500 w-4 h-4" checked></td>
           <td class="p-2 text-slate-100">
             <div class="text-[11px] text-slate-500">${esc(cp.descripcion || cp.noId || 'sin descripción')}</div>
@@ -2810,12 +2893,13 @@ function rmRenderDetalleXml(conceptos, meta) {
               ${optsProductos}
             </select>
             <p class="rm-prod-nota text-[10px] mt-0.5 ${prod ? 'text-emerald-400' : 'text-amber-400'}">${prod ? '✓ coincide con el catálogo' : 'sin coincidencia — elige el producto del catálogo o déjalo así para crearlo'}</p>
+            ${convXml !== 1 ? `<p class="text-[10px] mt-0.5 text-sky-300">Convertido con la clave del proveedor: ${Number(cp.cantidad).toLocaleString('es-MX', { maximumFractionDigits: 6 })} ${esc(fu.um)} × ${convXml.toLocaleString('es-MX', { maximumFractionDigits: 6 })}</p>` : ''}
           </td>
           <td class="p-2 font-mono text-slate-500 text-[10px]">${esc(cp.claveSat || '')}${cp.noId ? `<br>${esc(cp.noId)}` : ''}</td>
-          <td class="p-2"><input type="number" step="any" min="0" class="rm-cant w-20 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${cp.cantidad || 0}"></td>
+          <td class="p-2"><input type="number" step="any" min="0" class="rm-cant w-20 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${cantIni}"></td>
           <td class="p-2">
             <div class="flex items-center gap-1">
-              <input type="number" step="any" min="0" class="rm-costo w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${Number(cp.valorUnitario || 0).toFixed(4)}">
+              <input type="number" step="any" min="0" class="rm-costo w-24 bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100 text-right font-mono" value="${costoIni}">
               <button type="button" class="rm-conv-toggle text-[10px] text-sky-400 hover:text-sky-300 whitespace-nowrap" title="Convertir desde la presentación de la factura (millar, gruesa, docena...)">🔁 convertir</button>
             </div>
           </td>
@@ -2887,6 +2971,9 @@ async function rmConfirmarXml() {
         if (tr.dataset.reqcad === '1' && !caducidad) errores.push(`Falta la caducidad de "${desc}".`);
         const prodId = tr.dataset.prodid ? Number(tr.dataset.prodid) : null;
         const prodIdAuto = tr.dataset.prodidAuto ? Number(tr.dataset.prodidAuto) : null;
+        if (prodId && ocProductos.find((p) => p.id === prodId)?.tipo === 'activo_fijo') {
+            errores.push(`"${desc}" es un activo fijo: recíbelo desde su orden de compra (requisición → ODC), no desde un CFDI suelto.`);
+        }
         lineas.push({
             prodId,
             desc,
@@ -2899,6 +2986,7 @@ async function rmConfirmarXml() {
             // este proveedor para ese producto y la próxima factura empareja sola.
             noIdCfdi: tr.dataset.nocfdi || '',
             claveSat: tr.dataset.clavesat || '',
+            claveUm: tr.dataset.claveum || '',
             homologar: !!prodId && prodId !== prodIdAuto,
         });
     });
@@ -2955,12 +3043,16 @@ async function rmConfirmarXml() {
             // factura del mismo proveedor empareje sola.
             if (l.homologar && l.noIdCfdi && rmXmlMeta?.proveedorId) {
                 try {
-                    await supabaseClient.from('producto_claves_proveedor').insert([{
+                    const base = {
                         producto_id: productoId,
                         proveedor_id: rmXmlMeta.proveedorId,
                         clave: l.noIdCfdi,
                         descripcion_factura: l.desc,
-                    }]);
+                    };
+                    // Con unidad SAT y factor solo si el factor se deduce con seguridad (la base los exige juntos); si la base lo rechaza, guarda la clave sola.
+                    const extraUm = rmClaveUmDeXml(productoId, l.claveUm);
+                    let { error: eCl } = await supabaseClient.from('producto_claves_proveedor').insert([{ ...base, ...extraUm }]);
+                    if (eCl && Object.keys(extraUm).length) await supabaseClient.from('producto_claves_proveedor').insert([base]);
                 } catch (_) { /* no bloquea la recepción si la tabla de claves no existe o ya había una */ }
             }
         }
@@ -2975,6 +3067,63 @@ async function rmConfirmarXml() {
         msg.className = 'text-xs text-rose-400';
         btn.disabled = false;
     }
+}
+
+// ---- Contra la cotización de la ODC (entrega 5) ----
+// Compara un concepto del XML con lo que el proveedor cotizó en SU unidad (cantidad, precio, importe, Clave UM, Clave SAT, número).
+// Solo informa: no bloquea la recepción. Devuelve null si la partida no trae cotización en unidad del proveedor.
+function rmCotizacionDeLinea(det, cp) {
+    if (!det || det.cantidad_proveedor == null || det.precio_proveedor == null) return null;
+    const um = String(det.clave_unidad_sat || '').trim().toUpperCase();
+    const umXml = String(cp.claveUnidad || '').trim().toUpperCase();
+    const factor = Number(det.factor_conversion_proveedor) > 0 ? Number(det.factor_conversion_proveedor) : null;
+    const mismaUnidad = !!um && !!umXml && um === umXml;
+    const diffs = [];
+    const f = (n) => Number(n).toLocaleString('es-MX', { maximumFractionDigits: 6 });
+    if (um && umXml && um !== umXml) diffs.push(`Clave UM: el XML trae ${umXml} y se cotizó en ${um}; revisa la conversión`);
+    if (mismaUnidad) {
+        const primeraVez = Number(det.cantidad_recibida || 0) === 0;
+        if (primeraVez && Math.abs(cp.cantidad - Number(det.cantidad_proveedor)) > 1e-6) diffs.push(`Cantidad: XML ${f(cp.cantidad)} · cotizada ${f(det.cantidad_proveedor)}`);
+        if (Math.abs(cp.valorUnitario - Number(det.precio_proveedor)) >= 0.00005) diffs.push(`Precio: XML ${money4(cp.valorUnitario)} · cotizado ${money4(Number(det.precio_proveedor))}`);
+        if (primeraVez && det.importe_proveedor != null) {
+            const impXml = importe(cp.cantidad, cp.valorUnitario);
+            if (Math.abs(impXml - Number(det.importe_proveedor)) >= 0.01) diffs.push(`Importe: XML ${money(impXml)} · cotizado ${money(Number(det.importe_proveedor))}`);
+        }
+    }
+    if (cp.claveSat && det.clave_prod_serv_sat && String(cp.claveSat).trim() !== String(det.clave_prod_serv_sat).trim()) diffs.push(`Clave SAT: XML ${cp.claveSat} · cotizada ${det.clave_prod_serv_sat}`);
+    if (cp.noId && det.sku_proveedor && normTxt(cp.noId) !== normTxt(det.sku_proveedor)) diffs.push(`Número: XML ${cp.noId} · cotizado ${det.sku_proveedor}`);
+    return { um, factor, mismaUnidad, diffs };
+}
+
+// Franja bajo la partida: ✓ si todo coincide, o las diferencias en ámbar (y, si se convirtió, cómo).
+function rmPintarCotizacion(tr, det, cp) {
+    let sig = tr.nextElementSibling;
+    if (sig && sig.classList.contains('rm-conv-row')) sig = sig.nextElementSibling;
+    if (sig && sig.classList.contains('rm-cot-row')) sig.remove();
+    const cot = rmCotizacionDeLinea(det, cp);
+    if (!cot) return;
+    const anclaje = tr.nextElementSibling && tr.nextElementSibling.classList.contains('rm-conv-row') ? tr.nextElementSibling : tr;
+    const convertido = cot.mismaUnidad && cot.factor
+        ? ` · Convertido: ${Number(cp.cantidad).toLocaleString('es-MX', { maximumFractionDigits: 6 })} ${esc(cot.um)} × ${cot.factor.toLocaleString('es-MX', { maximumFractionDigits: 6 })}`
+        : '';
+    const cuerpo = cot.diffs.length
+        ? `<span class="text-amber-400">⚠ Contra la cotización: ${cot.diffs.map(esc).join(' · ')}</span>`
+        : '<span class="text-emerald-400">✓ Coincide con la cotización de la ODC</span>';
+    const fila = document.createElement('tr');
+    fila.className = 'rm-cot-row border-b border-slate-900';
+    fila.innerHTML = `<td></td><td colspan="7" class="px-2 pb-2 text-[11px]">${cuerpo}<span class="text-slate-500">${convertido}</span></td>`;
+    anclaje.insertAdjacentElement('afterend', fila);
+}
+
+// Unidad SAT + factor para guardar junto con la clave del proveedor al homologar desde un XML.
+// La base exige las dos juntas: si el factor no se puede deducir con seguridad (caja, tambo, litro→kilo...) NO se guarda unidad.
+function rmClaveUmDeXml(productoId, claveUm) {
+    const um = String(claveUm || '').trim().toUpperCase();
+    if (!um) return {};
+    const prod = ocProductos.find((p) => p.id === productoId);
+    const nombreInv = ocUnidades.find((u) => u.id === prod?.unidad_medida_id)?.nombre || '';
+    const s = factorSugeridoSat({ claveProv: um, nombreInv, claveInv: '' });
+    return s && s.factor > 0 ? { clave_unidad_sat: um, factor_conversion: s.factor } : {};
 }
 
 // ---- Importar XML del CFDI: prellena impuestos y concilia partidas ----
@@ -3097,8 +3246,12 @@ async function rmProcesarDatosFactura(datos, { icono = '📄', fuente = 'XML' } 
                     // "Aplicar" o reteclée algo a mano (fuente típica de
                     // errores: escribir el 0.2 de la factura donde ya se
                     // había puesto 200, o multiplicar el precio dos veces).
-                    const preset = sugerirPresetPorUnidadCfdi(cp.claveUnidad, cp.unidad);
-                    const factorDetectado = preset ? preset.factor : 1;
+                    // Si la ODC trae la cotización en la unidad del proveedor (clave SAT + factor), manda ESE factor
+                    // (solo si el XML viene en esa misma unidad); si no, los presets de siempre.
+                    const cotL = rmCotizacionDeLinea(detById.get(Number(tr.dataset.detid)), cp);
+                    const usaCot = !!(cotL && cotL.factor && cotL.mismaUnidad);
+                    const preset = usaCot ? null : sugerirPresetPorUnidadCfdi(cp.claveUnidad, cp.unidad);
+                    const factorDetectado = usaCot ? cotL.factor : (preset ? preset.factor : 1);
 
                     // Si un operador ya contó físicamente esta partida (pre-recibo),
                     // esa cantidad manda — el XML no la pisa. La factura puede traer
@@ -3106,7 +3259,7 @@ async function rmProcesarDatosFactura(datos, { icono = '📄', fuente = 'XML' } 
                     // por eso existe el aviso "⚠ operador contó X" (ver rmRenderDetalle).
                     // El costo sí se toma del XML: de eso no tiene forma de enterarse
                     // un conteo físico.
-                    if (tr.dataset.capturado === '' && cp.cantidad > 0) tr.querySelector('.rm-cant').value = cp.cantidad * factorDetectado;
+                    if (tr.dataset.capturado === '' && cp.cantidad > 0) tr.querySelector('.rm-cant').value = Math.round(cp.cantidad * factorDetectado * 1e6) / 1e6;
                     if (cp.valorUnitario > 0) tr.querySelector('.rm-costo').value = (cp.valorUnitario / factorDetectado).toFixed(4);
 
                     // El conversor se deja precargado con los datos crudos de
@@ -3122,9 +3275,14 @@ async function rmProcesarDatosFactura(datos, { icono = '📄', fuente = 'XML' } 
                             convRow.querySelector('.rm-conv-factor').value = preset.factor;
                             const sug = convRow.querySelector('.rm-conv-sugerido');
                             if (sug) sug.textContent = `Del XML: unidad de compra "${cp.unidad || cp.claveUnidad}" → ${preset.etiqueta} (ya aplicado arriba en Cant. a ingresar / Costo real — usa "Aplicar →" solo si necesitas corregirlo)`;
+                        } else if (usaCot) {
+                            convRow.querySelector('.rm-conv-factor').value = factorDetectado;
+                            const sug = convRow.querySelector('.rm-conv-sugerido');
+                            if (sug) sug.textContent = `De la cotización de la ODC: 1 ${cotL.um} = ${factorDetectado.toLocaleString('es-MX', { maximumFractionDigits: 6 })} de tu unidad (ya aplicado arriba en Cant. a ingresar / Costo real)`;
                         }
                     }
                 }
+                rmPintarCotizacion(tr, detById.get(Number(tr.dataset.detid)), cp);
                 conc++;
             } else {
                 sinMatch.push(cp.descripcion || cp.noId || '(sin descripción)');
@@ -3144,14 +3302,18 @@ async function rmProcesarDatosFactura(datos, { icono = '📄', fuente = 'XML' } 
                 if (pv) provId = pv.id;
             }
         } catch (_) { /* proveedores sin columna rfc */ }
-        const clavesMap = new Map(), clavesSatMap = new Map();
+        const clavesMap = new Map(), clavesSatMap = new Map(), factoresMap = new Map();
         if (provId) {
             try {
-                const { data } = await supabaseClient.from('producto_claves_proveedor')
-                    .select('producto_id, clave, clave_sat').eq('proveedor_id', provId);
+                // Con unidad SAT y factor (sql/2026-10-23b); sin esas columnas cae a las claves de siempre.
+                let { data, error } = await supabaseClient.from('producto_claves_proveedor')
+                    .select('producto_id, clave, clave_sat, clave_unidad_sat, factor_conversion').eq('proveedor_id', provId);
+                if (error) ({ data } = await supabaseClient.from('producto_claves_proveedor')
+                    .select('producto_id, clave, clave_sat').eq('proveedor_id', provId));
                 (data || []).forEach(c => {
                     if (c.clave) clavesMap.set(normTxt(c.clave), c.producto_id);
                     if (c.clave_sat) clavesSatMap.set(String(c.clave_sat).trim(), c.producto_id);
+                    if (c.clave_unidad_sat && Number(c.factor_conversion) > 0) factoresMap.set(c.producto_id, { um: String(c.clave_unidad_sat).toUpperCase(), factor: Number(c.factor_conversion) });
                 });
             } catch (_) { /* tabla de claves aún no existe */ }
         }
@@ -3163,7 +3325,7 @@ async function rmProcesarDatosFactura(datos, { icono = '📄', fuente = 'XML' } 
         cargosDecision = await rmPreguntarLandedCost(cargos);
         rmCargosXml = cargosDecision.usar;
         rmRenderDetalleXml(conceptosProducto, {
-            proveedorId: provId, rfc: rfcEmisor, nombreEmisor, uuid, folio, claves: clavesMap, clavesSat: clavesSatMap,
+            proveedorId: provId, rfc: rfcEmisor, nombreEmisor, uuid, folio, claves: clavesMap, clavesSat: clavesSatMap, factores: factoresMap,
             regimenFiscal: regimenEmisor, usoCfdi, formaPago, metodoPago, moneda, cp: cpEmisor,
         });
     }

@@ -76,7 +76,7 @@ async function cargarCatalogos() {
         if (error) throw error;
         const c = (cod) => cuentasCache.find((x) => x.codigo === cod)?.id || null;
         const c01 = c('115.01'), c02 = c('115.02'), c04 = c('115.04');
-        productosCache = (data || []).map((p) => ({
+        productosCache = (data || []).filter((p) => p.tipo !== 'activo_fijo').map((p) => ({
             id: p.id, nombre: p.nombre, sku: p.sku, tipo: p.tipo,
             unidad: p.unidades_medida?.nombre || '',
             cuentaAsignada: !!p.cuenta_inventario_id,

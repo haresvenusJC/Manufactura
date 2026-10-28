@@ -14,7 +14,7 @@ import { abrirAsistenteProrrateo } from './asistente-prorrateo.js';
 // =====================================================================
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2 } from './formato.js';
 const fnum = (n, d = 2) => Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: d });
 const TABLA_FALTA = /does not exist|schema cache|could not find|relation .* does not exist/i;
 const MANUAL_URL = 'manual-costos-produccion.html';

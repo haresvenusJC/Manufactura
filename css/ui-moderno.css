@@ -764,6 +764,8 @@ main section.vista-seccion:not(#view-bienvenida) .asist-panel:has(.asist-body:no
     /* overflow-y con !important: la regla general ".overflow-x-auto.border:not(…) { overflow-y: hidden }" (recorte de esquinas) tiene más especificidad y dejaba la lista sin scroll. */
     .lista-completa div:has(> table) { flex: 1; min-height: 0; max-height: none; display: block; overflow-y: auto !important; overflow-x: hidden; overscroll-behavior: contain; }
     .lista-completa div:has(> table) > table > thead { position: sticky; top: 0; z-index: 5; background-color: var(--bg-1); }
+    /* los paneles/pestañas ocultos (clase hidden) no deben mostrarse por la regla flex de arriba */
+    .lista-completa div.hidden { display: none !important; }
     /* Lista vacía: el aviso (ilustración + mensaje) se centra en el área de la tabla y su fila usa el mismo fondo del marco
        (antes quedaba una franja azul-gris arriba y el resto en blanco). Lo marca estado-vacio.js con data-ev. */
     .lista-completa div:has(> table):has(td[data-ev]) > table { height: 100%; }

@@ -19,7 +19,7 @@ import { ordenarCentrosProduccion } from './centros-costo.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const num = (v, d = 0) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
-const money = (n) => '$' + Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+import { money, money4, importe, redondear2 } from './formato.js';
 const fnum = (n, d = 2) => Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: d });
 const pct = (f) => (Number(f || 0) * 100).toLocaleString('es-MX', { maximumFractionDigits: 1 }) + '%';
 const mesISO = () => hoyISO().slice(0, 7);
@@ -1119,7 +1119,8 @@ async function guardarCaso() {
     if (!selCta || selCta === 'NUEVA') {
         const padre = ctaPorCodigo('503');
         const ins = await supabaseClient.from('cuentas_contables').insert([{
-            codigo: c.cta, codigo_agrupador: c.cta, nombre: CTA_NOMBRES[c.cta] || c.n, tipo: 'costo', naturaleza: 'D',
+            codigo: c.cta, codigo_agrupador: '504.01',   // SAT (Anexo 24): 504.01 Gastos indirectos de fabricación; 503 del SAT es otra cosa
+             nombre: CTA_NOMBRES[c.cta] || c.n, tipo: 'costo', naturaleza: 'D',
             cuenta_padre_id: padre?.id || null, nivel: padre ? (padre.nivel || 1) + 1 : 2, afectable: true, activa: true, cif_tipo: cif,
         }]).select('id').single();
         if (ins.error) throw ins.error;
