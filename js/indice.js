@@ -14,8 +14,6 @@ export const SECCIONES = [
             { v: 'clientes', t: 'Clientes', d: 'Datos fiscales del cliente (RFC, régimen, uso CFDI), condición y días de crédito, cuenta de cobro y la lista de precios que le toca.', cfg: true, extra: "{tab:'clientes'}" },
             { v: 'clientes', t: 'Listas de precio', d: 'Listas de precio y el precio de cada producto en cada una; se asignan desde la ficha del cliente.', cfg: true, extra: "{tab:'listas'}" },
             { v: 'empleados', t: 'Empleados', d: 'Plantilla con foto, puesto, departamento y gerente (su jefe directo), costo por hora y PIN para la Orden de Trabajo en el celular.', cfg: true },
-            { v: 'departamentos', t: 'Departamentos', d: 'Catálogo de departamentos: tipo, centro de costo, responsable y el equipo que lo compone.', cfg: true },
-            { v: 'organigrama', t: 'Organigrama', d: 'Árbol de la empresa dibujado con el gerente de cada empleado; quien no tiene gerente es la cabeza.' },
         ],
     },
     {
