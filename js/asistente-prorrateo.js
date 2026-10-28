@@ -603,12 +603,6 @@ async function guardarAreas() {
 // ---------------------------------------------------------------------
 // PASO 3 · LUZ
 // ---------------------------------------------------------------------
-const EQUIPOS_SUG = [
-    ['Llenadora / dosificadora', 'equipo'], ['Mezclador u homogeneizador', 'equipo'], ['Marmita o reactor con chaqueta', 'equipo'],
-    ['Compresor de aire', 'equipo'], ['Manejadora de aire / cuarto limpio (HVAC)', 'clima'], ['Aire acondicionado', 'clima'],
-    ['Túnel de termoencogido / vapor', 'equipo'], ['Etiquetadora', 'equipo'], ['Banda transportadora', 'equipo'],
-    ['Sistema de agua purificada (ósmosis)', 'equipo'], ['Refrigerador de materia prima', 'equipo'], ['Iluminación', 'iluminacion'],
-];
 const UNID_KW = { kW: 1, HP: 0.746, W: 0.001 };
 const TIPOS_CARGA = [['equipo', 'Equipo'], ['clima', 'Clima / HVAC'], ['iluminacion', 'Iluminación'], ['otro', 'Otro']];
 import { hoyISO } from './fechas.js';
@@ -618,7 +612,6 @@ const idCuenta = (cod) => ctaPorCodigo(cod)?.id || '';
 // Equipos ya dados de alta en Activos fijos en un área (vigentes)
 const equiposDe = (areaId) => S.equipos.filter(e => e.area_id === areaId);
 const kwEquipo = (e) => Number(e.potencia_kw || 0) * Number(e.cantidad || 1) * Number(e.factor_uso || 1);
-const primeraPalabra = (t) => (String(t).toLowerCase().match(/[a-záéíóúñü]{4,}/) || [''])[0];
 
 function nuevoEquipo(areaId, d = '', t = 'equipo') {
     const a = S.areas.find(x => x.id === Number(areaId));
@@ -687,7 +680,6 @@ function vLuz() {
         ${act.map(a => {
             const L = S.luz[a.id];
             const exist = equiposDe(a.id);
-            const textos = [...exist.map(e => e.nombre), ...L.nuevas.map(f => f.d)].map(t => String(t).toLowerCase());
             return `
             <div class="border border-slate-800 rounded-xl p-3 bg-slate-950" data-luz-area="${a.id}">
               <div class="font-semibold text-slate-100">${esc(a.codigo)} · ${esc(a.nombre)} <span class="text-xs font-normal text-slate-500">${a.rol === 'produccion' ? 'producción' : 'oficina'}</span></div>
@@ -708,8 +700,6 @@ function vLuz() {
                   <div class="text-[11px] text-slate-500">Potencia: la de la placa del equipo (HP × 0.746 = kW). Uso: fracción del tiempo que realmente demanda (un túnel de vapor que enciende 3 h de un turno de 10 ≈ 0.30).</div></div>` : ''}
                 <div class="mt-2 flex flex-wrap gap-1 items-center">
                   ${btn('luz-add', '＋ Dar de alta un equipo', BTN_SEC + ' !py-1 !px-3 text-xs', `data-area="${a.id}"`)}
-                  <span class="text-[10px] text-slate-600">Equipos típicos (✅ = ya hay uno parecido):</span>
-                  ${EQUIPOS_SUG.map(([d], i) => `<button type="button" data-act="luz-sug" data-area="${a.id}" data-i="${i}" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-0.5 rounded-full">${textos.some(t => t.includes(primeraPalabra(d))) ? '✅ ' : ''}${esc(d)}</button>`).join('')}
                 </div>`}
             </div>`;
         }).join('')}
@@ -1295,11 +1285,6 @@ async function onClick(e) {
             return;
 
         case 'luz-add': leerLuzDOM(); S.luz[b.dataset.area].nuevas.push(nuevoEquipo(b.dataset.area)); pintar(true); return;
-        case 'luz-sug': {
-            leerLuzDOM();
-            const [d, t] = EQUIPOS_SUG[Number(b.dataset.i)];
-            S.luz[b.dataset.area].nuevas.push(nuevoEquipo(b.dataset.area, d, t)); pintar(true); return;
-        }
         case 'luz-del': leerLuzDOM(); S.luz[b.dataset.area].nuevas.splice(Number(b.dataset.i), 1); pintar(true); return;
         case 'luz-resumen': {
             leerLuzDOM();
