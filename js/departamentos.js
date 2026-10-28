@@ -170,8 +170,12 @@ export async function cargarModuloDepartamentos() {
             ? await supabaseClient.from('departamentos').update(fila).eq('id', id)
             : await supabaseClient.from('departamentos').insert([fila]);
         if (error) {
+            const igual = deps.find((d) => d.id !== id && String(d.nombre).trim().toLowerCase() === fila.nombre.toLowerCase());
             msg.textContent = /departamentos_nombre_uq|duplicate/i.test(error.message || '')
-                ? 'Ya existe un departamento con ese nombre.' : 'No se pudo guardar: ' + error.message;
+                ? (igual && !igual.activo
+                    ? `"${igual.nombre}" ya existe pero está inactivo. Reactívalo con el botón ✅ de su tarjeta (abajo) en vez de crear otro.`
+                    : 'Ya existe un departamento con ese nombre.')
+                : 'No se pudo guardar: ' + error.message;
             msg.className = 'text-xs text-rose-400';
             return;
         }
