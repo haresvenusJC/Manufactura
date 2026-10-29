@@ -365,7 +365,7 @@ export async function cargarModuloAltaArticulo() {
                                             <label class="block text-[11px] text-slate-400 mb-1">Cuenta de inventario</label>
                                             <select id="prodCtaInventario" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${opcionesCuentas(['activo'])}</select>
                                         </div>
-                                        <div>
+                                        <div id="bloqueProdCtaCosto">
                                             <label class="block text-[11px] text-slate-400 mb-1">Cuenta de costo</label>
                                             <select id="prodCtaCosto" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-100">${opcionesCuentas(['costo', 'gasto'])}</select>
                                         </div>
@@ -532,6 +532,8 @@ export async function cargarModuloAltaArticulo() {
             // Un equipo no se vende ni se lleva en stock: su costo real sale de la compra. Se ocultan costo, precio, moneda y stock mínimo.
             ['bloqueProdCosto', 'bloqueProdPrecio', 'bloqueProdMoneda', 'bloqueProdStockMin'].forEach((bid) => document.getElementById(bid)?.classList.toggle('hidden', esEquipo));
             const selMon = document.getElementById('prodMonedaId'); if (selMon) selMon.required = !esEquipo;   // un required oculto bloquearía el envío
+            // Un equipo no tiene costo de ventas: la cuenta de costo no aplica.
+            document.getElementById('bloqueProdCtaCosto')?.classList.toggle('hidden', esEquipo);
             // Categoría fiscal (LISR): solo para equipos.
             const bloqueCat = document.getElementById('bloqueProdCategoriaDep');
             if (bloqueCat) {
