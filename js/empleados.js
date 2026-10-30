@@ -5,6 +5,29 @@ import { comprimirFoto, subirFotoEmpleado, borrarFoto, urlsFotos, avatarHtml } f
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const DEPARTAMENTOS_ANTERIORES = ['Producción', 'Administración', 'Ventas', 'Almacén'];
 
+// ---- Horario laboral (días de la semana, entrada, salida y receso; hora en formato 24 h) ----
+const DIAS_SEMANA = [
+    { n: 1, t: 'Lunes', a: 'Lun' }, { n: 2, t: 'Martes', a: 'Mar' }, { n: 3, t: 'Miércoles', a: 'Mié' },
+    { n: 4, t: 'Jueves', a: 'Jue' }, { n: 5, t: 'Viernes', a: 'Vie' }, { n: 6, t: 'Sábado', a: 'Sáb' }, { n: 7, t: 'Domingo', a: 'Dom' },
+];
+const HORAS_24 = Array.from({ length: 96 }, (_, i) => `${String(Math.floor(i / 4)).padStart(2, '0')}:${String((i % 4) * 15).padStart(2, '0')}`);
+const RECESOS_MIN = [0, 15, 30, 45, 60, 90, 120];
+const aMin = (hhmm) => { const [h, m] = String(hhmm || '00:00').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+// Minutos trabajados del turno; si la salida es menor que la entrada el turno cruza la medianoche.
+const minutosTurno = (h) => {
+    const e = aMin(h.entrada), s = aMin(h.salida);
+    const dur = s > e ? s - e : s + 1440 - e;
+    return Math.max(0, dur - (Number(h.receso_min) || 0));
+};
+const textoReceso = (m) => (m === 0 ? 'Sin receso' : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}`);
+function resumenHorario(lista) {
+    const h = [...(lista || [])].sort((a, b) => a.dia - b.dia);
+    if (!h.length) return '';
+    const dias = h.map((x) => DIAS_SEMANA.find((d) => d.n === x.dia)?.a || x.dia).join(' ');
+    const igual = h.every((x) => x.entrada === h[0].entrada && x.salida === h[0].salida);
+    return `${dias}${igual ? ' ' + h[0].entrada + '–' + h[0].salida : ' (horarios distintos)'}`;
+}
+
 // Homologa el Gerente de todos con la jerarquía de departamentos (colaborador → responsable de su departamento;
 // responsable → responsable del departamento superior más cercano que tenga uno). Devuelve cuántos cambió.
 export async function homologarGerentes() {
@@ -55,7 +78,12 @@ export async function cargarModuloEmpleados() {
     const resDeps = await supabaseClient.from('departamentos').select('*').eq('activo', true).order('nombre');
     const hayEstructura = !resDeps.error;
     // Rol en el departamento (Responsable / Colaborador): requiere sql/2026-10-30_departamento_superior_rol.sql.
-    const hayRol = hayEstructura && !(await supabaseClient.from('empleados').select('rol_departamento').limit(1)).error;
+    const [sondeoRol, sondeoHorario] = await Promise.all([
+        hayEstructura ? supabaseClient.from('empleados').select('rol_departamento').limit(1) : Promise.resolve({ error: true }),
+        supabaseClient.from('empleados').select('horario_laboral').limit(1),   // requiere sql/2026-10-30c_empleados_horario.sql
+    ]);
+    const hayRol = hayEstructura && !sondeoRol.error;
+    const hayHorario = !sondeoHorario.error;
     const ROL_LABEL = { responsable: 'Responsable de Departamento', colaborador: 'Colaborador de Departamento' };
     const departamentos = hayEstructura ? (resDeps.data || []) : [];
     let empleadosCache = [];
@@ -157,6 +185,27 @@ export async function cargarModuloEmpleados() {
                             <input type="number" id="empHoras" min="0" step="0.01" value="48" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
                         </div>
                     </div>
+                    ${hayHorario ? `
+                    <div class="bg-slate-950 border border-slate-800 rounded-lg p-3">
+                        <div class="flex items-center justify-between gap-2 flex-wrap mb-2">
+                            <span class="text-xs font-medium text-slate-400">HORARIO LABORAL (días que trabaja, horario en formato 24 h y receso)</span>
+                            <span class="flex items-center gap-2">
+                                <button type="button" id="empHorarioPreset" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded-lg">Lun–Vie 08:00–17:00</button>
+                                <button type="button" id="empHorarioAgregar" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 px-2 py-1 rounded-lg">＋ Agregar día</button>
+                            </span>
+                        </div>
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr class="text-slate-500 text-left">
+                                    <th class="py-1 pr-2 font-medium">Día</th><th class="py-1 pr-2 font-medium">Entrada</th>
+                                    <th class="py-1 pr-2 font-medium">Salida</th><th class="py-1 pr-2 font-medium">Receso</th>
+                                    <th class="py-1 pr-2 font-medium text-right">Horas netas</th><th class="w-6"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="empHorarioBody"></tbody>
+                        </table>
+                        <p class="text-[11px] text-slate-500 mt-2">Cada día se elige una sola vez. Si la salida es menor que la entrada, el turno cruza la medianoche. <span id="empHorarioTotal" class="text-slate-300 font-semibold"></span></p>
+                    </div>` : ''}
                     <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 flex justify-between items-center">
                         <span class="text-xs text-slate-400">Costo por hora calculado</span>
                         <span id="empCostoHoraPreview" class="font-mono text-lg font-bold text-emerald-400">$0.00</span>
@@ -303,6 +352,61 @@ export async function cargarModuloEmpleados() {
     document.getElementById('empSueldo').oninput = actualizarPreviewCostoHora;
     document.getElementById('empHoras').oninput = actualizarPreviewCostoHora;
 
+    // ---- Tabla de horario laboral ----
+    let horario = [];   // [{ dia, entrada, salida, receso_min }]
+    const selHtml = (c, opciones, actual) => `<select data-c="${c}" data-sin-buscador class="w-full bg-slate-900 border border-slate-700 rounded-md px-1.5 py-1 text-xs text-slate-100">${opciones}</select>`;
+    function renderHorario() {
+        const body = document.getElementById('empHorarioBody');
+        if (!body) return;
+        horario.sort((a, b) => a.dia - b.dia);
+        const usados = new Set(horario.map((h) => h.dia));
+        body.innerHTML = horario.length ? horario.map((h, i) => {
+            const opHora = (v) => HORAS_24.concat(HORAS_24.includes(v) ? [] : [v]).map((x) => `<option value="${x}" ${x === v ? 'selected' : ''}>${x}</option>`).join('');
+            const recesos = RECESOS_MIN.includes(Number(h.receso_min)) ? RECESOS_MIN : [...RECESOS_MIN, Number(h.receso_min)].sort((a, b) => a - b);
+            return `<tr data-i="${i}" class="border-t border-slate-800">
+                <td class="py-1 pr-2">${selHtml('dia', DIAS_SEMANA.map((d) => `<option value="${d.n}" ${d.n === h.dia ? 'selected' : ''} ${usados.has(d.n) && d.n !== h.dia ? 'disabled' : ''}>${d.t}</option>`).join(''))}</td>
+                <td class="py-1 pr-2">${selHtml('entrada', opHora(h.entrada))}</td>
+                <td class="py-1 pr-2">${selHtml('salida', opHora(h.salida))}</td>
+                <td class="py-1 pr-2">${selHtml('receso_min', recesos.map((m) => `<option value="${m}" ${m === Number(h.receso_min) ? 'selected' : ''}>${textoReceso(m)}</option>`).join(''))}</td>
+                <td class="py-1 pr-2 text-right font-mono ${h.entrada === h.salida ? 'text-rose-400' : 'text-slate-300'}">${(minutosTurno(h) / 60).toFixed(2)} h</td>
+                <td class="py-1 text-center"><button type="button" data-quitar class="text-slate-500 hover:text-rose-400" title="Quitar este día">✕</button></td>
+            </tr>`;
+        }).join('') : `<tr><td colspan="6" class="py-2 text-slate-500 italic">Sin días capturados: usa «＋ Agregar día» o el atajo Lun–Vie.</td></tr>`;
+        const total = horario.reduce((a, h) => a + minutosTurno(h), 0) / 60;
+        const totEl = document.getElementById('empHorarioTotal');
+        if (totEl) totEl.textContent = horario.length ? `Total semanal: ${total.toFixed(2)} h en ${horario.length} día(s) — se usa como «Horas semanales».` : '';
+        const btnAdd = document.getElementById('empHorarioAgregar');
+        if (btnAdd) btnAdd.disabled = horario.length >= 7;
+        if (horario.length) { document.getElementById('empHoras').value = total.toFixed(2); actualizarPreviewCostoHora(); }
+    }
+    if (hayHorario) {
+        document.getElementById('empHorarioBody').addEventListener('change', (ev) => {
+            const tr = ev.target.closest('tr[data-i]');
+            const c = ev.target.dataset.c;
+            if (!tr || !c) return;
+            const h = horario[Number(tr.dataset.i)];
+            h[c] = c === 'entrada' || c === 'salida' ? ev.target.value : Number(ev.target.value);
+            renderHorario();
+        });
+        document.getElementById('empHorarioBody').addEventListener('click', (ev) => {
+            if (!ev.target.closest('[data-quitar]')) return;
+            horario.splice(Number(ev.target.closest('tr[data-i]').dataset.i), 1);
+            renderHorario();
+        });
+        document.getElementById('empHorarioAgregar').onclick = () => {
+            const libre = DIAS_SEMANA.find((d) => !horario.some((h) => h.dia === d.n));
+            if (!libre) return;
+            const ref = horario[horario.length - 1];
+            horario.push({ dia: libre.n, entrada: ref ? ref.entrada : '08:00', salida: ref ? ref.salida : '17:00', receso_min: ref ? ref.receso_min : 60 });
+            renderHorario();
+        };
+        document.getElementById('empHorarioPreset').onclick = () => {
+            horario = [1, 2, 3, 4, 5].map((n) => ({ dia: n, entrada: '08:00', salida: '17:00', receso_min: 60 }));
+            renderHorario();
+        };
+        renderHorario();
+    }
+
     async function cargarLista() {
         const cont = document.getElementById('listaEmpleados');
         const { data, error } = await supabaseClient
@@ -329,7 +433,7 @@ export async function cargarModuloEmpleados() {
                     ${hayEstructura ? avatarHtml(emp.nombre, urls.get(emp.foto_path), 40) : ''}
                     <div class="min-w-0">
                         <p class="text-sm font-semibold text-slate-200">${esc(emp.nombre)} ${!emp.activo ? '<span class="text-[10px] text-rose-400">(inactivo)</span>' : ''}</p>
-                        <p class="text-[11px] text-slate-500">${esc(emp.puesto || 'Sin puesto')}${emp.departamento ? ' · ' + esc(emp.departamento) : ''}${hayRol && emp.departamento_id && emp.rol_departamento ? ' · <span class="' + (emp.rol_departamento === 'responsable' ? 'text-emerald-400' : 'text-slate-400') + '">' + ROL_LABEL[emp.rol_departamento] + '</span>' : ''} · $${Number(emp.sueldo_semanal).toFixed(2)}/sem · ${Number(emp.horas_semanales)} hrs/sem</p>
+                        <p class="text-[11px] text-slate-500">${esc(emp.puesto || 'Sin puesto')}${emp.departamento ? ' · ' + esc(emp.departamento) : ''}${hayRol && emp.departamento_id && emp.rol_departamento ? ' · <span class="' + (emp.rol_departamento === 'responsable' ? 'text-emerald-400' : 'text-slate-400') + '">' + ROL_LABEL[emp.rol_departamento] + '</span>' : ''} · $${Number(emp.sueldo_semanal).toFixed(2)}/sem · ${Number(emp.horas_semanales)} hrs/sem${hayHorario && Array.isArray(emp.horario_laboral) && emp.horario_laboral.length ? ' · ' + esc(resumenHorario(emp.horario_laboral)) : ''}</p>
                         ${hayEstructura ? `<p class="text-[11px] text-slate-500">${emp.gerente_id && nombreDe(emp.gerente_id) ? 'Gerente: ' + esc(nombreDe(emp.gerente_id)) : 'Sin gerente (cabeza de la organización)'}</p>` : ''}
                         <p class="text-[11px] mt-0.5 ${emp.pin_hash ? 'text-emerald-500' : 'text-amber-500'}">${emp.pin_hash ? 'PIN móvil ✓' : 'Sin PIN móvil'}${emp.patron_hash ? ' · Patrón ✓' : ''}</p>
                     </div>
@@ -371,6 +475,11 @@ export async function cargarModuloEmpleados() {
                 document.getElementById('empNss').value = emp.nss || '';
                 document.getElementById('empSueldo').value = emp.sueldo_semanal;
                 document.getElementById('empHoras').value = emp.horas_semanales;
+                if (hayHorario) {
+                    horario = (Array.isArray(emp.horario_laboral) ? emp.horario_laboral : [])
+                        .map((h) => ({ dia: Number(h.dia), entrada: h.entrada, salida: h.salida, receso_min: Number(h.receso_min) || 0 }));
+                    renderHorario();
+                }
                 if (hayEstructura) {
                     pintarOpcionesGerente(emp.id, emp.gerente_id);
                     if (hayRol) { document.getElementById('empRol').value = emp.rol_departamento || ''; actualizarRol(); }
@@ -402,6 +511,7 @@ export async function cargarModuloEmpleados() {
         document.getElementById('formEmpleado').reset();
         document.getElementById('empIdEditando').value = '';
         document.getElementById('empHoras').value = 48;
+        if (hayHorario) { horario = []; renderHorario(); }
         document.getElementById('btnCancelarEdicionEmp').classList.add('hidden');
         document.getElementById('btnGuardarEmpleado').textContent = '💾 Guardar Empleado';
         if (hayEstructura) {
@@ -429,6 +539,12 @@ export async function cargarModuloEmpleados() {
             sueldo_semanal: parseFloat(document.getElementById('empSueldo').value) || 0,
             horas_semanales: parseFloat(document.getElementById('empHoras').value) || 1
         };
+        if (hayHorario) {
+            if (horario.some((h) => h.entrada === h.salida)) { alert('En el horario laboral, la entrada y la salida no pueden ser la misma hora.'); return; }
+            registro.horario_laboral = horario.length
+                ? [...horario].sort((a, b) => a.dia - b.dia).map((h) => ({ dia: h.dia, entrada: h.entrada, salida: h.salida, receso_min: Number(h.receso_min) || 0 }))
+                : null;
+        }
         if (hayEstructura) {
             const dep = departamentos.find((d) => String(d.id) === selDep.value);
             registro.departamento_id = dep ? dep.id : null;

@@ -7,7 +7,7 @@
 --
 --  Cubre Recursos humanos (departamentos, Gerente, foto, firmas, jerarquía y rol) y la zona horaria.
 --  Continúa a 2026-10-24_diagnostico_migraciones_pendientes6.sql.
---  Orden de ejecución de las que falten: 1 -> 2 -> 3 (la 4 es independiente).
+--  Orden de ejecución de las que falten: 1 -> 2 -> 3 (la 4 y la 5 son independientes; la 5 solo requiere la tabla empleados).
 -- =====================================================================
 with c(orden, archivo, ok) as (
     select 1, '1 sql/2026-10-28_departamentos_gerente_foto.sql (departamentos, gerente_id, foto)',
@@ -25,6 +25,10 @@ with c(orden, archivo, ok) as (
         exists (select 1 from information_schema.columns where table_schema='public' and table_name='departamentos' and column_name='departamento_padre_id')
         and exists (select 1 from information_schema.columns where table_schema='public' and table_name='empleados' and column_name='rol_departamento')
         and exists (select 1 from pg_proc where proname = '_empleado_sincroniza_responsable')
+    union all
+    select 5, '5 sql/2026-10-30c_empleados_horario.sql (horario laboral del empleado)',
+        exists (select 1 from information_schema.columns where table_schema='public' and table_name='empleados' and column_name='horario_laboral')
+        and exists (select 1 from pg_proc where proname = '_empleado_horario_valido')
     union all
     select 4, '4 sql/2026-10-16_zona_horaria_mexico.sql (base en America/Mexico_City; hoy: ' || current_setting('TimeZone') || ')',
         current_setting('TimeZone') = 'America/Mexico_City'
