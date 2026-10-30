@@ -96,7 +96,7 @@ export async function cargarModuloEmpleados() {
         <div class="space-y-6 max-w-3xl mx-auto">
             <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
                 <div class="flex items-center justify-between gap-2 flex-wrap mb-1">
-                    <h2 class="text-xl font-bold text-slate-100">👷 Catálogo de Empleados</h2>
+                    <h2 class="text-xl font-bold text-slate-100">Catálogo de Empleados</h2>
                     <button type="button" onclick="window.abrirManual('#m-empleados', 'Empleados')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
                 </div>
                 <p class="text-xs text-slate-400 mb-4">Captura el sueldo semanal y las horas semanales de cada empleado; el costo por hora se calcula automáticamente para usarse en los cronómetros de producción.</p>
@@ -107,19 +107,19 @@ export async function cargarModuloEmpleados() {
 
                     <!-- ===== INFORMACIÓN PERSONAL: lo que individualiza a la persona ===== -->
                     <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-4">
-                        <h3 class="text-sm font-bold text-sky-300">👤 Información personal</h3>
-                        ${hayEstructura ? `
-                        <div class="flex items-center gap-4">
-                            <div id="empFotoPreview" class="shrink-0"></div>
-                            <div class="min-w-0">
+                        <h3 class="text-sm font-bold text-sky-300">Información personal</h3>
+                        <div class="flex items-start gap-4 flex-wrap">
+                            ${hayEstructura ? `
+                            <div class="shrink-0 w-44">
                                 <label class="block text-xs font-medium text-slate-400 mb-1">FOTO (opcional)</label>
-                                <input type="file" id="empFoto" accept="image/*" class="text-xs text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-700 file:bg-slate-800 file:text-slate-200">
+                                <div id="empFotoPreview" class="mb-2"></div>
+                                <input type="file" id="empFoto" accept="image/*" class="w-full text-xs text-slate-300 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-700 file:bg-slate-800 file:text-slate-200">
                                 <button type="button" id="empFotoQuitar" class="hidden text-[11px] text-rose-400 hover:text-rose-300 mt-1">Quitar foto</button>
+                            </div>` : ''}
+                            <div class="flex-1 min-w-[14rem]">
+                                <label class="block text-xs font-medium text-slate-400 mb-1">NOMBRE</label>
+                                <input type="text" id="empNombre" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
                             </div>
-                        </div>` : ''}
-                        <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">NOMBRE</label>
-                            <input type="text" id="empNombre" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
                         </div>
                         <div class="grid grid-cols-3 gap-4">
                             <div>
@@ -139,7 +139,7 @@ export async function cargarModuloEmpleados() {
 
                     <!-- ===== INFORMACIÓN LABORAL: lo que lo liga a la empresa ===== -->
                     <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-4">
-                        <h3 class="text-sm font-bold text-emerald-300">🏢 Información laboral</h3>
+                        <h3 class="text-sm font-bold text-emerald-300">Información laboral</h3>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-medium text-slate-400 mb-1">PUESTO DE TRABAJO (opcional)</label>
