@@ -4,6 +4,14 @@ import { comprimirFoto, subirFotoEmpleado, borrarFoto, urlsFotos, avatarHtml } f
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const DEPARTAMENTOS_ANTERIORES = ['Producción', 'Administración', 'Ventas', 'Almacén'];
 
+// «Dirección › Finanzas › Cuentas por pagar»: así el empleado elige su departamento sin confundir subdepartamentos.
+function rutaDepartamentoDe(d, lista) {
+    const partes = [d.nombre];
+    let p = d.departamento_padre_id ? lista.find((x) => x.id === d.departamento_padre_id) : null;
+    for (let n = 0; p && n < 20; n++) { partes.unshift(p.nombre); p = p.departamento_padre_id ? lista.find((x) => x.id === p.departamento_padre_id) : null; }
+    return partes.join(' › ');
+}
+
 export async function cargarModuloEmpleados() {
     const contenedor = document.getElementById('view-empleados');
     if (!contenedor) return;
@@ -19,7 +27,7 @@ export async function cargarModuloEmpleados() {
     let empleadosCache = [];
 
     const opcionesDepartamento = hayEstructura
-        ? departamentos.map((d) => `<option value="${d.id}">${esc(d.nombre)}</option>`).join('')
+        ? departamentos.map((d) => `<option value="${d.id}">${esc(rutaDepartamentoDe(d, departamentos))}</option>`).join('')
         : DEPARTAMENTOS_ANTERIORES.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
 
     contenedor.innerHTML = `
