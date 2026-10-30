@@ -19,7 +19,7 @@ const minutosTurno = (h) => {
     const dur = s > e ? s - e : s + 1440 - e;
     return Math.max(0, dur - (Number(h.receso_min) || 0));
 };
-const textoReceso = (m) => (m === 0 ? 'Sin receso' : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}`);
+const textoReceso = (m) => (m === 0 ? 'No aplica' : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ' ' + (m % 60) + ' min' : ''}`);
 function resumenHorario(lista) {
     const h = [...(lista || [])].sort((a, b) => a.dia - b.dia);
     if (!h.length) return '';
@@ -102,115 +102,117 @@ export async function cargarModuloEmpleados() {
                 <p class="text-xs text-slate-400 mb-4">Captura el sueldo semanal y las horas semanales de cada empleado; el costo por hora se calcula automáticamente para usarse en los cronómetros de producción.</p>
                 ${hayEstructura ? '' : `<p class="text-[11px] text-amber-300 bg-amber-950/40 border border-amber-900/60 rounded-lg px-3 py-2 mb-4">Falta correr <span class="font-mono">sql/2026-10-28_departamentos_gerente_foto.sql</span> en Supabase para usar Departamentos, Gerente y foto. Mientras tanto la pantalla funciona como antes.</p>`}
 
-                <form id="formEmpleado" class="space-y-4">
+                <form id="formEmpleado" class="space-y-5">
                     <input type="hidden" id="empIdEditando" value="">
-                    ${hayEstructura ? `
-                    <div class="flex items-center gap-4">
-                        <div id="empFotoPreview" class="shrink-0"></div>
-                        <div class="min-w-0">
-                            <label class="block text-xs font-medium text-slate-400 mb-1">FOTO (opcional)</label>
-                            <input type="file" id="empFoto" accept="image/*" class="text-xs text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-700 file:bg-slate-800 file:text-slate-200">
-                            <button type="button" id="empFotoQuitar" class="hidden text-[11px] text-rose-400 hover:text-rose-300 mt-1">Quitar foto</button>
+
+                    <!-- ===== INFORMACIÓN PERSONAL: lo que individualiza a la persona ===== -->
+                    <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-4">
+                        <h3 class="text-sm font-bold text-sky-300">👤 Información personal</h3>
+                        ${hayEstructura ? `
+                        <div class="flex items-center gap-4">
+                            <div id="empFotoPreview" class="shrink-0"></div>
+                            <div class="min-w-0">
+                                <label class="block text-xs font-medium text-slate-400 mb-1">FOTO (opcional)</label>
+                                <input type="file" id="empFoto" accept="image/*" class="text-xs text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-700 file:bg-slate-800 file:text-slate-200">
+                                <button type="button" id="empFotoQuitar" class="hidden text-[11px] text-rose-400 hover:text-rose-300 mt-1">Quitar foto</button>
+                            </div>
+                        </div>` : ''}
+                        <div>
+                            <label class="block text-xs font-medium text-slate-400 mb-1">NOMBRE</label>
+                            <input type="text" id="empNombre" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
                         </div>
-                    </div>` : ''}
-                    <div>
-                        <label class="block text-xs font-medium text-slate-400 mb-1">NOMBRE</label>
-                        <input type="text" id="empNombre" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
+                        <div class="grid grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-400 mb-1">RFC (opcional)</label>
+                                <input type="text" id="empRfc" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono uppercase">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-400 mb-1">CURP (opcional)</label>
+                                <input type="text" id="empCurp" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono uppercase">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-400 mb-1">NSS (opcional)</label>
+                                <input type="text" id="empNss" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono">
+                            </div>
+                        </div>
                     </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">PUESTO DE TRABAJO (opcional)</label>
-                            <input type="text" id="empPuesto" placeholder="p. ej. Jefe de contabilidad" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+
+                    <!-- ===== INFORMACIÓN LABORAL: lo que lo liga a la empresa ===== -->
+                    <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-4">
+                        <h3 class="text-sm font-bold text-emerald-300">🏢 Información laboral</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-400 mb-1">PUESTO DE TRABAJO (opcional)</label>
+                                <input type="text" id="empPuesto" placeholder="p. ej. Jefe de contabilidad" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-400 mb-1">FECHA DE INGRESO (opcional)</label>
+                                <input type="date" id="empFechaIngreso" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                            </div>
                         </div>
-                        <div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-400 mb-1">DEPARTAMENTO (opcional)</label>
+                                <select id="empDepartamento" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                                    <option value="">(sin asignar)</option>
+                                    ${opcionesDepartamento}
+                                </select>
+                                ${hayEstructura ? `<button type="button" onclick="window.loadView('departamentos')" class="text-[11px] text-sky-400 hover:text-sky-300 mt-1">Administrar departamentos</button>` : ''}
+                            </div>
+                            ${hayEstructura ? `
+                            <div>
+                                ${hayRol ? `
+                                <label class="block text-xs font-medium text-slate-400 mb-1">CARGO QUE OCUPA EN EL DEPARTAMENTO</label>
+                                <select id="empRol" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                                    <option value="">(sin departamento)</option>
+                                    <option value="colaborador">${ROL_LABEL.colaborador}</option>
+                                    <option value="responsable">${ROL_LABEL.responsable}</option>
+                                </select>` : `
+                                <p class="text-[11px] text-amber-300">Falta correr <span class="font-mono">sql/2026-10-30_departamento_superior_rol.sql</span> para elegir el cargo en el departamento.</p>`}
+                                <select id="empGerente" class="hidden" data-sin-buscador></select>
+                                <p id="empGerenteHint" class="hidden"></p>
+                            </div>` : '<div></div>'}
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-400 mb-1">SUELDO SEMANAL ($)</label>
+                                <input type="number" id="empSueldo" min="0" step="0.01" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-400 mb-1">HORAS SEMANALES</label>
+                                <input type="number" id="empHoras" min="0" step="0.01" value="48" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
+                            </div>
+                        </div>
+                        <div class="bg-slate-950 border border-slate-800 rounded-lg p-3">
+                            <div class="flex items-center justify-between gap-2 flex-wrap mb-2">
+                                <span class="text-xs font-medium text-slate-400">HORARIO LABORAL (días que trabaja, horario en formato 24 h y receso)</span>
+                                <button type="button" id="empHorarioPreset" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded-lg">Lun–Vie 08:00–17:00</button>
+                            </div>
+                            ${hayHorario ? '' : `<p class="text-[11px] text-amber-300 mb-2">Falta correr <span class="font-mono">sql/2026-10-30c_empleados_horario.sql</span> en Supabase para guardar el horario; mientras tanto solo calcula las horas semanales.</p>`}
+                            <table class="w-full text-xs">
+                                <thead>
+                                    <tr class="text-slate-500 text-left">
+                                        <th class="py-1 pr-2 font-medium">Día</th><th class="py-1 pr-2 font-medium">Jornada</th>
+                                        <th class="py-1 pr-2 font-medium">Entrada</th><th class="py-1 pr-2 font-medium">Salida</th>
+                                        <th class="py-1 pr-2 font-medium">Receso</th><th class="py-1 pr-2 font-medium text-right">Horas netas</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="empHorarioBody"></tbody>
+                            </table>
+                            <p class="text-[11px] text-slate-500 mt-2">Los días en «Descanso» no cuentan. Si la salida es menor que la entrada, el turno cruza la medianoche. <span id="empHorarioTotal" class="text-slate-300 font-semibold"></span></p>
+                        </div>
+                        <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 flex justify-between items-center">
+                            <span class="text-xs text-slate-400">Costo por hora calculado</span>
+                            <span id="empCostoHoraPreview" class="font-mono text-lg font-bold text-emerald-400">$0.00</span>
+                        </div>
+                        <div class="sm:w-1/2">
                             <label class="block text-xs font-medium text-slate-400 mb-1">PIN MÓVIL (4 dígitos)</label>
                             <input type="text" id="empPin" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="Dejar vacío para no cambiar"
                                    class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono tracking-widest">
                         </div>
                     </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">DEPARTAMENTO (opcional)</label>
-                            <select id="empDepartamento" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-                                <option value="">(sin asignar)</option>
-                                ${opcionesDepartamento}
-                            </select>
-                            ${hayEstructura ? `<button type="button" onclick="window.loadView('departamentos')" class="text-[11px] text-sky-400 hover:text-sky-300 mt-1">Administrar departamentos</button>` : ''}
-                        </div>
-                        ${hayEstructura ? `
-                        <div>
-                            ${hayRol ? `
-                            <label class="block text-xs font-medium text-slate-400 mb-1">CARGO QUE OCUPA EN EL DEPARTAMENTO</label>
-                            <select id="empRol" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-                                <option value="">(sin departamento)</option>
-                                <option value="colaborador">${ROL_LABEL.colaborador}</option>
-                                <option value="responsable">${ROL_LABEL.responsable}</option>
-                            </select>
-                            <p id="empRolHint" class="text-[11px] text-slate-500 mt-1">«Responsable» es quien dirige el departamento (solo uno). El puesto es texto libre y solo describe, p. ej. «Jefe de Contabilidad». Su jefe directo se asigna solo según la jerarquía de departamentos.</p>` : `
-                            <p class="text-[11px] text-amber-300">Falta correr <span class="font-mono">sql/2026-10-30_departamento_superior_rol.sql</span> para elegir el cargo en el departamento.</p>`}
-                            <select id="empGerente" class="hidden" data-sin-buscador></select>
-                            <p id="empGerenteHint" class="hidden"></p>
-                        </div>` : `
-                        <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">FECHA DE INGRESO (opcional)</label>
-                            <input type="date" id="empFechaIngreso" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-                        </div>`}
-                    </div>
-                    ${hayEstructura ? `
-                    <div>
-                        <label class="block text-xs font-medium text-slate-400 mb-1">FECHA DE INGRESO (opcional)</label>
-                        <input type="date" id="empFechaIngreso" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 sm:w-1/2">
-                    </div>` : ''}
-                    <div class="grid grid-cols-3 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">RFC (opcional)</label>
-                            <input type="text" id="empRfc" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono uppercase">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">CURP (opcional)</label>
-                            <input type="text" id="empCurp" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono uppercase">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">NSS (opcional)</label>
-                            <input type="text" id="empNss" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100 font-mono">
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">SUELDO SEMANAL ($)</label>
-                            <input type="number" id="empSueldo" min="0" step="0.01" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">HORAS SEMANALES</label>
-                            <input type="number" id="empHoras" min="0" step="0.01" value="48" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
-                        </div>
-                    </div>
-                    ${hayHorario ? `
-                    <div class="bg-slate-950 border border-slate-800 rounded-lg p-3">
-                        <div class="flex items-center justify-between gap-2 flex-wrap mb-2">
-                            <span class="text-xs font-medium text-slate-400">HORARIO LABORAL (días que trabaja, horario en formato 24 h y receso)</span>
-                            <span class="flex items-center gap-2">
-                                <button type="button" id="empHorarioPreset" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2 py-1 rounded-lg">Lun–Vie 08:00–17:00</button>
-                                <button type="button" id="empHorarioAgregar" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 px-2 py-1 rounded-lg">＋ Agregar día</button>
-                            </span>
-                        </div>
-                        <table class="w-full text-xs">
-                            <thead>
-                                <tr class="text-slate-500 text-left">
-                                    <th class="py-1 pr-2 font-medium">Día</th><th class="py-1 pr-2 font-medium">Entrada</th>
-                                    <th class="py-1 pr-2 font-medium">Salida</th><th class="py-1 pr-2 font-medium">Receso</th>
-                                    <th class="py-1 pr-2 font-medium text-right">Horas netas</th><th class="w-6"></th>
-                                </tr>
-                            </thead>
-                            <tbody id="empHorarioBody"></tbody>
-                        </table>
-                        <p class="text-[11px] text-slate-500 mt-2">Cada día se elige una sola vez. Si la salida es menor que la entrada, el turno cruza la medianoche. <span id="empHorarioTotal" class="text-slate-300 font-semibold"></span></p>
-                    </div>` : ''}
-                    <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 flex justify-between items-center">
-                        <span class="text-xs text-slate-400">Costo por hora calculado</span>
-                        <span id="empCostoHoraPreview" class="font-mono text-lg font-bold text-emerald-400">$0.00</span>
-                    </div>
-                    <div class="flex items-center gap-3 pt-2">
+
+                    <div class="flex items-center gap-3 pt-1">
                         <button type="submit" id="btnGuardarEmpleado" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-4 rounded-lg text-sm shadow-lg">
                             💾 Guardar Empleado
                         </button>
@@ -352,60 +354,58 @@ export async function cargarModuloEmpleados() {
     document.getElementById('empSueldo').oninput = actualizarPreviewCostoHora;
     document.getElementById('empHoras').oninput = actualizarPreviewCostoHora;
 
-    // ---- Tabla de horario laboral ----
-    let horario = [];   // [{ dia, entrada, salida, receso_min }]
-    const selHtml = (c, opciones, actual) => `<select data-c="${c}" data-sin-buscador class="w-full bg-slate-900 border border-slate-700 rounded-md px-1.5 py-1 text-xs text-slate-100">${opciones}</select>`;
+    // ---- Tabla de horario laboral: siempre los 7 días; cada uno «Labora» o «Descanso» ----
+    let horario = [];   // solo los días que se laboran: [{ dia, entrada, salida, receso_min }]
+    const selHtml = (c, opciones, off = false) => `<select data-c="${c}" data-sin-buscador ${off ? 'disabled' : ''} class="w-full bg-slate-900 border border-slate-700 rounded-md px-1.5 py-1 text-xs text-slate-100 ${off ? 'opacity-50' : ''}">${opciones}</select>`;
+    const horarioPorDefecto = () => {
+        const ref = horario[horario.length - 1];
+        return { entrada: ref ? ref.entrada : '08:00', salida: ref ? ref.salida : '17:00', receso_min: ref ? ref.receso_min : 60 };
+    };
     function renderHorario() {
         const body = document.getElementById('empHorarioBody');
         if (!body) return;
-        horario.sort((a, b) => a.dia - b.dia);
-        const usados = new Set(horario.map((h) => h.dia));
-        body.innerHTML = horario.length ? horario.map((h, i) => {
+        body.innerHTML = DIAS_SEMANA.map((d) => {
+            const h = horario.find((x) => x.dia === d.n);
+            const labora = !!h;
             const opHora = (v) => HORAS_24.concat(HORAS_24.includes(v) ? [] : [v]).map((x) => `<option value="${x}" ${x === v ? 'selected' : ''}>${x}</option>`).join('');
-            const recesos = RECESOS_MIN.includes(Number(h.receso_min)) ? RECESOS_MIN : [...RECESOS_MIN, Number(h.receso_min)].sort((a, b) => a - b);
-            return `<tr data-i="${i}" class="border-t border-slate-800">
-                <td class="py-1 pr-2">${selHtml('dia', DIAS_SEMANA.map((d) => `<option value="${d.n}" ${d.n === h.dia ? 'selected' : ''} ${usados.has(d.n) && d.n !== h.dia ? 'disabled' : ''}>${d.t}</option>`).join(''))}</td>
-                <td class="py-1 pr-2">${selHtml('entrada', opHora(h.entrada))}</td>
-                <td class="py-1 pr-2">${selHtml('salida', opHora(h.salida))}</td>
-                <td class="py-1 pr-2">${selHtml('receso_min', recesos.map((m) => `<option value="${m}" ${m === Number(h.receso_min) ? 'selected' : ''}>${textoReceso(m)}</option>`).join(''))}</td>
-                <td class="py-1 pr-2 text-right font-mono ${h.entrada === h.salida ? 'text-rose-400' : 'text-slate-300'}">${(minutosTurno(h) / 60).toFixed(2)} h</td>
-                <td class="py-1 text-center"><button type="button" data-quitar class="text-slate-500 hover:text-rose-400" title="Quitar este día">✕</button></td>
+            const recesos = !labora || RECESOS_MIN.includes(Number(h.receso_min)) ? RECESOS_MIN : [...RECESOS_MIN, Number(h.receso_min)].sort((a, b) => a - b);
+            return `<tr data-dia="${d.n}" class="border-t border-slate-800 ${labora ? '' : 'text-slate-500'}">
+                <td class="py-1 pr-2 font-medium ${labora ? 'text-slate-200' : ''}">${d.t}</td>
+                <td class="py-1 pr-2">${selHtml('estado', `<option value="labora" ${labora ? 'selected' : ''}>Labora</option><option value="descanso" ${labora ? '' : 'selected'}>Descanso</option>`)}</td>
+                <td class="py-1 pr-2">${labora ? selHtml('entrada', opHora(h.entrada)) : selHtml('entrada', '<option>—</option>', true)}</td>
+                <td class="py-1 pr-2">${labora ? selHtml('salida', opHora(h.salida)) : selHtml('salida', '<option>—</option>', true)}</td>
+                <td class="py-1 pr-2">${labora
+                    ? selHtml('receso_min', recesos.map((m) => `<option value="${m}" ${m === Number(h.receso_min) ? 'selected' : ''}>${textoReceso(m)}</option>`).join(''))
+                    : selHtml('receso_min', '<option>No aplica</option>', true)}</td>
+                <td class="py-1 pr-2 text-right font-mono ${labora && h.entrada === h.salida ? 'text-rose-400' : labora ? 'text-slate-300' : ''}">${labora ? (minutosTurno(h) / 60).toFixed(2) + ' h' : '—'}</td>
             </tr>`;
-        }).join('') : `<tr><td colspan="6" class="py-2 text-slate-500 italic">Sin días capturados: usa «＋ Agregar día» o el atajo Lun–Vie.</td></tr>`;
+        }).join('');
         const total = horario.reduce((a, h) => a + minutosTurno(h), 0) / 60;
         const totEl = document.getElementById('empHorarioTotal');
-        if (totEl) totEl.textContent = horario.length ? `Total semanal: ${total.toFixed(2)} h en ${horario.length} día(s) — se usa como «Horas semanales».` : '';
-        const btnAdd = document.getElementById('empHorarioAgregar');
-        if (btnAdd) btnAdd.disabled = horario.length >= 7;
+        if (totEl) totEl.textContent = horario.length ? `Total semanal: ${total.toFixed(2)} h en ${horario.length} día(s) — se usa como «Horas semanales».` : 'Sin días laborados capturados.';
         if (horario.length) { document.getElementById('empHoras').value = total.toFixed(2); actualizarPreviewCostoHora(); }
     }
-    if (hayHorario) {
-        document.getElementById('empHorarioBody').addEventListener('change', (ev) => {
-            const tr = ev.target.closest('tr[data-i]');
-            const c = ev.target.dataset.c;
-            if (!tr || !c) return;
-            const h = horario[Number(tr.dataset.i)];
-            h[c] = c === 'entrada' || c === 'salida' ? ev.target.value : Number(ev.target.value);
-            renderHorario();
-        });
-        document.getElementById('empHorarioBody').addEventListener('click', (ev) => {
-            if (!ev.target.closest('[data-quitar]')) return;
-            horario.splice(Number(ev.target.closest('tr[data-i]').dataset.i), 1);
-            renderHorario();
-        });
-        document.getElementById('empHorarioAgregar').onclick = () => {
-            const libre = DIAS_SEMANA.find((d) => !horario.some((h) => h.dia === d.n));
-            if (!libre) return;
-            const ref = horario[horario.length - 1];
-            horario.push({ dia: libre.n, entrada: ref ? ref.entrada : '08:00', salida: ref ? ref.salida : '17:00', receso_min: ref ? ref.receso_min : 60 });
-            renderHorario();
-        };
-        document.getElementById('empHorarioPreset').onclick = () => {
-            horario = [1, 2, 3, 4, 5].map((n) => ({ dia: n, entrada: '08:00', salida: '17:00', receso_min: 60 }));
-            renderHorario();
-        };
+    document.getElementById('empHorarioBody').addEventListener('change', (ev) => {
+        const tr = ev.target.closest('tr[data-dia]');
+        const c = ev.target.dataset.c;
+        if (!tr || !c) return;
+        const dia = Number(tr.dataset.dia);
+        if (c === 'estado') {
+            if (ev.target.value === 'labora') { if (!horario.some((x) => x.dia === dia)) horario.push({ dia, ...horarioPorDefecto() }); }
+            else horario = horario.filter((x) => x.dia !== dia);
+        } else {
+            const h = horario.find((x) => x.dia === dia);
+            if (!h) return;
+            h[c] = c === 'receso_min' ? Number(ev.target.value) : ev.target.value;
+        }
+        horario.sort((x, y) => x.dia - y.dia);
         renderHorario();
-    }
+    });
+    document.getElementById('empHorarioPreset').onclick = () => {
+        horario = [1, 2, 3, 4, 5].map((n) => ({ dia: n, entrada: '08:00', salida: '17:00', receso_min: 60 }));
+        renderHorario();
+    };
+    renderHorario();
 
     async function cargarLista() {
         const cont = document.getElementById('listaEmpleados');
@@ -475,7 +475,7 @@ export async function cargarModuloEmpleados() {
                 document.getElementById('empNss').value = emp.nss || '';
                 document.getElementById('empSueldo').value = emp.sueldo_semanal;
                 document.getElementById('empHoras').value = emp.horas_semanales;
-                if (hayHorario) {
+                {
                     horario = (Array.isArray(emp.horario_laboral) ? emp.horario_laboral : [])
                         .map((h) => ({ dia: Number(h.dia), entrada: h.entrada, salida: h.salida, receso_min: Number(h.receso_min) || 0 }));
                     renderHorario();
@@ -511,7 +511,7 @@ export async function cargarModuloEmpleados() {
         document.getElementById('formEmpleado').reset();
         document.getElementById('empIdEditando').value = '';
         document.getElementById('empHoras').value = 48;
-        if (hayHorario) { horario = []; renderHorario(); }
+        horario = []; renderHorario();
         document.getElementById('btnCancelarEdicionEmp').classList.add('hidden');
         document.getElementById('btnGuardarEmpleado').textContent = '💾 Guardar Empleado';
         if (hayEstructura) {
