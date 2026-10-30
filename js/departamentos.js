@@ -54,7 +54,10 @@ export async function cargarModuloDepartamentos() {
         ? emps.find((e) => e.activo && e.departamento_id === d.id && e.rol_departamento === 'responsable') || null
         : (d.responsable_id ? empDe(d.responsable_id) : null);
 
-    const opcionesEmp = emps.filter((e) => e.activo).map((e) => `<option value="${e.id}">${esc(e.nombre)}${e.puesto ? ' — ' + esc(e.puesto) : ''}</option>`).join('');
+    // Con la jerarquía/rol, solo se ofrecen quienes en su plantilla de empleado están marcados como «Responsable de Departamento».
+    const etiquetaResp = (e) => `${e.nombre}${e.puesto ? ' — ' + e.puesto : ''}${e.departamento_id && depDe(e.departamento_id) ? ' · ' + depDe(e.departamento_id).nombre : ''}`;
+    const opcionesEmp = emps.filter((e) => e.activo && (!hayJerarquia || e.rol_departamento === 'responsable'))
+        .map((e) => `<option value="${e.id}">${esc(etiquetaResp(e))}</option>`).join('');
     const opcionesCentro = centros.map((c) => `<option value="${c.id}">${esc(c.codigo)} · ${esc(c.nombre)}</option>`).join('');
     const selectTipo = (id) => `<select id="${id}" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                   <option value="">(sin definir)</option>
@@ -100,7 +103,7 @@ export async function cargarModuloDepartamentos() {
                 <select id="depResp" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                   <option value="">(sin asignar)</option>${opcionesEmp}
                 </select>
-                ${hayJerarquia ? `<p class="text-[11px] text-slate-500 mt-1">Al guardar, esta persona queda en su plantilla de empleado como «Responsable de Departamento» de este departamento. ¿No está? Elige «Crear y editar…» al final de la lista.</p>` : ''}
+                ${hayJerarquia ? `<p class="text-[11px] text-slate-500 mt-1">Solo aparecen quienes están marcados como «Responsable de Departamento» en su plantilla de empleado. ¿No está? Elige «Crear y editar…»: se abre la plantilla de Empleados (puedes crear uno nuevo o editar a alguien de su lista y marcarlo como Responsable).</p>` : ''}
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-400 mb-1">CENTRO DE COSTO (opcional)</label>
@@ -215,12 +218,16 @@ export async function cargarModuloDepartamentos() {
             if (!data) return;
             const i = emps.findIndex((e) => e.id === data.id);
             if (i >= 0) emps[i] = data; else emps.push(data);
-            if (![...select.options].some((o) => o.value === String(data.id))) select.add(new Option(data.nombre + (data.puesto ? ' — ' + data.puesto : ''), data.id));
+            if (hayJerarquia && (!data.activo || data.rol_departamento !== 'responsable')) {
+                alert(`${data.nombre} no está marcado como «Responsable de Departamento» en su plantilla de empleado, por eso no se puede elegir aquí. Edítalo en Empleados (Rol en el departamento) y vuelve a intentar.`);
+                return;
+            }
+            if (![...select.options].some((o) => o.value === String(data.id))) select.add(new Option(etiquetaResp(data), data.id));
             select.value = String(data.id);
             select.dispatchEvent(new Event('change', { bubbles: true }));
         },
     });
-    convertirEnBuscador($('depResp'), { placeholder: 'Elegir Empleado', crear: abrirCrearEmpleado });
+    convertirEnBuscador($('depResp'), { placeholder: 'Elegir Empleado', crear: abrirCrearEmpleado, crearVacio: true });
 
     if (hayJerarquia) {
         pintarOpcionesPadre(null, null);

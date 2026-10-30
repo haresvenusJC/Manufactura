@@ -17,7 +17,8 @@ const normalizar = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const MAX_VISIBLES = 80;
 
-export function convertirEnBuscador(select, { placeholder = 'Escribe para buscar…', crear = null } = {}) {
+export function convertirEnBuscador(select, { placeholder = 'Escribe para buscar…', crear = null, crearVacio = false } = {}) {
+    // crearVacio: muestra «Crear y editar…» aunque aún no se haya escrito nada (útil cuando la lista puede estar vacía).
     // crear: (texto, select) => void — si viene, al final de la lista aparece «Crear y editar…» (estilo Odoo).
     if (!select || select.dataset.buscador === '1') return null;
     select.dataset.buscador = '1';
@@ -79,14 +80,14 @@ export function convertirEnBuscador(select, { placeholder = 'Escribe para buscar
         const todas = opciones().filter((o) => palabras.every((p) => o.norm.includes(p)));
         visibles = todas.slice(0, MAX_VISIBLES);
         const textoCrear = String(texto ?? '').trim();
-        if (crear && textoCrear.length >= 2) visibles.push({ crear: true, texto: textoCrear });
+        if (crear && (textoCrear.length >= 2 || (crearVacio && !textoCrear))) visibles.push({ crear: true, texto: textoCrear });
         activo = visibles.length ? 0 : -1;
         if (!visibles.length) {
             lista.innerHTML = '<div class="px-3 py-2 text-slate-500 text-xs italic">Sin resultados.</div>';
             return;
         }
         lista.innerHTML = visibles.map((o, i) => o.crear
-            ? `<div role="option" data-i="${i}" class="bs-op px-3 py-2 cursor-pointer text-sky-300 border-t border-slate-700 ${i === activo ? 'bg-slate-800' : ''}">➕ Crear y editar «${esc(o.texto)}»…</div>`
+            ? `<div role="option" data-i="${i}" class="bs-op px-3 py-2 cursor-pointer text-sky-300 border-t border-slate-700 ${i === activo ? 'bg-slate-800' : ''}">➕ Crear y editar${o.texto ? ` «${esc(o.texto)}»` : ''}…</div>`
             : `<div role="option" data-i="${i}" class="bs-op px-3 py-2 cursor-pointer text-slate-100 ${i === activo ? 'bg-slate-800' : ''}">${esc(o.texto)}</div>`).join('')
             + (todas.length > MAX_VISIBLES ? `<div class="px-3 py-1.5 text-[11px] text-slate-500 border-t border-slate-800">Mostrando ${MAX_VISIBLES} de ${todas.length}: sigue escribiendo para acotar.</div>` : '');
     };
