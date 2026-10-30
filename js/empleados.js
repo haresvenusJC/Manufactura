@@ -12,6 +12,9 @@ export async function cargarModuloEmpleados() {
     // (selector fijo, sin Gerente ni foto) y avisa qué falta.
     const resDeps = await supabaseClient.from('departamentos').select('id, nombre, responsable_id').eq('activo', true).order('nombre');
     const hayEstructura = !resDeps.error;
+    // Rol en el departamento (Responsable / Colaborador): requiere sql/2026-10-30_departamento_superior_rol.sql.
+    const hayRol = hayEstructura && !(await supabaseClient.from('empleados').select('rol_departamento').limit(1)).error;
+    const ROL_LABEL = { responsable: 'Responsable de Departamento', colaborador: 'Colaborador de Departamento' };
     const departamentos = hayEstructura ? (resDeps.data || []) : [];
     let empleadosCache = [];
 
@@ -75,6 +78,16 @@ export async function cargarModuloEmpleados() {
                             <input type="date" id="empFechaIngreso" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                         </div>`}
                     </div>
+                    ${hayRol ? `
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">ROL EN EL DEPARTAMENTO</label>
+                        <select id="empRol" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                            <option value="">(sin departamento)</option>
+                            <option value="colaborador">${ROL_LABEL.colaborador}</option>
+                            <option value="responsable">${ROL_LABEL.responsable}</option>
+                        </select>
+                        <p id="empRolHint" class="text-[11px] text-slate-500 mt-1">«Responsable» es quien dirige el departamento (solo uno). El puesto de arriba es texto libre y solo describe, p. ej. «Jefe de Contabilidad».</p>
+                    </div>` : hayEstructura ? `<p class="text-[11px] text-amber-300">Falta correr <span class="font-mono">sql/2026-10-30_departamento_superior_rol.sql</span> para elegir si es Responsable o Colaborador del departamento.</p>` : ''}
                     ${hayEstructura ? `
                     <div>
                         <label class="block text-xs font-medium text-slate-400 mb-1">FECHA DE INGRESO (opcional)</label>
@@ -192,7 +205,23 @@ export async function cargarModuloEmpleados() {
             hint.textContent = 'Su jefe directo. Vacío = cabeza de la organización.';
         }
     }
-    if (hayEstructura) document.getElementById('empDepartamento').onchange = sugerirGerenteDelDepartamento;
+    // Rol: al elegir departamento queda «Colaborador» si estaba vacío; sin departamento no hay rol.
+    // Avisa quién es hoy el responsable del departamento elegido.
+    function actualizarRol() {
+        const selRol = document.getElementById('empRol');
+        if (!selRol) return;
+        const depId = Number(document.getElementById('empDepartamento').value) || null;
+        const hint = document.getElementById('empRolHint');
+        if (!depId) { selRol.value = ''; selRol.disabled = true; return; }
+        selRol.disabled = false;
+        if (!selRol.value) selRol.value = 'colaborador';
+        const idEditando = Number(document.getElementById('empIdEditando').value) || null;
+        const actual = empleadosCache.find((e) => e.activo && e.id !== idEditando && e.departamento_id === depId && e.rol_departamento === 'responsable');
+        if (hint) hint.textContent = actual
+            ? `Hoy el responsable de este departamento es ${actual.nombre}. Si marcas «Responsable» aquí, ${actual.nombre} pasará a Colaborador.`
+            : 'Este departamento aún no tiene responsable. El puesto es texto libre y solo describe, p. ej. «Jefe de Contabilidad».';
+    }
+    if (hayEstructura) document.getElementById('empDepartamento').onchange = () => { sugerirGerenteDelDepartamento(); actualizarRol(); };
 
     function actualizarPreviewCostoHora() {
         const sueldo = parseFloat(document.getElementById('empSueldo').value) || 0;
@@ -229,7 +258,7 @@ export async function cargarModuloEmpleados() {
                     ${hayEstructura ? avatarHtml(emp.nombre, urls.get(emp.foto_path), 40) : ''}
                     <div class="min-w-0">
                         <p class="text-sm font-semibold text-slate-200">${esc(emp.nombre)} ${!emp.activo ? '<span class="text-[10px] text-rose-400">(inactivo)</span>' : ''}</p>
-                        <p class="text-[11px] text-slate-500">${esc(emp.puesto || 'Sin puesto')}${emp.departamento ? ' · ' + esc(emp.departamento) : ''} · $${Number(emp.sueldo_semanal).toFixed(2)}/sem · ${Number(emp.horas_semanales)} hrs/sem</p>
+                        <p class="text-[11px] text-slate-500">${esc(emp.puesto || 'Sin puesto')}${emp.departamento ? ' · ' + esc(emp.departamento) : ''}${hayRol && emp.departamento_id && emp.rol_departamento ? ' · <span class="' + (emp.rol_departamento === 'responsable' ? 'text-emerald-400' : 'text-slate-400') + '">' + ROL_LABEL[emp.rol_departamento] + '</span>' : ''} · $${Number(emp.sueldo_semanal).toFixed(2)}/sem · ${Number(emp.horas_semanales)} hrs/sem</p>
                         ${hayEstructura ? `<p class="text-[11px] text-slate-500">${emp.gerente_id && nombreDe(emp.gerente_id) ? 'Gerente: ' + esc(nombreDe(emp.gerente_id)) : 'Sin gerente (cabeza de la organización)'}</p>` : ''}
                         <p class="text-[11px] mt-0.5 ${emp.pin_hash ? 'text-emerald-500' : 'text-amber-500'}">${emp.pin_hash ? 'PIN móvil ✓' : 'Sin PIN móvil'}${emp.patron_hash ? ' · Patrón ✓' : ''}</p>
                     </div>
@@ -273,6 +302,7 @@ export async function cargarModuloEmpleados() {
                 document.getElementById('empHoras').value = emp.horas_semanales;
                 if (hayEstructura) {
                     pintarOpcionesGerente(emp.id, emp.gerente_id);
+                    if (hayRol) { document.getElementById('empRol').value = emp.rol_departamento || ''; actualizarRol(); }
                     const hint = document.getElementById('empGerenteHint');
                     if (hint) hint.textContent = 'Su jefe directo. Vacío = cabeza de la organización.';
                     fotoNueva = null; fotoQuitar = false;
@@ -307,6 +337,7 @@ export async function cargarModuloEmpleados() {
             fotoNueva = null; fotoQuitar = false; fotoRutaActual = null; fotoUrlActual = null;
             pintarOpcionesGerente(null, null);
             pintarVistaFoto('');
+            actualizarRol();
         }
         actualizarPreviewCostoHora();
     }
@@ -332,6 +363,19 @@ export async function cargarModuloEmpleados() {
             registro.departamento_id = dep ? dep.id : null;
             registro.departamento = dep ? dep.nombre : null;   // el texto se conserva por compatibilidad
             registro.gerente_id = Number(document.getElementById('empGerente').value) || null;
+            if (hayRol) {
+                const rol = dep ? (document.getElementById('empRol').value || 'colaborador') : null;
+                registro.rol_departamento = rol;
+                // Solo un responsable por departamento: si ya hay otro, se confirma y pasa a Colaborador.
+                if (rol === 'responsable') {
+                    const otro = empleadosCache.find((x) => x.activo && x.id !== Number(idEditando || 0) && x.departamento_id === dep.id && x.rol_departamento === 'responsable');
+                    if (otro) {
+                        if (!confirm(`${otro.nombre} es hoy el Responsable de ${dep.nombre}. ¿Cambiarlo a Colaborador y dejar a este empleado como Responsable?`)) return;
+                        const { error: errOtro } = await supabaseClient.from('empleados').update({ rol_departamento: 'colaborador' }).eq('id', otro.id);
+                        if (errOtro) { alert('❌ No se pudo cambiar al responsable anterior: ' + errOtro.message); return; }
+                    }
+                }
+            }
         } else {
             registro.departamento = selDep.value || null;
         }
@@ -384,4 +428,5 @@ export async function cargarModuloEmpleados() {
     actualizarPreviewCostoHora();
     if (hayEstructura) pintarVistaFoto('');
     await cargarLista();
+    actualizarRol();
 }
