@@ -10,7 +10,7 @@ export async function cargarModuloEmpleados() {
 
     // Departamentos desde su tabla. Si la migración no se ha corrido, la pantalla funciona como antes
     // (selector fijo, sin Gerente ni foto) y avisa qué falta.
-    const resDeps = await supabaseClient.from('departamentos').select('id, nombre, responsable_id').eq('activo', true).order('nombre');
+    const resDeps = await supabaseClient.from('departamentos').select('*').eq('activo', true).order('nombre');
     const hayEstructura = !resDeps.error;
     // Rol en el departamento (Responsable / Colaborador): requiere sql/2026-10-30_departamento_superior_rol.sql.
     const hayRol = hayEstructura && !(await supabaseClient.from('empleados').select('rol_departamento').limit(1)).error;
@@ -188,20 +188,45 @@ export async function cargarModuloEmpleados() {
             .join('');
         sel.innerHTML = `<option value="">(ninguno: cabeza de la organización)</option>${opciones}`;
         sel.value = seleccionado ? String(seleccionado) : '';
+        sel.dataset.auto = '';
     }
 
-    // Como en Odoo: al elegir departamento, si aún no hay gerente, se sugiere el responsable del departamento.
+    // Homologación con Departamentos: el Gerente esperado sale de la jerarquía de departamentos.
+    //  · Colaborador → el responsable de su departamento.
+    //  · Responsable → el responsable del departamento superior más cercano que tenga uno.
+    function gerenteEsperado(depId, rol, idEditando) {
+        const dep = departamentos.find((d) => d.id === depId);
+        if (!dep) return null;
+        if (!hayRol) return dep.responsable_id && dep.responsable_id !== idEditando ? { id: dep.responsable_id, nombre: 'el responsable del departamento' } : null;
+        const respDe = (id) => empleadosCache.find((e) => e.activo && e.id !== idEditando && e.departamento_id === id && e.rol_departamento === 'responsable') || null;
+        if (rol !== 'responsable') return respDe(dep.id);
+        let p = dep.departamento_padre_id ? departamentos.find((d) => d.id === dep.departamento_padre_id) : null;
+        for (let n = 0; p && n < 20; n++) {
+            const r = respDe(p.id);
+            if (r) return r;
+            p = p.departamento_padre_id ? departamentos.find((d) => d.id === p.departamento_padre_id) : null;
+        }
+        return null;
+    }
+    // Sugerencia automática: se rellena si el Gerente está vacío o si lo puso esta misma sugerencia (nunca pisa una elección manual).
     function sugerirGerenteDelDepartamento() {
         const selDep = document.getElementById('empDepartamento');
         const selGer = document.getElementById('empGerente');
         const hint = document.getElementById('empGerenteHint');
         if (!selGer || !hayEstructura) return;
-        const dep = departamentos.find((d) => String(d.id) === selDep.value);
         const idEditando = Number(document.getElementById('empIdEditando').value) || null;
-        if (dep && dep.responsable_id && dep.responsable_id !== idEditando && !selGer.value) {
-            selGer.value = String(dep.responsable_id);
-            if (hint) hint.textContent = 'Sugerido: el responsable del departamento. Puedes cambiarlo.';
-        } else if (hint) {
+        const rol = document.getElementById('empRol')?.value || 'colaborador';
+        const esperado = selDep.value ? gerenteEsperado(Number(selDep.value) || selDep.value, rol, idEditando) : null;
+        if (esperado && (!selGer.value || selGer.dataset.auto === '1')) {
+            selGer.value = String(esperado.id);
+            selGer.dataset.auto = '1';
+            if (hint) hint.textContent = rol === 'responsable'
+                ? 'Sugerido: el responsable del departamento superior. Puedes cambiarlo.'
+                : 'Sugerido: el responsable de su departamento. Puedes cambiarlo.';
+        } else if (!esperado && selGer.dataset.auto === '1') {
+            selGer.value = ''; selGer.dataset.auto = '';
+            if (hint) hint.textContent = 'Su jefe directo. Vacío = cabeza de la organización.';
+        } else if (hint && !selGer.dataset.auto) {
             hint.textContent = 'Su jefe directo. Vacío = cabeza de la organización.';
         }
     }
@@ -221,7 +246,13 @@ export async function cargarModuloEmpleados() {
             ? `Hoy el responsable de este departamento es ${actual.nombre}. Si marcas «Responsable» aquí, ${actual.nombre} pasará a Colaborador.`
             : 'Este departamento aún no tiene responsable. El puesto es texto libre y solo describe, p. ej. «Jefe de Contabilidad».';
     }
-    if (hayEstructura) document.getElementById('empDepartamento').onchange = () => { sugerirGerenteDelDepartamento(); actualizarRol(); };
+    if (hayEstructura) {
+        document.getElementById('empDepartamento').onchange = () => { actualizarRol(); sugerirGerenteDelDepartamento(); };
+        const selRolEl = document.getElementById('empRol');
+        if (selRolEl) selRolEl.onchange = sugerirGerenteDelDepartamento;
+        // Si la persona elige el Gerente a mano, la sugerencia automática ya no lo toca.
+        document.getElementById('empGerente').addEventListener('change', (ev) => { if (ev.isTrusted) ev.target.dataset.auto = ''; });
+    }
 
     function actualizarPreviewCostoHora() {
         const sueldo = parseFloat(document.getElementById('empSueldo').value) || 0;

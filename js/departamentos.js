@@ -25,7 +25,7 @@ export async function cargarModuloDepartamentos() {
     // Todo en paralelo: lo que la pantalla muestra y los selectores del formulario
     const [resDeps, resEmpsRol, resCentros, resProbe] = await Promise.all([
         supabaseClient.from('departamentos').select('*').order('nombre'),
-        supabaseClient.from('empleados').select('id, nombre, puesto, activo, departamento_id, foto_path, rol_departamento').order('nombre'),
+        supabaseClient.from('empleados').select('id, nombre, puesto, activo, departamento_id, foto_path, rol_departamento, gerente_id').order('nombre'),
         supabaseClient.from('centros_costo').select('id, codigo, nombre').order('codigo'),
         supabaseClient.from('departamentos').select('departamento_padre_id').limit(1),
     ]);
@@ -39,7 +39,7 @@ export async function cargarModuloDepartamentos() {
     // Sin la migración del 30-oct la pantalla funciona como antes (sin superior y con el selector de responsable).
     const hayJerarquia = !resProbe.error && !resEmpsRol.error;
     const resEmps = resEmpsRol.error
-        ? await supabaseClient.from('empleados').select('id, nombre, puesto, activo, departamento_id, foto_path').order('nombre')
+        ? await supabaseClient.from('empleados').select('id, nombre, puesto, activo, departamento_id, foto_path, gerente_id').order('nombre')
         : resEmpsRol;
     const deps = resDeps.data || [];
     const emps = resEmps.data || [];
@@ -75,7 +75,7 @@ export async function cargarModuloDepartamentos() {
             <div>
               <label class="block text-xs font-medium text-slate-400 mb-1">DEPARTAMENTO SUPERIOR (si cuelga de otro)</label>
               <select id="depPadre" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select>
-              <p id="depPadreHint" class="text-[11px] text-slate-500 mt-1">Vacío = departamento de primer nivel. Al elegir uno, este hereda su tipo y centro de costo (los puedes cambiar).</p>
+              <p id="depPadreHint" class="text-[11px] text-slate-500 mt-1">Vacío = departamento de primer nivel. Elegir un superior solo ubica a este departamento en el árbol; no le copia datos.</p>
             </div>` : ''}
             <div class="grid grid-cols-2 gap-4">
               <div>
@@ -91,7 +91,7 @@ export async function cargarModuloDepartamentos() {
             <div>
               <label class="block text-xs font-medium text-slate-400 mb-1">SUBDEPARTAMENTO (si tiene: escribe su nombre)</label>
               <input type="text" id="depSub" placeholder="p. ej. Cuentas por pagar" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-              <p class="text-[11px] text-slate-500 mt-1">Al guardar se crea como hijo de este departamento, con su mismo tipo y centro de costo. Para varios, guarda y repite.</p>
+              <p class="text-[11px] text-slate-500 mt-1">Al guardar se crea como hijo de este departamento y HEREDA su tipo y centro de costo. Para varios, guarda y repite.</p>
             </div>` : ''}
             <div class="grid grid-cols-2 gap-4">
               <div>
@@ -123,6 +123,7 @@ export async function cargarModuloDepartamentos() {
 
         <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
           <h3 class="text-sm font-bold text-slate-200 mb-3">Departamentos registrados</h3>
+          <div id="depHomologa"></div>
           <div id="depLista" class="space-y-3"></div>
         </div>
       </div>`;
@@ -208,13 +209,6 @@ export async function cargarModuloDepartamentos() {
     if (hayJerarquia) {
         pintarOpcionesPadre(null, null);
         convertirEnBuscador($('depPadre'), { placeholder: 'Elija uno', crear: abrirCrearDepartamento });
-        // Hijo: hereda del superior tipo y centro de costo (solo prellena lo que esté vacío al crear uno nuevo)
-        $('depPadre').addEventListener('change', () => {
-            const p = depDe(Number($('depPadre').value));
-            if (!p || $('depId').value) return;
-            if (!$('depTipo').value && p.tipo) $('depTipo').value = p.tipo;
-            if (!$('depCentro').value && p.centro_costo_id) $('depCentro').value = String(p.centro_costo_id);
-        });
     }
 
     // ---- Lista jerárquica ------------------------------------------------------------------------
@@ -234,7 +228,51 @@ export async function cargarModuloDepartamentos() {
         return salida;
     }
 
+    // Homologación con Empleados: el Gerente esperado de cada persona sale de la jerarquía de departamentos.
+    //  · Colaborador de un departamento → el responsable de ese departamento.
+    //  · Responsable de un departamento → el responsable del departamento superior más cercano que tenga uno.
+    function gerenteEsperado(e) {
+        if (!hayJerarquia || !e.departamento_id) return null;
+        const respDe = (depId) => emps.find((x) => x.activo && x.id !== e.id && x.departamento_id === depId && x.rol_departamento === 'responsable') || null;
+        const d = depDe(e.departamento_id);
+        if (!d) return null;
+        if (e.rol_departamento !== 'responsable') return respDe(d.id);
+        let p = d.departamento_padre_id ? depDe(d.departamento_padre_id) : null;
+        for (let n = 0; p && n < 20; n++) {
+            const r = respDe(p.id);
+            if (r) return r;
+            p = p.departamento_padre_id ? depDe(p.departamento_padre_id) : null;
+        }
+        return null;
+    }
+    function pintarHomologacion() {
+        const cont = $('depHomologa');
+        if (!cont || !hayJerarquia) return;
+        const difieren = emps.filter((e) => {
+            if (!e.activo) return false;
+            const g = gerenteEsperado(e);
+            return g && e.gerente_id !== g.id;
+        });
+        if (!difieren.length) { cont.innerHTML = ''; return; }
+        cont.innerHTML = `
+          <div class="bg-amber-950/40 border border-amber-900/60 rounded-lg p-3 mb-3 text-[11px] text-amber-200">
+            <p class="font-semibold mb-1">⚠ ${difieren.length} empleado(s) con Gerente distinto al que marca la jerarquía de departamentos</p>
+            <ul class="mb-2 space-y-0.5">${difieren.map((e) => `<li>${esc(e.nombre)}: ${e.gerente_id && empDe(e.gerente_id) ? esc(empDe(e.gerente_id).nombre) : 'sin gerente'} → <b>${esc(gerenteEsperado(e).nombre)}</b></li>`).join('')}</ul>
+            <button type="button" id="depHomologar" class="bg-amber-600 hover:bg-amber-500 text-white font-semibold py-1 px-3 rounded-lg text-xs">Homologar Gerentes</button>
+          </div>`;
+        $('depHomologar').onclick = async () => {
+            const fallos = [];
+            for (const e of difieren) {
+                const { error } = await supabaseClient.from('empleados').update({ gerente_id: gerenteEsperado(e).id }).eq('id', e.id);
+                if (error) fallos.push(`${e.nombre}: ${error.message}`);
+            }
+            if (fallos.length) alert('Algunos no se pudieron homologar:\n' + fallos.join('\n'));
+            cargarModuloDepartamentos();
+        };
+    }
+
     function pintarLista() {
+        pintarHomologacion();
         const lista = $('depLista');
         if (!deps.length) { lista.innerHTML = `<p class="text-slate-500 text-xs italic">Todavía no hay departamentos.</p>`; return; }
         lista.innerHTML = enOrdenDeArbol().map(({ d, nivel }) => {
