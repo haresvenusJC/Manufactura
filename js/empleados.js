@@ -199,6 +199,7 @@ export async function cargarModuloEmpleados() {
                                 </thead>
                                 <tbody id="empHorarioBody"></tbody>
                             </table>
+                            <datalist id="empHoras24">${HORAS_24.map((h) => `<option value="${h}"></option>`).join('')}</datalist>
                             <p class="text-[11px] text-slate-500 mt-2">Los días en «Descanso» no cuentan. Si la salida es menor que la entrada, el turno cruza la medianoche. <span id="empHorarioTotal" class="text-slate-300 font-semibold"></span></p>
                         </div>
                         <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 flex justify-between items-center">
@@ -355,35 +356,68 @@ export async function cargarModuloEmpleados() {
     document.getElementById('empHoras').oninput = actualizarPreviewCostoHora;
 
     // ---- Tabla de horario laboral: siempre los 7 días; cada uno «Labora» o «Descanso» ----
+    // Las celdas se actualizan EN SITIO (nunca se reconstruye la tabla mientras se navega): reconstruirla al cambiar un
+    // valor destruía el campo enfocado y el Tab volvía a la primera celda. Entrada/Salida son campos con sugerencias:
+    // al teclear «9» o «930» ofrecen las horas cercanas y al salir se normalizan a HH:MM.
     let horario = [];   // solo los días que se laboran: [{ dia, entrada, salida, receso_min }]
-    const selHtml = (c, opciones, off = false) => `<select data-c="${c}" data-sin-buscador ${off ? 'disabled' : ''} class="w-full bg-slate-900 border border-slate-700 rounded-md px-1.5 py-1 text-xs text-slate-100 ${off ? 'opacity-50' : ''}">${opciones}</select>`;
+    const CLS_CAMPO = 'w-full bg-slate-900 border border-slate-700 rounded-md px-1.5 py-1 text-xs text-slate-100 disabled:opacity-50';
     const horarioPorDefecto = () => {
         const ref = horario[horario.length - 1];
         return { entrada: ref ? ref.entrada : '08:00', salida: ref ? ref.salida : '17:00', receso_min: ref ? ref.receso_min : 60 };
     };
-    function renderHorario() {
-        const body = document.getElementById('empHorarioBody');
-        if (!body) return;
-        body.innerHTML = DIAS_SEMANA.map((d) => {
-            const h = horario.find((x) => x.dia === d.n);
-            const labora = !!h;
-            const opHora = (v) => HORAS_24.concat(HORAS_24.includes(v) ? [] : [v]).map((x) => `<option value="${x}" ${x === v ? 'selected' : ''}>${x}</option>`).join('');
-            const recesos = !labora || RECESOS_MIN.includes(Number(h.receso_min)) ? RECESOS_MIN : [...RECESOS_MIN, Number(h.receso_min)].sort((a, b) => a - b);
-            return `<tr data-dia="${d.n}" class="border-t border-slate-800 ${labora ? '' : 'text-slate-500'}">
-                <td class="py-1 pr-2 font-medium ${labora ? 'text-slate-200' : ''}">${d.t}</td>
-                <td class="py-1 pr-2">${selHtml('estado', `<option value="labora" ${labora ? 'selected' : ''}>Labora</option><option value="descanso" ${labora ? '' : 'selected'}>Descanso</option>`)}</td>
-                <td class="py-1 pr-2">${labora ? selHtml('entrada', opHora(h.entrada)) : selHtml('entrada', '<option>—</option>', true)}</td>
-                <td class="py-1 pr-2">${labora ? selHtml('salida', opHora(h.salida)) : selHtml('salida', '<option>—</option>', true)}</td>
-                <td class="py-1 pr-2">${labora
-                    ? selHtml('receso_min', recesos.map((m) => `<option value="${m}" ${m === Number(h.receso_min) ? 'selected' : ''}>${textoReceso(m)}</option>`).join(''))
-                    : selHtml('receso_min', '<option>No aplica</option>', true)}</td>
-                <td class="py-1 pr-2 text-right font-mono ${labora && h.entrada === h.salida ? 'text-rose-400' : labora ? 'text-slate-300' : ''}">${labora ? (minutosTurno(h) / 60).toFixed(2) + ' h' : '—'}</td>
-            </tr>`;
-        }).join('');
+    // «9» → 09:00 · «930» → 09:30 · «9:5» no vale · «1730» → 17:30; null si no es una hora válida
+    function normalizarHora(v) {
+        const t = String(v || '').trim();
+        let h, m;
+        let r;
+        if ((r = t.match(/^(\d{1,2}):(\d{2})$/))) { h = Number(r[1]); m = Number(r[2]); }
+        else if ((r = t.match(/^(\d{1,2})$/))) { h = Number(r[1]); m = 0; }
+        else if ((r = t.match(/^(\d{1,2})(\d{2})$/))) { h = Number(r[1]); m = Number(r[2]); }
+        else return null;
+        if (h > 23 || m > 59) return null;
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+    function opcionesReceso(valor) {
+        const lista = RECESOS_MIN.includes(valor) ? RECESOS_MIN : [...RECESOS_MIN, valor].sort((a, b) => a - b);
+        return lista.map((m) => `<option value="${m}">${textoReceso(m)}</option>`).join('');
+    }
+    function pintarFila(tr) {
+        const dia = Number(tr.dataset.dia);
+        const h = horario.find((x) => x.dia === dia);
+        const labora = !!h;
+        const q = (c) => tr.querySelector(`[data-c="${c}"]`);
+        q('estado').value = labora ? 'labora' : 'descanso';
+        const ent = q('entrada'), sal = q('salida'), rec = q('receso_min');
+        ent.disabled = sal.disabled = rec.disabled = !labora;
+        if (document.activeElement !== ent) ent.value = labora ? h.entrada : '';
+        if (document.activeElement !== sal) sal.value = labora ? h.salida : '';
+        if (labora && ![...rec.options].some((o) => Number(o.value) === Number(h.receso_min))) rec.insertAdjacentHTML('beforeend', `<option value="${Number(h.receso_min)}">${textoReceso(Number(h.receso_min))}</option>`);
+        rec.value = labora ? String(Number(h.receso_min)) : '0';
+        tr.classList.toggle('text-slate-500', !labora);
+        const net = tr.querySelector('[data-c="neto"]');
+        net.textContent = labora ? (minutosTurno(h) / 60).toFixed(2) + ' h' : '—';
+        net.classList.toggle('text-rose-400', labora && h.entrada === h.salida);
+    }
+    function actualizarTotalHorario() {
         const total = horario.reduce((a, h) => a + minutosTurno(h), 0) / 60;
         const totEl = document.getElementById('empHorarioTotal');
         if (totEl) totEl.textContent = horario.length ? `Total semanal: ${total.toFixed(2)} h en ${horario.length} día(s) — se usa como «Horas semanales».` : 'Sin días laborados capturados.';
         if (horario.length) { document.getElementById('empHoras').value = total.toFixed(2); actualizarPreviewCostoHora(); }
+    }
+    // Reconstrucción completa: SOLO al cargar, editar, limpiar o usar el atajo (nunca durante la captura).
+    function renderHorario() {
+        const body = document.getElementById('empHorarioBody');
+        if (!body) return;
+        body.innerHTML = DIAS_SEMANA.map((d) => `<tr data-dia="${d.n}" class="border-t border-slate-800">
+            <td class="py-1 pr-2 font-medium text-slate-200">${d.t}</td>
+            <td class="py-1 pr-2"><select data-c="estado" data-sin-buscador class="${CLS_CAMPO}"><option value="labora">Labora</option><option value="descanso">Descanso</option></select></td>
+            <td class="py-1 pr-2"><input type="text" data-c="entrada" list="empHoras24" maxlength="5" autocomplete="off" placeholder="—" class="${CLS_CAMPO} font-mono"></td>
+            <td class="py-1 pr-2"><input type="text" data-c="salida" list="empHoras24" maxlength="5" autocomplete="off" placeholder="—" class="${CLS_CAMPO} font-mono"></td>
+            <td class="py-1 pr-2"><select data-c="receso_min" data-sin-buscador class="${CLS_CAMPO}">${opcionesReceso(0)}</select></td>
+            <td data-c="neto" class="py-1 pr-2 text-right font-mono text-slate-300">—</td>
+        </tr>`).join('');
+        body.querySelectorAll('tr[data-dia]').forEach(pintarFila);
+        actualizarTotalHorario();
     }
     document.getElementById('empHorarioBody').addEventListener('change', (ev) => {
         const tr = ev.target.closest('tr[data-dia]');
@@ -393,13 +427,26 @@ export async function cargarModuloEmpleados() {
         if (c === 'estado') {
             if (ev.target.value === 'labora') { if (!horario.some((x) => x.dia === dia)) horario.push({ dia, ...horarioPorDefecto() }); }
             else horario = horario.filter((x) => x.dia !== dia);
+            horario.sort((x, y) => x.dia - y.dia);
         } else {
             const h = horario.find((x) => x.dia === dia);
             if (!h) return;
-            h[c] = c === 'receso_min' ? Number(ev.target.value) : ev.target.value;
+            if (c === 'receso_min') h.receso_min = Number(ev.target.value);
+            else {
+                const hora = normalizarHora(ev.target.value);
+                if (hora) h[c] = hora;           // si lo tecleado no es una hora válida se regresa a la anterior
+                ev.target.value = h[c];
+            }
         }
-        horario.sort((x, y) => x.dia - y.dia);
-        renderHorario();
+        pintarFila(tr);
+        actualizarTotalHorario();
+    });
+    // Enter en una hora la confirma (sin enviar el formulario completo)
+    document.getElementById('empHorarioBody').addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' && ev.target.matches('input[data-c]')) {
+            ev.preventDefault();
+            ev.target.dispatchEvent(new Event('change', { bubbles: true }));
+        }
     });
     document.getElementById('empHorarioPreset').onclick = () => {
         horario = [1, 2, 3, 4, 5].map((n) => ({ dia: n, entrada: '08:00', salida: '17:00', receso_min: 60 }));
