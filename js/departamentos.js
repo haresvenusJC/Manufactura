@@ -2,6 +2,7 @@ import { supabaseClient } from './supabase.js';
 import { avatarHtml, urlsFotos } from './fotos-personal.js';
 import { convertirEnBuscador } from './buscador-select.js';
 import { abrirAltaVinculada } from './vinculos.js';
+import { homologarGerentes } from './empleados.js';
 
 // =====================================================================
 //  Catálogos · Departamentos
@@ -423,6 +424,9 @@ export async function cargarModuloDepartamentos() {
                 }
             }
         }
+
+        // Con el responsable o la jerarquía cambiados, el Gerente de cada persona se rehomologa solo.
+        if (hayJerarquia) await homologarGerentes();
 
         // Subdepartamento: nace como hijo, con el tipo y el centro de costo de este departamento.
         if (nombreSub && idGuardado) {

@@ -5,6 +5,39 @@ import { comprimirFoto, subirFotoEmpleado, borrarFoto, urlsFotos, avatarHtml } f
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const DEPARTAMENTOS_ANTERIORES = ['Producción', 'Administración', 'Ventas', 'Almacén'];
 
+// Homologa el Gerente de todos con la jerarquía de departamentos (colaborador → responsable de su departamento;
+// responsable → responsable del departamento superior más cercano que tenga uno). Devuelve cuántos cambió.
+export async function homologarGerentes() {
+    const [rd, re] = await Promise.all([
+        supabaseClient.from('departamentos').select('id, departamento_padre_id').eq('activo', true),
+        supabaseClient.from('empleados').select('id, activo, departamento_id, rol_departamento, gerente_id'),
+    ]);
+    if (rd.error || re.error) return 0;
+    const deps = rd.data || [];
+    const emps = re.data || [];
+    const respDe = (depId, excluirId) => emps.find((x) => x.activo && x.id !== excluirId && x.departamento_id === depId && x.rol_departamento === 'responsable') || null;
+    let cambios = 0;
+    for (const e of emps) {
+        if (!e.activo || !e.departamento_id) continue;
+        let g = null;
+        if (e.rol_departamento === 'responsable') {
+            let d = deps.find((x) => x.id === e.departamento_id);
+            let p = d && d.departamento_padre_id ? deps.find((x) => x.id === d.departamento_padre_id) : null;
+            for (let n = 0; p && !g && n < 20; n++) {
+                g = respDe(p.id, e.id);
+                p = p.departamento_padre_id ? deps.find((x) => x.id === p.departamento_padre_id) : null;
+            }
+        } else {
+            g = respDe(e.departamento_id, e.id);
+        }
+        if (g && g.id !== e.gerente_id) {
+            const { error } = await supabaseClient.from('empleados').update({ gerente_id: g.id }).eq('id', e.id);
+            if (!error) cambios++;
+        }
+    }
+    return cambios;
+}
+
 // «Dirección › Finanzas › Cuentas por pagar»: así el empleado elige su departamento sin confundir subdepartamentos.
 function rutaDepartamentoDe(d, lista) {
     const partes = [d.nombre];
@@ -78,25 +111,23 @@ export async function cargarModuloEmpleados() {
                         </div>
                         ${hayEstructura ? `
                         <div>
-                            <label class="block text-xs font-medium text-slate-400 mb-1">GERENTE (opcional)</label>
-                            <select id="empGerente" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100"></select>
-                            <p id="empGerenteHint" class="text-[11px] text-slate-500 mt-1">Su jefe directo. Vacío = cabeza de la organización.</p>
+                            ${hayRol ? `
+                            <label class="block text-xs font-medium text-slate-400 mb-1">CARGO QUE OCUPA EN EL DEPARTAMENTO</label>
+                            <select id="empRol" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
+                                <option value="">(sin departamento)</option>
+                                <option value="colaborador">${ROL_LABEL.colaborador}</option>
+                                <option value="responsable">${ROL_LABEL.responsable}</option>
+                            </select>
+                            <p id="empRolHint" class="text-[11px] text-slate-500 mt-1">«Responsable» es quien dirige el departamento (solo uno). El puesto es texto libre y solo describe, p. ej. «Jefe de Contabilidad». Su jefe directo se asigna solo según la jerarquía de departamentos.</p>` : `
+                            <p class="text-[11px] text-amber-300">Falta correr <span class="font-mono">sql/2026-10-30_departamento_superior_rol.sql</span> para elegir el cargo en el departamento.</p>`}
+                            <select id="empGerente" class="hidden" data-sin-buscador></select>
+                            <p id="empGerenteHint" class="hidden"></p>
                         </div>` : `
                         <div>
                             <label class="block text-xs font-medium text-slate-400 mb-1">FECHA DE INGRESO (opcional)</label>
                             <input type="date" id="empFechaIngreso" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                         </div>`}
                     </div>
-                    ${hayRol ? `
-                    <div>
-                        <label class="block text-xs font-medium text-slate-400 mb-1">ROL EN EL DEPARTAMENTO</label>
-                        <select id="empRol" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
-                            <option value="">(sin departamento)</option>
-                            <option value="colaborador">${ROL_LABEL.colaborador}</option>
-                            <option value="responsable">${ROL_LABEL.responsable}</option>
-                        </select>
-                        <p id="empRolHint" class="text-[11px] text-slate-500 mt-1">«Responsable» es quien dirige el departamento (solo uno). El puesto de arriba es texto libre y solo describe, p. ej. «Jefe de Contabilidad».</p>
-                    </div>` : hayEstructura ? `<p class="text-[11px] text-amber-300">Falta correr <span class="font-mono">sql/2026-10-30_departamento_superior_rol.sql</span> para elegir si es Responsable o Colaborador del departamento.</p>` : ''}
                     ${hayEstructura ? `
                     <div>
                         <label class="block text-xs font-medium text-slate-400 mb-1">FECHA DE INGRESO (opcional)</label>
@@ -402,7 +433,10 @@ export async function cargarModuloEmpleados() {
             const dep = departamentos.find((d) => String(d.id) === selDep.value);
             registro.departamento_id = dep ? dep.id : null;
             registro.departamento = dep ? dep.nombre : null;   // el texto se conserva por compatibilidad
-            registro.gerente_id = Number(document.getElementById('empGerente').value) || null;
+            // El Gerente ya no se captura: sale de la jerarquía de departamentos (si no hay a quién asignar, se conserva el actual).
+            const rolParaGerente = hayRol ? (document.getElementById('empRol').value || 'colaborador') : 'colaborador';
+            const esperadoG = dep ? gerenteEsperado(dep.id, rolParaGerente, Number(idEditando || 0) || null) : null;
+            registro.gerente_id = esperadoG ? esperadoG.id : (Number(document.getElementById('empGerente').value) || null);
             if (hayRol) {
                 const rol = dep ? (document.getElementById('empRol').value || 'colaborador') : null;
                 registro.rol_departamento = rol;
@@ -462,6 +496,7 @@ export async function cargarModuloEmpleados() {
         }
 
         // Si se abrió desde otra pantalla («Crear y editar…» del Responsable de un departamento), se le devuelve este empleado.
+        if (hayRol) await homologarGerentes();
         if (empleadoId) avisarRegistroGuardado('empleado', empleadoId);
         resetFormulario();
         cargarLista();
