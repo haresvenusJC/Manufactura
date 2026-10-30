@@ -1,4 +1,5 @@
 import { supabaseClient } from './supabase.js';
+import { avisarRegistroGuardado } from './vinculos.js';
 import { comprimirFoto, subirFotoEmpleado, borrarFoto, urlsFotos, avatarHtml } from './fotos-personal.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -460,6 +461,8 @@ export async function cargarModuloEmpleados() {
             }
         }
 
+        // Si se abrió desde otra pantalla («Crear y editar…» del Responsable de un departamento), se le devuelve este empleado.
+        if (empleadoId) avisarRegistroGuardado('empleado', empleadoId);
         resetFormulario();
         cargarLista();
     };

@@ -13,6 +13,8 @@ const ENTIDADES = {
     producto: { vista: 'alta-articulo', titulo: 'Alta de artículo', campoNombre: 'prodNombre', nuevo: 'btnNuevoModo' },
     cliente: { vista: 'clientes', titulo: 'Clientes', campoNombre: 'cliNombre', nuevo: 'cliNuevo',
         cargar: async () => { const m = await import('./clientes.js'); await m.cargarModuloClientes('clientes'); } },
+    empleado: { vista: 'empleados', titulo: 'Empleados', campoNombre: 'empNombre', nuevo: 'btnCancelarEdicionEmp', conservarTitulo: true,
+        cargar: async () => { const m = await import('./empleados.js'); await m.cargarModuloEmpleados(); } },
     proveedor: { vista: 'proveedores', titulo: 'Proveedores', campoNombre: 'provNombre', nuevo: 'btnLimpiarProveedor' },
 };
 
@@ -57,7 +59,7 @@ export function abrirAltaVinculada(entidad, { nombre = '', onGuardado } = {}) {
     ov.querySelector('[data-cuerpo]').appendChild(seccion);
     seccion.classList.remove('hidden');
     // El título propio de la pantalla (y su botón de manual) sobra: la subventana ya trae el suyo.
-    const tituloPropio = seccion.firstElementChild && seccion.firstElementChild.querySelector('h2') ? seccion.firstElementChild : null;
+    const tituloPropio = !cfg.conservarTitulo && seccion.firstElementChild && seccion.firstElementChild.querySelector('h2') ? seccion.firstElementChild : null;
     const tituloEstabaOculto = tituloPropio ? tituloPropio.classList.contains('hidden') : false;
     tituloPropio?.classList.add('hidden');
 

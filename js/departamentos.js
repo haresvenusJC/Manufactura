@@ -1,6 +1,7 @@
 import { supabaseClient } from './supabase.js';
 import { avatarHtml, urlsFotos } from './fotos-personal.js';
 import { convertirEnBuscador } from './buscador-select.js';
+import { abrirAltaVinculada } from './vinculos.js';
 
 // =====================================================================
 //  Catálogos · Departamentos
@@ -96,12 +97,10 @@ export async function cargarModuloDepartamentos() {
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="block text-xs font-medium text-slate-400 mb-1">RESPONSABLE DEL DEPARTAMENTO</label>
-                ${hayJerarquia ? `
-                <input type="text" id="depRespTxt" readonly placeholder="Llenar" class="w-full bg-slate-950/60 border border-slate-800 rounded-lg p-2 text-sm text-slate-300 cursor-default">
-                <p class="text-[11px] text-slate-500 mt-1">Lo define Recursos Humanos en el empleado (rol «Responsable de Departamento»). <button type="button" onclick="window.loadView('empleados')" class="text-sky-400 hover:text-sky-300">Ir a Empleados</button></p>` : `
                 <select id="depResp" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100">
                   <option value="">(sin asignar)</option>${opcionesEmp}
-                </select>`}
+                </select>
+                ${hayJerarquia ? `<p class="text-[11px] text-slate-500 mt-1">Al guardar, esta persona queda en su plantilla de empleado como «Responsable de Departamento» de este departamento. ¿No está? Elige «Crear y editar…» al final de la lista.</p>` : ''}
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-400 mb-1">CENTRO DE COSTO (opcional)</label>
@@ -206,6 +205,23 @@ export async function cargarModuloDepartamentos() {
         };
     }
 
+    // Responsable: buscador de empleados; si no está, «Crear y editar…» abre la plantilla de Empleados y regresa con la persona elegida.
+    const abrirCrearEmpleado = (texto, select) => abrirAltaVinculada('empleado', {
+        nombre: texto,
+        onGuardado: async ({ id }) => {
+            const { data } = await supabaseClient.from('empleados')
+                .select(hayJerarquia ? 'id, nombre, puesto, activo, departamento_id, foto_path, gerente_id, rol_departamento' : 'id, nombre, puesto, activo, departamento_id, foto_path')
+                .eq('id', id).single();
+            if (!data) return;
+            const i = emps.findIndex((e) => e.id === data.id);
+            if (i >= 0) emps[i] = data; else emps.push(data);
+            if (![...select.options].some((o) => o.value === String(data.id))) select.add(new Option(data.nombre + (data.puesto ? ' — ' + data.puesto : ''), data.id));
+            select.value = String(data.id);
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+        },
+    });
+    convertirEnBuscador($('depResp'), { placeholder: 'Elegir Empleado', crear: abrirCrearEmpleado });
+
     if (hayJerarquia) {
         pintarOpcionesPadre(null, null);
         convertirEnBuscador($('depPadre'), { placeholder: 'Elija uno', crear: abrirCrearDepartamento });
@@ -308,7 +324,7 @@ export async function cargarModuloDepartamentos() {
                 if (hayJerarquia) {
                     pintarOpcionesPadre(d.id, d.departamento_padre_id);
                     const r = responsableDe(d);
-                    $('depRespTxt').value = r ? r.nombre + (r.puesto ? ' — ' + r.puesto : '') : '';
+                    $('depResp').value = r ? String(r.id) : '';
                     $('depSub').value = '';
                 } else {
                     $('depResp').value = d.responsable_id ? String(d.responsable_id) : '';
@@ -334,7 +350,7 @@ export async function cargarModuloDepartamentos() {
 
     function limpiar() {
         $('depForm').reset(); $('depId').value = ''; $('depMsg').textContent = '';
-        if (hayJerarquia) { pintarOpcionesPadre(null, null); $('depRespTxt').value = ''; }
+        if (hayJerarquia) pintarOpcionesPadre(null, null);
         $('depCancelar').classList.add('hidden'); $('depGuardar').textContent = '💾 Guardar departamento';
     }
     $('depCancelar').onclick = limpiar;
@@ -364,6 +380,13 @@ export async function cargarModuloDepartamentos() {
             msg.textContent = 'El subdepartamento debe llamarse distinto que su departamento.'; msg.className = 'text-xs text-rose-400'; return;
         }
         const id = Number($('depId').value) || null;
+        // Responsable elegido (solo con la jerarquía/rol): si la persona ya está en otro departamento, se confirma el cambio.
+        const respId = hayJerarquia ? (Number($('depResp').value) || null) : null;
+        const respNuevo = respId ? empDe(respId) : null;
+        if (respNuevo && respNuevo.departamento_id && respNuevo.departamento_id !== id) {
+            const otro = depDe(respNuevo.departamento_id);
+            if (!confirm(`${respNuevo.nombre} hoy pertenece a ${otro ? '«' + otro.nombre + '»' : 'otro departamento'}. Al guardar pasará a «${fila.nombre}» como Responsable de Departamento. ¿Continuar?`)) return;
+        }
         const res = id
             ? await supabaseClient.from('departamentos').update(fila).eq('id', id).select('id').single()
             : await supabaseClient.from('departamentos').insert([fila]).select('id').single();
@@ -377,6 +400,22 @@ export async function cargarModuloDepartamentos() {
         const idGuardado = res.data?.id ?? id;
         // Si cambió el nombre, los empleados conservan el texto viejo en empleados.departamento: se sincroniza.
         if (id) await supabaseClient.from('empleados').update({ departamento: fila.nombre }).eq('departamento_id', id);
+
+        // Responsable: se escribe en la plantilla del empleado (única fuente); el responsable anterior pasa a Colaborador.
+        if (hayJerarquia && idGuardado) {
+            const actual = emps.find((e) => e.activo && e.departamento_id === idGuardado && e.rol_departamento === 'responsable');
+            if ((actual ? actual.id : null) !== respId) {
+                if (actual) {
+                    const { error: e1 } = await supabaseClient.from('empleados').update({ rol_departamento: 'colaborador' }).eq('id', actual.id);
+                    if (e1) alert('No se pudo quitar al responsable anterior: ' + e1.message);
+                }
+                if (respId) {
+                    const { error: e2 } = await supabaseClient.from('empleados')
+                        .update({ departamento_id: idGuardado, departamento: fila.nombre, rol_departamento: 'responsable' }).eq('id', respId);
+                    if (e2) alert('Departamento guardado, pero no se pudo asignar al responsable: ' + e2.message);
+                }
+            }
+        }
 
         // Subdepartamento: nace como hijo, con el tipo y el centro de costo de este departamento.
         if (nombreSub && idGuardado) {
