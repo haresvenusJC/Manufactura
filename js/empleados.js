@@ -92,15 +92,14 @@ export async function cargarModuloEmpleados() {
         ? departamentos.map((d) => `<option value="${d.id}">${esc(rutaDepartamentoDe(d, departamentos))}</option>`).join('')
         : DEPARTAMENTOS_ANTERIORES.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
 
+    // El encabezado (título + «Nueva Alta de Empleado» + manual) es el primer hijo de la sección: el CSS global lo deja fijo arriba al desplazar la lista.
     contenedor.innerHTML = `
+        <div class="flex items-center gap-4 flex-wrap max-w-3xl mx-auto">
+            <h2 class="text-xl font-bold text-slate-100">Catálogo de Empleados</h2>
+            <button type="button" onclick="window.empAbrirNuevo && window.empAbrirNuevo()" class="bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-2 -my-1 rounded-lg text-sm cursor-pointer">Nueva Alta de Empleado</button>
+            <button type="button" onclick="window.abrirManual('#m-empleados', 'Empleados')" class="ml-auto text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+        </div>
         <div class="space-y-6 max-w-3xl mx-auto">
-            <div class="flex items-center justify-between gap-2 flex-wrap">
-                <div class="flex items-center gap-4 flex-wrap">
-                    <h2 class="text-xl font-bold text-slate-100">Catálogo de Empleados</h2>
-                    <button type="button" onclick="window.empAbrirNuevo && window.empAbrirNuevo()" class="bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-2 -my-1 rounded-lg text-sm cursor-pointer">Nueva Alta de Empleado</button>
-                </div>
-                <button type="button" onclick="window.abrirManual('#m-empleados', 'Empleados')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
-            </div>
             ${hayEstructura ? '' : `<p class="text-[11px] text-amber-300 bg-amber-950/40 border border-amber-900/60 rounded-lg px-3 py-2">Falta correr <span class="font-mono">sql/2026-10-28_departamentos_gerente_foto.sql</span> en Supabase para usar Departamentos, Gerente y foto. Mientras tanto la pantalla funciona como antes.</p>`}
 
             <!-- El formulario vive en una subventana: "Nueva Alta de Empleado" o "Editar" de la lista (window.empAbrirNuevo / empAbrirEdicion). -->
