@@ -110,16 +110,14 @@ export async function cargarModuloEmpleados() {
                         <h3 class="text-sm font-bold text-sky-300">Información personal</h3>
                         <div class="flex items-start gap-4 flex-wrap">
                             ${hayEstructura ? `
-                            <div class="shrink-0 w-44">
-                                <label class="block text-xs font-medium text-slate-400 mb-1">FOTO (opcional)</label>
-                                <div id="empFotoPreview" class="mb-2"></div>
-                                <label for="empFoto" class="inline-block cursor-pointer text-xs text-slate-200 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 hover:bg-slate-700">Elegir foto</label>
+                            <div class="shrink-0 relative" style="width:108px;height:108px">
+                                <label for="empFoto" id="empFotoPreview" class="block cursor-pointer"></label>
                                 <input type="file" id="empFoto" accept="image/*" class="hidden">
-                                <button type="button" id="empFotoQuitar" class="hidden text-[11px] text-rose-400 hover:text-rose-300 mt-1">Quitar foto</button>
+                                <button type="button" id="empFotoQuitar" title="Quitar foto" style="display:none;width:26px;height:26px;top:-6px;right:-6px" class="absolute rounded-full bg-rose-600 hover:bg-rose-500 text-white font-bold text-base leading-none items-center justify-center shadow">−</button>
                             </div>` : ''}
                             <div class="flex-1 min-w-[14rem]">
                                 <label class="block text-xs font-medium text-slate-400 mb-1">NOMBRE</label>
-                                <input type="text" id="empNombre" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-sm text-slate-100" required>
+                                <input type="text" id="empNombre" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-100" style="font-size:28px;line-height:1.2" required>
                             </div>
                         </div>
                         <div class="grid grid-cols-3 gap-4">
@@ -244,9 +242,11 @@ export async function cargarModuloEmpleados() {
         const cont = document.getElementById('empFotoPreview');
         if (!cont) return;
         const url = fotoNueva ? URL.createObjectURL(fotoNueva) : (fotoQuitar ? null : fotoUrlActual);
-        cont.innerHTML = avatarHtml(nombre || document.getElementById('empNombre').value, url, 72);
+        cont.innerHTML = url
+            ? avatarHtml(nombre || document.getElementById('empNombre').value, url, 108)
+            : '<span class="rounded-full border-2 border-dashed border-slate-600 text-slate-400 hover:text-slate-200 hover:border-slate-400 flex flex-col items-center justify-center text-center" style="width:108px;height:108px"><span style="font-size:30px;line-height:1">+</span><span class="text-xs">Agregar</span></span>';
         const btnQuitar = document.getElementById('empFotoQuitar');
-        if (btnQuitar) btnQuitar.classList.toggle('hidden', !(fotoNueva || (fotoRutaActual && !fotoQuitar)));
+        if (btnQuitar) btnQuitar.style.display = (fotoNueva || (fotoRutaActual && !fotoQuitar)) ? 'flex' : 'none';
     }
 
     if (hayEstructura) {

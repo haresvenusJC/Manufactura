@@ -6,6 +6,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/empleados.js`, `version.json`, `CLAUDE.md`. **Empleados: foto y nombre (captura del usuario 2026-10-31):** se quitó la etiqueta «FOTO (opcional)» y los botones «Elegir foto»/«Quitar foto»; el espacio de la foto crece 50 % (72→108 px). Sin foto: círculo punteado con «+ Agregar» centrado (clic = elegir archivo); con foto: globo pequeño «−» arriba a la derecha que la quita (`#empFotoQuitar`, mismo handler). «Nombre» a 28 px (el doble). Solo sintaxis verificada; sin probar renderizado.
+
 - Archivos tocados (lo último): `js/empleados.js`, `version.json`, `CLAUDE.md`. **Empleados: se quitó el texto «No file chosen» del navegador** (pedido del usuario 2026-10-31): el campo de archivo nativo queda oculto y la foto se elige con el botón «Elegir foto» (`<label for="empFoto">`; mismo input, misma lógica). Solo sintaxis verificada.
 
 - Archivos tocados (lo último): `js/empleados.js`, `version.json`, `CLAUDE.md`. **Empleados, ajustes de la plantilla (captura del usuario 2026-10-30):** se quitaron los emojis del título «Catálogo de Empleados» y de las cajas «Información personal» / «Información laboral»; la foto queda a la izquierda con «Elegir archivo» y «Quitar foto» DEBAJO de ella, y el campo «Nombre» pasa a la derecha de la foto (ocupa el resto del ancho; en pantallas angostas baja). Solo sintaxis verificada; sin probar renderizado.
