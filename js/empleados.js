@@ -113,7 +113,8 @@ export async function cargarModuloEmpleados() {
                             <div class="shrink-0 w-44">
                                 <label class="block text-xs font-medium text-slate-400 mb-1">FOTO (opcional)</label>
                                 <div id="empFotoPreview" class="mb-2"></div>
-                                <input type="file" id="empFoto" accept="image/*" class="w-full text-xs text-slate-300 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-slate-700 file:bg-slate-800 file:text-slate-200">
+                                <label for="empFoto" class="inline-block cursor-pointer text-xs text-slate-200 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 hover:bg-slate-700">Elegir foto</label>
+                                <input type="file" id="empFoto" accept="image/*" class="hidden">
                                 <button type="button" id="empFotoQuitar" class="hidden text-[11px] text-rose-400 hover:text-rose-300 mt-1">Quitar foto</button>
                             </div>` : ''}
                             <div class="flex-1 min-w-[14rem]">

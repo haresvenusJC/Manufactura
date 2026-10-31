@@ -6,6 +6,8 @@ Vanilla JS (ES modules, sin build) + Supabase (Postgres/PostgREST/Auth) + Tailwi
 
 ## Última sesión
 
+- Archivos tocados (lo último): `js/empleados.js`, `version.json`, `CLAUDE.md`. **Empleados: se quitó el texto «No file chosen» del navegador** (pedido del usuario 2026-10-31): el campo de archivo nativo queda oculto y la foto se elige con el botón «Elegir foto» (`<label for="empFoto">`; mismo input, misma lógica). Solo sintaxis verificada.
+
 - Archivos tocados (lo último): `js/empleados.js`, `version.json`, `CLAUDE.md`. **Empleados, ajustes de la plantilla (captura del usuario 2026-10-30):** se quitaron los emojis del título «Catálogo de Empleados» y de las cajas «Información personal» / «Información laboral»; la foto queda a la izquierda con «Elegir archivo» y «Quitar foto» DEBAJO de ella, y el campo «Nombre» pasa a la derecha de la foto (ocupa el resto del ancho; en pantallas angostas baja). Solo sintaxis verificada; sin probar renderizado.
 
 - Archivos tocados (lo último): `js/empleados.js`, `version.json`, `CLAUDE.md`. **Horario laboral: el Tab ya no regresa a la primera celda y Entrada/Salida aceptan teclear** (pedido del usuario 2026-10-30). Causa: cada cambio reconstruía toda la tabla y destruía el campo con foco. Ahora la tabla se arma una vez y los cambios actualizan las filas en sitio (`pintarFila`, `actualizarTotalHorario`); solo se reconstruye al cargar/editar/limpiar/atajo Lun–Vie. Entrada y Salida son campos de texto con lista de sugerencias cada 15 min (`<datalist id="empHoras24">`) y `normalizarHora` ("9"→09:00, "930"→09:30, "1730"→17:30, "9:30"); Enter confirma sin enviar el formulario. Solo sintaxis verificada; sin probar renderizado.
