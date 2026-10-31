@@ -13,7 +13,8 @@ const ENTIDADES = {
     producto: { vista: 'alta-articulo', titulo: 'Alta de artículo', campoNombre: 'prodNombre', nuevo: 'btnNuevoModo' },
     cliente: { vista: 'clientes', titulo: 'Clientes', campoNombre: 'cliNombre', nuevo: 'cliNuevo',
         cargar: async () => { const m = await import('./clientes.js'); await m.cargarModuloClientes('clientes'); } },
-    empleado: { vista: 'empleados', titulo: 'Empleados', campoNombre: 'empNombre', nuevo: 'btnCancelarEdicionEmp', conservarTitulo: true,
+    // Empleados: su formulario ya es una subventana propia (window.empAbrirNuevo), no se muda la sección.
+    empleado: { vista: 'empleados', titulo: 'Empleados', propia: true,
         cargar: async () => { const m = await import('./empleados.js'); await m.cargarModuloEmpleados(); } },
     proveedor: { vista: 'proveedores', titulo: 'Proveedores', campoNombre: 'provNombre', nuevo: 'btnLimpiarProveedor' },
 };
@@ -31,8 +32,22 @@ window.addEventListener('registro-guardado', (e) => {
     try { onGuardado?.({ id: e.detail.id }); } catch (err) { console.error('onGuardado (alta vinculada):', err); }
 });
 
+window.addEventListener('alta-vinculada-cerrada', (e) => {
+    if (abierta && abierta.entidad === e.detail.entidad && abierta.propia) abierta = null;
+});
+
 export function abrirAltaVinculada(entidad, { nombre = '', onGuardado } = {}) {
     const cfg = ENTIDADES[entidad];
+    if (cfg && cfg.propia) {   // catálogo con subventana propia
+        if (abierta) { alert('Ya hay una alta abierta; termínala o ciérrala primero.'); return; }
+        (async () => {
+            try { await cfg.cargar(); } catch (e) { console.warn('alta vinculada (cargar):', e); }
+            if (typeof window.empAbrirNuevo !== 'function') { alert('No se encontró la pantalla de alta de este catálogo.'); return; }
+            abierta = { entidad, propia: true, cerrar: () => window.empCerrarFormulario && window.empCerrarFormulario(), onGuardado };
+            window.empAbrirNuevo(nombre);
+        })();
+        return;
+    }
     const seccion = cfg && document.getElementById(`view-${cfg.vista}`);
     if (!cfg || !seccion) { alert('No se encontró la pantalla de alta de este catálogo.'); return; }
     if (abierta) { alert('Ya hay una alta abierta; termínala o ciérrala primero.'); return; }

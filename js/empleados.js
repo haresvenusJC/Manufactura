@@ -94,13 +94,23 @@ export async function cargarModuloEmpleados() {
 
     contenedor.innerHTML = `
         <div class="space-y-6 max-w-3xl mx-auto">
-            <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
-                <div class="flex items-center justify-between gap-2 flex-wrap mb-1">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+                <div class="flex items-center gap-4 flex-wrap">
                     <h2 class="text-xl font-bold text-slate-100">Catálogo de Empleados</h2>
-                    <button type="button" onclick="window.abrirManual('#m-empleados', 'Empleados')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+                    <button type="button" onclick="window.empAbrirNuevo && window.empAbrirNuevo()" class="bg-emerald-500 hover:bg-emerald-400 text-white font-semibold px-6 py-2 -my-1 rounded-lg text-sm cursor-pointer">Nueva Alta de Empleado</button>
+                </div>
+                <button type="button" onclick="window.abrirManual('#m-empleados', 'Empleados')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 px-2.5 py-1 rounded-lg whitespace-nowrap cursor-pointer">📖 Cómo llenar esta pantalla</button>
+            </div>
+            ${hayEstructura ? '' : `<p class="text-[11px] text-amber-300 bg-amber-950/40 border border-amber-900/60 rounded-lg px-3 py-2">Falta correr <span class="font-mono">sql/2026-10-28_departamentos_gerente_foto.sql</span> en Supabase para usar Departamentos, Gerente y foto. Mientras tanto la pantalla funciona como antes.</p>`}
+
+            <!-- El formulario vive en una subventana: "Nueva Alta de Empleado" o "Editar" de la lista (window.empAbrirNuevo / empAbrirEdicion). -->
+            <div id="empFormWrap" class="hidden fixed inset-0 bg-slate-950/40 justify-center items-start overflow-y-auto p-3">
+            <div class="w-full max-w-3xl my-2 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-2xl">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                    <h3 id="empFormTitulo" class="text-base font-semibold text-emerald-400">Nueva alta de empleado</h3>
+                    <button type="button" id="empFormCerrar" class="text-slate-400 hover:text-slate-100 text-xl leading-none" title="Cerrar">&times;</button>
                 </div>
                 <p class="text-xs text-slate-400 mb-4">Captura el sueldo semanal y las horas semanales de cada empleado; el costo por hora se calcula automáticamente para usarse en los cronómetros de producción.</p>
-                ${hayEstructura ? '' : `<p class="text-[11px] text-amber-300 bg-amber-950/40 border border-amber-900/60 rounded-lg px-3 py-2 mb-4">Falta correr <span class="font-mono">sql/2026-10-28_departamentos_gerente_foto.sql</span> en Supabase para usar Departamentos, Gerente y foto. Mientras tanto la pantalla funciona como antes.</p>`}
 
                 <form id="formEmpleado" class="space-y-5">
                     <input type="hidden" id="empIdEditando" value="">
@@ -216,11 +226,12 @@ export async function cargarModuloEmpleados() {
                         <button type="submit" id="btnGuardarEmpleado" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-4 rounded-lg text-sm shadow-lg">
                             💾 Guardar Empleado
                         </button>
-                        <button type="button" id="btnCancelarEdicionEmp" class="bg-slate-800 hover:bg-slate-700 text-slate-200 py-2 px-4 rounded-lg text-sm border border-slate-700 hidden">
-                            Cancelar edición
+                        <button type="button" id="btnCancelarEdicionEmp" class="bg-slate-800 hover:bg-slate-700 text-slate-200 py-2 px-4 rounded-lg text-sm border border-slate-700">
+                            Cancelar
                         </button>
                     </div>
                 </form>
+            </div>
             </div>
 
             <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
@@ -231,6 +242,11 @@ export async function cargarModuloEmpleados() {
             </div>
         </div>
     `;
+
+    // La subventana del formulario se monta a nivel de <body> (la pantalla se vuelve a armar cada vez que se entra).
+    document.querySelectorAll('#empFormWrap').forEach((w) => { if (!contenedor.contains(w)) w.remove(); });
+    const wrapForm = contenedor.querySelector('#empFormWrap');
+    if (wrapForm) document.body.appendChild(wrapForm);
 
     // Estado de la foto del formulario
     let fotoNueva = null;       // Blob ya comprimido, pendiente de subir al guardar
@@ -540,9 +556,8 @@ export async function cargarModuloEmpleados() {
                     pintarVistaFoto(emp.nombre);
                 }
                 actualizarPreviewCostoHora();
-                document.getElementById('btnCancelarEdicionEmp').classList.remove('hidden');
                 document.getElementById('btnGuardarEmpleado').textContent = '💾 Actualizar Empleado';
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                abrirFormulario('Editar empleado');
             };
         });
 
@@ -560,7 +575,6 @@ export async function cargarModuloEmpleados() {
         document.getElementById('empIdEditando').value = '';
         document.getElementById('empHoras').value = 48;
         horario = []; renderHorario();
-        document.getElementById('btnCancelarEdicionEmp').classList.add('hidden');
         document.getElementById('btnGuardarEmpleado').textContent = '💾 Guardar Empleado';
         if (hayEstructura) {
             fotoNueva = null; fotoQuitar = false; fotoRutaActual = null; fotoUrlActual = null;
@@ -571,7 +585,29 @@ export async function cargarModuloEmpleados() {
         actualizarPreviewCostoHora();
     }
 
-    document.getElementById('btnCancelarEdicionEmp').onclick = resetFormulario;
+    // Abrir / cerrar la subventana del formulario. Al cerrarla se avisa a vinculos.js (alta vinculada desde otra pantalla).
+    function abrirFormulario(titulo) {
+        const w = document.getElementById('empFormWrap');
+        if (!w) return;
+        document.getElementById('empFormTitulo').textContent = titulo;
+        w.style.zIndex = typeof window.zSubventanaSiguiente === 'function' ? window.zSubventanaSiguiente() : 90;
+        w.classList.remove('hidden'); w.classList.add('flex');
+        setTimeout(() => document.getElementById('empNombre')?.focus(), 0);
+    }
+    function cerrarFormulario() {
+        const w = document.getElementById('empFormWrap');
+        if (w) { w.classList.remove('flex'); w.classList.add('hidden'); }
+        resetFormulario();
+        window.dispatchEvent(new CustomEvent('alta-vinculada-cerrada', { detail: { entidad: 'empleado' } }));
+    }
+    window.empAbrirNuevo = (nombre = '') => {
+        resetFormulario();
+        abrirFormulario('Nueva alta de empleado');
+        if (nombre) { const c = document.getElementById('empNombre'); if (c) { c.value = nombre; if (hayEstructura && !fotoNueva && !fotoUrlActual) pintarVistaFoto(nombre); } }
+    };
+    window.empCerrarFormulario = cerrarFormulario;
+    document.getElementById('btnCancelarEdicionEmp').onclick = cerrarFormulario;
+    document.getElementById('empFormCerrar').onclick = cerrarFormulario;
 
     document.getElementById('formEmpleado').onsubmit = async (e) => {
         e.preventDefault();
@@ -662,7 +698,7 @@ export async function cargarModuloEmpleados() {
         // Si se abrió desde otra pantalla («Crear y editar…» del Responsable de un departamento), se le devuelve este empleado.
         if (hayRol) await homologarGerentes();
         if (empleadoId) avisarRegistroGuardado('empleado', empleadoId);
-        resetFormulario();
+        cerrarFormulario();
         cargarLista();
     };
 
